@@ -113,4 +113,30 @@ Build Companion source code is available under the [Apache License 2.0](LICENSE)
 
 Unless a file or asset states otherwise, the current code-generated placeholder visuals are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
 
+## Contributing
+
+Pull requests are welcome. Build Companion is still experimental, so focused changes that preserve the product principles are easier to review and merge than broad rewrites.
+
+Before starting a change that introduces a dependency, changes persistence compatibility, expands data collection, or materially changes product direction, open a GitHub issue to discuss the tradeoffs first.
+
+### Minimum quality for a pull request
+
+Every PR should:
+
+- build successfully with `swift build`;
+- pass all behavioral checks with `swift run CompanionCoreChecks`;
+- add or update checks for changed domain, persistence, placement, or presentation behavior;
+- include manual verification notes for AppKit or SwiftUI interaction changes;
+- update `docs/changelog.md` using the repository's existing entry format;
+- update relevant documentation when behavior or architecture changes;
+- preserve local-first privacy boundaries and avoid collecting user content by default;
+- preserve accessibility behavior, including keyboard access and Reduce Motion where applicable;
+- preserve existing save files or include an explicit, tested migration strategy.
+
+Keep PRs scoped to one coherent outcome. The description should explain the user problem, the chosen approach, important tradeoffs, and exactly how the change was tested. Screenshots or a short recording are encouraged for visible interface changes.
+
+External contributors may use their normal Git workflow in a fork. Maintainer and agent commits in this repository follow [the project Git workflow](docs/git_workflow.md).
+
+Unless explicitly stated otherwise, contributions submitted for inclusion are accepted under the project's [Apache License 2.0](LICENSE).
+
 Build Companion is currently an experiment. Interfaces, save formats, behavior rates, and visual presentation may change while the core experience is being validated.

@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-15 > README.md > contributing section > Welcomes focused pull requests and defines build, check, coverage, changelog, documentation, privacy, accessibility, save compatibility, review evidence, and licensing expectations.**
 - **2026-07-15 > LICENSE > Apache License 2.0 terms > Adds the complete permissive project license with redistribution conditions and contributor patent grant.**
 - **2026-07-15 > README.md > license section > Summarizes Apache-2.0 usage and clarifies that future artwork may declare separate asset-specific terms.**
 - **2026-07-15 > README.md > project overview, source usage, verification, and beta distribution > Adds the public project entry point with product direction, current capabilities, local run instructions, checks, documentation links, and planned GitHub Release DMGs.**
