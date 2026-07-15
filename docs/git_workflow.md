@@ -55,6 +55,12 @@ git push --set-upstream origin feature/<description>
 ## Pull requests and releases
 
 - Open pull requests against `main`.
+- Keep pull requests concise and review-focused:
+  - use a clear title that describes the outcome;
+  - summarize only the material changes;
+  - list the checks that were run;
+  - include caveats only when they affect review or merge decisions.
+- Omit commit-by-commit narration, implementation diaries, repeated roadmap content, and generic boilerplate.
 - Run the full available test suite before merge.
 - Prefer squash merging unless preserving a sequence of independently valuable commits improves the history.
 - Create release artifacts from a clean, tagged commit on `main`.

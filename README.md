@@ -1,8 +1,12 @@
 # Build Companion
 
-Build Companion is an experimental macOS desktop pet designed to feel like a small, persistent companion rather than another status widget.
+As an MMO fan whose been itching to find some outlet, I figured having a pet that actually feels like a pet rather than some superficial toy was in order. No idea where this is going to go - but I'm thinking an eventual evolution into a Battle bot - maybe even multiplayer over time.
 
-The project starts with coding activity—especially Codex—but its longer-term goal is broader: a private, local companion that can react to work across IDEs, agents, and other explicitly connected applications. The pet has its own needs, preferences, moods, and routines, and its behavior should remain meaningful even when no integration is active.
+The rest of this readme has been written by AI, but read and edited by me.
+
+Build Companion is an experimental macOS desktop pet designed to feel like a small, persistent companion rather than another status widget. The immediate step is to get the pet to react to Codex activity — but its longer-term goal is broader: a private, local companion that can react to work across IDEs, agents, and other explicitly connected applications. The pet has its own needs, preferences, moods, and routines, and its behavior should remain meaningful even when no integration is active.
+
+What remains to be decided is whether or not the pet will be context general-context aware or only where its connected to specific apps. (Easier to do in the world of agentic engineering, but harder when looking at broader knowledge work tasks.)
 
 ## What we are building
 
