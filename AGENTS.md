@@ -1,6 +1,6 @@
 # Repo Guidelines 
 
-1. All documentation is in the `docs/` folder.
+1. Detailed project documentation belongs in the `docs/` folder. Standard repository entry-point and governance files such as `README.md`, `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md` may live at the repository root.
 2. Do not delete any database files
 3. Ensure all git commands are reversible. Commit in small logical chunks using the workflow described below.
 4. Run available tests before committing. Eg: npm run build, pnpm test, etc... 
