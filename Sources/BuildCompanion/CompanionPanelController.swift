@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 final class CompanionPanelController {
-    private static let panelSize = CGSize(width: 168, height: 168)
+    private static let panelSize = CGSize(width: 196, height: 196)
 
     private let panel: CompanionPanel
 
@@ -12,7 +12,7 @@ final class CompanionPanelController {
         panel.isVisible
     }
 
-    init() {
+    init(session: PetSession) {
         panel = CompanionPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -20,7 +20,7 @@ final class CompanionPanelController {
             defer: false
         )
 
-        configurePanel()
+        configurePanel(session: session)
         placeOnMainScreen()
     }
 
@@ -32,7 +32,7 @@ final class CompanionPanelController {
         panel.orderOut(nil)
     }
 
-    private func configurePanel() {
+    private func configurePanel(session: PetSession) {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -40,7 +40,7 @@ final class CompanionPanelController {
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentView = NSHostingView(rootView: PlaceholderPetView())
+        panel.contentView = NSHostingView(rootView: PlaceholderPetView(session: session))
     }
 
     private func placeOnMainScreen() {

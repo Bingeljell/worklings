@@ -1,5 +1,10 @@
 # Changelog
 
+- **2026-07-15 > Sources/CompanionCore/PetPresentation.swift > make and reaction thought mapping > Converts semantic pet mood and interactions into testable placeholder face, palette, label, and thought content.**
+- **2026-07-15 > Sources/BuildCompanion/PetSession.swift > advance, perform, persist, and reaction scheduling > Connects the Pet Brain to a live session, preserves corrupt saves, stores state in Application Support, and clears temporary reactions.**
+- **2026-07-15 > Sources/BuildCompanion/AppDelegate.swift > menuNeedsUpdate and care actions > Adds live need summaries, favourite markers, and feed, play, pet, and sleep controls to the menu-bar interface.**
+- **2026-07-15 > Sources/BuildCompanion/CompanionPanelController.swift > init and configurePanel > Injects the live pet session into a larger placeholder panel that can display thought content.**
+- **2026-07-15 > Sources/BuildCompanion/PlaceholderPetView.swift > mood presentation and tap interaction > Adds mood palettes, expressive faces, thought bubbles, and click-to-pet feedback to the temporary companion.**
 - **2026-07-15 > Sources/CompanionCore/PetState.swift > PetNeeds, PetState, mood, actions, and reactions > Defines clamped versioned pet state, preferences, semantic moods, and care interaction types.**
 - **2026-07-15 > Sources/CompanionCore/PetBrain.swift > advance and perform > Adds deterministic need progression, offline clamping, distress penalties, and preference-aware care outcomes.**
 - **2026-07-15 > Sources/CompanionCore/PetStateFileStore.swift > load and save > Adds version-checked JSON loading and atomic local persistence without overwriting unreadable saves.**
