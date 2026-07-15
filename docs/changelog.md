@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-15 > docs/pet_brain.md > Pet Brain vertical-slice plan > Defines needs, time progression, care interactions, persistence, placeholder presentation, test coverage, and review criteria for the next four commits.**
 - **2026-07-15 > Package.swift > package manifest > Adds a dependency-free macOS Swift package with application, core library, and executable check targets.**
 - **2026-07-15 > Sources/CompanionCore/ScreenPlacement.swift > defaultOrigin and clampedOrigin > Calculates safe companion-window positions within the usable screen frame.**
 - **2026-07-15 > Sources/BuildCompanion/BuildCompanionApp.swift > main > Starts Build Companion as a menu-bar macOS application.**
