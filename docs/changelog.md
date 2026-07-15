@@ -1,5 +1,13 @@
 # Changelog
 
+- **2026-07-15 > Sources/BuildCompanion/CompanionHostingView.swift > mouse tracking, click classification, and dragging > Gives AppKit ownership of hover, click, and drag behavior so moving Pixel cannot open the care card.**
+- **2026-07-15 > Sources/BuildCompanion/HoverSummaryPanelController.swift > delayed summary presentation and edge placement > Adds a styled click-through hover summary that stays inside the active display.**
+- **2026-07-15 > Sources/BuildCompanion/CarePopoverController.swift > toggle, show, and close > Adds a transient pet-anchored interactive popover with native dismissal behavior.**
+- **2026-07-15 > Sources/BuildCompanion/PetCareCardView.swift > need rows, care actions, and preferences > Adds exact need progress, shared action availability, selectable favourites, reaction feedback, and accessibility labels.**
+- **2026-07-15 > Sources/BuildCompanion/PetSession.swift > careStatus and guarded perform > Exposes shared care status and prevents unavailable care actions from bypassing interface state.**
+- **2026-07-15 > Sources/BuildCompanion/CompanionPanelController.swift > pointer, hover, and care-card coordination > Replaces background dragging and SwiftUI taps with delayed hover and click-versus-drag AppKit coordination.**
+- **2026-07-15 > Sources/BuildCompanion/PlaceholderPetView.swift > interaction ownership and accessibility hint > Removes click-to-pet and exposes the natural-language care summary to accessibility technologies.**
+- **2026-07-15 > Sources/BuildCompanion/AppDelegate.swift > shared care availability > Keeps menu-bar Feed, Play, and Sleep availability aligned with the pet care card and PetSession guardrails.**
 - **2026-07-15 > Sources/CompanionCore/PetState.swift > PetNeeds decoding and clamping > Routes decoded need values through finite `0...100` domain clamping.**
 - **2026-07-15 > Sources/CompanionCore/PetCareStatus.swift > urgency, summaries, and action availability > Centralizes need thresholds, priority ordering, two-condition hover language, ambient alerts, and care-action rules.**
 - **2026-07-15 > Sources/CompanionCore/PetPresentation.swift > happy mood presentation > Suppresses persistent happy thought bubbles in line with the interaction feedback policy.**

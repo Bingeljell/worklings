@@ -47,6 +47,10 @@ final class PetSession: ObservableObject {
         reactionTask?.cancel()
     }
 
+    var careStatus: PetCareStatus {
+        PetCareStatus.make(state: state)
+    }
+
     func advance(to now: Date = Date()) {
         let nextState = brain.advance(state, to: now)
         guard nextState != state else {
@@ -58,6 +62,22 @@ final class PetSession: ObservableObject {
     }
 
     func perform(_ action: PetAction, at now: Date = Date()) {
+        let actionKind: PetCareActionKind
+        switch action {
+        case .feed:
+            actionKind = .feed
+        case .play:
+            actionKind = .play
+        case .pet:
+            actionKind = .pet
+        case .sleep:
+            actionKind = .sleep
+        }
+
+        guard careStatus.availability(for: actionKind, state: state).isEnabled else {
+            return
+        }
+
         let result = brain.perform(action, on: state, at: now)
         state = result.state
         reaction = result.reaction

@@ -10,6 +10,10 @@ struct PlaceholderPetView: View {
         PetPresentation.make(state: session.state, reaction: session.reaction)
     }
 
+    private var careStatus: PetCareStatus {
+        session.careStatus
+    }
+
     var body: some View {
         ZStack {
             Ellipse()
@@ -52,9 +56,6 @@ struct PlaceholderPetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
-        .onTapGesture {
-            session.perform(.pet)
-        }
         .onAppear {
             guard !reduceMotion else {
                 return
@@ -66,6 +67,7 @@ struct PlaceholderPetView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: presentation)
         .accessibilityLabel("\(session.state.name), \(presentation.moodLabel.lowercased())")
+        .accessibilityHint(careStatus.hoverSummary)
     }
 
     private var paletteColors: [Color] {

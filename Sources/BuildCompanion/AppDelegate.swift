@@ -10,6 +10,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var petHeaderMenuItem: NSMenuItem?
     private var needsMenuItem: NSMenuItem?
     private var warningMenuItem: NSMenuItem?
+    private var feedMenuItem: NSMenuItem?
+    private var playMenuItem: NSMenuItem?
+    private var sleepMenuItem: NSMenuItem?
     private var foodMenuItems: [NSMenuItem] = []
     private var playMenuItems: [NSMenuItem] = []
 
@@ -48,8 +51,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         warningMenuItem = warningItem
 
         menu.addItem(.separator())
-        menu.addItem(makeFoodMenuItem())
-        menu.addItem(makePlayMenuItem())
+        let feedMenuItem = makeFoodMenuItem()
+        menu.addItem(feedMenuItem)
+        self.feedMenuItem = feedMenuItem
+
+        let playMenuItem = makePlayMenuItem()
+        menu.addItem(playMenuItem)
+        self.playMenuItem = playMenuItem
 
         let petItem = NSMenuItem(
             title: "Pet Pixel",
@@ -66,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         sleepItem.target = self
         menu.addItem(sleepItem)
+        sleepMenuItem = sleepItem
 
         menu.addItem(.separator())
         let visibilityItem = NSMenuItem(
@@ -98,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         petSession.advance()
         let state = petSession.state
         let presentation = PetPresentation.make(state: state, reaction: petSession.reaction)
+        let status = petSession.careStatus
 
         petHeaderMenuItem?.title = "\(state.name) — \(presentation.moodLabel)"
         needsMenuItem?.title = [
@@ -109,6 +119,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         warningMenuItem?.title = petSession.persistenceWarning ?? ""
         warningMenuItem?.isHidden = petSession.persistenceWarning == nil
+
+        apply(
+            status.availability(for: .feed, state: state),
+            to: feedMenuItem
+        )
+        apply(
+            status.availability(for: .play, state: state),
+            to: playMenuItem
+        )
+        apply(
+            status.availability(for: .sleep, state: state),
+            to: sleepMenuItem
+        )
 
         for menuItem in foodMenuItems {
             guard let rawValue = menuItem.representedObject as? String,
@@ -125,6 +148,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             menuItem.state = activity == state.preferences.favouritePlayActivity ? .on : .off
         }
+    }
+
+    private func apply(
+        _ availability: PetActionAvailability,
+        to menuItem: NSMenuItem?
+    ) {
+        menuItem?.isEnabled = availability.isEnabled
+        menuItem?.toolTip = availability.explanation
     }
 
     private func makeFoodMenuItem() -> NSMenuItem {
