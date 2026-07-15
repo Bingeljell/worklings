@@ -1,5 +1,8 @@
 # Changelog
 
+- **2026-07-15 > Sources/CompanionCore/PetState.swift > PetNeeds, PetState, mood, actions, and reactions > Defines clamped versioned pet state, preferences, semantic moods, and care interaction types.**
+- **2026-07-15 > Sources/CompanionCore/PetBrain.swift > advance and perform > Adds deterministic need progression, offline clamping, distress penalties, and preference-aware care outcomes.**
+- **2026-07-15 > Sources/CompanionCore/PetStateFileStore.swift > load and save > Adds version-checked JSON loading and atomic local persistence without overwriting unreadable saves.**
 - **2026-07-15 > docs/pet_brain.md > Pet Brain vertical-slice plan > Defines needs, time progression, care interactions, persistence, placeholder presentation, test coverage, and review criteria for the next four commits.**
 - **2026-07-15 > Package.swift > package manifest > Adds a dependency-free macOS Swift package with application, core library, and executable check targets.**
 - **2026-07-15 > Sources/CompanionCore/ScreenPlacement.swift > defaultOrigin and clampedOrigin > Calculates safe companion-window positions within the usable screen frame.**
