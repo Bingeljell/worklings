@@ -1,0 +1,15 @@
+# macOS metadata
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Local build and release products
+build/
+*.dmg

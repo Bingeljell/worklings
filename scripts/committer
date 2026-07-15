@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+# Disable glob expansion to handle brackets in file paths
+set -f
+usage() {
+  printf 'Usage: %s [--force] [--allow-main] "commit message" "file" ["file" ...]\n' "$(basename "$0")" >&2
+  exit 2
+}
+
+if [ "$#" -lt 2 ]; then
+  usage
+fi
+
+force_delete_lock=false
+allow_main=false
+while [ "$#" -gt 0 ]; do
+  case "${1:-}" in
+    --force)
+      force_delete_lock=true
+      shift
+      ;;
+    --allow-main)
+      allow_main=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      printf 'Error: unknown option: %s\n' "$1" >&2
+      usage
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ "$#" -lt 2 ]; then
+  usage
+fi
+
+commit_message=$1
+shift
+
+if [[ "$commit_message" != *[![:space:]]* ]]; then
+  printf 'Error: commit message must not be empty\n' >&2
+  exit 1
+fi
+
+if [ -e "$commit_message" ]; then
+  printf 'Error: first argument looks like a file path ("%s"); provide the commit message first\n' "$commit_message" >&2
+  exit 1
+fi
+
+if [ "$#" -eq 0 ]; then
+  usage
+fi
+
+files=("$@")
+
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  printf 'Error: not inside a git repository\n' >&2
+  exit 1
+fi
+
+# symbolic-ref works before the repository has its first commit, whereas
+# rev-parse --abbrev-ref HEAD does not. It also lets us reject detached HEADs.
+current_branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+if [ -z "$current_branch" ]; then
+  printf 'Error: refusing to commit from a detached HEAD\n' >&2
+  exit 1
+fi
+
+if [ "$allow_main" = false ] && { [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; }; then
+  printf 'Error: refusing to commit directly to %s (use a feature branch or pass --allow-main)\n' "$current_branch" >&2
+  exit 1
+fi
+
+# Disallow "." because it stages the entire repository and defeats the helper's safety guardrails.
+for file in "${files[@]}"; do
+  if [ "$file" = "." ]; then
+    printf 'Error: "." is not allowed; list specific paths instead\n' >&2
+    exit 1
+  fi
+done
+
+# Prevent staging node_modules even if a path is forced.
+for file in "${files[@]}"; do
+  case "$file" in
+    *node_modules* | */node_modules | */node_modules/* | node_modules)
+      printf 'Error: node_modules paths are not allowed: %s\n' "$file" >&2
+      exit 1
+      ;;
+  esac
+done
+
+last_commit_error=''
+
+run_git_commit() {
+  local stderr_log
+  stderr_log=$(mktemp)
+  if git commit -m "$commit_message" --only -- "${files[@]}" 2> >(tee "$stderr_log" >&2); then
+    rm -f "$stderr_log"
+    last_commit_error=''
+    return 0
+  fi
+
+  last_commit_error=$(cat "$stderr_log")
+  rm -f "$stderr_log"
+  return 1
+}
+
+is_lock_stale() {
+  local lock_path="$1"
+  local mtime=''
+  local now
+  local age
+
+  if [ ! -e "$lock_path" ]; then
+    return 1
+  fi
+
+  if mtime=$(stat -f %m "$lock_path" 2>/dev/null); then
+    :
+  elif mtime=$(stat -c %Y "$lock_path" 2>/dev/null); then
+    :
+  else
+    return 1
+  fi
+
+  now=$(date +%s)
+  age=$((now - mtime))
+
+  # Treat recent lock files as active to avoid disrupting legitimate git processes.
+  if [ "$age" -lt 120 ]; then
+    return 1
+  fi
+
+  # If a process still has the lock file open, do not remove it.
+  if command -v lsof >/dev/null 2>&1 && lsof "$lock_path" >/dev/null 2>&1; then
+    return 1
+  fi
+
+  return 0
+}
+
+for file in "${files[@]}"; do
+  if [ ! -e "$file" ]; then
+    if ! git ls-files --error-unmatch -- "$file" >/dev/null 2>&1; then
+      printf 'Error: file not found: %s\n' "$file" >&2
+      exit 1
+    fi
+  fi
+done
+
+git add --force -- "${files[@]}"
+
+if git diff --staged --quiet; then
+  printf 'Warning: no staged changes detected for: %s\n' "${files[*]}" >&2
+  exit 1
+fi
+
+committed=false
+if run_git_commit; then
+  committed=true
+elif [ "$force_delete_lock" = true ]; then
+  lock_path=$(
+    printf '%s\n' "$last_commit_error" |
+      awk -F"'" '/Unable to create .*\.git\/index\.lock/ { print $2; exit }'
+  )
+
+  if [ -n "$lock_path" ] && [ -e "$lock_path" ]; then
+    if is_lock_stale "$lock_path"; then
+      rm -f "$lock_path"
+      printf 'Removed stale git lock: %s\n' "$lock_path" >&2
+      if run_git_commit; then
+        committed=true
+      fi
+    else
+      printf 'Refusing to remove non-stale git lock: %s\n' "$lock_path" >&2
+      exit 1
+    fi
+  fi
+fi
+
+if [ "$committed" = false ]; then
+  exit 1
+fi
+
+printf 'Committed "%s" with %d files\n' "$commit_message" "${#files[@]}"
