@@ -107,4 +107,10 @@ Near-term work focuses on proving the care loop and desktop interaction before a
 - [Git workflow](docs/git_workflow.md)
 - [Changelog](docs/changelog.md)
 
+## License
+
+Build Companion source code is available under the [Apache License 2.0](LICENSE). In practical terms, the license permits use, modification, and redistribution—including commercial use—subject to its notice and attribution conditions, and includes an explicit patent grant from contributors.
+
+Unless a file or asset states otherwise, the current code-generated placeholder visuals are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
+
 Build Companion is currently an experiment. Interfaces, save formats, behavior rates, and visual presentation may change while the core experience is being validated.
