@@ -15,8 +15,47 @@ enum PetPersistenceChecks {
 
         checkMissingFile(store: store, context: &context)
         checkRoundTrip(store: store, context: &context)
+        checkDecodedNeedClamping(store: store, context: &context)
         checkUnsupportedSchema(store: store, context: &context)
         checkCorruptFilePreservation(store: store, context: &context)
+    }
+
+    private static func checkDecodedNeedClamping(
+        store: PetStateFileStore,
+        context: inout CheckContext
+    ) {
+        let json = """
+        {
+          "lastUpdatedAt": 0,
+          "name": "Pixel",
+          "needs": {
+            "energy": 140,
+            "happiness": -30,
+            "hunger": -20,
+            "trust": 500
+          },
+          "preferences": {
+            "favouriteFood": "berries",
+            "favouritePlayActivity": "puzzle"
+          },
+          "schemaVersion": 1
+        }
+        """
+
+        do {
+            try Data(json.utf8).write(to: store.fileURL, options: .atomic)
+            guard let state = try store.load() else {
+                context.expect(false, "out-of-range fixture should decode")
+                return
+            }
+            context.expectEqual(
+                state.needs,
+                PetNeeds(hunger: 0, energy: 100, happiness: 0, trust: 100),
+                "decoded needs are clamped through the domain initializer"
+            )
+        } catch {
+            context.expect(false, "out-of-range fixture should load safely: \(error)")
+        }
     }
 
     private static func checkMissingFile(

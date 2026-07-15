@@ -4,9 +4,21 @@ import Foundation
 enum PetPresentationChecks {
     static func run(context: inout CheckContext) {
         checkContentPresentation(context: &context)
+        checkHappyPresentationIsQuiet(context: &context)
         checkNeedPresentations(context: &context)
         checkReactionOverride(context: &context)
         checkTiredReaction(context: &context)
+    }
+
+    private static func checkHappyPresentationIsQuiet(context: inout CheckContext) {
+        let presentation = PetPresentation.make(
+            state: makeState(
+                needs: PetNeeds(hunger: 10, energy: 80, happiness: 90, trust: 80)
+            )
+        )
+
+        context.expectEqual(presentation.moodLabel, "Happy", "happy mood has label")
+        context.expectEqual(presentation.thought, nil, "happy mood does not show persistent bubble")
     }
 
     private static func checkContentPresentation(context: inout CheckContext) {

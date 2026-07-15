@@ -18,8 +18,21 @@ public struct PetNeeds: Codable, Equatable, Sendable {
         self.trust = Self.clamp(trust)
     }
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            hunger: try container.decode(Double.self, forKey: .hunger),
+            energy: try container.decode(Double.self, forKey: .energy),
+            happiness: try container.decode(Double.self, forKey: .happiness),
+            trust: try container.decode(Double.self, forKey: .trust)
+        )
+    }
+
     private static func clamp(_ value: Double) -> Double {
-        min(max(value, 0), 100)
+        guard value.isFinite else {
+            return 0
+        }
+        return min(max(value, 0), 100)
     }
 }
 

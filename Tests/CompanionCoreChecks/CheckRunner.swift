@@ -9,6 +9,7 @@ enum CheckRunner {
         PetBrainChecks.run(context: &context)
         PetPersistenceChecks.run(context: &context)
         PetPresentationChecks.run(context: &context)
+        PetCareStatusChecks.run(context: &context)
 
         guard context.failures.isEmpty else {
             for failure in context.failures {

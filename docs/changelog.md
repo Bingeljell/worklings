@@ -1,5 +1,12 @@
 # Changelog
 
+- **2026-07-15 > Sources/CompanionCore/PetState.swift > PetNeeds decoding and clamping > Routes decoded need values through finite `0...100` domain clamping.**
+- **2026-07-15 > Sources/CompanionCore/PetCareStatus.swift > urgency, summaries, and action availability > Centralizes need thresholds, priority ordering, two-condition hover language, ambient alerts, and care-action rules.**
+- **2026-07-15 > Sources/CompanionCore/PetPresentation.swift > happy mood presentation > Suppresses persistent happy thought bubbles in line with the interaction feedback policy.**
+- **2026-07-15 > Tests/CompanionCoreChecks/PetCareStatusChecks.swift > care status checks > Covers urgency boundaries, condition ranking, summary limits, ambient alerts, and action availability.**
+- **2026-07-15 > Tests/CompanionCoreChecks/PetPersistenceChecks.swift > decoded clamping check > Verifies valid JSON cannot restore need values outside the domain range.**
+- **2026-07-15 > Tests/CompanionCoreChecks/PetPresentationChecks.swift > quiet happy presentation check > Verifies content pets do not emit persistent positive thought bubbles.**
+- **2026-07-15 > Tests/CompanionCoreChecks/CheckRunner.swift > care status suite registration > Adds the urgency and care-availability suite to the dependency-free check run.**
 - **2026-07-15 > docs/pet_interaction.md > interaction hierarchy, urgency, care actions, and verification > Defines ambient, hover, click-card, menu-bar, pointer, accessibility, and testing behavior before movement work begins.**
 - **2026-07-15 > Sources/CompanionCore/PetState.swift > PetFood, PetPlayActivity, and PetMood conformance > Makes semantic pet enums explicitly equatable for reusable behavioral checks.**
 - **2026-07-15 > Tests/CompanionCoreChecks/CheckContext.swift > expectations and failure collection > Adds dependency-free equality, approximation, and error assertions shared across core checks.**

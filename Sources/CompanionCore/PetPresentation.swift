@@ -46,7 +46,7 @@ public struct PetPresentation: Equatable, Sendable {
                 moodLabel: "Happy",
                 palette: .bright,
                 face: .happy,
-                thought: "Today feels good!"
+                thought: nil
             )
         case .content:
             moodContent = PetPresentation(
