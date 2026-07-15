@@ -1,5 +1,12 @@
 # Changelog
 
+- **2026-07-15 > Sources/CompanionCore/PetState.swift > PetFood, PetPlayActivity, and PetMood conformance > Makes semantic pet enums explicitly equatable for reusable behavioral checks.**
+- **2026-07-15 > Tests/CompanionCoreChecks/CheckContext.swift > expectations and failure collection > Adds dependency-free equality, approximation, and error assertions shared across core checks.**
+- **2026-07-15 > Tests/CompanionCoreChecks/CheckRunner.swift > main > Runs placement, Pet Brain, persistence, and presentation check suites with one failure summary.**
+- **2026-07-15 > Tests/CompanionCoreChecks/ScreenPlacementChecks.swift > run and placement cases > Migrates the existing placement coverage into the shared multi-suite runner.**
+- **2026-07-15 > Tests/CompanionCoreChecks/PetBrainChecks.swift > Pet Brain behavior checks > Covers clamping, defaults, mood priority, deterministic clocks, offline limits, preferences, refusal, and sleep tradeoffs.**
+- **2026-07-15 > Tests/CompanionCoreChecks/PetPersistenceChecks.swift > JSON store checks > Covers missing files, state round trips, unsupported schemas, and corrupt-save preservation.**
+- **2026-07-15 > Tests/CompanionCoreChecks/PetPresentationChecks.swift > placeholder presentation checks > Covers content, urgent needs, reaction overrides, and tired-refusal placeholder output.**
 - **2026-07-15 > Sources/CompanionCore/PetPresentation.swift > make and reaction thought mapping > Converts semantic pet mood and interactions into testable placeholder face, palette, label, and thought content.**
 - **2026-07-15 > Sources/BuildCompanion/PetSession.swift > advance, perform, persist, and reaction scheduling > Connects the Pet Brain to a live session, preserves corrupt saves, stores state in Application Support, and clears temporary reactions.**
 - **2026-07-15 > Sources/BuildCompanion/AppDelegate.swift > menuNeedsUpdate and care actions > Adds live need summaries, favourite markers, and feed, play, pet, and sleep controls to the menu-bar interface.**

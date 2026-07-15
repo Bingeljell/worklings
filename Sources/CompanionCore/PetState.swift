@@ -23,7 +23,7 @@ public struct PetNeeds: Codable, Equatable, Sendable {
     }
 }
 
-public enum PetFood: String, CaseIterable, Codable, Sendable {
+public enum PetFood: String, CaseIterable, Codable, Equatable, Sendable {
     case berries
     case biscuit
     case noodles
@@ -37,7 +37,7 @@ public enum PetFood: String, CaseIterable, Codable, Sendable {
     }
 }
 
-public enum PetPlayActivity: String, CaseIterable, Codable, Sendable {
+public enum PetPlayActivity: String, CaseIterable, Codable, Equatable, Sendable {
     case chase
     case dance
     case puzzle
@@ -64,7 +64,7 @@ public struct PetPreferences: Codable, Equatable, Sendable {
     }
 }
 
-public enum PetMood: String, Codable, Sendable {
+public enum PetMood: String, Codable, Equatable, Sendable {
     case happy
     case content
     case hungry
