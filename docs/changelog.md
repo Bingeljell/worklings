@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-15 > docs/pet_interaction.md > interaction hierarchy, urgency, care actions, and verification > Defines ambient, hover, click-card, menu-bar, pointer, accessibility, and testing behavior before movement work begins.**
 - **2026-07-15 > Sources/CompanionCore/PetState.swift > PetFood, PetPlayActivity, and PetMood conformance > Makes semantic pet enums explicitly equatable for reusable behavioral checks.**
 - **2026-07-15 > Tests/CompanionCoreChecks/CheckContext.swift > expectations and failure collection > Adds dependency-free equality, approximation, and error assertions shared across core checks.**
 - **2026-07-15 > Tests/CompanionCoreChecks/CheckRunner.swift > main > Runs placement, Pet Brain, persistence, and presentation check suites with one failure summary.**
