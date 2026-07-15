@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-15 > README.md > project overview, source usage, verification, and beta distribution > Adds the public project entry point with product direction, current capabilities, local run instructions, checks, documentation links, and planned GitHub Release DMGs.**
+- **2026-07-15 > AGENTS.md > documentation location rule > Allows standard repository entry-point and governance files at the root while keeping detailed project documentation under `docs/`.**
 - **2026-07-15 > Sources/BuildCompanion/CompanionHostingView.swift > mouse tracking, click classification, and dragging > Gives AppKit ownership of hover, click, and drag behavior so moving Pixel cannot open the care card.**
 - **2026-07-15 > Sources/BuildCompanion/HoverSummaryPanelController.swift > delayed summary presentation and edge placement > Adds a styled click-through hover summary that stays inside the active display.**
 - **2026-07-15 > Sources/BuildCompanion/CarePopoverController.swift > toggle, show, and close > Adds a transient pet-anchored interactive popover with native dismissal behavior.**
