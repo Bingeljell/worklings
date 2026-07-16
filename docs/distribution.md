@@ -96,6 +96,14 @@ scripts/build_dmg --version 0.1.0-alpha.1
 
 The DMG builder validates the existing app's version, architecture, and signature before packaging it. It creates a compressed read-only image, verifies the image, and writes a SHA-256 checksum beside it.
 
+Verify the complete release artifact with:
+
+```bash
+scripts/verify_release --version 0.1.0-alpha.1
+```
+
+The verifier confirms the external checksum and DMG integrity, mounts the image read-only, checks the Applications shortcut, and validates the packaged app's identifier, version, build number, minimum system, architecture, and code signature.
+
 ## Release flow
 
 1. Merge the packaging or product PR into `main`.
