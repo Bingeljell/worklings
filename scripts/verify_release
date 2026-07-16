@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: scripts/verify_release --version <version> [options]
+
+Options:
+  --arch <architecture>  Packaged architecture (default: arm64)
+  --output-dir <path>    Artifact directory (default: dist/<version>)
+  --help                 Show this help
+EOF
+}
+
+version=''
+architecture='arm64'
+output_dir=''
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --version)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      version=$2
+      shift 2
+      ;;
+    --arch)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      architecture=$2
+      shift 2
+      ;;
+    --output-dir)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      output_dir=$2
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Error: unknown argument: %s\n' "$1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+([.-][A-Za-z0-9]+)*)?$ ]]; then
+  printf 'Error: --version must be a semantic version such as 0.1.0-alpha.1\n' >&2
+  exit 2
+fi
+
+case "$architecture" in
+  arm64 | x86_64) ;;
+  *)
+    printf 'Error: unsupported architecture: %s\n' "$architecture" >&2
+    exit 2
+    ;;
+esac
+
+for command in awk codesign hdiutil lipo plutil readlink shasum; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    printf 'Error: required command is unavailable: %s\n' "$command" >&2
+    exit 1
+  fi
+done
+
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
+
+if [ -z "$output_dir" ]; then
+  output_dir="$repo_root/dist/$version"
+elif [[ "$output_dir" != /* ]]; then
+  output_dir="$repo_root/$output_dir"
+fi
+
+app_name='Build Companion'
+executable_name='BuildCompanion'
+expected_bundle_identifier='com.bingeljell.BuildCompanion'
+dmg_name="BuildCompanion-$version-macos-$architecture.dmg"
+dmg_path="$output_dir/$dmg_name"
+checksum_path="$dmg_path.sha256"
+
+if [ ! -f "$dmg_path" ] || [ ! -f "$checksum_path" ]; then
+  printf 'Error: DMG or checksum is missing from: %s\n' "$output_dir" >&2
+  exit 1
+fi
+
+read -r expected_hash checksum_name <"$checksum_path"
+if [ "$checksum_name" != "$dmg_name" ]; then
+  printf 'Error: checksum names %s instead of %s\n' "$checksum_name" "$dmg_name" >&2
+  exit 1
+fi
+
+actual_hash=$(shasum -a 256 "$dmg_path" | awk '{print $1}')
+if [ "$actual_hash" != "$expected_hash" ]; then
+  printf 'Error: SHA-256 checksum does not match %s\n' "$dmg_name" >&2
+  exit 1
+fi
+
+hdiutil verify "$dmg_path" >/dev/null
+
+mount_point=$(mktemp -d "${TMPDIR:-/tmp}/build-companion-mount.XXXXXX")
+mounted=false
+
+cleanup() {
+  if [ "$mounted" = true ]; then
+    hdiutil detach "$mount_point" >/dev/null 2>&1 || true
+  fi
+  rmdir "$mount_point" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+hdiutil attach -readonly -nobrowse -mountpoint "$mount_point" "$dmg_path" >/dev/null
+mounted=true
+
+mounted_app="$mount_point/$app_name.app"
+applications_link="$mount_point/Applications"
+info_plist="$mounted_app/Contents/Info.plist"
+bundle_executable="$mounted_app/Contents/MacOS/$executable_name"
+
+if [ ! -d "$mounted_app" ] || [ ! -x "$bundle_executable" ]; then
+  printf 'Error: mounted DMG does not contain a complete app bundle\n' >&2
+  exit 1
+fi
+
+if [ ! -L "$applications_link" ] || [ "$(readlink "$applications_link")" != '/Applications' ]; then
+  printf 'Error: mounted DMG does not contain the expected Applications shortcut\n' >&2
+  exit 1
+fi
+
+plutil -lint "$info_plist" >/dev/null
+bundle_identifier=$(plutil -extract CFBundleIdentifier raw -o - "$info_plist")
+bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist")
+build_number=$(plutil -extract CFBundleVersion raw -o - "$info_plist")
+minimum_system=$(plutil -extract LSMinimumSystemVersion raw -o - "$info_plist")
+
+if [ "$bundle_identifier" != "$expected_bundle_identifier" ]; then
+  printf 'Error: unexpected bundle identifier: %s\n' "$bundle_identifier" >&2
+  exit 1
+fi
+
+if [ "$bundle_version" != "$version" ]; then
+  printf 'Error: mounted app version %s does not match %s\n' "$bundle_version" "$version" >&2
+  exit 1
+fi
+
+if [[ ! "$build_number" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'Error: invalid bundle build number: %s\n' "$build_number" >&2
+  exit 1
+fi
+
+if [ "$minimum_system" != '14.0' ]; then
+  printf 'Error: unexpected minimum macOS version: %s\n' "$minimum_system" >&2
+  exit 1
+fi
+
+lipo "$bundle_executable" -verify_arch "$architecture"
+codesign --verify --deep --strict --verbose=2 "$mounted_app"
+
+hdiutil detach "$mount_point" >/dev/null
+mounted=false
+rmdir "$mount_point"
+trap - EXIT
+
+printf 'Release verification passed:\n'
+printf '  Artifact: %s\n' "$dmg_path"
+printf '  Version: %s (%s)\n' "$bundle_version" "$build_number"
+printf '  Architecture: %s\n' "$architecture"
+printf '  Minimum macOS: %s\n' "$minimum_system"
+printf '  SHA-256: %s\n' "$actual_hash"

@@ -1,5 +1,14 @@
 # Changelog
 
+- **2026-07-16 > scripts/verify_release > mounted artifact verification > Confirms the DMG checksum and integrity, mounts it read-only, and validates its Applications shortcut, bundle metadata, architecture, and code signature.**
+- **2026-07-16 > README.md > beta download and installation > Documents release availability, checksum verification, drag-to-install, Apple Silicon support, and safe first launch of an ad-hoc-signed alpha.**
+- **2026-07-16 > docs/distribution.md > release verification command > Documents the final mounted-artifact verification gate.**
+- **2026-07-16 > scripts/build_dmg > DMG assembly and checksum generation > Validates a versioned signed app, packages it with an Applications shortcut, verifies the compressed image, writes a SHA-256 checksum, and refuses artifact overwrites.**
+- **2026-07-16 > docs/distribution.md > DMG build command > Documents how the application bundle becomes a verified disk image and checksum.**
+- **2026-07-16 > scripts/build_app_bundle > release build and bundle assembly > Builds a versioned architecture-specific Swift release, writes validated macOS metadata, installs the executable, applies an ad-hoc signature, and refuses to overwrite an existing app.**
+- **2026-07-16 > .gitignore > release artifact exclusions > Excludes the generated `dist/` tree from version control.**
+- **2026-07-16 > docs/distribution.md > versioned output and app build command > Aligns the artifact contract with isolated version directories and documents the bundle builder.**
+- **2026-07-16 > docs/distribution.md > beta artifact and release contract > Defines the initial Apple Silicon app bundle, ad-hoc signing, DMG layout, versioning, Gatekeeper guidance, verification gates, and GitHub prerelease process.**
 - **2026-07-15 > README.md > project introduction > Adds the project author's motivation, Codex-first direction, open context-awareness question, and note about AI-assisted writing.**
 - **2026-07-15 > docs/git_workflow.md > pull request guidance > Requires concise, review-focused pull requests and excludes commit narration, redundant roadmap content, and generic boilerplate.**
 - **2026-07-15 > README.md > contributing section > Welcomes focused pull requests and defines build, check, coverage, changelog, documentation, privacy, accessibility, save compatibility, review evidence, and licensing expectations.**

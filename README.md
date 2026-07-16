@@ -88,9 +88,24 @@ The check runner is used because a minimal Apple Command Line Tools installation
 
 ## Beta application download
 
-A signed or notarized beta DMG is not available yet. Direct-download beta builds are planned for [GitHub Releases](https://github.com/Bingeljell/build_companion/releases) after the interaction model and application packaging are stable enough for non-developer use.
+Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/build_companion/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
 
-Until then, running from source is the supported path.
+If the Releases page does not list a DMG yet, running from source remains the supported path.
+
+To install a packaged alpha:
+
+1. Download the `.dmg` and matching `.dmg.sha256` files from the release.
+2. Optionally verify the download from the directory containing both files:
+
+   ```bash
+   shasum -a 256 --check BuildCompanion-<version>-macos-arm64.dmg.sha256
+   ```
+
+3. Open the DMG and drag **Build Companion** to the **Applications** shortcut.
+4. Eject the disk image.
+5. Because the experimental alpha is ad-hoc signed rather than Apple-notarized, open the app from Finder's context menu and confirm **Open**. If macOS still blocks it, use **System Settings > Privacy & Security > Open Anyway**.
+
+Do not disable Gatekeeper globally. Developer ID signing and Apple notarization are planned when the project is ready for a broader non-technical beta.
 
 ## Project direction
 
@@ -108,6 +123,7 @@ Near-term work focuses on proving the care loop and desktop interaction before a
 - [Architecture](docs/architecture.md)
 - [Pet Brain](docs/pet_brain.md)
 - [Pet interaction model](docs/pet_interaction.md)
+- [Beta distribution](docs/distribution.md)
 - [Git workflow](docs/git_workflow.md)
 - [Changelog](docs/changelog.md)
 
