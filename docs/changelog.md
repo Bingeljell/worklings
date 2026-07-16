@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-16 > docs/distribution.md > beta artifact and release contract > Defines the initial Apple Silicon app bundle, ad-hoc signing, DMG layout, versioning, Gatekeeper guidance, verification gates, and GitHub prerelease process.**
 - **2026-07-15 > README.md > project introduction > Adds the project author's motivation, Codex-first direction, open context-awareness question, and note about AI-assisted writing.**
 - **2026-07-15 > docs/git_workflow.md > pull request guidance > Requires concise, review-focused pull requests and excludes commit narration, redundant roadmap content, and generic boilerplate.**
 - **2026-07-15 > README.md > contributing section > Welcomes focused pull requests and defines build, check, coverage, changelog, documentation, privacy, accessibility, save compatibility, review evidence, and licensing expectations.**
