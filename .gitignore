@@ -12,4 +12,5 @@ xcuserdata/
 
 # Local build and release products
 build/
+dist/
 *.dmg

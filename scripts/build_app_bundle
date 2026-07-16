@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: scripts/build_app_bundle --version <version> --build-number <number> [options]
+
+Options:
+  --arch <architecture>  Target architecture (default: arm64)
+  --output-dir <path>    Artifact directory (default: dist/<version>)
+  --help                 Show this help
+EOF
+}
+
+version=''
+build_number=''
+architecture='arm64'
+output_dir=''
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --version)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      version=$2
+      shift 2
+      ;;
+    --build-number)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      build_number=$2
+      shift 2
+      ;;
+    --arch)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      architecture=$2
+      shift 2
+      ;;
+    --output-dir)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      output_dir=$2
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Error: unknown argument: %s\n' "$1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+([.-][A-Za-z0-9]+)*)?$ ]]; then
+  printf 'Error: --version must be a semantic version such as 0.1.0-alpha.1\n' >&2
+  exit 2
+fi
+
+if [[ ! "$build_number" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'Error: --build-number must be a positive integer\n' >&2
+  exit 2
+fi
+
+case "$architecture" in
+  arm64 | x86_64) ;;
+  *)
+    printf 'Error: unsupported architecture: %s\n' "$architecture" >&2
+    exit 2
+    ;;
+esac
+
+for command in swift codesign plutil lipo install; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    printf 'Error: required command is unavailable: %s\n' "$command" >&2
+    exit 1
+  fi
+done
+
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
+
+if [ -z "$output_dir" ]; then
+  output_dir="$repo_root/dist/$version"
+elif [[ "$output_dir" != /* ]]; then
+  output_dir="$repo_root/$output_dir"
+fi
+
+app_name='Build Companion'
+executable_name='BuildCompanion'
+bundle_identifier='com.bingeljell.BuildCompanion'
+app_path="$output_dir/$app_name.app"
+
+if [ -e "$app_path" ]; then
+  printf 'Error: refusing to overwrite existing app bundle: %s\n' "$app_path" >&2
+  exit 1
+fi
+
+mkdir -p -- "$output_dir"
+temp_root=$(mktemp -d "${TMPDIR:-/tmp}/build-companion-app.XXXXXX")
+trap 'rm -rf -- "$temp_root"' EXIT
+
+temp_app="$temp_root/$app_name.app"
+contents_dir="$temp_app/Contents"
+macos_dir="$contents_dir/MacOS"
+resources_dir="$contents_dir/Resources"
+info_plist="$contents_dir/Info.plist"
+
+mkdir -p -- "$macos_dir" "$resources_dir"
+
+printf 'Building %s %s (%s) for %s...\n' "$app_name" "$version" "$build_number" "$architecture"
+swift build --package-path "$repo_root" --configuration release --arch "$architecture" --product "$executable_name"
+bin_dir=$(swift build --package-path "$repo_root" --configuration release --arch "$architecture" --show-bin-path)
+built_executable="$bin_dir/$executable_name"
+
+if [ ! -x "$built_executable" ]; then
+  printf 'Error: release executable was not produced: %s\n' "$built_executable" >&2
+  exit 1
+fi
+
+install -m 755 -- "$built_executable" "$macos_dir/$executable_name"
+
+cat >"$info_plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>$app_name</string>
+    <key>CFBundleExecutable</key>
+    <string>$executable_name</string>
+    <key>CFBundleIdentifier</key>
+    <string>$bundle_identifier</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$app_name</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$version</string>
+    <key>CFBundleVersion</key>
+    <string>$build_number</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.entertainment</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+plutil -lint "$info_plist" >/dev/null
+lipo "$macos_dir/$executable_name" -verify_arch "$architecture"
+codesign --force --sign - --timestamp=none "$temp_app"
+codesign --verify --deep --strict --verbose=2 "$temp_app"
+
+mv -- "$temp_app" "$app_path"
+
+printf 'Created app bundle: %s\n' "$app_path"

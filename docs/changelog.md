@@ -1,5 +1,8 @@
 # Changelog
 
+- **2026-07-16 > scripts/build_app_bundle > release build and bundle assembly > Builds a versioned architecture-specific Swift release, writes validated macOS metadata, installs the executable, applies an ad-hoc signature, and refuses to overwrite an existing app.**
+- **2026-07-16 > .gitignore > release artifact exclusions > Excludes the generated `dist/` tree from version control.**
+- **2026-07-16 > docs/distribution.md > versioned output and app build command > Aligns the artifact contract with isolated version directories and documents the bundle builder.**
 - **2026-07-16 > docs/distribution.md > beta artifact and release contract > Defines the initial Apple Silicon app bundle, ad-hoc signing, DMG layout, versioning, Gatekeeper guidance, verification gates, and GitHub prerelease process.**
 - **2026-07-15 > README.md > project introduction > Adds the project author's motivation, Codex-first direction, open context-awareness question, and note about AI-assisted writing.**
 - **2026-07-15 > docs/git_workflow.md > pull request guidance > Requires concise, review-focused pull requests and excludes commit narration, redundant roadmap content, and generic boilerplate.**

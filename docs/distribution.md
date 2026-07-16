@@ -24,9 +24,10 @@ The packaging flow produces artifacts under the ignored `dist/` directory:
 
 ```text
 dist/
-├── Build Companion.app/
-├── BuildCompanion-<version>-macos-arm64.dmg
-└── BuildCompanion-<version>-macos-arm64.dmg.sha256
+└── <version>/
+    ├── Build Companion.app/
+    ├── BuildCompanion-<version>-macos-arm64.dmg
+    └── BuildCompanion-<version>-macos-arm64.dmg.sha256
 ```
 
 The application bundle follows the standard macOS layout:
@@ -78,6 +79,14 @@ Every release candidate must:
 8. Produce a SHA-256 checksum beside the DMG.
 
 Application launch remains a manual smoke test because launching a foreground macOS application is not reliable in every automated or remote environment.
+
+Build an application bundle with:
+
+```bash
+scripts/build_app_bundle --version 0.1.0-alpha.1 --build-number 1
+```
+
+The builder refuses to replace an existing application bundle. Choose a new output directory for an isolated test, or deliberately remove an obsolete generated artifact before rebuilding it.
 
 ## Release flow
 
