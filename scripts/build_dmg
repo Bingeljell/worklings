@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: scripts/build_dmg --version <version> [options]
+
+Options:
+  --arch <architecture>  Packaged architecture (default: arm64)
+  --output-dir <path>    Artifact directory (default: dist/<version>)
+  --help                 Show this help
+EOF
+}
+
+version=''
+architecture='arm64'
+output_dir=''
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --version)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      version=$2
+      shift 2
+      ;;
+    --arch)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      architecture=$2
+      shift 2
+      ;;
+    --output-dir)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      output_dir=$2
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Error: unknown argument: %s\n' "$1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+([.-][A-Za-z0-9]+)*)?$ ]]; then
+  printf 'Error: --version must be a semantic version such as 0.1.0-alpha.1\n' >&2
+  exit 2
+fi
+
+case "$architecture" in
+  arm64 | x86_64) ;;
+  *)
+    printf 'Error: unsupported architecture: %s\n' "$architecture" >&2
+    exit 2
+    ;;
+esac
+
+for command in awk codesign ditto hdiutil lipo ln mv plutil shasum; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    printf 'Error: required command is unavailable: %s\n' "$command" >&2
+    exit 1
+  fi
+done
+
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
+
+if [ -z "$output_dir" ]; then
+  output_dir="$repo_root/dist/$version"
+elif [[ "$output_dir" != /* ]]; then
+  output_dir="$repo_root/$output_dir"
+fi
+
+app_name='Build Companion'
+executable_name='BuildCompanion'
+app_path="$output_dir/$app_name.app"
+dmg_name="BuildCompanion-$version-macos-$architecture.dmg"
+dmg_path="$output_dir/$dmg_name"
+checksum_path="$dmg_path.sha256"
+
+if [ ! -d "$app_path" ]; then
+  printf 'Error: app bundle is missing; run scripts/build_app_bundle first: %s\n' "$app_path" >&2
+  exit 1
+fi
+
+if [ -e "$dmg_path" ] || [ -e "$checksum_path" ]; then
+  printf 'Error: refusing to overwrite existing DMG or checksum in: %s\n' "$output_dir" >&2
+  exit 1
+fi
+
+info_plist="$app_path/Contents/Info.plist"
+bundle_executable="$app_path/Contents/MacOS/$executable_name"
+
+if [ ! -f "$info_plist" ] || [ ! -x "$bundle_executable" ]; then
+  printf 'Error: app bundle is incomplete: %s\n' "$app_path" >&2
+  exit 1
+fi
+
+bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist")
+if [ "$bundle_version" != "$version" ]; then
+  printf 'Error: app version %s does not match requested DMG version %s\n' "$bundle_version" "$version" >&2
+  exit 1
+fi
+
+lipo "$bundle_executable" -verify_arch "$architecture"
+codesign --verify --deep --strict --verbose=2 "$app_path"
+
+temp_root=$(mktemp -d "${TMPDIR:-/tmp}/build-companion-dmg.XXXXXX")
+trap 'rm -rf -- "$temp_root"' EXIT
+
+staging_dir="$temp_root/staging"
+temp_dmg="$temp_root/$dmg_name"
+temp_checksum="$temp_root/$dmg_name.sha256"
+
+mkdir -p -- "$staging_dir"
+ditto "$app_path" "$staging_dir/$app_name.app"
+ln -s /Applications "$staging_dir/Applications"
+
+printf 'Creating %s...\n' "$dmg_name"
+hdiutil create \
+  -volname "$app_name" \
+  -srcfolder "$staging_dir" \
+  -format UDZO \
+  -imagekey zlib-level=9 \
+  "$temp_dmg"
+
+hdiutil verify "$temp_dmg"
+checksum=$(shasum -a 256 "$temp_dmg" | awk '{print $1}')
+printf '%s  %s\n' "$checksum" "$dmg_name" >"$temp_checksum"
+
+mv -- "$temp_dmg" "$dmg_path"
+mv -- "$temp_checksum" "$checksum_path"
+
+printf 'Created DMG: %s\n' "$dmg_path"
+printf 'Created checksum: %s\n' "$checksum_path"

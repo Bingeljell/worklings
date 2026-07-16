@@ -88,6 +88,14 @@ scripts/build_app_bundle --version 0.1.0-alpha.1 --build-number 1
 
 The builder refuses to replace an existing application bundle. Choose a new output directory for an isolated test, or deliberately remove an obsolete generated artifact before rebuilding it.
 
+Package the application bundle as a DMG with:
+
+```bash
+scripts/build_dmg --version 0.1.0-alpha.1
+```
+
+The DMG builder validates the existing app's version, architecture, and signature before packaging it. It creates a compressed read-only image, verifies the image, and writes a SHA-256 checksum beside it.
+
 ## Release flow
 
 1. Merge the packaging or product PR into `main`.

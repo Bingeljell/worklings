@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-16 > scripts/build_dmg > DMG assembly and checksum generation > Validates a versioned signed app, packages it with an Applications shortcut, verifies the compressed image, writes a SHA-256 checksum, and refuses artifact overwrites.**
+- **2026-07-16 > docs/distribution.md > DMG build command > Documents how the application bundle becomes a verified disk image and checksum.**
 - **2026-07-16 > scripts/build_app_bundle > release build and bundle assembly > Builds a versioned architecture-specific Swift release, writes validated macOS metadata, installs the executable, applies an ad-hoc signature, and refuses to overwrite an existing app.**
 - **2026-07-16 > .gitignore > release artifact exclusions > Excludes the generated `dist/` tree from version control.**
 - **2026-07-16 > docs/distribution.md > versioned output and app build command > Aligns the artifact contract with isolated version directories and documents the bundle builder.**
