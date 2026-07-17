@@ -6,6 +6,10 @@ public struct PetNeeds: Codable, Equatable, Sendable {
     public let happiness: Double
     public let trust: Double
 
+    public var fullness: Double {
+        100 - hunger
+    }
+
     public init(
         hunger: Double,
         energy: Double,

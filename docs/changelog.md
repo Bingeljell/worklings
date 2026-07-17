@@ -1,5 +1,9 @@
 # Changelog
 
+- **2026-07-17 > Sources/CompanionCore/PetState.swift > PetNeeds.fullness > Restores the approved derived inverse of hunger after the Worklings rebrand without changing persistence or Pet Brain rules.**
+- **2026-07-17 > Sources/Worklings/PetCareCardView.swift and Sources/Worklings/AppDelegate.swift > need presentation > Uses Fullness, Energy, Happiness, and Trust consistently so every higher value means better wellbeing.**
+- **2026-07-17 > Tests/CompanionCoreChecks/PetBrainChecks.swift and Tests/CompanionCoreChecks/PetPersistenceChecks.swift > fullness checks > Covers fullness conversion boundaries and verifies the derived value does not enter the versioned save.**
+- **2026-07-17 > docs/pet_brain.md and docs/pet_interaction.md > meter semantics > Documents the positive wellbeing display rule and the unchanged internal hunger model.**
 - **2026-07-17 > README.md, assets/worklings.png, and assets/worklings_interaction.png > placeholder project visuals > Removes the superseded purple pet portrait and care-card screenshot along with the remaining README reference.**
 - **2026-07-17 > README.md and assets/worklings-social-preview.jpg, assets/worklings-wildkin.png, assets/worklings-elemental.png, and assets/worklings-relicborn.png > project banner and character direction > Adds the approved Worklings concept banner and Wildkin, Elemental, and Relicborn artwork to the repository overview.**
 - **2026-07-17 > README.md and assets/worklings.png and assets/worklings_interaction.png > project visuals > Adds the supplied Worklings portrait and care-card screenshot to the project overview.**

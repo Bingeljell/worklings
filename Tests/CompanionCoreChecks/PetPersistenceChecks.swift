@@ -82,6 +82,15 @@ enum PetPersistenceChecks {
             try store.save(state)
             let loadedState = try store.load()
             context.expectEqual(loadedState, state, "saved state round trips through JSON")
+
+            let data = try Data(contentsOf: store.fileURL)
+            let object = try JSONSerialization.jsonObject(with: data)
+            let root = object as? [String: Any]
+            let needs = root?["needs"] as? [String: Any]
+            context.expect(
+                needs?["fullness"] == nil,
+                "derived fullness is not persisted"
+            )
         } catch {
             context.expect(false, "state round trip should succeed: \(error)")
         }

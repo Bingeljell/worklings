@@ -111,9 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         petHeaderMenuItem?.title = "\(state.name) — \(presentation.moodLabel)"
         needsMenuItem?.title = [
-            "Hunger \(Int(state.needs.hunger.rounded()))",
+            "Fullness \(Int(state.needs.fullness.rounded()))",
             "Energy \(Int(state.needs.energy.rounded()))",
-            "Happy \(Int(state.needs.happiness.rounded()))",
+            "Happiness \(Int(state.needs.happiness.rounded()))",
             "Trust \(Int(state.needs.trust.rounded()))"
         ].joined(separator: " · ")
 

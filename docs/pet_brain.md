@@ -20,6 +20,8 @@ The initial state contains:
 
 Every need uses a closed `0...100` range. Higher hunger is worse; higher energy, happiness, and trust are better. Values must be clamped at the domain boundary rather than only in the interface.
 
+The exact-value interface presents hunger as derived **Fullness** (`100 - hunger`). This keeps the simulation vocabulary natural while ensuring every visible meter uses the same rule: a higher value and longer bar mean the Workling is doing better. Fullness is not persisted and does not change the save schema.
+
 ### Time progression
 
 The simulation advances from an explicit previous timestamp to an explicit current timestamp. This keeps the Pet Brain deterministic and testable.

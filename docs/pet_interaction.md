@@ -48,7 +48,7 @@ Initial card content:
 ┌────────────────────────────┐
 │ Pixel              Hungry  │
 │                            │
-│ Hunger     ████████░░  82  │
+│ Fullness   ██░░░░░░░░  18  │
 │ Energy     ████░░░░░░  38  │
 │ Happiness  ██████░░░░  64  │
 │ Trust      ███████░░░  71  │
@@ -59,6 +59,8 @@ Initial card content:
 │ ♥ Berries · ♥ Puzzle       │
 └────────────────────────────┘
 ```
+
+All exact-value meters are positive wellbeing measures: a higher value and longer bar always mean the Workling is doing better. The interface displays **Fullness** as the inverse of the Pet Brain's internal hunger value. Natural-language conditions may still describe the Workling as hungry.
 
 The first implementation can use SwiftUI shapes and system materials. Final pixel-art styling remains a separate design task.
 
@@ -84,7 +86,7 @@ Native AppKit tracking and window-drag behavior should own these distinctions. S
 
 ## Urgency model
 
-Every need maps to an urgency level used by ambient presentation and hover summaries.
+Every internal need maps to an urgency level used by ambient presentation and hover summaries. Hunger thresholds below use the Pet Brain's internal value; the exact-value interface shows the inverse as Fullness.
 
 | Need | Notice | Urgent | Critical |
 | --- | ---: | ---: | ---: |
