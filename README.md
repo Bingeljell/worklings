@@ -1,14 +1,14 @@
 # Worklings
 
+<p align="center">
+  <img src="assets/worklings-social-preview.jpg" alt="Wildkin, Elemental, and Relicborn Worklings gathered in a magical woodland" width="900">
+</p>
+
 As an MMO fan whose been itching to find some outlet, I figured having a pet that actually feels like a pet rather than some superficial toy was in order. No idea where this is going to go - but I'm thinking an eventual evolution into a Battle bot - maybe even multiplayer over time.
 
 The rest of this readme has been written by AI, but read and edited by me.
 
 Worklings is an experimental macOS desktop pet inspired by the persistence, progression, and attachment of an MMO character. It is meant to feel like a small living creature rather than another status widget. The immediate step is to get a Workling to react to Codex activity, but the longer-term goal is broader: a private, local pet that can react to work across IDEs, agents, and other explicitly connected applications. Each Workling has its own needs, preferences, moods, and routines, and its behavior should remain meaningful even when no integration is active.
-
-<p align="center">
-  <img src="assets/worklings.png" alt="Pixel, the first purple Workling" width="260">
-</p>
 
 What remains to be decided is whether or not the pet will be context general-context aware or only where its connected to specific apps. (Easier to do in the world of agentic engineering, but harder when looking at broader knowledge work tasks.)
 
@@ -21,6 +21,15 @@ Worklings combines three ideas:
 - **Provider-neutral activity awareness:** Codex is the first planned activity source, but the Pet Brain consumes generic activity events rather than Codex-specific state.
 
 The project is macOS-first and implemented in Swift with SwiftUI and AppKit. Pet state is processed and stored locally. Keystrokes, screen contents, prompts, and source code are outside the default data model.
+
+## Character direction
+
+Worklings may eventually come from several creature families. These early concepts establish three directions that can coexist as the world grows:
+
+| Wildkin | Elemental | Relicborn |
+| --- | --- | --- |
+| <img src="assets/worklings-wildkin.png" alt="A moss-fox Wildkin Workling" width="260"> | <img src="assets/worklings-elemental.png" alt="An ember-newt Elemental Workling" width="260"> | <img src="assets/worklings-relicborn.png" alt="A keyback pangolin Relicborn Workling" width="260"> |
+| A moss-fox shaped by living woodland magic. | An ember-newt whose elemental nature is part of its anatomy. | A keyback pangolin bonded to an ancient rune-powered relic. |
 
 ## Current state
 
