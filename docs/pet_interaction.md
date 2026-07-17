@@ -2,9 +2,15 @@
 
 ## Purpose
 
-This document defines how a user understands and cares for the companion before autonomous movement is introduced. It covers behavioral surfaces and accessibility rather than final art direction.
+This document defines how a user understands and cares for a Workling. It covers implemented behavioral surfaces and accessibility while keeping future autonomous movement and final art direction separate.
 
-The pet must communicate important needs without requiring the user to inspect the menu bar. Interaction should remain lightweight enough that Pixel feels like a companion instead of a monitoring dashboard.
+Pixel is the current fixed-name test Workling and still uses code-drawn placeholder visuals. The Wildkin, Elemental, and Relicborn repository assets are concept art and are not yet runtime states.
+
+The Workling must communicate important needs without requiring the user to inspect the menu bar. Interaction should remain lightweight enough that Pixel feels like a companion instead of a monitoring dashboard.
+
+## Implementation status
+
+Ambient placeholder states, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, and basic accessibility labels are implemented. Autonomous movement, final sprite states, adoption, family selection, and a complete settings experience remain deferred.
 
 ## Interaction hierarchy
 
@@ -12,7 +18,7 @@ Information is revealed progressively through four surfaces.
 
 ### 1. Ambient pet state
 
-The pet itself is the primary signal. Pose, expression, colour, eventual sprite state, and occasional thought bubbles communicate the most important condition without user input.
+The pet itself is the primary signal. The current placeholder uses face, colour, and occasional thought bubbles; future sprites should use pose and animation to communicate the same semantic states.
 
 - Urgent hunger, exhaustion, sadness, or low trust must have a visible state.
 - Reactions to care actions may temporarily override the underlying expression.
@@ -42,13 +48,13 @@ A click opens an interactive care card anchored near the pet. A drag moves the p
 - Opening or closing the card must not move the pet.
 - Performing a care action updates the card immediately and leaves it open for feedback.
 
-Initial card content:
+Current card structure:
 
 ```text
 ┌────────────────────────────┐
 │ Pixel              Hungry  │
 │                            │
-│ Hunger     ████████░░  82  │
+│ Fullness   ██░░░░░░░░  18  │
 │ Energy     ████░░░░░░  38  │
 │ Happiness  ██████░░░░  64  │
 │ Trust      ███████░░░  71  │
@@ -60,7 +66,9 @@ Initial card content:
 └────────────────────────────┘
 ```
 
-The first implementation can use SwiftUI shapes and system materials. Final pixel-art styling remains a separate design task.
+All exact-value meters are positive wellbeing measures: a higher value and longer bar always mean the Workling is doing better. The interface displays **Fullness** as the inverse of the Pet Brain's internal hunger value. Natural-language conditions may still describe the Workling as hungry.
+
+The current implementation uses SwiftUI shapes and system materials. Approved concept art establishes character direction, but runtime sprite extraction, state variants, animation, and asset licensing metadata remain separate work.
 
 ### 4. Menu bar
 
@@ -84,7 +92,7 @@ Native AppKit tracking and window-drag behavior should own these distinctions. S
 
 ## Urgency model
 
-Every need maps to an urgency level used by ambient presentation and hover summaries.
+Every internal need maps to an urgency level used by ambient presentation and hover summaries. Hunger thresholds below use the Pet Brain's internal value; the exact-value interface shows the inverse as Fullness.
 
 | Need | Notice | Urgent | Critical |
 | --- | ---: | ---: | ---: |
@@ -163,7 +171,7 @@ Manual macOS review should cover:
 
 ## Deferred work
 
-- Final pixel art and animation assets.
+- Integrating approved character concepts into licensed runtime sprites and animation states.
 - Autonomous movement.
 - Codex and other activity adapters.
 - Adoption, naming, and personality-selection flows.

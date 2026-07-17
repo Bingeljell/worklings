@@ -57,8 +57,8 @@ struct PetCareCardView: View {
     private var needs: some View {
         VStack(spacing: 10) {
             NeedProgressRow(
-                label: "Hunger",
-                value: state.needs.hunger,
+                label: "Fullness",
+                value: state.needs.fullness,
                 tint: .orange
             )
             NeedProgressRow(

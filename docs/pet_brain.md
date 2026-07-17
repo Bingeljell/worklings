@@ -1,30 +1,46 @@
-# Pet Brain Vertical Slice
+# Worklings Pet Brain
 
-## Objective
+## Status
 
-The next Worklings milestone should prove a small care loop before adding autonomous movement or external activity integrations. The user should be able to care for the same persistent pet across launches and understand its condition through temporary placeholder visuals.
+The first persistent care loop is implemented. Pixel is currently the single test Workling and uses placeholder runtime visuals; the Wildkin, Elemental, and Relicborn artwork in the repository is concept direction rather than selectable in-app content.
 
-The implementation is split into four reviewable commits: this plan, the Pet Brain domain, placeholder application content, and comprehensive checks.
+The Pet Brain is deterministic, independent of Codex, and usable without any activity integration. Autonomous movement, adoption, deeper personality, reversible runaway behavior, and activity-driven intent remain planned work.
 
-## Scope
+## Responsibilities
 
-### Pet state
+`CompanionCore` owns the rules for needs, preferences, time progression, actions, moods, urgency, and presentation intent. It does not own windows, menus, timers, filesystem locations, or final artwork.
 
-The initial state contains:
+`PetSession` is the live application boundary. It advances the simulation once per minute, performs care actions, publishes reactions to the UI, and persists state after changes.
 
-- a schema version;
-- a pet name;
-- hunger, energy, happiness, and trust values;
-- a favourite food and favourite play activity;
-- the time at which progression was last calculated.
+## State model
 
-Every need uses a closed `0...100` range. Higher hunger is worse; higher energy, happiness, and trust are better. Values must be clamped at the domain boundary rather than only in the interface.
+The version 1 save contains:
 
-### Time progression
+- schema version;
+- Workling name;
+- hunger, energy, happiness, and trust;
+- favourite food and favourite play activity;
+- the timestamp of the last progression calculation.
 
-The simulation advances from an explicit previous timestamp to an explicit current timestamp. This keeps the Pet Brain deterministic and testable.
+Every need is clamped to `0...100`. Internally, higher hunger is worse while higher energy, happiness, and trust are better.
 
-Initial real-time rates are deliberately gentle:
+The interface derives **Fullness** as `100 - hunger`. Fullness is not persisted and does not change the save schema. Fullness, Energy, Happiness, and Trust therefore share one visible rule: a higher number and longer bar mean better wellbeing.
+
+Pixel currently starts with:
+
+| State | Initial value |
+| --- | ---: |
+| Hunger | 15 |
+| Fullness shown to the user | 85 |
+| Energy | 80 |
+| Happiness | 70 |
+| Trust | 50 |
+| Favourite food | Berries |
+| Favourite play activity | Puzzle |
+
+## Time progression
+
+Progression accepts explicit timestamps so tests do not depend on wall-clock timing.
 
 | Need | Baseline change per hour |
 | --- | ---: |
@@ -33,67 +49,86 @@ Initial real-time rates are deliberately gentle:
 | Happiness | -1 |
 | Trust | No baseline decay |
 
-Severe hunger or exhaustion may add a small happiness and trust penalty. Offline progression is capped at seven days so clock changes or a long absence cannot irreversibly destroy the relationship.
+Severe hunger and exhaustion add happiness and trust penalties. Offline progression is capped at seven days, but `lastUpdatedAt` advances to the actual current time so the same absence is not applied repeatedly.
 
-### Care interactions
+These values are alpha tuning, not settled game balance. In particular, the current hunger rate can make Pixel feel persistently hungry after a long absence and should be evaluated with tester feedback.
 
-The first actions are:
+## Care actions
 
-- feed a selected food;
-- play a selected activity;
-- pet;
-- sleep.
+All results are clamped to the valid need range.
 
-Actions update needs immediately and return a semantic reaction. Favourite food and play choices produce stronger positive outcomes. Actions still have tradeoffs: play consumes energy and increases hunger, while sleep restores energy but also increases hunger.
+| Action | Effect |
+| --- | --- |
+| Favourite food | Hunger -30, Happiness +8, Trust +3 |
+| Other food | Hunger -20, Happiness +3, Trust +1 |
+| Favourite play | Hunger +8, Energy -14, Happiness +22, Trust +6 |
+| Other play | Hunger +7, Energy -12, Happiness +14, Trust +3 |
+| Pet | Happiness +8, Trust +4 |
+| Sleep | Hunger +6, Energy +35, Happiness +2 |
 
-### Mood and reactions
+Feed is unavailable at zero hunger, Play is unavailable below 15 energy, Sleep is unavailable at 100 energy, and Pet remains available. Favourite choices return stronger semantic reactions; exhausted play returns a refusal without changing needs.
 
-The Pet Brain exposes a mood derived from needs rather than UI-specific colours or animation names. Initial moods are happy, content, hungry, sleepy, sad, and wary.
+## Mood and urgency
 
-Urgent physical needs take precedence over positive mood. Placeholder presentation maps the semantic mood and the latest interaction reaction to a colour treatment, face, and short thought bubble.
+Mood is derived in priority order:
 
-### Persistence
+1. Hungry at hunger `>= 75`.
+2. Sleepy at energy `<= 20`.
+3. Wary at trust `<= 20`.
+4. Sad at happiness `<= 30`.
+5. Happy when happiness is `>= 75`, trust is `>= 60`, and hunger is `<= 40`.
+6. Content otherwise.
 
-State is encoded as versioned JSON under the user's Application Support directory. Saves use atomic file replacement.
+`PetCareStatus` separately ranks notice, urgent, and critical conditions for hover summaries, ambient feedback, and action availability. This keeps shared care rules out of SwiftUI and AppKit.
 
-If a save cannot be decoded, the application must preserve the unreadable file, report the failure locally, and run with a fresh in-memory state. It must not silently overwrite the unreadable save.
+## Presentation contract
 
-## Placeholder application experience
+`PetPresentation` maps semantic mood and the latest reaction to the current placeholder face, palette, label, and short thought. Care reactions temporarily take precedence for approximately three seconds; normal need presentation then resumes.
 
-The existing drawn pet remains temporary. This slice adds enough feedback to evaluate the loop without committing to final art:
+The live UI currently provides:
 
-- face and colour changes based on mood;
-- short thought bubbles for urgent needs and interactions;
-- menu-bar summaries for the four needs;
-- menu actions for feeding, playing, petting, and sleeping;
-- clicking the pet performs the pet interaction;
-- state loads on launch and saves after progression or interaction.
+- natural-language hover summaries with at most two conditions;
+- a click-opened care card with exact positive wellbeing meters;
+- Feed, Play, Pet, and Sleep actions;
+- favourite food and activity markers;
+- matching menu-bar state and actions;
+- accessible labels and Reduce Motion support.
 
-The interface should label temporary content clearly enough that later sprite work can replace presentation without changing Pet Brain rules.
+## Persistence and compatibility
 
-## Test strategy
+State is stored as versioned JSON at:
 
-The repository's dependency-free executable check harness will cover:
+```text
+~/Library/Application Support/Worklings/pet-state.json
+```
 
-- need clamping and mood priority;
-- deterministic time progression and the offline cap;
-- interaction tradeoffs and preference bonuses;
-- JSON round trips and corrupt-save preservation;
-- placeholder presentation mapping;
-- existing screen placement behavior.
+On first launch after the rebrand, Worklings copies an existing legacy save from `Application Support/BuildCompanion` when the Worklings save does not yet exist. The legacy file is preserved.
 
-Full Xcode test frameworks remain deferred. The checks must run with the installed Apple Command Line Tools.
+Writes use atomic replacement. An unreadable save is preserved, persistence is disabled for that session, and the app falls back to a fresh in-memory pet rather than overwriting unknown data.
 
-## Review criteria
+## Verification
 
-At the end of the slice:
+The dependency-free check executable currently covers:
 
-- relaunching restores the same pet and needs;
-- time away changes needs predictably without permanent loss;
-- all four care actions visibly affect the pet;
-- preferences create observable differences;
-- no raw activity or user-content collection is introduced;
-- movement and Codex-specific behavior remain absent;
-- the application builds and all dependency-free checks pass.
+- clamping and derived Fullness boundaries;
+- new-pet defaults and mood priority;
+- deterministic time progression, backward clocks, and offline caps;
+- care tradeoffs, preference bonuses, and refusals;
+- JSON round trips, schema rejection, corrupt-save preservation, and decoded clamping;
+- confirmation that derived Fullness is not persisted;
+- urgency, summaries, action availability, presentation, and screen placement.
 
-The review should decide whether the care loop feels understandable and worth extending before work begins on movement.
+Run it with:
+
+```bash
+swift run CompanionCoreChecks
+```
+
+## Next Pet Brain work
+
+- Tune need rates from real usage rather than intuition.
+- Add personality traits beyond two favourites.
+- Define reversible neglect and runaway recovery.
+- Separate short-lived activity context from long-lived relationship state.
+- Add intent outputs for idle, roaming, attention-seeking, sleep, and activity reactions.
+- Support adoption and creature-family selection without coupling rules to particular artwork.

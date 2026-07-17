@@ -2,69 +2,90 @@
 
 ## Status
 
-This document records the initial architecture for an experimental macOS-first implementation. Decisions should be revisited when a working vertical slice provides evidence.
+The macOS host, persistent Pet Brain, care UI, legacy-save transition, behavioral checks, and direct-download packaging toolchain are implemented. Autonomous movement and activity integrations remain planned.
 
-## System boundaries
-
-Worklings consists of a desktop host, a deterministic pet simulation, presentation and movement logic, local persistence, and optional activity-source adapters.
+## Implemented system
 
 ```text
-Activity sources -> normalized events -> pet simulation -> pet intent -> presentation
-                           |                   |
-                           |                   +-> versioned local state
-                           +-> local, minimal event metadata
+AppKit window and menu ─┐
+                       ├─> PetSession ─> PetBrain ─> PetState
+SwiftUI pet and card ──┘       │             │
+                               │             └─> PetCareStatus / PetPresentation
+                               └─> versioned JSON store
 ```
 
-The simulation must function when no activity integration is enabled.
+The simulation works without an activity source. UI surfaces call the same session actions and consume the same state.
 
-## Technology decision
+## Planned activity boundary
 
-Use Swift with SwiftUI for declarative interface elements and AppKit for window behavior that SwiftUI does not expose cleanly.
+```text
+Activity source -> normalized event -> activity context -> Pet Brain intent -> presentation
+```
 
-Reasons:
+Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract.
 
-- precise control of transparent, floating macOS windows;
-- native support for displays, accessibility preferences, menus, and application lifecycle;
-- low idle overhead for an application intended to remain open all day;
-- no third-party runtime dependency for the first experiment.
+## Technology and targets
 
-The first implementation should use Swift Package Manager and Apple frameworks only. Full Xcode may be introduced when packaging, signing, profiling, or project-level tooling requires it.
+Worklings uses Swift Package Manager and Apple frameworks only, targeting macOS 14 or newer.
 
-## Logical components
+- `CompanionCore`: deterministic state, simulation, persistence primitives, care status, and presentation decisions.
+- `Worklings`: AppKit application/window behavior, SwiftUI views, live session, menu bar, and filesystem wiring.
+- `CompanionCoreChecks`: dependency-free executable verification for machines without XCTest or Swift Testing.
 
-### Application host
+SwiftUI handles declarative content. AppKit handles lifecycle, menu-bar behavior, transparent floating panels, pointer tracking, drag-versus-click classification, focus, and display coordinates.
 
-Owns application lifecycle, menu commands, permissions, dependency construction, and clean shutdown. It must not contain simulation rules.
+## Application host
 
-### Companion window
+`WorklingsApp` starts the accessory application. `AppDelegate` constructs the shared `PetSession`, companion panel, and menu-bar controls. Application code must not duplicate Pet Brain rules.
 
-Wraps an AppKit panel or borderless window with a transparent background. It is responsible for:
+## Companion window
 
-- window level and workspace behavior;
-- dragging and click handling;
-- movement between safe positions;
-- multi-display coordinate conversion;
-- avoiding the menu bar, Dock, and unavailable screen regions;
-- pausing or reducing animation when requested.
+The current panel:
 
-A small moving window is preferred over a display-sized transparent overlay because it minimizes input interception.
+- floats above normal windows;
+- has a transparent background;
+- can join Spaces and remain visible around full-screen workflows;
+- supports dragging without opening the care card;
+- clamps placement to the visible display frame;
+- can be tucked away and restored;
+- respects Reduce Motion in placeholder animation.
 
-### Pet simulation
+Autonomous roaming, intent-driven movement, collision/obstruction policy, and multi-display travel are not implemented. A small moving window remains preferred over a display-sized overlay because it minimizes input interception.
 
-Owns needs, preferences, relationship state, time progression, and behavioral intent. Its update operation accepts an explicit timestamp or elapsed duration so tests do not depend on wall-clock timing.
+## Pet simulation and presentation
 
-Initial needs:
+`PetBrain` owns needs, preferences, actions, time progression, and semantic reactions. `PetState` owns the versioned relationship state. `PetCareStatus` owns urgency, natural-language summaries, and action availability. `PetPresentation` converts mood and reaction into the current placeholder treatment.
 
-- hunger;
-- energy;
-- happiness;
-- trust.
+Internal hunger is presented as derived Fullness so all exact UI meters increase in the healthy direction. The derived value is not persisted.
 
-Simulation output is an intent such as idle, roam, seek attention, sleep, eat, play, celebrate, worry, sulk, or run away. Presentation chooses the animation for that intent.
+Final artwork must remain a presentation concern. Wildkin, Elemental, and Relicborn assets should not introduce species-specific conditionals into the core simulation; family and species differences should enter through data or explicit personality/configuration models.
 
-### Activity event pipeline
+## Live session
 
-Every integration implements an activity-source protocol and emits a normalized event:
+`PetSession` is the single source of live app state. It:
+
+- loads or creates Pixel;
+- advances the brain at launch and every 60 seconds;
+- guards and performs care actions;
+- exposes short-lived reactions;
+- persists updated state;
+- reports local persistence warnings.
+
+## Persistence and rebrand compatibility
+
+The active save is:
+
+```text
+~/Library/Application Support/Worklings/pet-state.json
+```
+
+When this file is absent and the legacy Build Companion save exists, Worklings copies the legacy file into the new directory and preserves the original. If copying fails, the legacy store remains the fallback rather than losing progress.
+
+JSON remains appropriate until query, concurrency, or migration requirements demonstrate a database need. Writes are atomic, schema versions are explicit, decoded values are clamped, and unreadable saves are never silently overwritten.
+
+## Activity event pipeline
+
+The pipeline is designed but not implemented. Each future adapter should emit:
 
 ```text
 ActivityEvent
@@ -75,53 +96,41 @@ ActivityEvent
   intensity      optional normalized value
 ```
 
-Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract.
+An event reducer will convert short-lived events into activity context. The Pet Brain should consume that context without knowing whether it originated in Codex, another agent, an IDE, or the operating system.
 
-The event reducer converts short-lived source events into an activity context. The pet simulation consumes that context without knowing whether it originated in Codex, an IDE, or the operating system.
-
-### Codex adapter
-
-The first adapter will map supported Codex lifecycle signals to normalized events. The implementation should prefer explicit hooks or another documented interface over scraping application UI or unstable transcript formats.
-
-The adapter is optional and must fail closed: if it is unavailable or untrusted, the pet continues running without Codex awareness.
-
-### Persistence
-
-Begin with a versioned JSON document in the user's Application Support directory. Use atomic replacement when saving and retain enough metadata to calculate offline progression safely.
-
-Do not introduce a database until query, concurrency, or migration requirements demonstrate that JSON is insufficient. Never silently discard an unreadable save; preserve it for recovery and begin with a clearly reported fallback state.
+The first Codex adapter should use documented lifecycle signals rather than UI scraping or unstable transcript parsing. It must be optional and fail closed.
 
 ## Privacy and permissions
 
-The default product processes all state locally and requests no screen-recording or keystroke access.
+The current application processes state locally and requests no screen-recording, keystroke, or Accessibility permission. Future integrations must declare what they observe, why it is needed, and whether anything is retained. Sensitive capabilities must be independently opt-in.
 
-Integrations declare their capabilities and required permissions. More sensitive capabilities, such as foreground window titles or Accessibility access, must be independently opt-in and must explain what is observed, why it is needed, and whether anything is retained.
+Activity is behavioral context, not a productivity score. A Workling's survival must not depend directly on how much the user works.
 
-## State and time rules
+## Packaging and distribution
 
-- Persist an explicit schema version.
-- Clamp offline elapsed time to prevent clock changes from corrupting needs.
-- Make decay and recovery rates configurable constants.
-- Keep neglect reversible in the MVP.
-- Do not tie survival directly to how much the user works or codes.
-- Treat activity as behavioral context, not as a reward score.
+The release scripts build an architecture-specific release executable, assemble `Worklings.app`, write bundle metadata, apply an ad-hoc signature, create a compressed DMG and SHA-256 checksum, then mount and inspect the final artifact.
+
+The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is still branded Build Companion. The first Worklings-branded public artifact has not yet been published.
 
 ## Testing strategy
 
-- Unit-test simulation transitions with a controlled clock and deterministic random source.
-- Unit-test persistence round trips, schema migration, corrupt-file preservation, and offline progression.
-- Unit-test event normalization independently for every adapter.
-- Exercise window placement against multiple synthetic screen frames.
-- Run a manual macOS smoke test for drag behavior, Spaces, full-screen apps, multiple displays, reduced motion, and wake-from-sleep.
+- Deterministic checks cover simulation, actions, urgency, presentation, persistence, and screen placement.
+- Persistence checks cover round trips, schema rejection, corrupt-file preservation, clamping, and derived-value exclusion.
+- Release scripts verify metadata, architecture, signatures, checksums, DMG integrity, and mounted contents.
+- Manual macOS review remains necessary for hover, click/drag, focus, Spaces, full-screen apps, displays, accessibility, wake-from-sleep, installation, and launch.
+- Future adapters require independent normalization and reducer tests.
 
-## Delivery slices
+## Delivery status
 
-1. Floating placeholder that can be dragged and tucked away.
-2. Safe idle roaming within one display.
-3. Deterministic needs and local persistence.
-4. Direct care interactions and preferences.
-5. Provider-neutral event pipeline with a simulated source.
-6. Codex adapter.
-7. Packaging and public beta hardening.
-
-Each slice should remain runnable and testable without requiring the next integration.
+| Slice | Status |
+| --- | --- |
+| Floating draggable placeholder and tuck-away control | Complete |
+| Deterministic needs and local persistence | Complete |
+| Direct care interactions, preferences, hover, and care card | Complete |
+| Worklings rebrand and legacy-save copy | Complete |
+| App bundle, DMG, checksum, and mounted verification | Complete |
+| Safe idle roaming within one display | Planned |
+| Provider-neutral event pipeline with a simulated source | Planned |
+| Codex adapter | Planned |
+| Runtime artwork, adoption, and creature-family selection | Planned |
+| Developer ID signing and notarization | Deferred |

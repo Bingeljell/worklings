@@ -4,6 +4,7 @@ import Foundation
 enum PetBrainChecks {
     static func run(context: inout CheckContext) {
         checkNeedClamping(context: &context)
+        checkFullnessPresentation(context: &context)
         checkNewPetDefaults(context: &context)
         checkMoodPriority(context: &context)
         checkDeterministicProgression(context: &context)
@@ -22,6 +23,16 @@ enum PetBrainChecks {
         context.expectEqual(needs.energy, 100, "energy clamps to one hundred")
         context.expectEqual(needs.happiness, 0, "happiness clamps to zero")
         context.expectEqual(needs.trust, 100, "trust clamps to one hundred")
+    }
+
+    private static func checkFullnessPresentation(context: inout CheckContext) {
+        let full = PetNeeds(hunger: 0, energy: 80, happiness: 70, trust: 50)
+        let hungry = PetNeeds(hunger: 80, energy: 80, happiness: 70, trust: 50)
+        let empty = PetNeeds(hunger: 100, energy: 80, happiness: 70, trust: 50)
+
+        context.expectEqual(full.fullness, 100, "zero hunger presents as full")
+        context.expectEqual(hungry.fullness, 20, "fullness inverts hunger for display")
+        context.expectEqual(empty.fullness, 0, "maximum hunger presents as empty")
     }
 
     private static func checkNewPetDefaults(context: inout CheckContext) {

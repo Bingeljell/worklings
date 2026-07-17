@@ -1,5 +1,17 @@
 # Changelog
 
+- **2026-07-17 > README.md > visual asset licensing > Clarifies that first-party concept art and code-rendered placeholder visuals share the repository license unless an asset states otherwise.**
+- **2026-07-17 > Sources/CompanionCore/PetState.swift > PetNeeds.fullness > Restores the approved derived inverse of hunger after the Worklings rebrand without changing persistence or Pet Brain rules.**
+- **2026-07-17 > Sources/Worklings/PetCareCardView.swift and Sources/Worklings/AppDelegate.swift > need presentation > Uses Fullness, Energy, Happiness, and Trust consistently so every higher value means better wellbeing.**
+- **2026-07-17 > Tests/CompanionCoreChecks/PetBrainChecks.swift and Tests/CompanionCoreChecks/PetPersistenceChecks.swift > fullness checks > Covers fullness conversion boundaries and verifies the derived value does not enter the versioned save.**
+- **2026-07-17 > docs/pet_brain.md and docs/pet_interaction.md > meter semantics > Documents the positive wellbeing display rule and the unchanged internal hunger model.**
+- **2026-07-17 > docs/pet_brain.md > implemented Pet Brain reference > Replaces the completed vertical-slice plan with the current state model, exact care rules, tuning caveats, persistence behavior, verification coverage, and next domain work.**
+- **2026-07-17 > docs/product_brief.md > validated experience and MVP progress > Separates implemented behavior from remaining scope and records Wildkin, Elemental, and Relicborn as MMO-style concept families rather than shipped choices.**
+- **2026-07-17 > docs/architecture.md > implemented topology and delivery status > Documents the current Swift targets, live session, rebrand compatibility, packaging path, planned adapter boundary, artwork boundary, and remaining slices.**
+- **2026-07-17 > docs/pet_interaction.md > implementation status and art boundary > Aligns interaction guidance with the shipped hover and care-card behavior while distinguishing Pixel's placeholder from concept artwork.**
+- **2026-07-17 > docs/distribution.md > Worklings release transition > Records the historical Build Companion prerelease, the pending Worklings artifact, updated example version, and safe first rebrand upgrade.**
+- **2026-07-17 > README.md > current implementation and release status > Updates the public overview for positive meters, legacy-save copy, packaging tools, concept-only artwork, and the pending Worklings-branded download.**
+- **2026-07-17 > README.md, assets/worklings.png, and assets/worklings_interaction.png > placeholder project visuals > Removes the superseded purple pet portrait and care-card screenshot along with the remaining README reference.**
 - **2026-07-17 > README.md and assets/worklings-social-preview.jpg, assets/worklings-wildkin.png, assets/worklings-elemental.png, and assets/worklings-relicborn.png > project banner and character direction > Adds the approved Worklings concept banner and Wildkin, Elemental, and Relicborn artwork to the repository overview.**
 - **2026-07-17 > README.md and assets/worklings.png and assets/worklings_interaction.png > project visuals > Adds the supplied Worklings portrait and care-card screenshot to the project overview.**
 - **2026-07-17 > Package.swift, Sources/Worklings, scripts/build_app_bundle, scripts/build_dmg, and scripts/verify_release > package, executable, app entry point, bundle metadata, and release artifact configuration > Renames the macOS app and technical build identity from Build Companion to Worklings.**
