@@ -119,12 +119,21 @@ mounted_app="$mount_point/$app_name.app"
 applications_link="$mount_point/Applications"
 info_plist="$mounted_app/Contents/Info.plist"
 bundle_executable="$mounted_app/Contents/MacOS/$executable_name"
-sprite_asset="$mounted_app/Contents/Resources/worklings-wildkin-spritesheet.png"
 
-if [ ! -d "$mounted_app" ] || [ ! -x "$bundle_executable" ] || [ ! -f "$sprite_asset" ]; then
+if [ ! -d "$mounted_app" ] || [ ! -x "$bundle_executable" ]; then
   printf 'Error: mounted DMG does not contain a complete app bundle\n' >&2
   exit 1
 fi
+
+for sprite_name in \
+  worklings-wildkin-spritesheet.png \
+  worklings-elemental-spritesheet.png \
+  worklings-relicborn-spritesheet.png; do
+  if [ ! -f "$mounted_app/Contents/Resources/$sprite_name" ]; then
+    printf 'Error: mounted app is missing sprite sheet: %s\n' "$sprite_name" >&2
+    exit 1
+  fi
+done
 
 if [ ! -L "$applications_link" ] || [ "$(readlink "$applications_link")" != '/Applications' ]; then
   printf 'Error: mounted DMG does not contain the expected Applications shortcut\n' >&2

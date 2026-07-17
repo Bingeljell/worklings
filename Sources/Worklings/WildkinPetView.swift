@@ -3,7 +3,7 @@ import CompanionCore
 import Foundation
 import SwiftUI
 
-struct WildkinPetView: View {
+struct WorklingPetView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var session: PetSession
     @ObservedObject var motion: CompanionMotionState
@@ -27,7 +27,10 @@ struct WildkinPetView: View {
             TimelineView(
                 .periodic(from: .now, by: motion.isWalking ? 0.14 : 0.7)
             ) { context in
-                WildkinSprite(frame: spriteFrame(at: context.date))
+                WorklingSprite(
+                    family: session.state.family,
+                    frame: spriteFrame(at: context.date)
+                )
                     .scaleEffect(
                         x: motion.facingDirection == .left ? 1 : -1,
                         y: 1
@@ -49,11 +52,14 @@ struct WildkinPetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .animation(.easeInOut(duration: 0.2), value: presentation)
-        .accessibilityLabel("\(session.state.name), \(presentation.moodLabel.lowercased())")
+        .accessibilityLabel(
+            "\(session.state.name), \(session.state.family.displayName), "
+                + presentation.moodLabel.lowercased()
+        )
         .accessibilityHint(careStatus.hoverSummary)
     }
 
-    private func spriteFrame(at date: Date) -> WildkinSpriteFrame {
+    private func spriteFrame(at date: Date) -> WorklingSpriteFrame {
         if let reaction = session.reaction {
             return reaction == .tooTiredToPlay ? .sleepy : .caredFor
         }
@@ -89,14 +95,30 @@ struct WildkinPetView: View {
     }
 }
 
-private struct WildkinSprite: View {
-    private static let resourceName = "worklings-wildkin-spritesheet"
+private struct WorklingSprite: View {
     private static let sourceCellSize: CGFloat = 256
     private static let cellSize: CGFloat = 168
 
-    let frame: WildkinSpriteFrame
+    let family: PetFamily
+    let frame: WorklingSpriteFrame
 
-    private static let spriteSheet: CGImage? = {
+    private static let wildkinSpriteSheet = loadSpriteSheet(
+        resourceName: "worklings-wildkin-spritesheet",
+        familyName: "Wildkin"
+    )
+    private static let elementalSpriteSheet = loadSpriteSheet(
+        resourceName: "worklings-elemental-spritesheet",
+        familyName: "Elemental"
+    )
+    private static let relicbornSpriteSheet = loadSpriteSheet(
+        resourceName: "worklings-relicborn-spritesheet",
+        familyName: "Relicborn"
+    )
+
+    private static func loadSpriteSheet(
+        resourceName: String,
+        familyName: String
+    ) -> CGImage? {
         let resourceURL = Bundle.main.url(
             forResource: resourceName,
             withExtension: "png"
@@ -107,7 +129,7 @@ private struct WildkinSprite: View {
 
         guard let resourceURL,
               let sourceImage = NSImage(contentsOf: resourceURL) else {
-            NSLog("Worklings could not load the Wildkin sprite sheet.")
+            NSLog("Worklings could not load the %@ sprite sheet.", familyName)
             return nil
         }
 
@@ -117,7 +139,7 @@ private struct WildkinSprite: View {
             context: nil,
             hints: nil
         )
-    }()
+    }
 
     var body: some View {
         Group {
@@ -137,7 +159,7 @@ private struct WildkinSprite: View {
     }
 
     private var frameImage: CGImage? {
-        Self.spriteSheet?.cropping(
+        spriteSheet?.cropping(
             to: CGRect(
                 x: CGFloat(frame.column) * Self.sourceCellSize,
                 y: CGFloat(frame.row) * Self.sourceCellSize,
@@ -146,9 +168,17 @@ private struct WildkinSprite: View {
             )
         )
     }
+
+    private var spriteSheet: CGImage? {
+        switch family {
+        case .wildkin: Self.wildkinSpriteSheet
+        case .elemental: Self.elementalSpriteSheet
+        case .relicborn: Self.relicbornSpriteSheet
+        }
+    }
 }
 
-private enum WildkinSpriteFrame {
+private enum WorklingSpriteFrame {
     case idle
     case idleBlink
     case walkContact

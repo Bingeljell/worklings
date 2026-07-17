@@ -94,12 +94,21 @@ fi
 
 info_plist="$app_path/Contents/Info.plist"
 bundle_executable="$app_path/Contents/MacOS/$executable_name"
-sprite_asset="$app_path/Contents/Resources/worklings-wildkin-spritesheet.png"
 
-if [ ! -f "$info_plist" ] || [ ! -x "$bundle_executable" ] || [ ! -f "$sprite_asset" ]; then
+if [ ! -f "$info_plist" ] || [ ! -x "$bundle_executable" ]; then
   printf 'Error: app bundle is incomplete: %s\n' "$app_path" >&2
   exit 1
 fi
+
+for sprite_name in \
+  worklings-wildkin-spritesheet.png \
+  worklings-elemental-spritesheet.png \
+  worklings-relicborn-spritesheet.png; do
+  if [ ! -f "$app_path/Contents/Resources/$sprite_name" ]; then
+    printf 'Error: app bundle is missing sprite sheet: %s\n' "$sprite_name" >&2
+    exit 1
+  fi
+done
 
 bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist")
 if [ "$bundle_version" != "$version" ]; then
