@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines how a user understands and cares for a Workling. It covers implemented behavioral surfaces and accessibility while keeping future autonomous movement and final art direction separate.
+This document defines how a user understands and cares for a Workling. It covers implemented behavioral surfaces and accessibility while keeping future movement intelligence and additional art direction separate.
 
 Pixel is the current fixed-name test Workling and renders as the moss-fox Wildkin. Elemental and Relicborn repository assets remain concept art rather than selectable runtime states.
 
@@ -10,7 +10,7 @@ The Workling must communicate important needs without requiring the user to insp
 
 ## Implementation status
 
-Ambient Wildkin mood and reaction frames, a reduced-motion-safe idle cycle, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, and basic accessibility labels are implemented. Autonomous movement, richer action animation, adoption, family selection, and a complete settings experience remain deferred.
+Ambient Wildkin mood and reaction frames, a reduced-motion-safe idle cycle, opt-in single-display roaming with walking frames, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, and basic accessibility labels are implemented. Mood-driven movement, richer care animation, adoption, family selection, and a complete settings experience remain deferred.
 
 ## Interaction hierarchy
 
@@ -68,7 +68,7 @@ Current card structure:
 
 All exact-value meters are positive wellbeing measures: a higher value and longer bar always mean the Workling is doing better. The interface displays **Fullness** as the inverse of the Pet Brain's internal hunger value. Natural-language conditions may still describe the Workling as hungry.
 
-The current implementation uses SwiftUI shapes and system materials. Approved concept art establishes character direction, but runtime sprite extraction, state variants, animation, and asset licensing metadata remain separate work.
+The current implementation combines SwiftUI care surfaces with the Wildkin runtime sprite sheet. Additional species, state variants, action animation, and asset-specific licensing metadata remain separate work.
 
 ### 4. Menu bar
 
@@ -77,7 +77,21 @@ The menu bar remains a reliable fallback and application-control surface.
 - Keep wake, tuck away, persistence warnings, and quit controls.
 - Care actions may remain duplicated during the experiment.
 - Both surfaces must call the same session actions and display the same state.
+- Keep the persistent roaming toggle in the menu bar so movement can be paused without catching the pet.
 - If the care card proves successful, detailed care can later move out of the menu bar.
+
+## Idle roaming
+
+Idle roaming is an explicit, persistent opt-in. It makes Pixel wander occasionally within the current display without changing pet needs or relationship state.
+
+- Keep the complete companion window inside the display's visible frame with a margin.
+- Reflect a movement inward when a planned direction is blocked by a display edge.
+- Pause immediately for hover, care-card interaction, dragging, tuck-away, or macOS Reduce Motion.
+- Clamp a user drag into the visible frame when it ends, then allow roaming to resume.
+- Never move between displays autonomously.
+- Use walking frames and face the direction of travel without flipping text or care surfaces.
+
+The initial pattern is deterministic and intentionally modest. Personality, mood, activity context, obstacles, and attention-seeking may influence later movement intents, but they are outside this slice.
 
 ## Pointer behavior
 
@@ -143,11 +157,12 @@ Favourite food and play choices are marked consistently in both care surfaces. P
 
 ## Implementation boundaries
 
-- `CompanionCore` owns urgency, summaries, action availability, and other testable presentation decisions.
+- `CompanionCore` owns urgency, summaries, action availability, roaming plans, safe screen targets, and other testable presentation decisions.
 - The application target owns hover timing, AppKit tracking, card placement, focus, and dismissal.
+- The application target owns roaming animation, interruption, and the local opt-in preference.
 - `PetSession` remains the single source of live state and actions.
 - Menu-bar and pet-anchored controls reuse the same domain models.
-- No Codex-specific logic or movement behavior enters this slice.
+- No Codex-specific logic enters this slice.
 
 ## Verification
 
@@ -159,6 +174,7 @@ Automated checks should cover:
 - care action availability and explanations;
 - reaction precedence over ambient need content;
 - existing simulation, persistence, presentation, and placement behavior.
+- deterministic roaming plans, display-relative targets, bounds, and edge reflection.
 
 Manual macOS review should cover:
 
@@ -168,11 +184,12 @@ Manual macOS review should cover:
 - live updates after every care action;
 - menu/card consistency;
 - VoiceOver labels, keyboard navigation, and Reduce Motion.
+- roaming opt-in persistence, walking direction, interaction pauses, drag clamping, and tuck/wake behavior.
 
 ## Deferred work
 
-- Additional action and movement animation states.
-- Autonomous movement.
+- Additional action animation states.
+- Mood-driven movement, obstacle awareness, and multi-display travel.
 - Codex and other activity adapters.
 - Adoption, naming, and personality-selection flows.
 - A complete settings and save-recovery interface.

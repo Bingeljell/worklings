@@ -37,6 +37,7 @@ The current experimental build includes:
 
 - a transparent floating companion window;
 - a Wildkin sprite-sheet companion with mood, care-reaction, and reduced-motion-safe idle frames;
+- optional single-display idle roaming with walking frames and a persistent pause control;
 - internal hunger presented as Fullness, plus energy, happiness, and trust;
 - favourite food and play preferences;
 - deterministic time progression and capped offline progression;
@@ -48,7 +49,7 @@ The current experimental build includes:
 - Worklings-branded app, DMG, checksum, and release-verification scripts;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
 
-The moss-fox Wildkin is now the first in-app character. The Elemental and Relicborn concepts, autonomous movement, adoption, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
+The moss-fox Wildkin is now the first in-app character. The Elemental and Relicborn concepts, mood-driven movement, adoption, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
 
 ## Use from the repository
 
@@ -81,6 +82,7 @@ The first build may take a moment. Pixel appears as a floating desktop companion
 - Drag Pixel to reposition it without opening the card.
 - Use Feed, Play, Pet, and Sleep to affect its needs.
 - Use the paw menu to inspect state, tuck Pixel away, wake it, or quit.
+- Use **Let Pixel Roam** in the paw menu to opt into idle movement; pause it from the same control.
 - Press `Control+C` in the launching terminal to stop the process directly.
 
 Pet state is stored under the current user's `Application Support/Worklings` directory and restored on the next launch. On the first launch after upgrading from Build Companion, Worklings copies the existing save forward and preserves the legacy copy.
@@ -126,7 +128,7 @@ For the first upgrade from Build Companion, quit the old app and install Worklin
 
 ## Project direction
 
-Near-term work focuses on proving the care loop and desktop interaction before adding autonomous movement. Later milestones include:
+Near-term work focuses on tuning the care loop, safe roaming, and desktop interaction. Later milestones include:
 
 - intent-driven walking, resting, and attention-seeking;
 - richer needs, routines, preferences, and recoverable neglect;

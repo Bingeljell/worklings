@@ -1,5 +1,9 @@
 # Changelog
 
+- **2026-07-17 > Sources/Worklings/CompanionPanelController.swift and CompanionHostingView.swift > roaming loop and drag lifecycle > Animates safe single-display movement while pausing for pointer interaction, care, dragging, tuck-away, and Reduce Motion, then clamps manual drag endpoints.**
+- **2026-07-17 > Sources/Worklings/WildkinPetView.swift > walking frame selection and facing > Plays the four-frame Wildkin walk cycle and flips only the sprite to face its direction of travel.**
+- **2026-07-17 > Sources/Worklings/AppDelegate.swift > roaming menu preference > Adds a persistent opt-in roaming control with explicit pause and Reduce Motion states.**
+- **2026-07-17 > README.md, docs/architecture.md, docs/pet_brain.md, docs/pet_interaction.md, and docs/product_brief.md > safe idle-roaming behavior > Documents the opt-in contract, interruptions, ownership boundaries, implemented status, and deferred movement intelligence.**
 - **2026-07-17 > Sources/CompanionCore/ScreenPlacement.swift > PetRoamingPlanner.intent and ScreenPlacement.roamingOrigin > Adds deterministic idle-roaming timing and screen-relative targets that clamp and reflect within one visible display.**
 - **2026-07-17 > Tests/CompanionCoreChecks/ScreenPlacementChecks.swift > roaming planner and destination checks > Covers deterministic pattern repetition, scaled movement, bounds, and inward reflection at display edges.**
 - **2026-07-17 > Package.swift, Sources/Worklings/WildkinPetView.swift, Sources/Worklings/PlaceholderPetView.swift, and Sources/Worklings/CompanionPanelController.swift > Wildkin sprite loading, frame selection, and companion presentation > Replaces the code-drawn placeholder with mood-aware Wildkin frames, a reduced-motion-safe idle cycle, and care-reaction artwork while preserving the existing desktop interaction surfaces.**

@@ -3,6 +3,8 @@ import CompanionCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private static let roamingDefaultsKey = "idleRoamingEnabled"
+
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
     private var statusItem: NSStatusItem?
@@ -13,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var feedMenuItem: NSMenuItem?
     private var playMenuItem: NSMenuItem?
     private var sleepMenuItem: NSMenuItem?
+    private var roamingMenuItem: NSMenuItem?
     private var foodMenuItems: [NSMenuItem] = []
     private var playMenuItems: [NSMenuItem] = []
 
@@ -23,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.companionController = companionController
 
         configureStatusItem()
+        companionController.setRoamingEnabled(
+            UserDefaults.standard.bool(forKey: Self.roamingDefaultsKey)
+        )
         companionController.show()
     }
 
@@ -77,6 +83,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sleepMenuItem = sleepItem
 
         menu.addItem(.separator())
+        let roamingItem = NSMenuItem(
+            title: "Let Pixel Roam",
+            action: #selector(toggleRoaming),
+            keyEquivalent: ""
+        )
+        roamingItem.target = self
+        menu.addItem(roamingItem)
+        roamingMenuItem = roamingItem
+
         let visibilityItem = NSMenuItem(
             title: "Tuck Away Companion",
             action: #selector(toggleCompanionVisibility),
@@ -119,6 +134,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         warningMenuItem?.title = petSession.persistenceWarning ?? ""
         warningMenuItem?.isHidden = petSession.persistenceWarning == nil
+
+        updateRoamingMenuItem()
 
         apply(
             status.availability(for: .feed, state: state),
@@ -224,6 +241,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc
     private func sleep() {
         petSession?.perform(.sleep)
+    }
+
+    @objc
+    private func toggleRoaming() {
+        guard let companionController else {
+            return
+        }
+
+        let shouldEnable = !companionController.isRoamingEnabled
+        guard !shouldEnable || companionController.isRoamingAvailable else {
+            return
+        }
+
+        companionController.setRoamingEnabled(shouldEnable)
+        UserDefaults.standard.set(shouldEnable, forKey: Self.roamingDefaultsKey)
+        updateRoamingMenuItem()
+    }
+
+    private func updateRoamingMenuItem() {
+        guard let companionController else {
+            return
+        }
+
+        let isEnabled = companionController.isRoamingEnabled
+        let isAvailable = companionController.isRoamingAvailable
+
+        if !isAvailable {
+            roamingMenuItem?.title = isEnabled
+                ? "Disable Roaming (Reduce Motion Active)"
+                : "Roaming Unavailable (Reduce Motion Active)"
+        } else {
+            roamingMenuItem?.title = isEnabled ? "Pause Roaming" : "Let Pixel Roam"
+        }
+
+        roamingMenuItem?.state = isEnabled ? .on : .off
+        roamingMenuItem?.isEnabled = isAvailable || isEnabled
+        roamingMenuItem?.toolTip = isAvailable
+            ? "Allow Pixel to wander within the current display."
+            : "Roaming pauses while macOS Reduce Motion is enabled."
     }
 
     @objc

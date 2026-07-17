@@ -6,6 +6,7 @@ final class CompanionHostingView<Content: View>: NSHostingView<Content> {
     var onClick: (() -> Void)?
     var onHoverChanged: ((Bool) -> Void)?
     var onDragStarted: (() -> Void)?
+    var onDragEnded: (() -> Void)?
 
     private let dragTolerance: CGFloat = 4
     private var companionTrackingArea: NSTrackingArea?
@@ -82,10 +83,12 @@ final class CompanionHostingView<Content: View>: NSHostingView<Content> {
     }
 
     override func mouseUp(with event: NSEvent) {
-        let shouldOpenCareCard = !isDraggingCompanion
+        let wasDraggingCompanion = isDraggingCompanion
         clearPointerState()
 
-        if shouldOpenCareCard {
+        if wasDraggingCompanion {
+            onDragEnded?()
+        } else {
             onClick?()
         }
     }
