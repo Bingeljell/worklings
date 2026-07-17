@@ -1,5 +1,13 @@
 # Changelog
 
+- **2026-07-17 > .github/workflows/ci.yml > build-and-check job > Builds every target and runs all CompanionCore behavioral checks on pull requests and main using a read-only pinned action.**
+- **2026-07-17 > .github/PULL_REQUEST_TEMPLATE.md > pull request review template > Prompts contributors for the user outcome, tradeoffs, risk review, verification, documentation, and visual evidence.**
+- **2026-07-17 > .github/ISSUE_TEMPLATE > bug, feature, and routing forms > Collects reproducible bug context, outcome-focused feature proposals, product-boundary impacts, and private security routing.**
+- **2026-07-17 > .github/CODEOWNERS > repository ownership > Routes repository changes to the project owner until maintainership is delegated by area.**
+- **2026-07-17 > CONTRIBUTING.md > contribution workflow and pull request acceptance > Defines issue-first changes, setup, architectural boundaries, testing expectations, review criteria, and licensing for external contributions.**
+- **2026-07-17 > SECURITY.md > vulnerability reporting and supported versions > Adds a private reporting path, response expectations, and the local-first privacy boundary.**
+- **2026-07-17 > CODE_OF_CONDUCT.md > community standards and enforcement > Adopts Contributor Covenant 2.1 with a confidential reporting route.**
+- **2026-07-17 > README.md > documentation and contributing links > Links the contributor, security, and community governance policies from the repository entry point.**
 - **2026-07-17 > Package.swift, Sources/Worklings/WildkinPetView.swift, Sources/Worklings/PlaceholderPetView.swift, and Sources/Worklings/CompanionPanelController.swift > Wildkin sprite loading, frame selection, and companion presentation > Replaces the code-drawn placeholder with mood-aware Wildkin frames, a reduced-motion-safe idle cycle, and care-reaction artwork while preserving the existing desktop interaction surfaces.**
 - **2026-07-17 > scripts/build_app_bundle, scripts/build_dmg, scripts/verify_release, and docs/distribution.md > Wildkin runtime resource packaging and verification > Bundles the sprite sheet into packaged apps and makes release assembly and verification fail when the required pet artwork is missing.**
 - **2026-07-17 > README.md, docs/pet_brain.md, docs/pet_interaction.md, docs/product_brief.md, and docs/architecture.md > Wildkin runtime-art status > Records the moss-fox as Pixel's first in-app character and narrows remaining artwork work to richer animation, additional families, and adoption.**

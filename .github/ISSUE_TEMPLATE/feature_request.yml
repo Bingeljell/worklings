@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a focused user outcome for Worklings
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the user outcome rather than a preferred implementation. Material product, privacy, persistence, permission, dependency, or architecture changes should be discussed before code is written.
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: What need or frustration should Worklings address?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable success without prescribing the internal implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope
+      description: What is included, and what should explicitly remain out of scope?
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Product-boundary impact
+      description: Note any effect on privacy, permissions, saves, accessibility, Reduce Motion, dependencies, or desktop obstruction.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include simpler approaches or existing behavior that could solve the problem.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I searched existing issues and pull requests for this proposal.
+          required: true
+        - label: This request describes one coherent outcome.
+          required: true

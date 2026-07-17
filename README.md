@@ -143,6 +143,9 @@ Near-term work focuses on proving the care loop and desktop interaction before a
 - [Pet interaction model](docs/pet_interaction.md)
 - [Beta distribution](docs/distribution.md)
 - [Git workflow](docs/git_workflow.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](docs/changelog.md)
 
 ## License
@@ -154,6 +157,8 @@ Unless a file or asset states otherwise, the first-party visual assets in this r
 ## Contributing
 
 Pull requests are welcome. Worklings is still experimental, so focused changes that preserve the product principles are easier to review and merge than broad rewrites.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete development workflow, design boundaries, and pull request acceptance criteria.
 
 Before starting a change that introduces a dependency, changes persistence compatibility, expands data collection, or materially changes product direction, open a GitHub issue to discuss the tradeoffs first.
 
