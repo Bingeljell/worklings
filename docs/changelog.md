@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-17 > README.md and assets/worklings.png and assets/worklings_interaction.png > project visuals > Adds the supplied Worklings portrait and care-card screenshot to the project overview.**
 - **2026-07-17 > Package.swift, Sources/Worklings, scripts/build_app_bundle, scripts/build_dmg, and scripts/verify_release > package, executable, app entry point, bundle metadata, and release artifact configuration > Renames the macOS app and technical build identity from Build Companion to Worklings.**
 - **2026-07-17 > Sources/Worklings/PetSession.swift > makeDefaultStore > Stores saves under Application Support/Worklings and copies forward any legacy BuildCompanion save without deleting the original.**
 - **2026-07-17 > README.md, docs/architecture.md, docs/distribution.md, docs/pet_brain.md, and docs/product_brief.md > product naming and positioning > Establishes Worklings as the canonical project name and clarifies its MMO-inspired persistent-pet experience.**

@@ -6,6 +6,10 @@ The rest of this readme has been written by AI, but read and edited by me.
 
 Worklings is an experimental macOS desktop pet inspired by the persistence, progression, and attachment of an MMO character. It is meant to feel like a small living creature rather than another status widget. The immediate step is to get a Workling to react to Codex activity, but the longer-term goal is broader: a private, local pet that can react to work across IDEs, agents, and other explicitly connected applications. Each Workling has its own needs, preferences, moods, and routines, and its behavior should remain meaningful even when no integration is active.
 
+<p align="center">
+  <img src="assets/worklings.png" alt="Pixel, the first purple Workling" width="260">
+</p>
+
 What remains to be decided is whether or not the pet will be context general-context aware or only where its connected to specific apps. (Easier to do in the world of agentic engineering, but harder when looking at broader knowledge work tasks.)
 
 ## What we are building
@@ -32,6 +36,8 @@ The current experimental build includes:
 - a clickable care card with Feed, Play, Pet, and Sleep actions;
 - menu-bar wake, tuck-away, care, and quit controls;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
+
+![Pixel beside the Worklings care card, showing needs and care actions](assets/worklings_interaction.png)
 
 Final pixel art, autonomous movement, adoption, richer personality, activity integrations, and public packaging remain in development.
 
