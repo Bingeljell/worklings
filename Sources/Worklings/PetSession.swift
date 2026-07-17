@@ -85,6 +85,15 @@ final class PetSession: ObservableObject {
         scheduleReactionClear(result.reaction)
     }
 
+    func selectFamily(_ family: PetFamily) {
+        guard family != state.family else {
+            return
+        }
+
+        state = state.selectingFamily(family)
+        persist()
+    }
+
     private func persist() {
         guard persistenceEnabled else {
             return
