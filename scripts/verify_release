@@ -128,7 +128,8 @@ fi
 for sprite_name in \
   worklings-wildkin-spritesheet.png \
   worklings-elemental-spritesheet.png \
-  worklings-relicborn-spritesheet.png; do
+  worklings-relicborn-spritesheet.png \
+  worklings-smoke-effects.png; do
   if [ ! -f "$mounted_app/Contents/Resources/$sprite_name" ]; then
     printf 'Error: mounted app is missing sprite sheet: %s\n' "$sprite_name" >&2
     exit 1

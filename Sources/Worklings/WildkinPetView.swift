@@ -18,35 +18,42 @@ struct WorklingPetView: View {
 
     var body: some View {
         ZStack {
-            Ellipse()
-                .fill(.black.opacity(0.18))
-                .frame(width: 92, height: 20)
-                .blur(radius: 3)
-                .offset(y: 62)
+            Group {
+                Ellipse()
+                    .fill(.black.opacity(0.18))
+                    .frame(width: 92, height: 20)
+                    .blur(radius: 3)
+                    .offset(y: 62)
 
-            TimelineView(
-                .periodic(from: .now, by: motion.isWalking ? 0.14 : 0.7)
-            ) { context in
-                WorklingSprite(
-                    family: session.state.family,
-                    frame: spriteFrame(at: context.date)
-                )
-                    .scaleEffect(
-                        x: motion.facingDirection == .left ? 1 : -1,
-                        y: 1
+                TimelineView(
+                    .periodic(from: .now, by: motion.isWalking ? 0.14 : 0.7)
+                ) { context in
+                    WorklingSprite(
+                        family: session.state.family,
+                        frame: spriteFrame(at: context.date)
                     )
-            }
+                        .scaleEffect(
+                            x: motion.facingDirection == .left ? 1 : -1,
+                            y: 1
+                        )
+                }
 
-            if let thought = presentation.thought {
-                Text(thought)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(red: 0.13, green: 0.08, blue: 0.25))
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(.white.opacity(0.95), in: Capsule())
-                    .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
-                    .offset(y: -79)
-                    .transition(.scale.combined(with: .opacity))
+                if let thought = presentation.thought, !motion.isTransitioning {
+                    Text(thought)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.13, green: 0.08, blue: 0.25))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 7)
+                        .background(.white.opacity(0.95), in: Capsule())
+                        .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
+                        .offset(y: -79)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .opacity(motion.isPetVisible ? 1 : 0)
+
+            if let transitionFrame = motion.transitionFrame {
+                SmokeEffectSprite(frameIndex: transitionFrame.spriteIndex)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -92,6 +99,60 @@ struct WorklingPetView: View {
         case .wary:
             return .wary
         }
+    }
+}
+
+private struct SmokeEffectSprite: View {
+    private static let resourceName = "worklings-smoke-effects"
+    private static let sourceCellSize: CGFloat = 256
+    private static let cellSize: CGFloat = 196
+
+    let frameIndex: Int
+
+    private static let spriteSheet: CGImage? = {
+        let resourceURL = Bundle.main.url(
+            forResource: resourceName,
+            withExtension: "png"
+        ) ?? Bundle.module.url(
+            forResource: resourceName,
+            withExtension: "png"
+        )
+
+        guard let resourceURL,
+              let sourceImage = NSImage(contentsOf: resourceURL) else {
+            NSLog("Worklings could not load the smoke effects sprite sheet.")
+            return nil
+        }
+
+        var proposedRect = NSRect(origin: .zero, size: sourceImage.size)
+        return sourceImage.cgImage(
+            forProposedRect: &proposedRect,
+            context: nil,
+            hints: nil
+        )
+    }()
+
+    var body: some View {
+        Group {
+            if let frameImage {
+                Image(decorative: frameImage, scale: 1, orientation: .up)
+                    .resizable()
+                    .interpolation(.none)
+            }
+        }
+        .frame(width: Self.cellSize, height: Self.cellSize)
+        .accessibilityHidden(true)
+    }
+
+    private var frameImage: CGImage? {
+        Self.spriteSheet?.cropping(
+            to: CGRect(
+                x: CGFloat(frameIndex % 4) * Self.sourceCellSize,
+                y: CGFloat(frameIndex / 4) * Self.sourceCellSize,
+                width: Self.sourceCellSize,
+                height: Self.sourceCellSize
+            )
+        )
     }
 }
 

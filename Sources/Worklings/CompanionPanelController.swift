@@ -12,6 +12,12 @@ enum CompanionFacingDirection {
 final class CompanionMotionState: ObservableObject {
     @Published private(set) var isWalking = false
     @Published private(set) var facingDirection = CompanionFacingDirection.left
+    @Published private(set) var transitionFrame: CompanionTransitionFrame?
+    @Published private(set) var isPetVisible = true
+
+    var isTransitioning: Bool {
+        transitionFrame != nil
+    }
 
     func startWalking(from origin: CGPoint, to destination: CGPoint) {
         facingDirection = destination.x < origin.x ? .left : .right
@@ -20,6 +26,16 @@ final class CompanionMotionState: ObservableObject {
 
     func stopWalking() {
         isWalking = false
+    }
+
+    func presentTransitionFrame(_ frame: CompanionTransitionFrame) {
+        transitionFrame = frame
+        isPetVisible = frame.isPetVisible
+    }
+
+    func finishTransition(petVisible: Bool) {
+        transitionFrame = nil
+        isPetVisible = petVisible
     }
 }
 
