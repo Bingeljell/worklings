@@ -153,6 +153,7 @@ public struct PetBrain: Sendable {
         PetState(
             schemaVersion: state.schemaVersion,
             name: state.name,
+            family: state.family,
             needs: needs,
             preferences: state.preferences,
             lastUpdatedAt: now

@@ -53,6 +53,11 @@ enum PetPersistenceChecks {
                 PetNeeds(hunger: 0, energy: 100, happiness: 0, trust: 100),
                 "decoded needs are clamped through the domain initializer"
             )
+            context.expectEqual(
+                state.family,
+                .wildkin,
+                "save without a family remains backward-compatible as Wildkin"
+            )
         } catch {
             context.expect(false, "out-of-range fixture should load safely: \(error)")
         }
@@ -75,6 +80,7 @@ enum PetPersistenceChecks {
         context: inout CheckContext
     ) {
         let state = PetState.newPet(
+            family: .relicborn,
             now: Date(timeIntervalSinceReferenceDate: 10_000.25)
         )
 
@@ -87,6 +93,11 @@ enum PetPersistenceChecks {
             let object = try JSONSerialization.jsonObject(with: data)
             let root = object as? [String: Any]
             let needs = root?["needs"] as? [String: Any]
+            context.expectEqual(
+                root?["family"] as? String,
+                PetFamily.relicborn.rawValue,
+                "selected family is persisted"
+            )
             context.expect(
                 needs?["fullness"] == nil,
                 "derived fullness is not persisted"

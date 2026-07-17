@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-17 > Sources/CompanionCore/PetState.swift, Sources/CompanionCore/PetBrain.swift, Tests/CompanionCoreChecks/PetBrainChecks.swift, and Tests/CompanionCoreChecks/PetPersistenceChecks.swift > PetFamily, PetState.selectingFamily, state propagation, and compatibility checks > Adds a persistent three-family identity while defaulting saves without the additive field to Wildkin and preserving needs, preferences, and simulation time when users switch.**
 - **2026-07-17 > README.md, docs/architecture.md, docs/pet_interaction.md, and docs/product_brief.md > three-family runtime-art status > Records the shared twelve-frame contract across all three Workling families, keeps Wildkin as the only in-app mapping, and defers adoption and family selection.**
 - **2026-07-17 > assets/worklings-relicborn-spritesheet.png > Relicborn idle, walking, mood, and care-reaction frames > Adds a transparent 4-by-3 keyback-pangolin runtime sheet with its wind-up key preserved across the shared twelve-frame pose contract.**
 - **2026-07-17 > assets/worklings-elemental-spritesheet.png > Elemental idle, walking, mood, and care-reaction frames > Adds a transparent 4-by-3 ember-newt runtime sheet matching the shared twelve-frame Worklings pose contract.**
