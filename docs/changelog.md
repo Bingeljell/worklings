@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-17 > Sources/CompanionCore/ScreenPlacement.swift > PetRoamingPlanner.intent and ScreenPlacement.roamingOrigin > Adds deterministic idle-roaming timing and screen-relative targets that clamp and reflect within one visible display.**
+- **2026-07-17 > Tests/CompanionCoreChecks/ScreenPlacementChecks.swift > roaming planner and destination checks > Covers deterministic pattern repetition, scaled movement, bounds, and inward reflection at display edges.**
 - **2026-07-17 > Package.swift, Sources/Worklings/WildkinPetView.swift, Sources/Worklings/PlaceholderPetView.swift, and Sources/Worklings/CompanionPanelController.swift > Wildkin sprite loading, frame selection, and companion presentation > Replaces the code-drawn placeholder with mood-aware Wildkin frames, a reduced-motion-safe idle cycle, and care-reaction artwork while preserving the existing desktop interaction surfaces.**
 - **2026-07-17 > scripts/build_app_bundle, scripts/build_dmg, scripts/verify_release, and docs/distribution.md > Wildkin runtime resource packaging and verification > Bundles the sprite sheet into packaged apps and makes release assembly and verification fail when the required pet artwork is missing.**
 - **2026-07-17 > README.md, docs/pet_brain.md, docs/pet_interaction.md, docs/product_brief.md, and docs/architecture.md > Wildkin runtime-art status > Records the moss-fox as Pixel's first in-app character and narrows remaining artwork work to richer animation, additional families, and adoption.**
