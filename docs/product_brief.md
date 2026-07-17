@@ -34,7 +34,7 @@ The repository contains early concepts for three Workling families:
 - **Elemental:** creatures whose elemental affinity is part of their anatomy.
 - **Relicborn:** creatures bonded to ancient mechanisms, relics, or rune-powered artifacts.
 
-The moss-fox, ember-newt, and keyback pangolin establish world and silhouette direction. The moss-fox Wildkin is the first runtime character and currently represents the fixed-name Pixel; the app does not yet offer adoption, family selection, other creatures, or animation packs.
+The moss-fox, ember-newt, and keyback pangolin establish world and silhouette direction, and all three now have runtime-ready sheets using the same twelve-frame pose contract. The moss-fox Wildkin currently represents the fixed-name Pixel; the app does not yet map or package the other families, or offer adoption, family selection, other creatures, or animation packs.
 
 ## MVP progress
 
@@ -42,7 +42,7 @@ The moss-fox, ember-newt, and keyback pangolin establish world and silhouette di
 | --- | --- | --- |
 | Desktop shell | Transparent floating panel, drag, tuck/wake, menu bar, safe initial placement, opt-in single-display roaming, pause control, Reduce Motion | Mood-driven movement, obstacle awareness, richer display behavior |
 | Life simulation | Hunger, energy, happiness, trust, preferences, moods, care actions, deterministic progression | Tuning, deeper personality, routines, reversible neglect/runaway |
-| Interaction | Wildkin mood/reaction frames, idle cycle, delayed hover, care card, menu fallback, accessibility labels | Movement and richer action animation, broader keyboard and VoiceOver review |
+| Interaction | Runtime-ready Wildkin, Elemental, and Relicborn sheets; Wildkin mood/reaction frames, idle cycle, delayed hover, care card, menu fallback, accessibility labels | Runtime family mapping and selection, movement and richer action animation, broader keyboard and VoiceOver review |
 | Persistence | Versioned atomic JSON, corrupt-save preservation, offline cap, legacy save copy | Recovery UI and future schema migrations |
 | Activity response | Provider-neutral architecture documented | Event types, reducer, simulated source, Codex adapter |
 | Distribution | Worklings app/DMG/checksum scripts and mounted verification | First Worklings-branded release, Developer ID signing, notarization |

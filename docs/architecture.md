@@ -56,11 +56,11 @@ Roaming is disabled by default and stored as a local application preference rath
 
 ## Pet simulation and presentation
 
-`PetBrain` owns needs, preferences, actions, time progression, and semantic reactions. `PetState` owns the versioned relationship state. `PetCareStatus` owns urgency, natural-language summaries, and action availability. `PetPresentation` converts mood and reaction into presentation intent, and `WildkinPetView` maps that intent to sprite-sheet frames.
+`PetBrain` owns needs, preferences, actions, time progression, and semantic reactions. `PetState` owns the versioned relationship state. `PetCareStatus` owns urgency, natural-language summaries, and action availability. `PetPresentation` converts mood and reaction into presentation intent, and `WildkinPetView` currently maps that intent to sprite-sheet frames.
 
 Internal hunger is presented as derived Fullness so all exact UI meters increase in the healthy direction. The derived value is not persisted.
 
-Final artwork must remain a presentation concern. Wildkin, Elemental, and Relicborn assets should not introduce species-specific conditionals into the core simulation; family and species differences should enter through data or explicit personality/configuration models.
+Final artwork must remain a presentation concern. Wildkin, Elemental, and Relicborn now each have a transparent 4-by-3 sheet using a shared twelve-frame order for idle, walking, mood, and care reactions. Only Wildkin is packaged and mapped at runtime. Adding family selection should reuse the shared contract through data or explicit personality/configuration models instead of introducing species-specific conditionals into the core simulation.
 
 ## Live session
 
@@ -134,6 +134,6 @@ The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is
 | Safe idle roaming within one display | Complete |
 | Provider-neutral event pipeline with a simulated source | Planned |
 | Codex adapter | Planned |
-| First Wildkin runtime sprite set | Complete |
+| Wildkin, Elemental, and Relicborn runtime sprite sets | Complete |
 | Adoption and creature-family selection | Planned |
 | Developer ID signing and notarization | Deferred |
