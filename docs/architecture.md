@@ -2,7 +2,7 @@
 
 ## Status
 
-The macOS host, persistent Pet Brain, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, and direct-download packaging toolchain are implemented. Intent-driven movement and activity integrations remain planned.
+The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, and direct-download packaging toolchain are implemented. Intent-driven movement and activity integrations remain planned.
 
 ## Implemented system
 
@@ -56,11 +56,11 @@ Roaming is disabled by default and stored as a local application preference rath
 
 ## Pet simulation and presentation
 
-`PetBrain` owns needs, preferences, actions, time progression, and semantic reactions. `PetState` owns the versioned relationship state. `PetCareStatus` owns urgency, natural-language summaries, and action availability. `PetPresentation` converts mood and reaction into presentation intent, and `WildkinPetView` currently maps that intent to sprite-sheet frames.
+`PetBrain` owns needs, preferences, actions, time progression, and semantic reactions. `PetState` owns the versioned relationship state, including the selected `PetFamily`. `PetCareStatus` owns urgency, natural-language summaries, and action availability. `PetPresentation` converts mood and reaction into presentation intent, and `WorklingPetView` maps that intent to the selected family's sprite-sheet frames.
 
 Internal hunger is presented as derived Fullness so all exact UI meters increase in the healthy direction. The derived value is not persisted.
 
-Final artwork must remain a presentation concern. Wildkin, Elemental, and Relicborn now each have a transparent 4-by-3 sheet using a shared twelve-frame order for idle, walking, mood, and care reactions. Only Wildkin is packaged and mapped at runtime. Adding family selection should reuse the shared contract through data or explicit personality/configuration models instead of introducing species-specific conditionals into the core simulation.
+Final artwork remains a presentation concern. Wildkin, Elemental, and Relicborn each have a packaged transparent 4-by-3 sheet using a shared twelve-frame order for idle, walking, mood, and care reactions. `PetFamily` selects the resource without introducing family-specific conditionals into the core simulation. Future behavioral differences should enter through data or explicit personality/configuration models.
 
 ## Live session
 
@@ -69,6 +69,7 @@ Final artwork must remain a presentation concern. Wildkin, Elemental, and Relicb
 - loads or creates Pixel;
 - advances the brain at launch and every 60 seconds;
 - guards and performs care actions;
+- switches and persists the selected family without resetting relationship state;
 - exposes short-lived reactions;
 - persists updated state;
 - reports local persistence warnings.
@@ -83,7 +84,7 @@ The active save is:
 
 When this file is absent and the legacy Build Companion save exists, Worklings copies the legacy file into the new directory and preserves the original. If copying fails, the legacy store remains the fallback rather than losing progress.
 
-JSON remains appropriate until query, concurrency, or migration requirements demonstrate a database need. Writes are atomic, schema versions are explicit, decoded values are clamped, and unreadable saves are never silently overwritten.
+JSON remains appropriate until query, concurrency, or migration requirements demonstrate a database need. Writes are atomic, schema versions are explicit, decoded values are clamped, and unreadable saves are never silently overwritten. The additive family field defaults to Wildkin when absent, keeping version 1 saves compatible.
 
 ## Activity event pipeline
 
@@ -134,6 +135,6 @@ The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is
 | Safe idle roaming within one display | Complete |
 | Provider-neutral event pipeline with a simulated source | Planned |
 | Codex adapter | Planned |
-| Wildkin, Elemental, and Relicborn runtime sprite sets | Complete |
-| Adoption and creature-family selection | Planned |
+| Wildkin, Elemental, and Relicborn runtime selection | Complete |
+| Adoption and initial creature setup | Planned |
 | Developer ID signing and notarization | Deferred |

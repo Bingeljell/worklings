@@ -4,13 +4,13 @@
 
 This document defines how a user understands and cares for a Workling. It covers implemented behavioral surfaces and accessibility while keeping future movement intelligence and additional art direction separate.
 
-Pixel is the current fixed-name test Workling and renders as the moss-fox Wildkin. Elemental and Relicborn now have runtime-ready sheets that share Wildkin's pose contract, but they are not yet selectable or mapped into the application.
+Pixel is the current fixed-name test Workling and can render as the moss-fox Wildkin, ember-newt Elemental, or keyback pangolin Relicborn. The menu-bar choice changes appearance immediately and persists without resetting needs, preferences, or relationship progress.
 
 The Workling must communicate important needs without requiring the user to inspect the menu bar. Interaction should remain lightweight enough that Pixel feels like a companion instead of a monitoring dashboard.
 
 ## Implementation status
 
-Ambient Wildkin mood and reaction frames, a reduced-motion-safe idle cycle, opt-in single-display roaming with walking frames, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, basic accessibility labels, and matching Elemental and Relicborn sprite sheets are implemented. Mood-driven movement, runtime family mapping, richer care animation, adoption, family selection, and a complete settings experience remain deferred.
+Ambient mood and reaction frames for all three selectable families, a reduced-motion-safe idle cycle, opt-in single-display roaming with walking frames, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, and basic accessibility labels are implemented. Mood-driven movement, richer care animation, adoption, and a complete settings experience remain deferred.
 
 ## Interaction hierarchy
 
@@ -18,7 +18,7 @@ Information is revealed progressively through four surfaces.
 
 ### 1. Ambient pet state
 
-The pet itself is the primary signal. The Wildkin uses pose, expression, an idle frame cycle, and occasional thought bubbles to communicate semantic state.
+The pet itself is the primary signal. Every family uses the shared pose order, expression mapping, idle frame cycle, and occasional thought bubbles to communicate semantic state.
 
 - Urgent hunger, exhaustion, sadness, or low trust must have a visible state.
 - Reactions to care actions may temporarily override the underlying expression.
@@ -68,13 +68,15 @@ Current card structure:
 
 All exact-value meters are positive wellbeing measures: a higher value and longer bar always mean the Workling is doing better. The interface displays **Fullness** as the inverse of the Pet Brain's internal hunger value. Natural-language conditions may still describe the Workling as hungry.
 
-The current implementation combines SwiftUI care surfaces with the Wildkin runtime sprite sheet. Elemental and Relicborn use the same twelve-frame sheet contract, but runtime mapping and selection remain separate work alongside state variants, action animation, and asset-specific licensing metadata.
+The current implementation combines SwiftUI care surfaces with a family-aware runtime sprite renderer. Wildkin, Elemental, and Relicborn use the same twelve-frame sheet contract; state variants, action animation, and asset-specific licensing metadata remain separate work.
 
 ### 4. Menu bar
 
 The menu bar remains a reliable fallback and application-control surface.
 
 - Keep wake, tuck away, persistence warnings, and quit controls.
+- Keep the checked Choose Workling submenu as the immediate family selector.
+- Switching family must preserve the current name, needs, preferences, and progression timestamp.
 - Care actions may remain duplicated during the experiment.
 - Both surfaces must call the same session actions and display the same state.
 - Keep the persistent roaming toggle in the menu bar so movement can be paused without catching the pet.
@@ -157,7 +159,7 @@ Favourite food and play choices are marked consistently in both care surfaces. P
 
 ## Implementation boundaries
 
-- `CompanionCore` owns urgency, summaries, action availability, roaming plans, safe screen targets, and other testable presentation decisions.
+- `CompanionCore` owns the selected family, urgency, summaries, action availability, roaming plans, safe screen targets, and other testable presentation decisions.
 - The application target owns hover timing, AppKit tracking, card placement, focus, and dismissal.
 - The application target owns roaming animation, interruption, and the local opt-in preference.
 - `PetSession` remains the single source of live state and actions.
@@ -173,7 +175,8 @@ Automated checks should cover:
 - two-condition summary limits and wording;
 - care action availability and explanations;
 - reaction precedence over ambient need content;
-- existing simulation, persistence, presentation, and placement behavior.
+- existing simulation, persistence, presentation, and placement behavior;
+- family defaulting, state-preserving selection, and JSON round trips;
 - deterministic roaming plans, display-relative targets, bounds, and edge reflection.
 
 Manual macOS review should cover:
@@ -183,7 +186,8 @@ Manual macOS review should cover:
 - card focus, outside-click dismissal, and Escape;
 - live updates after every care action;
 - menu/card consistency;
-- VoiceOver labels, keyboard navigation, and Reduce Motion.
+- VoiceOver labels, keyboard navigation, and Reduce Motion;
+- all three family choices, checkmarks, immediate sprite swaps, and restart persistence;
 - roaming opt-in persistence, walking direction, interaction pauses, drag clamping, and tuck/wake behavior.
 
 ## Deferred work

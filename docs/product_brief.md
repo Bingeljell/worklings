@@ -20,7 +20,7 @@ The Workling should feel alive and worth returning to without becoming punitive,
 
 ## Current validated experience
 
-The macOS application currently launches Pixel as a small moss-fox Wildkin in a transparent floating companion window above normal windows. Pixel can be dragged or tucked away, communicates needs through sprite poses and a hover summary, and opens a care card when clicked.
+The macOS application currently launches Pixel in a transparent floating companion window above normal windows. Pixel defaults to a moss-fox Wildkin and can switch to an ember-newt Elemental or keyback pangolin Relicborn from the menu bar. Pixel can be dragged or tucked away, communicates needs through sprite poses and a hover summary, and opens a care card when clicked.
 
 The care loop includes persistent needs, time and offline progression, favourite food and play choices, Feed, Play, Pet, and Sleep actions, menu-bar controls, and local JSON saves. Exact meters use positive semantics: more Fullness, Energy, Happiness, or Trust is always better.
 
@@ -34,7 +34,7 @@ The repository contains early concepts for three Workling families:
 - **Elemental:** creatures whose elemental affinity is part of their anatomy.
 - **Relicborn:** creatures bonded to ancient mechanisms, relics, or rune-powered artifacts.
 
-The moss-fox, ember-newt, and keyback pangolin establish world and silhouette direction, and all three now have runtime-ready sheets using the same twelve-frame pose contract. The moss-fox Wildkin currently represents the fixed-name Pixel; the app does not yet map or package the other families, or offer adoption, family selection, other creatures, or animation packs.
+The moss-fox, ember-newt, and keyback pangolin establish world and silhouette direction. All three are packaged, mapped through the same twelve-frame pose contract, and selectable as Pixel's persistent appearance. This is not yet an adoption flow: switching family preserves the same name, needs, preferences, and relationship progress.
 
 ## MVP progress
 
@@ -42,8 +42,8 @@ The moss-fox, ember-newt, and keyback pangolin establish world and silhouette di
 | --- | --- | --- |
 | Desktop shell | Transparent floating panel, drag, tuck/wake, menu bar, safe initial placement, opt-in single-display roaming, pause control, Reduce Motion | Mood-driven movement, obstacle awareness, richer display behavior |
 | Life simulation | Hunger, energy, happiness, trust, preferences, moods, care actions, deterministic progression | Tuning, deeper personality, routines, reversible neglect/runaway |
-| Interaction | Runtime-ready Wildkin, Elemental, and Relicborn sheets; Wildkin mood/reaction frames, idle cycle, delayed hover, care card, menu fallback, accessibility labels | Runtime family mapping and selection, movement and richer action animation, broader keyboard and VoiceOver review |
-| Persistence | Versioned atomic JSON, corrupt-save preservation, offline cap, legacy save copy | Recovery UI and future schema migrations |
+| Interaction | Selectable Wildkin, Elemental, and Relicborn mood/reaction frames; idle cycle, delayed hover, care card, menu fallback, accessibility labels | Adoption, movement and richer action animation, broader keyboard and VoiceOver review |
+| Persistence | Versioned atomic JSON, selected-family compatibility, corrupt-save preservation, offline cap, legacy save copy | Recovery UI and future schema migrations |
 | Activity response | Provider-neutral architecture documented | Event types, reducer, simulated source, Codex adapter |
 | Distribution | Worklings app/DMG/checksum scripts and mounted verification | First Worklings-branded release, Developer ID signing, notarization |
 
