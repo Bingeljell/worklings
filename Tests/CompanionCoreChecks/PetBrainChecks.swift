@@ -6,6 +6,7 @@ enum PetBrainChecks {
         checkNeedClamping(context: &context)
         checkFullnessPresentation(context: &context)
         checkNewPetDefaults(context: &context)
+        checkFamilySelection(context: &context)
         checkMoodPriority(context: &context)
         checkDeterministicProgression(context: &context)
         checkBackwardClock(context: &context)
@@ -41,9 +42,29 @@ enum PetBrainChecks {
 
         context.expectEqual(state.schemaVersion, 1, "new pet uses current schema")
         context.expectEqual(state.name, "Pixel", "new pet uses placeholder name")
+        context.expectEqual(state.family, .wildkin, "existing pet default remains Wildkin")
         context.expectEqual(state.preferences.favouriteFood, .berries, "new pet has favourite food")
         context.expectEqual(state.preferences.favouritePlayActivity, .puzzle, "new pet has favourite play")
         context.expectEqual(state.lastUpdatedAt, now, "new pet records creation time")
+    }
+
+    private static func checkFamilySelection(context: inout CheckContext) {
+        let state = PetState.newPet(now: Date(timeIntervalSinceReferenceDate: 1_500))
+        let selected = state.selectingFamily(.elemental)
+
+        context.expectEqual(selected.family, .elemental, "family selection changes appearance identity")
+        context.expectEqual(selected.name, state.name, "family selection preserves pet name")
+        context.expectEqual(selected.needs, state.needs, "family selection preserves needs")
+        context.expectEqual(
+            selected.preferences,
+            state.preferences,
+            "family selection preserves preferences"
+        )
+        context.expectEqual(
+            selected.lastUpdatedAt,
+            state.lastUpdatedAt,
+            "family selection does not advance simulation time"
+        )
     }
 
     private static func checkMoodPriority(context: inout CheckContext) {

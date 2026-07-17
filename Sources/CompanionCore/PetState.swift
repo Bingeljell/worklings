@@ -90,11 +90,26 @@ public enum PetMood: String, Codable, Equatable, Sendable {
     case wary
 }
 
+public enum PetFamily: String, CaseIterable, Codable, Equatable, Sendable {
+    case wildkin
+    case elemental
+    case relicborn
+
+    public var displayName: String {
+        switch self {
+        case .wildkin: "Wildkin"
+        case .elemental: "Elemental"
+        case .relicborn: "Relicborn"
+        }
+    }
+}
+
 public struct PetState: Codable, Equatable, Sendable {
     public static let currentSchemaVersion = 1
 
     public let schemaVersion: Int
     public let name: String
+    public let family: PetFamily
     public let needs: PetNeeds
     public let preferences: PetPreferences
     public let lastUpdatedAt: Date
@@ -102,20 +117,39 @@ public struct PetState: Codable, Equatable, Sendable {
     public init(
         schemaVersion: Int = PetState.currentSchemaVersion,
         name: String,
+        family: PetFamily = .wildkin,
         needs: PetNeeds,
         preferences: PetPreferences,
         lastUpdatedAt: Date
     ) {
         self.schemaVersion = schemaVersion
         self.name = name
+        self.family = family
         self.needs = needs
         self.preferences = preferences
         self.lastUpdatedAt = lastUpdatedAt
     }
 
-    public static func newPet(name: String = "Pixel", now: Date = Date()) -> PetState {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            schemaVersion: try container.decode(Int.self, forKey: .schemaVersion),
+            name: try container.decode(String.self, forKey: .name),
+            family: try container.decodeIfPresent(PetFamily.self, forKey: .family) ?? .wildkin,
+            needs: try container.decode(PetNeeds.self, forKey: .needs),
+            preferences: try container.decode(PetPreferences.self, forKey: .preferences),
+            lastUpdatedAt: try container.decode(Date.self, forKey: .lastUpdatedAt)
+        )
+    }
+
+    public static func newPet(
+        name: String = "Pixel",
+        family: PetFamily = .wildkin,
+        now: Date = Date()
+    ) -> PetState {
         PetState(
             name: name,
+            family: family,
             needs: PetNeeds(
                 hunger: 15,
                 energy: 80,
@@ -127,6 +161,17 @@ public struct PetState: Codable, Equatable, Sendable {
                 favouritePlayActivity: .puzzle
             ),
             lastUpdatedAt: now
+        )
+    }
+
+    public func selectingFamily(_ family: PetFamily) -> PetState {
+        PetState(
+            schemaVersion: schemaVersion,
+            name: name,
+            family: family,
+            needs: needs,
+            preferences: preferences,
+            lastUpdatedAt: lastUpdatedAt
         )
     }
 

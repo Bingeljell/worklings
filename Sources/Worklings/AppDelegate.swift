@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var playMenuItem: NSMenuItem?
     private var sleepMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
+    private var familyMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
     private var playMenuItems: [NSMenuItem] = []
 
@@ -57,6 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         warningMenuItem = warningItem
 
         menu.addItem(.separator())
+        menu.addItem(makeFamilyMenuItem())
+        menu.addItem(.separator())
+
         let feedMenuItem = makeFoodMenuItem()
         menu.addItem(feedMenuItem)
         self.feedMenuItem = feedMenuItem
@@ -124,7 +128,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let presentation = PetPresentation.make(state: state, reaction: petSession.reaction)
         let status = petSession.careStatus
 
-        petHeaderMenuItem?.title = "\(state.name) — \(presentation.moodLabel)"
+        petHeaderMenuItem?.title = [
+            state.name,
+            presentation.moodLabel,
+            state.family.displayName
+        ].joined(separator: " · ")
         needsMenuItem?.title = [
             "Fullness \(Int(state.needs.fullness.rounded()))",
             "Energy \(Int(state.needs.energy.rounded()))",
@@ -136,6 +144,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         warningMenuItem?.isHidden = petSession.persistenceWarning == nil
 
         updateRoamingMenuItem()
+
+        for menuItem in familyMenuItems {
+            guard let rawValue = menuItem.representedObject as? String,
+                  let family = PetFamily(rawValue: rawValue) else {
+                continue
+            }
+            menuItem.state = family == state.family ? .on : .off
+        }
 
         apply(
             status.availability(for: .feed, state: state),
@@ -173,6 +189,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     ) {
         menuItem?.isEnabled = availability.isEnabled
         menuItem?.toolTip = availability.explanation
+    }
+
+    private func makeFamilyMenuItem() -> NSMenuItem {
+        let parentItem = NSMenuItem(title: "Choose Workling", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: "Choose Workling")
+
+        familyMenuItems = PetFamily.allCases.map { family in
+            let item = NSMenuItem(
+                title: familySelectionTitle(for: family),
+                action: #selector(selectFamily(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = family.rawValue
+            submenu.addItem(item)
+            return item
+        }
+
+        parentItem.submenu = submenu
+        return parentItem
+    }
+
+    private func familySelectionTitle(for family: PetFamily) -> String {
+        switch family {
+        case .wildkin: "Wildkin — Moss-Fox"
+        case .elemental: "Elemental — Ember-Newt"
+        case .relicborn: "Relicborn — Keyback Pangolin"
+        }
     }
 
     private func makeFoodMenuItem() -> NSMenuItem {
@@ -213,6 +257,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         parentItem.submenu = submenu
         return parentItem
+    }
+
+    @objc
+    private func selectFamily(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let family = PetFamily(rawValue: rawValue) else {
+            return
+        }
+        petSession?.selectFamily(family)
     }
 
     @objc

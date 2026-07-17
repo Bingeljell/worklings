@@ -34,7 +34,7 @@ final class CompanionPanelController {
     private let motionState = CompanionMotionState()
     private let hoverSummaryController: HoverSummaryPanelController
     private let carePopoverController: CarePopoverController
-    private var hostingView: CompanionHostingView<WildkinPetView>?
+    private var hostingView: CompanionHostingView<WorklingPetView>?
     private var hoverTask: Task<Void, Never>?
     private var roamingTask: Task<Void, Never>?
     private var roamingSequence = UInt64(Date().timeIntervalSinceReferenceDate / 60)
@@ -101,7 +101,7 @@ final class CompanionPanelController {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         let hostingView = CompanionHostingView(
-            rootView: WildkinPetView(session: session, motion: motionState)
+            rootView: WorklingPetView(session: session, motion: motionState)
         )
         hostingView.onClick = { [weak self] in
             self?.toggleCareCard()

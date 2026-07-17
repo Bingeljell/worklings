@@ -2,7 +2,7 @@
 
 ## Status
 
-The first persistent care loop is implemented. Pixel is currently the single test Workling and renders as the moss-fox Wildkin. Elemental and Relicborn remain concept directions rather than selectable in-app content.
+The first persistent care loop is implemented. Pixel is currently the single test Workling and can render as the moss-fox Wildkin, ember-newt Elemental, or keyback pangolin Relicborn. Existing saves default to Wildkin when no family is recorded.
 
 The Pet Brain is deterministic, independent of Codex, and usable without any activity integration. Deterministic screen-safe idle-roaming plans now exist alongside it; mood-driven movement, adoption, deeper personality, reversible runaway behavior, and activity-driven intent remain planned work.
 
@@ -10,7 +10,7 @@ The Pet Brain is deterministic, independent of Codex, and usable without any act
 
 `CompanionCore` owns the rules for needs, preferences, time progression, actions, moods, urgency, and presentation intent. It does not own windows, menus, timers, filesystem locations, or final artwork.
 
-`PetSession` is the live application boundary. It advances the simulation once per minute, performs care actions, publishes reactions to the UI, and persists state after changes.
+`PetSession` is the live application boundary. It advances the simulation once per minute, performs care actions, switches family appearance, publishes reactions to the UI, and persists state after changes.
 
 ## State model
 
@@ -18,6 +18,7 @@ The version 1 save contains:
 
 - schema version;
 - Workling name;
+- selected Workling family;
 - hunger, energy, happiness, and trust;
 - favourite food and favourite play activity;
 - the timestamp of the last progression calculation.
@@ -83,7 +84,7 @@ Mood is derived in priority order:
 
 ## Presentation contract
 
-`PetPresentation` maps semantic mood and the latest reaction to a face, palette, label, and short thought. `WildkinPetView` maps that presentation intent to the matching sprite-sheet frame. Care reactions temporarily take precedence for approximately three seconds; normal need presentation then resumes.
+`PetPresentation` maps semantic mood and the latest reaction to a face, palette, label, and short thought. `WorklingPetView` maps that presentation intent to the same frame position in the selected family's sprite sheet. Care reactions temporarily take precedence for approximately three seconds; normal need presentation then resumes.
 
 The live UI currently provides:
 
@@ -115,6 +116,7 @@ The dependency-free check executable currently covers:
 - deterministic time progression, backward clocks, and offline caps;
 - care tradeoffs, preference bonuses, and refusals;
 - JSON round trips, schema rejection, corrupt-save preservation, and decoded clamping;
+- family defaulting, switching without a care-state reset, and selected-family persistence;
 - confirmation that derived Fullness is not persisted;
 - urgency, summaries, action availability, presentation, and screen placement.
 
@@ -131,4 +133,4 @@ swift run CompanionCoreChecks
 - Define reversible neglect and runaway recovery.
 - Separate short-lived activity context from long-lived relationship state.
 - Let Pet Brain state influence the existing idle-roaming plan and add attention-seeking, sleep, and activity-reaction intents.
-- Support adoption and creature-family selection without coupling rules to particular artwork.
+- Build adoption and initial creature setup on the family model without resetting established relationship state.
