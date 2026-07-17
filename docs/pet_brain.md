@@ -4,7 +4,7 @@
 
 The first persistent care loop is implemented. Pixel is currently the single test Workling and renders as the moss-fox Wildkin. Elemental and Relicborn remain concept directions rather than selectable in-app content.
 
-The Pet Brain is deterministic, independent of Codex, and usable without any activity integration. Autonomous movement, adoption, deeper personality, reversible runaway behavior, and activity-driven intent remain planned work.
+The Pet Brain is deterministic, independent of Codex, and usable without any activity integration. Deterministic screen-safe idle-roaming plans now exist alongside it; mood-driven movement, adoption, deeper personality, reversible runaway behavior, and activity-driven intent remain planned work.
 
 ## Responsibilities
 
@@ -130,5 +130,5 @@ swift run CompanionCoreChecks
 - Add personality traits beyond two favourites.
 - Define reversible neglect and runaway recovery.
 - Separate short-lived activity context from long-lived relationship state.
-- Add intent outputs for idle, roaming, attention-seeking, sleep, and activity reactions.
+- Let Pet Brain state influence the existing idle-roaming plan and add attention-seeking, sleep, and activity-reaction intents.
 - Support adoption and creature-family selection without coupling rules to particular artwork.

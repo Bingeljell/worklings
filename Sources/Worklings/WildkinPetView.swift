@@ -6,6 +6,7 @@ import SwiftUI
 struct WildkinPetView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var session: PetSession
+    @ObservedObject var motion: CompanionMotionState
 
     private var presentation: PetPresentation {
         PetPresentation.make(state: session.state, reaction: session.reaction)
@@ -23,8 +24,14 @@ struct WildkinPetView: View {
                 .blur(radius: 3)
                 .offset(y: 62)
 
-            TimelineView(.periodic(from: .now, by: 0.7)) { context in
+            TimelineView(
+                .periodic(from: .now, by: motion.isWalking ? 0.14 : 0.7)
+            ) { context in
                 WildkinSprite(frame: spriteFrame(at: context.date))
+                    .scaleEffect(
+                        x: motion.facingDirection == .left ? 1 : -1,
+                        y: 1
+                    )
             }
 
             if let thought = presentation.thought {
@@ -49,6 +56,16 @@ struct WildkinPetView: View {
     private func spriteFrame(at date: Date) -> WildkinSpriteFrame {
         if let reaction = session.reaction {
             return reaction == .tooTiredToPlay ? .sleepy : .caredFor
+        }
+
+        if motion.isWalking, !reduceMotion {
+            let phase = Int(date.timeIntervalSinceReferenceDate / 0.14) % 4
+            return switch phase {
+            case 0: .walkContact
+            case 1: .walkPassing
+            case 2: .walkContactOpposite
+            default: .walkPassingOpposite
+            }
         }
 
         switch presentation.face {

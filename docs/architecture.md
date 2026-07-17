@@ -2,7 +2,7 @@
 
 ## Status
 
-The macOS host, persistent Pet Brain, care UI, legacy-save transition, behavioral checks, and direct-download packaging toolchain are implemented. Autonomous movement and activity integrations remain planned.
+The macOS host, persistent Pet Brain, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, and direct-download packaging toolchain are implemented. Intent-driven movement and activity integrations remain planned.
 
 ## Implemented system
 
@@ -47,10 +47,12 @@ The current panel:
 - can join Spaces and remain visible around full-screen workflows;
 - supports dragging without opening the care card;
 - clamps placement to the visible display frame;
+- can follow deterministic idle-roaming plans within its current display;
+- pauses roaming for pointer interaction, dragging, care, tuck-away, and Reduce Motion;
 - can be tucked away and restored;
 - respects Reduce Motion in Wildkin idle animation.
 
-Autonomous roaming, intent-driven movement, collision/obstruction policy, and multi-display travel are not implemented. A small moving window remains preferred over a display-sized overlay because it minimizes input interception.
+Roaming is disabled by default and stored as a local application preference rather than pet state. `CompanionCore` produces deterministic normalized movement plans and safe screen targets; the AppKit controller owns timing, interruption, and frame animation. Mood-driven movement, obstacle awareness, and multi-display travel are not implemented. A small moving window remains preferred over a display-sized overlay because it minimizes input interception.
 
 ## Pet simulation and presentation
 
@@ -129,7 +131,7 @@ The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is
 | Direct care interactions, preferences, hover, and care card | Complete |
 | Worklings rebrand and legacy-save copy | Complete |
 | App bundle, DMG, checksum, and mounted verification | Complete |
-| Safe idle roaming within one display | Planned |
+| Safe idle roaming within one display | Complete |
 | Provider-neutral event pipeline with a simulated source | Planned |
 | Codex adapter | Planned |
 | First Wildkin runtime sprite set | Complete |

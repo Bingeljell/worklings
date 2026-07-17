@@ -40,7 +40,7 @@ The moss-fox, ember-newt, and keyback pangolin establish world and silhouette di
 
 | Area | Implemented | Remaining |
 | --- | --- | --- |
-| Desktop shell | Transparent floating panel, drag, tuck/wake, menu bar, safe initial placement, Reduce Motion | Autonomous roaming, pause control, richer display behavior |
+| Desktop shell | Transparent floating panel, drag, tuck/wake, menu bar, safe initial placement, opt-in single-display roaming, pause control, Reduce Motion | Mood-driven movement, obstacle awareness, richer display behavior |
 | Life simulation | Hunger, energy, happiness, trust, preferences, moods, care actions, deterministic progression | Tuning, deeper personality, routines, reversible neglect/runaway |
 | Interaction | Wildkin mood/reaction frames, idle cycle, delayed hover, care card, menu fallback, accessibility labels | Movement and richer action animation, broader keyboard and VoiceOver review |
 | Persistence | Versioned atomic JSON, corrupt-save preservation, offline cap, legacy save copy | Recovery UI and future schema migrations |
@@ -49,7 +49,7 @@ The moss-fox, ember-newt, and keyback pangolin establish world and silhouette di
 
 ## MVP scope still intended
 
-- Safe idle roaming and behavior intents.
+- Mood- and need-driven behavior intents that build on safe idle roaming.
 - Idle, walking, sleeping, eating, playing, and work-reaction states.
 - Reversible neglect or runaway behavior.
 - Provider-neutral activity events.
