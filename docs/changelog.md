@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-17 > .github/workflows/ci.yml > build-and-check job > Builds every target and runs all CompanionCore behavioral checks on pull requests and main using a read-only pinned action.**
 - **2026-07-17 > .github/PULL_REQUEST_TEMPLATE.md > pull request review template > Prompts contributors for the user outcome, tradeoffs, risk review, verification, documentation, and visual evidence.**
 - **2026-07-17 > .github/ISSUE_TEMPLATE > bug, feature, and routing forms > Collects reproducible bug context, outcome-focused feature proposals, product-boundary impacts, and private security routing.**
 - **2026-07-17 > .github/CODEOWNERS > repository ownership > Routes repository changes to the project owner until maintainership is delegated by area.**
