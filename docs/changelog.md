@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-17 > assets/worklings-elemental-spritesheet.png > Elemental idle, walking, mood, and care-reaction frames > Adds a transparent 4-by-3 ember-newt runtime sheet matching the shared twelve-frame Worklings pose contract.**
 - **2026-07-17 > .github/workflows/ci.yml > build-and-check job > Builds every target and runs all CompanionCore behavioral checks on pull requests and main using a read-only pinned action.**
 - **2026-07-17 > .github/PULL_REQUEST_TEMPLATE.md > pull request review template > Prompts contributors for the user outcome, tradeoffs, risk review, verification, documentation, and visual evidence.**
 - **2026-07-17 > .github/ISSUE_TEMPLATE > bug, feature, and routing forms > Collects reproducible bug context, outcome-focused feature proposals, product-boundary impacts, and private security routing.**
