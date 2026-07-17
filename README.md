@@ -31,12 +31,14 @@ Worklings may eventually come from several creature families. These early concep
 | <img src="assets/worklings-wildkin.png" alt="A moss-fox Wildkin Workling" width="260"> | <img src="assets/worklings-elemental.png" alt="An ember-newt Elemental Workling" width="260"> | <img src="assets/worklings-relicborn.png" alt="A keyback pangolin Relicborn Workling" width="260"> |
 | A moss-fox shaped by living woodland magic. | An ember-newt whose elemental nature is part of its anatomy. | A keyback pangolin bonded to an ancient rune-powered relic. |
 
+All three families now have runtime-ready sprite sheets built around the same twelve-frame pose contract. Wildkin remains the only family currently wired into the application.
+
 ## Current state
 
 The current experimental build includes:
 
 - a transparent floating companion window;
-- a Wildkin sprite-sheet companion with mood, care-reaction, and reduced-motion-safe idle frames;
+- runtime-ready Wildkin, Elemental, and Relicborn sprite sheets, with Wildkin currently rendered in-app;
 - optional single-display idle roaming with walking frames and a persistent pause control;
 - internal hunger presented as Fullness, plus energy, happiness, and trust;
 - favourite food and play preferences;
@@ -49,7 +51,7 @@ The current experimental build includes:
 - Worklings-branded app, DMG, checksum, and release-verification scripts;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
 
-The moss-fox Wildkin is now the first in-app character. The Elemental and Relicborn concepts, mood-driven movement, adoption, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
+The moss-fox Wildkin remains Pixel's current in-app character. Runtime selection for the Elemental and Relicborn sheets, mood-driven movement, adoption, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
 
 ## Use from the repository
 
