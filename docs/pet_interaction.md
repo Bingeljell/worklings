@@ -4,13 +4,13 @@
 
 This document defines how a user understands and cares for a Workling. It covers implemented behavioral surfaces and accessibility while keeping future autonomous movement and final art direction separate.
 
-Pixel is the current fixed-name test Workling and still uses code-drawn placeholder visuals. The Wildkin, Elemental, and Relicborn repository assets are concept art and are not yet runtime states.
+Pixel is the current fixed-name test Workling and renders as the moss-fox Wildkin. Elemental and Relicborn repository assets remain concept art rather than selectable runtime states.
 
 The Workling must communicate important needs without requiring the user to inspect the menu bar. Interaction should remain lightweight enough that Pixel feels like a companion instead of a monitoring dashboard.
 
 ## Implementation status
 
-Ambient placeholder states, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, and basic accessibility labels are implemented. Autonomous movement, final sprite states, adoption, family selection, and a complete settings experience remain deferred.
+Ambient Wildkin mood and reaction frames, a reduced-motion-safe idle cycle, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, and basic accessibility labels are implemented. Autonomous movement, richer action animation, adoption, family selection, and a complete settings experience remain deferred.
 
 ## Interaction hierarchy
 
@@ -18,7 +18,7 @@ Information is revealed progressively through four surfaces.
 
 ### 1. Ambient pet state
 
-The pet itself is the primary signal. The current placeholder uses face, colour, and occasional thought bubbles; future sprites should use pose and animation to communicate the same semantic states.
+The pet itself is the primary signal. The Wildkin uses pose, expression, an idle frame cycle, and occasional thought bubbles to communicate semantic state.
 
 - Urgent hunger, exhaustion, sadness, or low trust must have a visible state.
 - Reactions to care actions may temporarily override the underlying expression.
@@ -171,7 +171,7 @@ Manual macOS review should cover:
 
 ## Deferred work
 
-- Integrating approved character concepts into licensed runtime sprites and animation states.
+- Additional action and movement animation states.
 - Autonomous movement.
 - Codex and other activity adapters.
 - Adoption, naming, and personality-selection flows.

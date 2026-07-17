@@ -79,6 +79,12 @@ done
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
+sprite_asset="$repo_root/assets/worklings-wildkin-spritesheet.png"
+
+if [ ! -f "$sprite_asset" ]; then
+  printf 'Error: required Wildkin sprite sheet is missing: %s\n' "$sprite_asset" >&2
+  exit 1
+fi
 
 if [ -z "$output_dir" ]; then
   output_dir="$repo_root/dist/$version"
@@ -119,6 +125,7 @@ if [ ! -x "$built_executable" ]; then
 fi
 
 install -m 755 -- "$built_executable" "$macos_dir/$executable_name"
+install -m 644 -- "$sprite_asset" "$resources_dir/worklings-wildkin-spritesheet.png"
 
 cat >"$info_plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
