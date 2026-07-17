@@ -47,7 +47,8 @@ Worklings.app/
     └── Resources/
         ├── worklings-wildkin-spritesheet.png
         ├── worklings-elemental-spritesheet.png
-        └── worklings-relicborn-spritesheet.png
+        ├── worklings-relicborn-spritesheet.png
+        └── worklings-smoke-effects.png
 ```
 
 The disk image contains the application and a shortcut to `/Applications` so the user can install it by dragging the app.
@@ -85,7 +86,7 @@ Every release candidate must:
 5. Pass strict `codesign` verification after ad-hoc signing.
 6. Produce a DMG that passes `hdiutil verify`.
 7. Mount successfully and contain both the app and Applications shortcut.
-8. Contain the Wildkin, Elemental, and Relicborn sprite sheets in the app's Resources directory.
+8. Contain the Wildkin, Elemental, Relicborn, and shared smoke-effect sprite sheets in the app's Resources directory.
 9. Produce a SHA-256 checksum beside the DMG.
 
 Application launch remains a manual smoke test because launching a foreground macOS application is not reliable in every automated or remote environment.

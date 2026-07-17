@@ -68,7 +68,7 @@ Current card structure:
 
 All exact-value meters are positive wellbeing measures: a higher value and longer bar always mean the Workling is doing better. The interface displays **Fullness** as the inverse of the Pet Brain's internal hunger value. Natural-language conditions may still describe the Workling as hungry.
 
-The current implementation combines SwiftUI care surfaces with a family-aware runtime sprite renderer. Wildkin, Elemental, and Relicborn use the same twelve-frame sheet contract; state variants, action animation, and asset-specific licensing metadata remain separate work.
+The current implementation combines SwiftUI care surfaces with a family-aware runtime sprite renderer. Wildkin, Elemental, and Relicborn use the same twelve-frame sheet contract. A separate eight-frame smoke sheet overlays the pet during launch, wake, tuck-away, and family replacement; state variants, action animation, and asset-specific licensing metadata remain separate work.
 
 ### 4. Menu bar
 
@@ -77,6 +77,7 @@ The menu bar remains a reliable fallback and application-control surface.
 - Keep wake, tuck away, persistence warnings, and quit controls.
 - Keep the checked Choose Workling submenu as the immediate family selector.
 - Switching family must preserve the current name, needs, preferences, and progression timestamp.
+- Swap the family only while the dense smoke frame obscures the pet.
 - Care actions may remain duplicated during the experiment.
 - Both surfaces must call the same session actions and display the same state.
 - Keep the persistent roaming toggle in the menu bar so movement can be paused without catching the pet.
@@ -161,6 +162,7 @@ Favourite food and play choices are marked consistently in both care surfaces. P
 
 - `CompanionCore` owns the selected family, urgency, summaries, action availability, roaming plans, safe screen targets, and other testable presentation decisions.
 - The application target owns hover timing, AppKit tracking, card placement, focus, and dismissal.
+- `CompanionCore` defines the deterministic smoke-frame midpoint; the application target owns transition timing, window ordering, and interruption.
 - The application target owns roaming animation, interruption, and the local opt-in preference.
 - `PetSession` remains the single source of live state and actions.
 - Menu-bar and pet-anchored controls reuse the same domain models.
@@ -177,6 +179,7 @@ Automated checks should cover:
 - reaction precedence over ambient need content;
 - existing simulation, persistence, presentation, and placement behavior;
 - family defaulting, state-preserving selection, and JSON round trips;
+- reveal, conceal, and family-swap visibility at the dense smoke midpoint;
 - deterministic roaming plans, display-relative targets, bounds, and edge reflection.
 
 Manual macOS review should cover:
@@ -188,6 +191,8 @@ Manual macOS review should cover:
 - menu/card consistency;
 - VoiceOver labels, keyboard navigation, and Reduce Motion;
 - all three family choices, checkmarks, immediate sprite swaps, and restart persistence;
+- launch/wake reveal, tuck-away conceal, and family replacement under smoke;
+- instant reveal, conceal, and family switching with Reduce Motion enabled;
 - roaming opt-in persistence, walking direction, interaction pauses, drag clamping, and tuck/wake behavior.
 
 ## Deferred work
