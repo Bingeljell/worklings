@@ -46,8 +46,6 @@ The current experimental build includes:
 - menu-bar wake, tuck-away, care, and quit controls;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
 
-![Pixel beside the Worklings care card, showing needs and care actions](assets/worklings_interaction.png)
-
 Final pixel art, autonomous movement, adoption, richer personality, activity integrations, and public packaging remain in development.
 
 ## Use from the repository

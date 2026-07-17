@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-17 > README.md, assets/worklings.png, and assets/worklings_interaction.png > placeholder project visuals > Removes the superseded purple pet portrait and care-card screenshot along with the remaining README reference.**
 - **2026-07-17 > README.md and assets/worklings-social-preview.jpg, assets/worklings-wildkin.png, assets/worklings-elemental.png, and assets/worklings-relicborn.png > project banner and character direction > Adds the approved Worklings concept banner and Wildkin, Elemental, and Relicborn artwork to the repository overview.**
 - **2026-07-17 > README.md and assets/worklings.png and assets/worklings_interaction.png > project visuals > Adds the supplied Worklings portrait and care-card screenshot to the project overview.**
 - **2026-07-17 > Package.swift, Sources/Worklings, scripts/build_app_bundle, scripts/build_dmg, and scripts/verify_release > package, executable, app entry point, bundle metadata, and release artifact configuration > Renames the macOS app and technical build identity from Build Companion to Worklings.**
