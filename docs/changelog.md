@@ -1,5 +1,9 @@
 # Changelog
 
+- **2026-07-17 > Package.swift, Sources/Worklings/WildkinPetView.swift, Sources/Worklings/PlaceholderPetView.swift, and Sources/Worklings/CompanionPanelController.swift > Wildkin sprite loading, frame selection, and companion presentation > Replaces the code-drawn placeholder with mood-aware Wildkin frames, a reduced-motion-safe idle cycle, and care-reaction artwork while preserving the existing desktop interaction surfaces.**
+- **2026-07-17 > scripts/build_app_bundle, scripts/build_dmg, scripts/verify_release, and docs/distribution.md > Wildkin runtime resource packaging and verification > Bundles the sprite sheet into packaged apps and makes release assembly and verification fail when the required pet artwork is missing.**
+- **2026-07-17 > README.md, docs/pet_brain.md, docs/pet_interaction.md, docs/product_brief.md, and docs/architecture.md > Wildkin runtime-art status > Records the moss-fox as Pixel's first in-app character and narrows remaining artwork work to richer animation, additional families, and adoption.**
+- **2026-07-17 > assets/worklings-wildkin-spritesheet.png > Wildkin idle, walking, mood, and care-reaction frames > Adds a transparent 4-by-3 pixel-art sprite sheet for replacing the code-drawn placeholder pet and supporting the first autonomous-movement slice.**
 - **2026-07-17 > README.md > visual asset licensing > Clarifies that first-party concept art and code-rendered placeholder visuals share the repository license unless an asset states otherwise.**
 - **2026-07-17 > Sources/CompanionCore/PetState.swift > PetNeeds.fullness > Restores the approved derived inverse of hunger after the Worklings rebrand without changing persistence or Pet Brain rules.**
 - **2026-07-17 > Sources/Worklings/PetCareCardView.swift and Sources/Worklings/AppDelegate.swift > need presentation > Uses Fullness, Energy, Happiness, and Trust consistently so every higher value means better wellbeing.**

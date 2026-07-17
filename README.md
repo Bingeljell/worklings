@@ -36,7 +36,7 @@ Worklings may eventually come from several creature families. These early concep
 The current experimental build includes:
 
 - a transparent floating companion window;
-- a code-drawn Pixel placeholder that respects Reduce Motion;
+- a Wildkin sprite-sheet companion with mood, care-reaction, and reduced-motion-safe idle frames;
 - internal hunger presented as Fullness, plus energy, happiness, and trust;
 - favourite food and play preferences;
 - deterministic time progression and capped offline progression;
@@ -48,7 +48,7 @@ The current experimental build includes:
 - Worklings-branded app, DMG, checksum, and release-verification scripts;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
 
-The character concepts above are not yet used by the application. Runtime artwork, autonomous movement, adoption, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
+The moss-fox Wildkin is now the first in-app character. The Elemental and Relicborn concepts, autonomous movement, adoption, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
 
 ## Use from the repository
 
@@ -149,7 +149,7 @@ Near-term work focuses on proving the care loop and desktop interaction before a
 
 Worklings source code is available under the [Apache License 2.0](LICENSE). In practical terms, the license permits use, modification, and redistribution—including commercial use—subject to its notice and attribution conditions, and includes an explicit patent grant from contributors.
 
-Unless a file or asset states otherwise, the first-party visual assets in this repository—including concept art and code-rendered placeholder visuals—are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
+Unless a file or asset states otherwise, the first-party visual assets in this repository—including concept art and runtime sprite artwork—are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
 
 ## Contributing
 

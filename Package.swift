@@ -16,7 +16,10 @@ let package = Package(
         .target(name: "CompanionCore"),
         .executableTarget(
             name: "Worklings",
-            dependencies: ["CompanionCore"]
+            dependencies: ["CompanionCore"],
+            resources: [
+                .copy("../../assets/worklings-wildkin-spritesheet.png")
+            ]
         ),
         .executableTarget(
             name: "CompanionCoreChecks",

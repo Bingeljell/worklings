@@ -48,13 +48,13 @@ The current panel:
 - supports dragging without opening the care card;
 - clamps placement to the visible display frame;
 - can be tucked away and restored;
-- respects Reduce Motion in placeholder animation.
+- respects Reduce Motion in Wildkin idle animation.
 
 Autonomous roaming, intent-driven movement, collision/obstruction policy, and multi-display travel are not implemented. A small moving window remains preferred over a display-sized overlay because it minimizes input interception.
 
 ## Pet simulation and presentation
 
-`PetBrain` owns needs, preferences, actions, time progression, and semantic reactions. `PetState` owns the versioned relationship state. `PetCareStatus` owns urgency, natural-language summaries, and action availability. `PetPresentation` converts mood and reaction into the current placeholder treatment.
+`PetBrain` owns needs, preferences, actions, time progression, and semantic reactions. `PetState` owns the versioned relationship state. `PetCareStatus` owns urgency, natural-language summaries, and action availability. `PetPresentation` converts mood and reaction into presentation intent, and `WildkinPetView` maps that intent to sprite-sheet frames.
 
 Internal hunger is presented as derived Fullness so all exact UI meters increase in the healthy direction. The derived value is not persisted.
 
@@ -124,7 +124,7 @@ The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is
 
 | Slice | Status |
 | --- | --- |
-| Floating draggable placeholder and tuck-away control | Complete |
+| Floating draggable companion and tuck-away control | Complete |
 | Deterministic needs and local persistence | Complete |
 | Direct care interactions, preferences, hover, and care card | Complete |
 | Worklings rebrand and legacy-save copy | Complete |
@@ -132,5 +132,6 @@ The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is
 | Safe idle roaming within one display | Planned |
 | Provider-neutral event pipeline with a simulated source | Planned |
 | Codex adapter | Planned |
-| Runtime artwork, adoption, and creature-family selection | Planned |
+| First Wildkin runtime sprite set | Complete |
+| Adoption and creature-family selection | Planned |
 | Developer ID signing and notarization | Deferred |
