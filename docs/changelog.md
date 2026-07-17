@@ -1,5 +1,10 @@
 # Changelog
 
+- **2026-07-17 > CONTRIBUTING.md > contribution workflow and pull request acceptance > Defines issue-first changes, setup, architectural boundaries, testing expectations, review criteria, and licensing for external contributions.**
+- **2026-07-17 > SECURITY.md > vulnerability reporting and supported versions > Adds a private reporting path, response expectations, and the local-first privacy boundary.**
+- **2026-07-17 > CODE_OF_CONDUCT.md > community standards and enforcement > Adopts Contributor Covenant 2.1 with a confidential reporting route.**
+- **2026-07-17 > README.md > documentation and contributing links > Links the contributor, security, and community governance policies from the repository entry point.**
+
 - **2026-07-17 > README.md > visual asset licensing > Clarifies that first-party concept art and code-rendered placeholder visuals share the repository license unless an asset states otherwise.**
 - **2026-07-17 > Sources/CompanionCore/PetState.swift > PetNeeds.fullness > Restores the approved derived inverse of hunger after the Worklings rebrand without changing persistence or Pet Brain rules.**
 - **2026-07-17 > Sources/Worklings/PetCareCardView.swift and Sources/Worklings/AppDelegate.swift > need presentation > Uses Fullness, Energy, Happiness, and Trust consistently so every higher value means better wellbeing.**
