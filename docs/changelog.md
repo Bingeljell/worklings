@@ -1,5 +1,8 @@
 # Changelog
 
+- **2026-07-17 > .github/PULL_REQUEST_TEMPLATE.md > pull request review template > Prompts contributors for the user outcome, tradeoffs, risk review, verification, documentation, and visual evidence.**
+- **2026-07-17 > .github/ISSUE_TEMPLATE > bug, feature, and routing forms > Collects reproducible bug context, outcome-focused feature proposals, product-boundary impacts, and private security routing.**
+- **2026-07-17 > .github/CODEOWNERS > repository ownership > Routes repository changes to the project owner until maintainership is delegated by area.**
 - **2026-07-17 > CONTRIBUTING.md > contribution workflow and pull request acceptance > Defines issue-first changes, setup, architectural boundaries, testing expectations, review criteria, and licensing for external contributions.**
 - **2026-07-17 > SECURITY.md > vulnerability reporting and supported versions > Adds a private reporting path, response expectations, and the local-first privacy boundary.**
 - **2026-07-17 > CODE_OF_CONDUCT.md > community standards and enforcement > Adopts Contributor Covenant 2.1 with a confidential reporting route.**
