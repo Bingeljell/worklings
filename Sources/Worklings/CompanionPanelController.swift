@@ -10,7 +10,7 @@ final class CompanionPanelController {
     private let session: PetSession
     private let hoverSummaryController: HoverSummaryPanelController
     private let carePopoverController: CarePopoverController
-    private var hostingView: CompanionHostingView<PlaceholderPetView>?
+    private var hostingView: CompanionHostingView<WildkinPetView>?
     private var hoverTask: Task<Void, Never>?
     private var isPointerInside = false
 
@@ -52,7 +52,7 @@ final class CompanionPanelController {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         let hostingView = CompanionHostingView(
-            rootView: PlaceholderPetView(session: session)
+            rootView: WildkinPetView(session: session)
         )
         hostingView.onClick = { [weak self] in
             self?.toggleCareCard()

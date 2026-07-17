@@ -2,7 +2,7 @@
 
 ## Status
 
-The first persistent care loop is implemented. Pixel is currently the single test Workling and uses placeholder runtime visuals; the Wildkin, Elemental, and Relicborn artwork in the repository is concept direction rather than selectable in-app content.
+The first persistent care loop is implemented. Pixel is currently the single test Workling and renders as the moss-fox Wildkin. Elemental and Relicborn remain concept directions rather than selectable in-app content.
 
 The Pet Brain is deterministic, independent of Codex, and usable without any activity integration. Autonomous movement, adoption, deeper personality, reversible runaway behavior, and activity-driven intent remain planned work.
 
@@ -83,7 +83,7 @@ Mood is derived in priority order:
 
 ## Presentation contract
 
-`PetPresentation` maps semantic mood and the latest reaction to the current placeholder face, palette, label, and short thought. Care reactions temporarily take precedence for approximately three seconds; normal need presentation then resumes.
+`PetPresentation` maps semantic mood and the latest reaction to a face, palette, label, and short thought. `WildkinPetView` maps that presentation intent to the matching sprite-sheet frame. Care reactions temporarily take precedence for approximately three seconds; normal need presentation then resumes.
 
 The live UI currently provides:
 

@@ -20,7 +20,7 @@ The Workling should feel alive and worth returning to without becoming punitive,
 
 ## Current validated experience
 
-The macOS application currently launches Pixel as a small transparent floating companion above normal windows. Pixel can be dragged or tucked away, communicates needs through a placeholder expression and hover summary, and opens a care card when clicked.
+The macOS application currently launches Pixel as a small moss-fox Wildkin in a transparent floating companion window above normal windows. Pixel can be dragged or tucked away, communicates needs through sprite poses and a hover summary, and opens a care card when clicked.
 
 The care loop includes persistent needs, time and offline progression, favourite food and play choices, Feed, Play, Pet, and Sleep actions, menu-bar controls, and local JSON saves. Exact meters use positive semantics: more Fullness, Energy, Happiness, or Trust is always better.
 
@@ -34,7 +34,7 @@ The repository contains early concepts for three Workling families:
 - **Elemental:** creatures whose elemental affinity is part of their anatomy.
 - **Relicborn:** creatures bonded to ancient mechanisms, relics, or rune-powered artifacts.
 
-The moss-fox, ember-newt, and keyback pangolin establish world and silhouette direction. They are concept art only: the app still renders one code-drawn placeholder named Pixel and does not yet offer adoption, family selection, sprites, or animation packs.
+The moss-fox, ember-newt, and keyback pangolin establish world and silhouette direction. The moss-fox Wildkin is the first runtime character and currently represents the fixed-name Pixel; the app does not yet offer adoption, family selection, other creatures, or animation packs.
 
 ## MVP progress
 
@@ -42,7 +42,7 @@ The moss-fox, ember-newt, and keyback pangolin establish world and silhouette di
 | --- | --- | --- |
 | Desktop shell | Transparent floating panel, drag, tuck/wake, menu bar, safe initial placement, Reduce Motion | Autonomous roaming, pause control, richer display behavior |
 | Life simulation | Hunger, energy, happiness, trust, preferences, moods, care actions, deterministic progression | Tuning, deeper personality, routines, reversible neglect/runaway |
-| Interaction | Ambient placeholder state, delayed hover, care card, menu fallback, accessibility labels | Final art states, animation, broader keyboard and VoiceOver review |
+| Interaction | Wildkin mood/reaction frames, idle cycle, delayed hover, care card, menu fallback, accessibility labels | Movement and richer action animation, broader keyboard and VoiceOver review |
 | Persistence | Versioned atomic JSON, corrupt-save preservation, offline cap, legacy save copy | Recovery UI and future schema migrations |
 | Activity response | Provider-neutral architecture documented | Event types, reducer, simulated source, Codex adapter |
 | Distribution | Worklings app/DMG/checksum scripts and mounted verification | First Worklings-branded release, Developer ID signing, notarization |
