@@ -1,5 +1,10 @@
 # Changelog
 
+- **2026-07-17 > README.md and assets/worklings.png and assets/worklings_interaction.png > project visuals > Adds the supplied Worklings portrait and care-card screenshot to the project overview.**
+- **2026-07-17 > Package.swift, Sources/Worklings, scripts/build_app_bundle, scripts/build_dmg, and scripts/verify_release > package, executable, app entry point, bundle metadata, and release artifact configuration > Renames the macOS app and technical build identity from Build Companion to Worklings.**
+- **2026-07-17 > Sources/Worklings/PetSession.swift > makeDefaultStore > Stores saves under Application Support/Worklings and copies forward any legacy BuildCompanion save without deleting the original.**
+- **2026-07-17 > README.md, docs/architecture.md, docs/distribution.md, docs/pet_brain.md, and docs/product_brief.md > product naming and positioning > Establishes Worklings as the canonical project name and clarifies its MMO-inspired persistent-pet experience.**
+
 - **2026-07-16 > scripts/verify_release > mounted artifact verification > Confirms the DMG checksum and integrity, mounts it read-only, and validates its Applications shortcut, bundle metadata, architecture, and code signature.**
 - **2026-07-16 > README.md > beta download and installation > Documents release availability, checksum verification, drag-to-install, Apple Silicon support, and safe first launch of an ad-hoc-signed alpha.**
 - **2026-07-16 > docs/distribution.md > release verification command > Documents the final mounted-artifact verification gate.**
@@ -16,14 +21,14 @@
 - **2026-07-15 > README.md > license section > Summarizes Apache-2.0 usage and clarifies that future artwork may declare separate asset-specific terms.**
 - **2026-07-15 > README.md > project overview, source usage, verification, and beta distribution > Adds the public project entry point with product direction, current capabilities, local run instructions, checks, documentation links, and planned GitHub Release DMGs.**
 - **2026-07-15 > AGENTS.md > documentation location rule > Allows standard repository entry-point and governance files at the root while keeping detailed project documentation under `docs/`.**
-- **2026-07-15 > Sources/BuildCompanion/CompanionHostingView.swift > mouse tracking, click classification, and dragging > Gives AppKit ownership of hover, click, and drag behavior so moving Pixel cannot open the care card.**
-- **2026-07-15 > Sources/BuildCompanion/HoverSummaryPanelController.swift > delayed summary presentation and edge placement > Adds a styled click-through hover summary that stays inside the active display.**
-- **2026-07-15 > Sources/BuildCompanion/CarePopoverController.swift > toggle, show, and close > Adds a transient pet-anchored interactive popover with native dismissal behavior.**
-- **2026-07-15 > Sources/BuildCompanion/PetCareCardView.swift > need rows, care actions, and preferences > Adds exact need progress, shared action availability, selectable favourites, reaction feedback, and accessibility labels.**
-- **2026-07-15 > Sources/BuildCompanion/PetSession.swift > careStatus and guarded perform > Exposes shared care status and prevents unavailable care actions from bypassing interface state.**
-- **2026-07-15 > Sources/BuildCompanion/CompanionPanelController.swift > pointer, hover, and care-card coordination > Replaces background dragging and SwiftUI taps with delayed hover and click-versus-drag AppKit coordination.**
-- **2026-07-15 > Sources/BuildCompanion/PlaceholderPetView.swift > interaction ownership and accessibility hint > Removes click-to-pet and exposes the natural-language care summary to accessibility technologies.**
-- **2026-07-15 > Sources/BuildCompanion/AppDelegate.swift > shared care availability > Keeps menu-bar Feed, Play, and Sleep availability aligned with the pet care card and PetSession guardrails.**
+- **2026-07-15 > Sources/Worklings/CompanionHostingView.swift > mouse tracking, click classification, and dragging > Gives AppKit ownership of hover, click, and drag behavior so moving Pixel cannot open the care card.**
+- **2026-07-15 > Sources/Worklings/HoverSummaryPanelController.swift > delayed summary presentation and edge placement > Adds a styled click-through hover summary that stays inside the active display.**
+- **2026-07-15 > Sources/Worklings/CarePopoverController.swift > toggle, show, and close > Adds a transient pet-anchored interactive popover with native dismissal behavior.**
+- **2026-07-15 > Sources/Worklings/PetCareCardView.swift > need rows, care actions, and preferences > Adds exact need progress, shared action availability, selectable favourites, reaction feedback, and accessibility labels.**
+- **2026-07-15 > Sources/Worklings/PetSession.swift > careStatus and guarded perform > Exposes shared care status and prevents unavailable care actions from bypassing interface state.**
+- **2026-07-15 > Sources/Worklings/CompanionPanelController.swift > pointer, hover, and care-card coordination > Replaces background dragging and SwiftUI taps with delayed hover and click-versus-drag AppKit coordination.**
+- **2026-07-15 > Sources/Worklings/PlaceholderPetView.swift > interaction ownership and accessibility hint > Removes click-to-pet and exposes the natural-language care summary to accessibility technologies.**
+- **2026-07-15 > Sources/Worklings/AppDelegate.swift > shared care availability > Keeps menu-bar Feed, Play, and Sleep availability aligned with the pet care card and PetSession guardrails.**
 - **2026-07-15 > Sources/CompanionCore/PetState.swift > PetNeeds decoding and clamping > Routes decoded need values through finite `0...100` domain clamping.**
 - **2026-07-15 > Sources/CompanionCore/PetCareStatus.swift > urgency, summaries, and action availability > Centralizes need thresholds, priority ordering, two-condition hover language, ambient alerts, and care-action rules.**
 - **2026-07-15 > Sources/CompanionCore/PetPresentation.swift > happy mood presentation > Suppresses persistent happy thought bubbles in line with the interaction feedback policy.**
@@ -40,20 +45,20 @@
 - **2026-07-15 > Tests/CompanionCoreChecks/PetPersistenceChecks.swift > JSON store checks > Covers missing files, state round trips, unsupported schemas, and corrupt-save preservation.**
 - **2026-07-15 > Tests/CompanionCoreChecks/PetPresentationChecks.swift > placeholder presentation checks > Covers content, urgent needs, reaction overrides, and tired-refusal placeholder output.**
 - **2026-07-15 > Sources/CompanionCore/PetPresentation.swift > make and reaction thought mapping > Converts semantic pet mood and interactions into testable placeholder face, palette, label, and thought content.**
-- **2026-07-15 > Sources/BuildCompanion/PetSession.swift > advance, perform, persist, and reaction scheduling > Connects the Pet Brain to a live session, preserves corrupt saves, stores state in Application Support, and clears temporary reactions.**
-- **2026-07-15 > Sources/BuildCompanion/AppDelegate.swift > menuNeedsUpdate and care actions > Adds live need summaries, favourite markers, and feed, play, pet, and sleep controls to the menu-bar interface.**
-- **2026-07-15 > Sources/BuildCompanion/CompanionPanelController.swift > init and configurePanel > Injects the live pet session into a larger placeholder panel that can display thought content.**
-- **2026-07-15 > Sources/BuildCompanion/PlaceholderPetView.swift > mood presentation and tap interaction > Adds mood palettes, expressive faces, thought bubbles, and click-to-pet feedback to the temporary companion.**
+- **2026-07-15 > Sources/Worklings/PetSession.swift > advance, perform, persist, and reaction scheduling > Connects the Pet Brain to a live session, preserves corrupt saves, stores state in Application Support, and clears temporary reactions.**
+- **2026-07-15 > Sources/Worklings/AppDelegate.swift > menuNeedsUpdate and care actions > Adds live need summaries, favourite markers, and feed, play, pet, and sleep controls to the menu-bar interface.**
+- **2026-07-15 > Sources/Worklings/CompanionPanelController.swift > init and configurePanel > Injects the live pet session into a larger placeholder panel that can display thought content.**
+- **2026-07-15 > Sources/Worklings/PlaceholderPetView.swift > mood presentation and tap interaction > Adds mood palettes, expressive faces, thought bubbles, and click-to-pet feedback to the temporary companion.**
 - **2026-07-15 > Sources/CompanionCore/PetState.swift > PetNeeds, PetState, mood, actions, and reactions > Defines clamped versioned pet state, preferences, semantic moods, and care interaction types.**
 - **2026-07-15 > Sources/CompanionCore/PetBrain.swift > advance and perform > Adds deterministic need progression, offline clamping, distress penalties, and preference-aware care outcomes.**
 - **2026-07-15 > Sources/CompanionCore/PetStateFileStore.swift > load and save > Adds version-checked JSON loading and atomic local persistence without overwriting unreadable saves.**
 - **2026-07-15 > docs/pet_brain.md > Pet Brain vertical-slice plan > Defines needs, time progression, care interactions, persistence, placeholder presentation, test coverage, and review criteria for the next four commits.**
 - **2026-07-15 > Package.swift > package manifest > Adds a dependency-free macOS Swift package with application, core library, and executable check targets.**
 - **2026-07-15 > Sources/CompanionCore/ScreenPlacement.swift > defaultOrigin and clampedOrigin > Calculates safe companion-window positions within the usable screen frame.**
-- **2026-07-15 > Sources/BuildCompanion/BuildCompanionApp.swift > main > Starts Build Companion as a menu-bar macOS application.**
-- **2026-07-15 > Sources/BuildCompanion/AppDelegate.swift > applicationDidFinishLaunching, toggleCompanionVisibility, and quit > Manages the companion lifecycle and menu-bar controls.**
-- **2026-07-15 > Sources/BuildCompanion/CompanionPanelController.swift > configurePanel, placeOnMainScreen, show, and hide > Creates a transparent draggable floating panel and positions it safely on the main display.**
-- **2026-07-15 > Sources/BuildCompanion/PlaceholderPetView.swift > body, ears, and face > Draws an animated placeholder companion that respects reduced-motion settings.**
+- **2026-07-15 > Sources/Worklings/WorklingsApp.swift > main > Starts Worklings as a menu-bar macOS application.**
+- **2026-07-15 > Sources/Worklings/AppDelegate.swift > applicationDidFinishLaunching, toggleCompanionVisibility, and quit > Manages the companion lifecycle and menu-bar controls.**
+- **2026-07-15 > Sources/Worklings/CompanionPanelController.swift > configurePanel, placeOnMainScreen, show, and hide > Creates a transparent draggable floating panel and positions it safely on the main display.**
+- **2026-07-15 > Sources/Worklings/PlaceholderPetView.swift > body, ears, and face > Draws an animated placeholder companion that respects reduced-motion settings.**
 - **2026-07-15 > Tests/CompanionCoreChecks/ScreenPlacementChecks.swift > screen placement checks > Covers default, clamped, and oversized-window placement without requiring a bundled test framework.**
 - **2026-07-15 > scripts/committer > repository and branch detection > Supports the first commit on an unborn branch and refuses detached-HEAD commits.**
 - **2026-07-15 > docs/git_workflow.md > branching, committing, pushing, and releases > Moves the Git workflow into the documentation folder and aligns it with the actual committer safeguards.**

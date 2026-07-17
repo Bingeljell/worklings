@@ -30,7 +30,7 @@ final class PetSession: ObservableObject {
             initialState = PetState.newPet(now: now)
             canPersist = false
             warning = "Saved state could not be read; it has been preserved."
-            NSLog("Build Companion could not load pet state: %@", String(describing: error))
+            NSLog("Worklings could not load pet state: %@", String(describing: error))
         }
 
         state = brain.advance(initialState, to: now)
@@ -95,7 +95,7 @@ final class PetSession: ObservableObject {
             persistenceWarning = nil
         } catch {
             persistenceWarning = "Pet state could not be saved."
-            NSLog("Build Companion could not save pet state: %@", String(describing: error))
+            NSLog("Worklings could not save pet state: %@", String(describing: error))
         }
     }
 
@@ -123,15 +123,35 @@ final class PetSession: ObservableObject {
     }
 
     private static func makeDefaultStore() -> PetStateFileStore {
-        let applicationSupportURL = FileManager.default.urls(
+        let fileManager = FileManager.default
+        let applicationSupportURL = fileManager.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
-        ).first ?? FileManager.default.temporaryDirectory
+        ).first ?? fileManager.temporaryDirectory
 
-        return PetStateFileStore(
-            fileURL: applicationSupportURL
-                .appendingPathComponent("BuildCompanion", isDirectory: true)
-                .appendingPathComponent("pet-state.json", isDirectory: false)
-        )
+        let stateFileName = "pet-state.json"
+        let stateURL = applicationSupportURL
+            .appendingPathComponent("Worklings", isDirectory: true)
+            .appendingPathComponent(stateFileName, isDirectory: false)
+        let legacyStateURL = applicationSupportURL
+            .appendingPathComponent("BuildCompanion", isDirectory: true)
+            .appendingPathComponent(stateFileName, isDirectory: false)
+
+        if !fileManager.fileExists(atPath: stateURL.path),
+           fileManager.fileExists(atPath: legacyStateURL.path) {
+            do {
+                try fileManager.createDirectory(
+                    at: stateURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try fileManager.copyItem(at: legacyStateURL, to: stateURL)
+                NSLog("Worklings copied pet state from the legacy application directory.")
+            } catch {
+                NSLog("Worklings could not copy legacy pet state: %@", String(describing: error))
+                return PetStateFileStore(fileURL: legacyStateURL)
+            }
+        }
+
+        return PetStateFileStore(fileURL: stateURL)
     }
 }

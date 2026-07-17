@@ -1,16 +1,20 @@
-# Build Companion
+# Worklings
 
 As an MMO fan whose been itching to find some outlet, I figured having a pet that actually feels like a pet rather than some superficial toy was in order. No idea where this is going to go - but I'm thinking an eventual evolution into a Battle bot - maybe even multiplayer over time.
 
 The rest of this readme has been written by AI, but read and edited by me.
 
-Build Companion is an experimental macOS desktop pet designed to feel like a small, persistent companion rather than another status widget. The immediate step is to get the pet to react to Codex activity — but its longer-term goal is broader: a private, local companion that can react to work across IDEs, agents, and other explicitly connected applications. The pet has its own needs, preferences, moods, and routines, and its behavior should remain meaningful even when no integration is active.
+Worklings is an experimental macOS desktop pet inspired by the persistence, progression, and attachment of an MMO character. It is meant to feel like a small living creature rather than another status widget. The immediate step is to get a Workling to react to Codex activity, but the longer-term goal is broader: a private, local pet that can react to work across IDEs, agents, and other explicitly connected applications. Each Workling has its own needs, preferences, moods, and routines, and its behavior should remain meaningful even when no integration is active.
+
+<p align="center">
+  <img src="assets/worklings.png" alt="Pixel, the first purple Workling" width="260">
+</p>
 
 What remains to be decided is whether or not the pet will be context general-context aware or only where its connected to specific apps. (Easier to do in the world of agentic engineering, but harder when looking at broader knowledge work tasks.)
 
 ## What we are building
 
-Build Companion combines three ideas:
+Worklings combines three ideas:
 
 - **A living pet:** hunger, energy, happiness, trust, preferences, reactions, and reversible neglect.
 - **A respectful desktop presence:** a floating companion that can be moved, tucked away, and eventually roam without obstructing work.
@@ -33,6 +37,8 @@ The current experimental build includes:
 - menu-bar wake, tuck-away, care, and quit controls;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
 
+![Pixel beside the Worklings care card, showing needs and care actions](assets/worklings_interaction.png)
+
 Final pixel art, autonomous movement, adoption, richer personality, activity integrations, and public packaging remain in development.
 
 ## Use from the repository
@@ -47,14 +53,14 @@ Final pixel art, autonomous movement, adoption, richer personality, activity int
 Clone and enter the repository:
 
 ```bash
-git clone git@github.com:Bingeljell/build_companion.git
-cd build_companion
+git clone git@github.com:Bingeljell/worklings.git
+cd worklings
 ```
 
-Run the companion:
+Run Worklings:
 
 ```bash
-swift run BuildCompanion
+swift run Worklings
 ```
 
 The first build may take a moment. Pixel appears as a floating desktop companion and adds a paw icon to the menu bar.
@@ -68,7 +74,7 @@ The first build may take a moment. Pixel appears as a floating desktop companion
 - Use the paw menu to inspect state, tuck Pixel away, wake it, or quit.
 - Press `Control+C` in the launching terminal to stop the process directly.
 
-Pet state is stored under the current user's Application Support directory and restored on the next launch.
+Pet state is stored under the current user's `Application Support/Worklings` directory and restored on the next launch. On the first launch after upgrading from Build Companion, Worklings copies the existing save forward and preserves the legacy copy.
 
 ## Build and verify
 
@@ -88,7 +94,7 @@ The check runner is used because a minimal Apple Command Line Tools installation
 
 ## Beta application download
 
-Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/build_companion/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
+Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
 
 If the Releases page does not list a DMG yet, running from source remains the supported path.
 
@@ -98,10 +104,10 @@ To install a packaged alpha:
 2. Optionally verify the download from the directory containing both files:
 
    ```bash
-   shasum -a 256 --check BuildCompanion-<version>-macos-arm64.dmg.sha256
+   shasum -a 256 --check Worklings-<version>-macos-arm64.dmg.sha256
    ```
 
-3. Open the DMG and drag **Build Companion** to the **Applications** shortcut.
+3. Open the DMG and drag **Worklings** to the **Applications** shortcut.
 4. Eject the disk image.
 5. Because the experimental alpha is ad-hoc signed rather than Apple-notarized, open the app from Finder's context menu and confirm **Open**. If macOS still blocks it, use **System Settings > Privacy & Security > Open Anyway**.
 
@@ -129,13 +135,13 @@ Near-term work focuses on proving the care loop and desktop interaction before a
 
 ## License
 
-Build Companion source code is available under the [Apache License 2.0](LICENSE). In practical terms, the license permits use, modification, and redistribution—including commercial use—subject to its notice and attribution conditions, and includes an explicit patent grant from contributors.
+Worklings source code is available under the [Apache License 2.0](LICENSE). In practical terms, the license permits use, modification, and redistribution—including commercial use—subject to its notice and attribution conditions, and includes an explicit patent grant from contributors.
 
 Unless a file or asset states otherwise, the current code-generated placeholder visuals are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
 
 ## Contributing
 
-Pull requests are welcome. Build Companion is still experimental, so focused changes that preserve the product principles are easier to review and merge than broad rewrites.
+Pull requests are welcome. Worklings is still experimental, so focused changes that preserve the product principles are easier to review and merge than broad rewrites.
 
 Before starting a change that introduces a dependency, changes persistence compatibility, expands data collection, or materially changes product direction, open a GitHub issue to discuss the tradeoffs first.
 
@@ -159,4 +165,4 @@ External contributors may use their normal Git workflow in a fork. Maintainer an
 
 Unless explicitly stated otherwise, contributions submitted for inclusion are accepted under the project's [Apache License 2.0](LICENSE).
 
-Build Companion is currently an experiment. Interfaces, save formats, behavior rates, and visual presentation may change while the core experience is being validated.
+Worklings is currently an experiment. Interfaces, save formats, behavior rates, and visual presentation may change while the core experience is being validated.

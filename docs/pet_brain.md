@@ -2,7 +2,7 @@
 
 ## Objective
 
-The next Build Companion milestone should prove a small care loop before adding autonomous movement or external activity integrations. The user should be able to care for the same persistent pet across launches and understand its condition through temporary placeholder visuals.
+The next Worklings milestone should prove a small care loop before adding autonomous movement or external activity integrations. The user should be able to care for the same persistent pet across launches and understand its condition through temporary placeholder visuals.
 
 The implementation is split into four reviewable commits: this plan, the Pet Brain domain, placeholder application content, and comprehensive checks.
 

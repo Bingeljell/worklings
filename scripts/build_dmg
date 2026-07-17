@@ -75,10 +75,10 @@ elif [[ "$output_dir" != /* ]]; then
   output_dir="$repo_root/$output_dir"
 fi
 
-app_name='Build Companion'
-executable_name='BuildCompanion'
+app_name='Worklings'
+executable_name='Worklings'
 app_path="$output_dir/$app_name.app"
-dmg_name="BuildCompanion-$version-macos-$architecture.dmg"
+dmg_name="Worklings-$version-macos-$architecture.dmg"
 dmg_path="$output_dir/$dmg_name"
 checksum_path="$dmg_path.sha256"
 
@@ -109,7 +109,7 @@ fi
 lipo "$bundle_executable" -verify_arch "$architecture"
 codesign --verify --deep --strict --verbose=2 "$app_path"
 
-temp_root=$(mktemp -d "${TMPDIR:-/tmp}/build-companion-dmg.XXXXXX")
+temp_root=$(mktemp -d "${TMPDIR:-/tmp}/worklings-dmg.XXXXXX")
 trap 'rm -rf -- "$temp_root"' EXIT
 
 staging_dir="$temp_root/staging"

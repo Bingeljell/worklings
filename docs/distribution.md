@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines how Build Companion is assembled and published for early macOS testers. The initial goal is a repeatable experimental build, not a production-grade App Store or notarized release.
+This document defines how Worklings is assembled and published for early macOS testers. The initial goal is a repeatable experimental build, not a production-grade App Store or notarized release.
 
 Generated application bundles, disk images, and checksums are release artifacts. They must not be committed to Git.
 
@@ -11,7 +11,7 @@ Generated application bundles, disk images, and checksums are release artifacts.
 - **Release channel:** GitHub Releases.
 - **Minimum system:** macOS 14 or newer.
 - **Initial architecture:** Apple Silicon (`arm64`).
-- **Bundle identifier:** `com.bingeljell.BuildCompanion`.
+- **Bundle identifier:** `com.bingeljell.worklings`.
 - **Signing:** ad-hoc signing with macOS `codesign`.
 - **Notarization:** deferred until the experiment justifies an Apple Developer membership and certificate management.
 - **Packaging dependencies:** Apple Command Line Tools and built-in macOS utilities only.
@@ -25,19 +25,19 @@ The packaging flow produces artifacts under the ignored `dist/` directory:
 ```text
 dist/
 └── <version>/
-    ├── Build Companion.app/
-    ├── BuildCompanion-<version>-macos-arm64.dmg
-    └── BuildCompanion-<version>-macos-arm64.dmg.sha256
+    ├── Worklings.app/
+    ├── Worklings-<version>-macos-arm64.dmg
+    └── Worklings-<version>-macos-arm64.dmg.sha256
 ```
 
 The application bundle follows the standard macOS layout:
 
 ```text
-Build Companion.app/
+Worklings.app/
 └── Contents/
     ├── Info.plist
     ├── MacOS/
-    │   └── BuildCompanion
+    │   └── Worklings
     └── Resources/
 ```
 

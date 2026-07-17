@@ -1,4 +1,4 @@
-# Build Companion Architecture
+# Worklings Architecture
 
 ## Status
 
@@ -6,7 +6,7 @@ This document records the initial architecture for an experimental macOS-first i
 
 ## System boundaries
 
-Build Companion consists of a desktop host, a deterministic pet simulation, presentation and movement logic, local persistence, and optional activity-source adapters.
+Worklings consists of a desktop host, a deterministic pet simulation, presentation and movement logic, local persistence, and optional activity-source adapters.
 
 ```text
 Activity sources -> normalized events -> pet simulation -> pet intent -> presentation
