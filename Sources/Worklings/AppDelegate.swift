@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func configureStatusItem() {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.title = "🐾"
-        statusItem.button?.toolTip = "Build Companion"
+        statusItem.button?.toolTip = "Worklings"
 
         let menu = NSMenu()
         menu.delegate = self
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit Build Companion",
+            title: "Quit Worklings",
             action: #selector(quit),
             keyEquivalent: "q"
         )

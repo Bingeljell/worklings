@@ -1,10 +1,10 @@
-# Build Companion Product Brief
+# Worklings Product Brief
 
 ## Vision
 
-Build Companion is a local desktop creature that develops an ongoing relationship with its user. It begins by reacting to Codex activity and grows into a provider-neutral companion that can respond to work across IDEs, coding agents, and other explicitly connected applications.
+Worklings is a local desktop-pet experience built around the persistence, progression, and attachment of an MMO character. A user cares for an individual Workling that develops an ongoing relationship with them. It begins by reacting to Codex activity and grows into a provider-neutral pet that can respond to work across IDEs, coding agents, and other explicitly connected applications.
 
-The companion should feel alive without becoming punitive, distracting, or invasive.
+The Workling should feel alive and worth returning to without becoming punitive, distracting, or invasive.
 
 ## Product principles
 

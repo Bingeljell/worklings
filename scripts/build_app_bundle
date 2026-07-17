@@ -86,9 +86,9 @@ elif [[ "$output_dir" != /* ]]; then
   output_dir="$repo_root/$output_dir"
 fi
 
-app_name='Build Companion'
-executable_name='BuildCompanion'
-bundle_identifier='com.bingeljell.BuildCompanion'
+app_name='Worklings'
+executable_name='Worklings'
+bundle_identifier='com.bingeljell.worklings'
 app_path="$output_dir/$app_name.app"
 
 if [ -e "$app_path" ]; then
@@ -97,7 +97,7 @@ if [ -e "$app_path" ]; then
 fi
 
 mkdir -p -- "$output_dir"
-temp_root=$(mktemp -d "${TMPDIR:-/tmp}/build-companion-app.XXXXXX")
+temp_root=$(mktemp -d "${TMPDIR:-/tmp}/worklings-app.XXXXXX")
 trap 'rm -rf -- "$temp_root"' EXIT
 
 temp_app="$temp_root/$app_name.app"

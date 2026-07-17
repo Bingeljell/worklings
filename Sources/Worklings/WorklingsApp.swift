@@ -1,7 +1,7 @@
 import AppKit
 
 @main
-enum BuildCompanionApp {
+enum WorklingsApp {
     @MainActor
     static func main() {
         let application = NSApplication.shared

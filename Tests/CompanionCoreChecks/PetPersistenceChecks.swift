@@ -4,7 +4,7 @@ import Foundation
 enum PetPersistenceChecks {
     static func run(context: inout CheckContext) {
         let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("build-companion-checks-\(UUID().uuidString)")
+            .appendingPathComponent("worklings-checks-\(UUID().uuidString)")
         defer {
             try? FileManager.default.removeItem(at: directoryURL)
         }
