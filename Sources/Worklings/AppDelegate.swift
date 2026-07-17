@@ -265,7 +265,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
               let family = PetFamily(rawValue: rawValue) else {
             return
         }
-        petSession?.selectFamily(family)
+        if let companionController {
+            companionController.selectFamily(family)
+        } else {
+            petSession?.selectFamily(family)
+        }
     }
 
     @objc

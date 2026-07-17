@@ -83,6 +83,7 @@ sprite_assets=(
   'worklings-wildkin-spritesheet.png'
   'worklings-elemental-spritesheet.png'
   'worklings-relicborn-spritesheet.png'
+  'worklings-smoke-effects.png'
 )
 
 for sprite_name in "${sprite_assets[@]}"; do

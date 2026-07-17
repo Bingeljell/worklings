@@ -39,6 +39,7 @@ The current experimental build includes:
 
 - a transparent floating companion window;
 - a persistent menu-bar choice between Wildkin, Elemental, and Relicborn appearances;
+- shared pixel-art smoke transitions for launch, wake, tuck-away, and family changes;
 - optional single-display idle roaming with walking frames and a persistent pause control;
 - internal hunger presented as Fullness, plus energy, happiness, and trust;
 - favourite food and play preferences;

@@ -48,9 +48,10 @@ The current panel:
 - supports dragging without opening the care card;
 - clamps placement to the visible display frame;
 - can follow deterministic idle-roaming plans within its current display;
-- pauses roaming for pointer interaction, dragging, care, tuck-away, and Reduce Motion;
-- can be tucked away and restored;
-- respects Reduce Motion in Wildkin idle animation.
+- pauses roaming for pointer interaction, dragging, care, tuck-away, transitions, and Reduce Motion;
+- uses a shared eight-frame smoke overlay for launch, wake, tuck-away, and family replacement;
+- can be tucked away and restored after the conceal animation completes;
+- keeps idle and transition animation immediate when Reduce Motion is active.
 
 Roaming is disabled by default and stored as a local application preference rather than pet state. `CompanionCore` produces deterministic normalized movement plans and safe screen targets; the AppKit controller owns timing, interruption, and frame animation. Mood-driven movement, obstacle awareness, and multi-display travel are not implemented. A small moving window remains preferred over a display-sized overlay because it minimizes input interception.
 
@@ -60,7 +61,7 @@ Roaming is disabled by default and stored as a local application preference rath
 
 Internal hunger is presented as derived Fullness so all exact UI meters increase in the healthy direction. The derived value is not persisted.
 
-Final artwork remains a presentation concern. Wildkin, Elemental, and Relicborn each have a packaged transparent 4-by-3 sheet using a shared twelve-frame order for idle, walking, mood, and care reactions. `PetFamily` selects the resource without introducing family-specific conditionals into the core simulation. Future behavioral differences should enter through data or explicit personality/configuration models.
+Final artwork remains a presentation concern. Wildkin, Elemental, and Relicborn each have a packaged transparent 4-by-3 sheet using a shared twelve-frame order for idle, walking, mood, and care reactions. `PetFamily` selects the resource without introducing family-specific conditionals into the core simulation. A separate packaged smoke sheet and `CompanionTransitionPlan` define reveal, conceal, and family-swap presentation without entering persistent pet state. Future behavioral differences should enter through data or explicit personality/configuration models.
 
 ## Live session
 
@@ -117,7 +118,7 @@ The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is
 
 ## Testing strategy
 
-- Deterministic checks cover simulation, actions, urgency, presentation, persistence, and screen placement.
+- Deterministic checks cover simulation, actions, urgency, presentation, smoke transition midpoint behavior, persistence, and screen placement.
 - Persistence checks cover round trips, schema rejection, corrupt-file preservation, clamping, and derived-value exclusion.
 - Release scripts verify metadata, architecture, signatures, checksums, DMG integrity, and mounted contents.
 - Manual macOS review remains necessary for hover, click/drag, focus, Spaces, full-screen apps, displays, accessibility, wake-from-sleep, installation, and launch.

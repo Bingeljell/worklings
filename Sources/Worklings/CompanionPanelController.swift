@@ -12,6 +12,12 @@ enum CompanionFacingDirection {
 final class CompanionMotionState: ObservableObject {
     @Published private(set) var isWalking = false
     @Published private(set) var facingDirection = CompanionFacingDirection.left
+    @Published private(set) var transitionFrame: CompanionTransitionFrame?
+    @Published private(set) var isPetVisible = true
+
+    var isTransitioning: Bool {
+        transitionFrame != nil
+    }
 
     func startWalking(from origin: CGPoint, to destination: CGPoint) {
         facingDirection = destination.x < origin.x ? .left : .right
@@ -21,6 +27,16 @@ final class CompanionMotionState: ObservableObject {
     func stopWalking() {
         isWalking = false
     }
+
+    func presentTransitionFrame(_ frame: CompanionTransitionFrame) {
+        transitionFrame = frame
+        isPetVisible = frame.isPetVisible
+    }
+
+    func finishTransition(petVisible: Bool) {
+        transitionFrame = nil
+        isPetVisible = petVisible
+    }
 }
 
 @MainActor
@@ -28,6 +44,7 @@ final class CompanionPanelController {
     private static let panelSize = CGSize(width: 196, height: 196)
     private static let roamingMargin: CGFloat = 24
     private static let animationFramesPerSecond = 30.0
+    private static let transitionFrameDuration = Duration.milliseconds(75)
 
     private let panel: CompanionPanel
     private let session: PetSession
@@ -37,15 +54,14 @@ final class CompanionPanelController {
     private var hostingView: CompanionHostingView<WorklingPetView>?
     private var hoverTask: Task<Void, Never>?
     private var roamingTask: Task<Void, Never>?
+    private var transitionTask: Task<Void, Never>?
     private var roamingSequence = UInt64(Date().timeIntervalSinceReferenceDate / 60)
     private var isPointerInside = false
     private var isUserDragging = false
 
     private(set) var isRoamingEnabled = false
 
-    var isVisible: Bool {
-        panel.isVisible
-    }
+    private(set) var isVisible = false
 
     var isRoamingAvailable: Bool {
         !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -67,16 +83,56 @@ final class CompanionPanelController {
     }
 
     func show() {
+        guard !isVisible else {
+            return
+        }
+
+        isVisible = true
+        guard shouldAnimateTransitions else {
+            finishTransitionImmediately(petVisible: true)
+            panel.orderFrontRegardless()
+            return
+        }
+
+        startTransition(.reveal)
         panel.orderFrontRegardless()
     }
 
     func hide() {
+        guard isVisible else {
+            return
+        }
+
+        isVisible = false
         isPointerInside = false
         isUserDragging = false
         motionState.stopWalking()
         hideHoverSummary()
         carePopoverController.close()
-        panel.orderOut(nil)
+
+        guard shouldAnimateTransitions else {
+            finishTransitionImmediately(petVisible: false)
+            panel.orderOut(nil)
+            return
+        }
+
+        startTransition(.conceal)
+    }
+
+    func selectFamily(_ family: PetFamily) {
+        guard family != session.state.family else {
+            return
+        }
+
+        guard isVisible, panel.isVisible, shouldAnimateTransitions else {
+            session.selectFamily(family)
+            return
+        }
+
+        motionState.stopWalking()
+        hideHoverSummary()
+        carePopoverController.close()
+        startTransition(.familySwap, targetFamily: family)
     }
 
     func setRoamingEnabled(_ isEnabled: Bool) {
@@ -150,7 +206,7 @@ final class CompanionPanelController {
     }
 
     private func toggleCareCard() {
-        guard let hostingView else {
+        guard !motionState.isTransitioning, let hostingView else {
             return
         }
 
@@ -165,6 +221,10 @@ final class CompanionPanelController {
     }
 
     private func beginUserDrag() {
+        guard !motionState.isTransitioning else {
+            return
+        }
+
         isUserDragging = true
         motionState.stopWalking()
         hideHoverSummary()
@@ -231,6 +291,7 @@ final class CompanionPanelController {
         isRoamingEnabled
             && panel.isVisible
             && isRoamingAvailable
+            && !motionState.isTransitioning
             && !isPointerInside
             && !isUserDragging
             && !carePopoverController.isShown
@@ -281,6 +342,69 @@ final class CompanionPanelController {
 
             try? await Task.sleep(for: .milliseconds(33))
         }
+    }
+
+    private var shouldAnimateTransitions: Bool {
+        !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private func startTransition(
+        _ kind: CompanionTransitionKind,
+        targetFamily: PetFamily? = nil
+    ) {
+        transitionTask?.cancel()
+        motionState.stopWalking()
+        panel.ignoresMouseEvents = true
+
+        let frames = CompanionTransitionPlan.frames(for: kind)
+        guard let firstFrame = frames.first else {
+            finishTransitionImmediately(petVisible: kind != .conceal)
+            return
+        }
+
+        motionState.presentTransitionFrame(firstFrame)
+        transitionTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+
+            for frame in frames {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                self.motionState.presentTransitionFrame(frame)
+                if frame.shouldSwapFamily, let targetFamily {
+                    self.session.selectFamily(targetFamily)
+                }
+
+                do {
+                    try await Task.sleep(for: Self.transitionFrameDuration)
+                } catch {
+                    return
+                }
+            }
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            let finalPetVisible = kind != .conceal
+            self.motionState.finishTransition(petVisible: finalPetVisible)
+            self.panel.ignoresMouseEvents = false
+            self.transitionTask = nil
+
+            if kind == .conceal, !self.isVisible {
+                self.panel.orderOut(nil)
+            }
+        }
+    }
+
+    private func finishTransitionImmediately(petVisible: Bool) {
+        transitionTask?.cancel()
+        transitionTask = nil
+        motionState.finishTransition(petVisible: petVisible)
+        panel.ignoresMouseEvents = false
     }
 
     private func placeOnMainScreen() {

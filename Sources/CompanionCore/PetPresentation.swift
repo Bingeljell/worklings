@@ -16,6 +16,52 @@ public enum PetFace: String, Equatable, Sendable {
     case wary
 }
 
+public enum CompanionTransitionKind: Equatable, Sendable {
+    case reveal
+    case conceal
+    case familySwap
+}
+
+public struct CompanionTransitionFrame: Equatable, Sendable {
+    public let spriteIndex: Int
+    public let isPetVisible: Bool
+    public let shouldSwapFamily: Bool
+
+    public init(
+        spriteIndex: Int,
+        isPetVisible: Bool,
+        shouldSwapFamily: Bool
+    ) {
+        self.spriteIndex = spriteIndex
+        self.isPetVisible = isPetVisible
+        self.shouldSwapFamily = shouldSwapFamily
+    }
+}
+
+public enum CompanionTransitionPlan {
+    public static let frameCount = 8
+    public static let obscuringFrameIndex = 4
+
+    public static func frames(
+        for kind: CompanionTransitionKind
+    ) -> [CompanionTransitionFrame] {
+        (0..<frameCount).map { index in
+            let isPetVisible = switch kind {
+            case .reveal: index >= obscuringFrameIndex
+            case .conceal: index < obscuringFrameIndex
+            case .familySwap: true
+            }
+
+            return CompanionTransitionFrame(
+                spriteIndex: index,
+                isPetVisible: isPetVisible,
+                shouldSwapFamily: kind == .familySwap
+                    && index == obscuringFrameIndex
+            )
+        }
+    }
+}
+
 public struct PetPresentation: Equatable, Sendable {
     public let moodLabel: String
     public let palette: PetPalette

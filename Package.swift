@@ -20,7 +20,8 @@ let package = Package(
             resources: [
                 .copy("../../assets/worklings-wildkin-spritesheet.png"),
                 .copy("../../assets/worklings-elemental-spritesheet.png"),
-                .copy("../../assets/worklings-relicborn-spritesheet.png")
+                .copy("../../assets/worklings-relicborn-spritesheet.png"),
+                .copy("../../assets/worklings-smoke-effects.png")
             ]
         ),
         .executableTarget(

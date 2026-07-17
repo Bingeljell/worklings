@@ -103,7 +103,8 @@ fi
 for sprite_name in \
   worklings-wildkin-spritesheet.png \
   worklings-elemental-spritesheet.png \
-  worklings-relicborn-spritesheet.png; do
+  worklings-relicborn-spritesheet.png \
+  worklings-smoke-effects.png; do
   if [ ! -f "$app_path/Contents/Resources/$sprite_name" ]; then
     printf 'Error: app bundle is missing sprite sheet: %s\n' "$sprite_name" >&2
     exit 1

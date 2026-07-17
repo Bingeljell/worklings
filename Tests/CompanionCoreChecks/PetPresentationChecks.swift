@@ -8,6 +8,7 @@ enum PetPresentationChecks {
         checkNeedPresentations(context: &context)
         checkReactionOverride(context: &context)
         checkTiredReaction(context: &context)
+        checkSmokeTransitionPlans(context: &context)
     }
 
     private static func checkHappyPresentationIsQuiet(context: inout CheckContext) {
@@ -91,6 +92,31 @@ enum PetPresentationChecks {
             presentation.thought,
             "Maybe after a nap…",
             "tired refusal explains the reaction"
+        )
+    }
+
+    private static func checkSmokeTransitionPlans(context: inout CheckContext) {
+        let reveal = CompanionTransitionPlan.frames(for: .reveal)
+        let conceal = CompanionTransitionPlan.frames(for: .conceal)
+        let familySwap = CompanionTransitionPlan.frames(for: .familySwap)
+
+        context.expectEqual(reveal.count, 8, "reveal uses every smoke frame")
+        context.expectEqual(conceal.count, 8, "conceal uses every smoke frame")
+        context.expectEqual(familySwap.count, 8, "family swap uses every smoke frame")
+        context.expect(
+            reveal.prefix(4).allSatisfy { !$0.isPetVisible }
+                && reveal.suffix(4).allSatisfy(\.isPetVisible),
+            "reveal exposes the pet at the dense midpoint"
+        )
+        context.expect(
+            conceal.prefix(4).allSatisfy(\.isPetVisible)
+                && conceal.suffix(4).allSatisfy { !$0.isPetVisible },
+            "conceal hides the pet at the dense midpoint"
+        )
+        context.expectEqual(
+            familySwap.filter(\.shouldSwapFamily).map(\.spriteIndex),
+            [CompanionTransitionPlan.obscuringFrameIndex],
+            "family replacement occurs once under dense smoke"
         )
     }
 
