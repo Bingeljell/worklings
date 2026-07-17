@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-17 > assets/worklings-wildkin-spritesheet.png > Wildkin idle, walking, mood, and care-reaction frames > Adds a transparent 4-by-3 pixel-art sprite sheet for replacing the code-drawn placeholder pet and supporting the first autonomous-movement slice.**
 - **2026-07-17 > README.md > visual asset licensing > Clarifies that first-party concept art and code-rendered placeholder visuals share the repository license unless an asset states otherwise.**
 - **2026-07-17 > Sources/CompanionCore/PetState.swift > PetNeeds.fullness > Restores the approved derived inverse of hunger after the Worklings rebrand without changing persistence or Pet Brain rules.**
 - **2026-07-17 > Sources/Worklings/PetCareCardView.swift and Sources/Worklings/AppDelegate.swift > need presentation > Uses Fullness, Energy, Happiness, and Trust consistently so every higher value means better wellbeing.**
