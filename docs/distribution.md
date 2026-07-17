@@ -6,6 +6,12 @@ This document defines how Worklings is assembled and published for early macOS t
 
 Generated application bundles, disk images, and checksums are release artifacts. They must not be committed to Git.
 
+## Current release status
+
+The packaging and verification scripts are fully renamed to Worklings. The public `v0.1.0-alpha.1` prerelease was created before the rebrand and still contains a Build Companion app and filename. A Worklings-branded DMG has not yet been published; the next public version must use a new tag and build number rather than replacing the historical alpha.
+
+The first Worklings-branded installation is a transition rather than an in-place app replacement: `Build Companion.app` and `Worklings.app` have different names and bundle identifiers. Quit Build Companion, install Worklings, launch it once, and verify that Pixel's state was copied forward. The old application can then be removed without deleting either Application Support directory. Later Worklings versions replace `Worklings.app` normally.
+
 ## Initial release scope
 
 - **Release channel:** GitHub Releases.
@@ -80,10 +86,10 @@ Every release candidate must:
 
 Application launch remains a manual smoke test because launching a foreground macOS application is not reliable in every automated or remote environment.
 
-Build an application bundle with:
+Build the next Worklings application bundle with:
 
 ```bash
-scripts/build_app_bundle --version 0.1.0-alpha.1 --build-number 1
+scripts/build_app_bundle --version 0.1.0-alpha.2 --build-number 2
 ```
 
 The builder refuses to replace an existing application bundle. Choose a new output directory for an isolated test, or deliberately remove an obsolete generated artifact before rebuilding it.
@@ -91,7 +97,7 @@ The builder refuses to replace an existing application bundle. Choose a new outp
 Package the application bundle as a DMG with:
 
 ```bash
-scripts/build_dmg --version 0.1.0-alpha.1
+scripts/build_dmg --version 0.1.0-alpha.2
 ```
 
 The DMG builder validates the existing app's version, architecture, and signature before packaging it. It creates a compressed read-only image, verifies the image, and writes a SHA-256 checksum beside it.
@@ -99,7 +105,7 @@ The DMG builder validates the existing app's version, architecture, and signatur
 Verify the complete release artifact with:
 
 ```bash
-scripts/verify_release --version 0.1.0-alpha.1
+scripts/verify_release --version 0.1.0-alpha.2
 ```
 
 The verifier confirms the external checksum and DMG integrity, mounts the image read-only, checks the Applications shortcut, and validates the packaged app's identifier, version, build number, minimum system, architecture, and code signature.

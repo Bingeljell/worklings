@@ -36,17 +36,19 @@ Worklings may eventually come from several creature families. These early concep
 The current experimental build includes:
 
 - a transparent floating companion window;
-- a drawn placeholder pet that respects Reduce Motion;
-- hunger, energy, happiness, and trust;
+- a code-drawn Pixel placeholder that respects Reduce Motion;
+- internal hunger presented as Fullness, plus energy, happiness, and trust;
 - favourite food and play preferences;
 - deterministic time progression and capped offline progression;
 - versioned local JSON persistence;
+- automatic copy-forward of a legacy Build Companion save;
 - hover summaries for relevant needs;
 - a clickable care card with Feed, Play, Pet, and Sleep actions;
 - menu-bar wake, tuck-away, care, and quit controls;
+- Worklings-branded app, DMG, checksum, and release-verification scripts;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
 
-Final pixel art, autonomous movement, adoption, richer personality, activity integrations, and public packaging remain in development.
+The character concepts above are not yet used by the application. Runtime artwork, autonomous movement, adoption, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
 
 ## Use from the repository
 
@@ -103,7 +105,7 @@ The check runner is used because a minimal Apple Command Line Tools installation
 
 Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
 
-If the Releases page does not list a DMG yet, running from source remains the supported path.
+The existing `v0.1.0-alpha.1` prerelease predates the rename and still downloads Build Companion. A Worklings-branded DMG has not yet been published, so running Worklings from source is currently the supported path for the renamed app.
 
 To install a packaged alpha:
 
@@ -120,6 +122,8 @@ To install a packaged alpha:
 
 Do not disable Gatekeeper globally. Developer ID signing and Apple notarization are planned when the project is ready for a broader non-technical beta.
 
+For the first upgrade from Build Companion, quit the old app and install Worklings alongside it. Launch Worklings once and confirm that Pixel's state was copied forward before removing the old application. Subsequent Worklings releases can replace `Worklings.app` normally.
+
 ## Project direction
 
 Near-term work focuses on proving the care loop and desktop interaction before adding autonomous movement. Later milestones include:
@@ -128,7 +132,8 @@ Near-term work focuses on proving the care loop and desktop interaction before a
 - richer needs, routines, preferences, and recoverable neglect;
 - Codex lifecycle reactions through documented integration points;
 - adapters for other IDEs and agents;
-- application bundling, signing, notarization, and beta distribution.
+- runtime integration of Workling families and animation states;
+- a Worklings-branded prerelease followed later by Developer ID signing and notarization.
 
 ## Documentation
 
