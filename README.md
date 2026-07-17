@@ -149,7 +149,7 @@ Near-term work focuses on proving the care loop and desktop interaction before a
 
 Worklings source code is available under the [Apache License 2.0](LICENSE). In practical terms, the license permits use, modification, and redistribution—including commercial use—subject to its notice and attribution conditions, and includes an explicit patent grant from contributors.
 
-Unless a file or asset states otherwise, the current code-generated placeholder visuals are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
+Unless a file or asset states otherwise, the first-party visual assets in this repository—including concept art and code-rendered placeholder visuals—are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
 
 ## Contributing
 
