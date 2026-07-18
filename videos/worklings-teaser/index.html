@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #F3E4C8;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-kbh8" id="root" data-composition-id="main" data-start="0" data-duration="15" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-96m9" id="el-01-legend-starts-small" class="scene" data-composition-id="01-legend-starts-small" data-composition-src="compositions/frames/01-legend-starts-small.html" data-start="0" data-duration="2.9" data-track-index="0"></div>
+
+      <div data-hf-id="hf-xmiv" id="el-02-choose-your-workling" class="scene" data-composition-id="02-choose-your-workling" data-composition-src="compositions/frames/02-choose-your-workling.html" data-start="2.4" data-duration="2.7" data-track-index="1"></div>
+
+      <div data-hf-id="hf-sg40" id="el-03-bond-train-evolve" class="scene" data-composition-id="03-bond-train-evolve" data-composition-src="compositions/frames/03-bond-train-evolve.html" data-start="5.1" data-duration="3.4" data-track-index="0"></div>
+
+      <div data-hf-id="hf-7umg" id="el-04-fight-together" class="scene" data-composition-id="04-fight-together" data-composition-src="compositions/frames/04-fight-together.html" data-start="8.1" data-duration="4.1" data-track-index="1"></div>
+
+      <div data-hf-id="hf-1uhp" id="el-05-companion-contender" class="scene" data-composition-id="05-companion-contender" data-composition-src="compositions/frames/05-companion-contender.html" data-start="11.6" data-duration="3.4" data-track-index="0"></div>
+
+      <!-- BGM -->
+      <audio data-hf-id="hf-f2zq" id="el-bgm" src="assets/bgm/worklings-mmo-hype-15s.wav" data-start="0" data-duration="15" data-track-index="11" data-volume="0.78"></audio>
+
+      <!-- SFX -->
+      <audio data-hf-id="hf-sf8d" id="el-sfx-0" src="assets/sfx/riser.mp3" data-start="0.15" data-duration="10.03" data-track-index="20" data-volume="0.12"></audio>
+      <audio data-hf-id="hf-7wph" id="el-sfx-1" src="assets/sfx/impact-bass-1.mp3" data-start="1.35" data-duration="2.12" data-track-index="21" data-volume="0.42"></audio>
+      <audio data-hf-id="hf-fqj5" id="el-sfx-2" src="assets/sfx/whoosh-short.mp3" data-start="2.4" data-duration="0.57" data-track-index="22" data-volume="0.32"></audio>
+      <audio data-hf-id="hf-av5d" id="el-sfx-3" src="assets/sfx/impact-bass-1.mp3" data-start="3.3" data-duration="2.12" data-track-index="23" data-volume="0.34"></audio>
+      <audio data-hf-id="hf-aj8p" id="el-sfx-4" src="assets/sfx/click.mp3" data-start="5.1" data-duration="0.37" data-track-index="24" data-volume="0.28"></audio>
+      <audio data-hf-id="hf-yuq0" id="el-sfx-5" src="assets/sfx/impact-bass-1.mp3" data-start="6.9" data-duration="2.12" data-track-index="25" data-volume="0.36"></audio>
+      <audio data-hf-id="hf-j5x2" id="el-sfx-6" src="assets/sfx/riser.mp3" data-start="8.1" data-duration="10.03" data-track-index="26" data-volume="0.16"></audio>
+      <audio data-hf-id="hf-jzus" id="el-sfx-7" src="assets/sfx/whoosh-cinematic.mp3" data-start="9" data-duration="5.54" data-track-index="27" data-volume="0.28"></audio>
+      <audio data-hf-id="hf-ax3b" id="el-sfx-8" src="assets/sfx/impact-bass-2.mp3" data-start="10.55" data-duration="2.59" data-track-index="28" data-volume="0.55"></audio>
+      <audio data-hf-id="hf-e3mw" id="el-sfx-9" src="assets/sfx/impact-bass-2.mp3" data-start="11.6" data-duration="2.59" data-track-index="29" data-volume="0.48"></audio>
+      <audio data-hf-id="hf-3z86" id="el-sfx-10" src="assets/sfx/chime.mp3" data-start="12.05" data-duration="2.5" data-track-index="30" data-volume="0.24"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-01-legend-starts-small", { x: -1920, duration: 0.5, ease: "power3.inOut" }, 2.4);
+        tl.fromTo("#el-02-choose-your-workling", { x: 1920, opacity: 1 }, { x: 0, duration: 0.5, ease: "power3.inOut" }, 2.4);
+        tl.to("#el-03-bond-train-evolve", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 8.1);
+        tl.fromTo("#el-04-fight-together", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 8.1);
+        tl.to("#el-04-fight-together", { filter: "blur(10px)", scale: 1.03, opacity: 0, duration: 0.6, ease: "power2.inOut" }, 11.6);
+        tl.fromTo("#el-05-companion-contender", { filter: "blur(10px)", scale: 0.97, opacity: 0 }, { filter: "blur(0px)", scale: 1, opacity: 1, duration: 0.6, ease: "power2.inOut" }, 11.6);
+        tl.to({}, { duration: 15 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
+    </script>
+  </body>
+</html>

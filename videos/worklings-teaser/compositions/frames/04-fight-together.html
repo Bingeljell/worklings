@@ -1,0 +1,643 @@
+<template>
+  <section
+    id="root"
+    data-composition-id="04-fight-together"
+    data-start="0"
+    data-duration="3.5"
+    data-track-index="0"
+    data-width="1920"
+    data-height="1080"
+  >
+    <style>
+      @font-face {
+        font-family: "Teko";
+        src: url("assets/fonts/teko-700.woff2") format("woff2");
+        font-style: normal;
+        font-weight: 700;
+      }
+
+      @font-face {
+        font-family: "IBM Plex Mono";
+        src: url("assets/fonts/ibm-plex-mono-500.woff2") format("woff2");
+        font-style: normal;
+        font-weight: 500;
+      }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        container-type: size;
+        color: #f3e4c8;
+        font-family: "Teko";
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: #0b1224;
+      }
+
+      .scene::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 105px;
+        width: 1px;
+        height: 900px;
+        background: #094145;
+      }
+
+      .scene::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 105px;
+        width: 1px;
+        height: 900px;
+        background: #094145;
+      }
+
+      .camera {
+        position: absolute;
+        inset: -34px;
+        overflow: hidden;
+        transform-origin: 50% 50%;
+        will-change: transform;
+      }
+
+      .arena-field {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+
+      .arena-grid {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .lane-plane {
+        fill: #06292c;
+        stroke: #094145;
+        stroke-width: 2;
+      }
+
+      .lane-axis {
+        fill: none;
+        stroke: #117e87;
+        stroke-width: 2;
+        stroke-linecap: square;
+        opacity: 0.72;
+      }
+
+      .lane-axis-accent {
+        stroke: #ff6b1a;
+        stroke-width: 4;
+        opacity: 0.95;
+      }
+
+      .arena-sigil {
+        position: absolute;
+        z-index: 2;
+        top: 230px;
+        left: 50%;
+        width: 570px;
+        height: 570px;
+        overflow: visible;
+        transform: translateX(-50%);
+      }
+
+      .sigil-base {
+        fill: #0b1224;
+        fill-opacity: 0.92;
+        stroke: #094145;
+        stroke-width: 3;
+      }
+
+      .rune-stroke {
+        fill: none;
+        stroke: #ff6b1a;
+        stroke-width: 5;
+        stroke-linecap: square;
+        stroke-linejoin: miter;
+      }
+
+      .rune-fine {
+        stroke: #f3e4c8;
+        stroke-width: 2;
+      }
+
+      .sigil-core {
+        fill: #ff6b1a;
+        opacity: 0.16;
+        transform-origin: 285px 285px;
+        will-change: transform, opacity;
+      }
+
+      .impact-halo {
+        fill: none;
+        stroke: #f3e4c8;
+        stroke-width: 10;
+        opacity: 0;
+        transform-origin: 285px 285px;
+        will-change: transform, opacity;
+      }
+
+      .content-header {
+        position: absolute;
+        z-index: 8;
+        top: 52px;
+        left: 50%;
+        width: 1040px;
+        height: 180px;
+        transform: translateX(-50%);
+        text-align: center;
+      }
+
+      .kicker {
+        display: block;
+        width: 100%;
+        height: 24px;
+        color: #ff6b1a;
+        font-family: "IBM Plex Mono";
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .title {
+        display: flex;
+        width: 100%;
+        height: 142px;
+        align-items: center;
+        justify-content: center;
+        gap: 23px;
+        margin: 5px 0 0;
+        color: #f3e4c8;
+        font-family: "Teko";
+        font-size: 146px;
+        font-weight: 700;
+        line-height: 0.88;
+        letter-spacing: -0.04em;
+        text-transform: lowercase;
+        transform-origin: 50% 58%;
+        will-change: transform, opacity;
+      }
+
+      .title span {
+        display: block;
+      }
+
+      .title .accent {
+        color: #ff6b1a;
+      }
+
+      .burst-wrap {
+        position: absolute;
+        z-index: 6;
+        inset: 0;
+      }
+
+      .contender {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 256px;
+        height: 256px;
+        transform-origin: 50% 58%;
+        will-change: transform, opacity;
+      }
+
+      .sprite-window {
+        position: absolute;
+        inset: 0;
+        width: 256px;
+        height: 256px;
+        overflow: hidden;
+      }
+
+      .sprite-window img {
+        position: absolute;
+        display: block;
+        width: 1024px;
+        height: 768px;
+        max-width: none;
+        image-rendering: pixelated;
+        user-select: none;
+        pointer-events: none;
+      }
+
+      .contender-wildkin img,
+      .contender-elemental img {
+        top: -512px;
+        left: -768px;
+      }
+
+      .contender-relicborn img {
+        top: -512px;
+        left: -512px;
+      }
+
+      .contender-index {
+        position: absolute;
+        top: 252px;
+        left: 50%;
+        display: block;
+        width: 226px;
+        height: 22px;
+        transform: translateX(-50%);
+        border-top: 1px solid #094145;
+        color: #f3e4c8;
+        font-family: "IBM Plex Mono";
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 22px;
+        letter-spacing: 0.14em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .contender-index b {
+        color: #ff6b1a;
+        font-weight: 500;
+      }
+
+      .energy-packet {
+        position: absolute;
+        z-index: 5;
+        top: 610px;
+        left: 50%;
+        display: block;
+        width: 150px;
+        height: 3px;
+        background: #ff6b1a;
+        transform-origin: 50% 50%;
+        will-change: transform, opacity;
+      }
+
+      .packet-left {
+        margin-left: -610px;
+        transform: rotate(-22deg);
+      }
+
+      .packet-center {
+        margin-left: -75px;
+        transform: rotate(-90deg);
+      }
+
+      .packet-right {
+        margin-left: 460px;
+        transform: rotate(22deg);
+      }
+
+      .footer-rule {
+        position: absolute;
+        z-index: 9;
+        top: 840px;
+        left: 105px;
+        display: block;
+        width: 1710px;
+        height: 1px;
+        background: #094145;
+      }
+
+      .footer-rule::before {
+        content: "";
+        position: absolute;
+        top: -1px;
+        left: 50%;
+        display: block;
+        width: 78px;
+        height: 3px;
+        background: #ff6b1a;
+        transform: translateX(-50%);
+      }
+    </style>
+
+    <div
+      class="clip scene"
+      data-start="0"
+      data-duration="3.5"
+      data-track-index="1"
+      aria-label="Three Workling families assemble around an arena rune"
+    >
+      <div class="camera" id="f04-fight-together-camera">
+        <div class="arena-field">
+          <svg class="arena-grid" viewBox="0 0 1920 1080" aria-hidden="true">
+            <polygon class="lane-plane" points="92,842 720,842 922,560 876,526" />
+            <polygon class="lane-plane" points="720,842 1200,842 990,560 930,560" />
+            <polygon class="lane-plane" points="1200,842 1828,842 1044,526 998,560" />
+            <path
+              id="f04-fight-together-lane-left"
+              class="lane-axis rune-stroke"
+              d="M 190 821 L 905 548"
+            />
+            <path
+              id="f04-fight-together-lane-center"
+              class="lane-axis rune-stroke lane-axis-accent"
+              d="M 960 821 L 960 552"
+            />
+            <path
+              id="f04-fight-together-lane-right"
+              class="lane-axis rune-stroke"
+              d="M 1730 821 L 1015 548"
+            />
+          </svg>
+
+          <svg class="arena-sigil" viewBox="0 0 570 570" aria-label="Arena rune sigil">
+            <circle class="sigil-base" cx="285" cy="285" r="222" />
+            <circle class="sigil-core" id="f04-fight-together-sigil-core" cx="285" cy="285" r="146" />
+            <circle
+              id="f04-fight-together-rune-outer"
+              class="rune-stroke"
+              cx="285"
+              cy="285"
+              r="214"
+            />
+            <path
+              id="f04-fight-together-rune-triangle"
+              class="rune-stroke rune-fine"
+              d="M 285 104 L 441 375 L 129 375 Z"
+            />
+            <path
+              id="f04-fight-together-rune-mark"
+              class="rune-stroke"
+              d="M 285 150 L 285 420 M 196 228 L 374 228 M 218 342 L 352 342 M 285 150 L 218 342 M 285 150 L 352 342"
+            />
+            <circle
+              id="f04-fight-together-impact-halo"
+              class="impact-halo"
+              cx="285"
+              cy="285"
+              r="172"
+            />
+          </svg>
+
+          <header class="content-header">
+            <span class="kicker" id="f04-fight-together-kicker">arena protocol // party 03</span>
+            <h1 class="title" id="f04-fight-together-title">
+              <span>fight</span><span class="accent">together</span>
+            </h1>
+          </header>
+
+          <div class="burst-wrap" aria-label="Three Workling contenders">
+            <div
+              class="contender contender-wildkin"
+              id="f04-fight-together-wildkin"
+              data-target-x="-590"
+              data-target-y="100"
+              data-target-scale="1.4"
+            >
+              <div class="sprite-window">
+                <img src="assets/worklings-wildkin-spritesheet.png" alt="Determined Wildkin" />
+              </div>
+              <span class="contender-index"><b>01</b> / wildkin</span>
+            </div>
+
+            <div
+              class="contender contender-elemental"
+              id="f04-fight-together-elemental"
+              data-target-x="0"
+              data-target-y="100"
+              data-target-scale="1.58"
+            >
+              <div class="sprite-window">
+                <img src="assets/worklings-elemental-spritesheet.png" alt="Determined Elemental" />
+              </div>
+              <span class="contender-index"><b>02</b> / elemental</span>
+            </div>
+
+            <div
+              class="contender contender-relicborn"
+              id="f04-fight-together-relicborn"
+              data-target-x="590"
+              data-target-y="100"
+              data-target-scale="1.4"
+            >
+              <div class="sprite-window">
+                <img src="assets/worklings-relicborn-spritesheet.png" alt="Determined Relicborn" />
+              </div>
+              <span class="contender-index"><b>03</b> / relicborn</span>
+            </div>
+          </div>
+
+          <i class="energy-packet packet-left" id="f04-fight-together-packet-left"></i>
+          <i class="energy-packet packet-center" id="f04-fight-together-packet-center"></i>
+          <i class="energy-packet packet-right" id="f04-fight-together-packet-right"></i>
+          <span class="footer-rule" aria-hidden="true"></span>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      const tl = gsap.timeline({ paused: true });
+      const root = document.querySelector('[data-composition-id="04-fight-together"]');
+      const camera = root.querySelector("#f04-fight-together-camera");
+      const contenders = root.querySelectorAll(".contender");
+      const runePaths = root.querySelectorAll(".rune-stroke");
+      const phase = { scale: 0.94 };
+      const drift = { p: 0 };
+      const impact = { strength: 0 };
+
+      runePaths.forEach((path) => {
+        const length = path.getTotalLength();
+        path.style.strokeDasharray = `${length}`;
+        path.style.strokeDashoffset = `${length}`;
+      });
+
+      tl.to(
+        "#f04-fight-together-rune-outer",
+        { strokeDashoffset: 0, duration: 0.7, ease: "power2.out" },
+        0.04,
+      );
+      tl.to(
+        "#f04-fight-together-rune-triangle",
+        { strokeDashoffset: 0, duration: 0.66, ease: "power2.out" },
+        0.2,
+      );
+      tl.to(
+        "#f04-fight-together-rune-mark",
+        { strokeDashoffset: 0, duration: 0.54, ease: "power2.out" },
+        0.36,
+      );
+      tl.to(
+        "#f04-fight-together-lane-left",
+        { strokeDashoffset: 0, duration: 0.76, ease: "power2.out" },
+        0.12,
+      );
+      tl.to(
+        "#f04-fight-together-lane-center",
+        { strokeDashoffset: 0, duration: 0.76, ease: "power2.out" },
+        0.2,
+      );
+      tl.to(
+        "#f04-fight-together-lane-right",
+        { strokeDashoffset: 0, duration: 0.76, ease: "power2.out" },
+        0.28,
+      );
+
+      contenders.forEach((contender, index) => {
+        const targetX = Number(contender.dataset.targetX);
+        const targetY = Number(contender.dataset.targetY);
+        const targetScale = Number(contender.dataset.targetScale);
+        tl.fromTo(
+          contender,
+          {
+            xPercent: -50,
+            yPercent: -50,
+            x: targetX * 0.08,
+            y: targetY * 0.08 - 20,
+            scale: 0.38,
+            opacity: 0,
+          },
+          {
+            xPercent: -50,
+            yPercent: -50,
+            x: targetX,
+            y: targetY,
+            scale: targetScale,
+            opacity: 1,
+            duration: 1.08,
+            ease: "power3.out",
+          },
+          0.16 + index * 0.06,
+        );
+      });
+
+      tl.fromTo(
+        "#f04-fight-together-kicker",
+        { y: -12, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.52, ease: "power3.out" },
+        0.42,
+      );
+
+      tl.fromTo(
+        "#f04-fight-together-packet-left",
+        { x: 0, y: 0, scaleX: 0.22, opacity: 0 },
+        { x: 540, y: -232, scaleX: 1, opacity: 1, duration: 0.52, ease: "power3.in" },
+        1.14,
+      );
+      tl.to(
+        "#f04-fight-together-packet-left",
+        { opacity: 0, duration: 0.16, ease: "power1.out" },
+        1.66,
+      );
+      tl.fromTo(
+        "#f04-fight-together-packet-center",
+        { x: 0, y: 0, scaleX: 0.22, opacity: 0 },
+        { x: 0, y: -204, scaleX: 1, opacity: 1, duration: 0.5, ease: "power3.in" },
+        1.23,
+      );
+      tl.to(
+        "#f04-fight-together-packet-center",
+        { opacity: 0, duration: 0.16, ease: "power1.out" },
+        1.73,
+      );
+      tl.fromTo(
+        "#f04-fight-together-packet-right",
+        { x: 0, y: 0, scaleX: 0.22, opacity: 0 },
+        { x: -540, y: -232, scaleX: 1, opacity: 1, duration: 0.52, ease: "power3.in" },
+        1.32,
+      );
+      tl.to(
+        "#f04-fight-together-packet-right",
+        { opacity: 0, duration: 0.16, ease: "power1.out" },
+        1.84,
+      );
+
+      tl.fromTo(
+        "#f04-fight-together-sigil-core",
+        { scale: 0.3, opacity: 0 },
+        { scale: 1, opacity: 0.2, duration: 0.78, ease: "power3.out" },
+        0.58,
+      );
+      tl.to(
+        "#f04-fight-together-sigil-core",
+        { scale: 0.84, opacity: 0.1, duration: 0.38, ease: "power2.out" },
+        1.54,
+      );
+
+      tl.fromTo(
+        "#f04-fight-together-impact-halo",
+        { scale: 0.24, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.22, ease: "power4.out" },
+        2.16,
+      );
+      tl.to(
+        "#f04-fight-together-impact-halo",
+        { scale: 1.5, opacity: 0, duration: 0.42, ease: "power2.out" },
+        2.38,
+      );
+      tl.to(
+        "#f04-fight-together-sigil-core",
+        { scale: 1.24, opacity: 0.72, duration: 0.18, ease: "power4.out" },
+        2.16,
+      );
+      tl.to(
+        "#f04-fight-together-sigil-core",
+        { scale: 1, opacity: 0.28, duration: 0.44, ease: "power2.out" },
+        2.34,
+      );
+      tl.fromTo(
+        "#f04-fight-together-title",
+        { y: 42, scale: 1.34, opacity: 0 },
+        { y: 0, scale: 1, opacity: 1, duration: 0.4, ease: "power4.out" },
+        2.2,
+      );
+
+      tl.to(
+        phase,
+        { scale: 1, duration: 1.05, ease: "power2.out" },
+        0.2,
+      );
+      tl.to(
+        phase,
+        { scale: 1.09, duration: 1.18, ease: "power3.out" },
+        2.06,
+      );
+      tl.to(
+        impact,
+        { strength: 1, duration: 0.08, ease: "power4.out" },
+        2.16,
+      );
+      tl.to(
+        impact,
+        { strength: 0, duration: 0.28, ease: "power2.out" },
+        2.24,
+      );
+      tl.to(
+        drift,
+        {
+          p: Math.PI * 2 * 1.2,
+          duration: 3.5,
+          ease: "none",
+          onUpdate: () => {
+            const dx = Math.sin(drift.p) * 4 + Math.sin(drift.p * 7.2) * 8 * impact.strength;
+            const dy = Math.sin(drift.p * 1.31) * 2 + Math.sin(drift.p * 9.1) * 4 * impact.strength;
+            camera.style.transform = `scale(${phase.scale}) translate(${dx}px, ${dy}px)`;
+          },
+        },
+        0,
+      );
+
+      window.__timelines["04-fight-together"] = tl;
+    </script>
+  </section>
+</template>
