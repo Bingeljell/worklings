@@ -8,7 +8,7 @@ Generated application bundles, disk images, and checksums are release artifacts.
 
 ## Current release status
 
-The packaging and verification scripts are fully renamed to Worklings. The public `v0.1.0-alpha.1` prerelease was created before the rebrand and still contains a Build Companion app and filename. A Worklings-branded DMG has not yet been published; the next public version must use a new tag and build number rather than replacing the historical alpha.
+The packaging and verification scripts are fully renamed to Worklings. The current public prerelease is `v0.1.0-alpha.2` (build number 2), the first Worklings-branded DMG, published through GitHub Releases for Apple Silicon. The older `v0.1.0-alpha.1` prerelease was created before the rebrand and still contains a Build Companion app and filename; it remains as a historical artifact. Each subsequent public version must use a new tag and an increased build number rather than replacing an existing release.
 
 The first Worklings-branded installation is a transition rather than an in-place app replacement: `Build Companion.app` and `Worklings.app` have different names and bundle identifiers. Quit Build Companion, install Worklings, launch it once, and verify that Pixel's state was copied forward. The old application can then be removed without deleting either Application Support directory. Later Worklings versions replace `Worklings.app` normally.
 

@@ -45,7 +45,7 @@ The moss-fox, ember-newt, and keyback pangolin establish world and silhouette di
 | Interaction | Selectable Wildkin, Elemental, and Relicborn mood/reaction frames; shared smoke transitions, idle cycle, delayed hover, care card, menu fallback, accessibility labels | Adoption, movement and richer action animation, broader keyboard and VoiceOver review |
 | Persistence | Versioned atomic JSON, selected-family compatibility, corrupt-save preservation, offline cap, legacy save copy | Recovery UI and future schema migrations |
 | Activity response | Provider-neutral architecture documented | Event types, reducer, simulated source, Codex adapter |
-| Distribution | Worklings app/DMG/checksum scripts and mounted verification | First Worklings-branded release, Developer ID signing, notarization |
+| Distribution | Worklings app/DMG/checksum scripts, mounted verification, and the published `v0.1.0-alpha.2` prerelease | Developer ID signing, notarization |
 
 ## MVP scope still intended
 
