@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face {
+          font-family: "Teko";
+          src: url("assets/fonts/teko-700.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 700;
+        }
+
+        @font-face {
+          font-family: "Inter";
+          src: url("assets/fonts/inter-400.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 400;
+        }
+
+        @font-face {
+          font-family: "IBM Plex Mono";
+          src: url("assets/fonts/ibm-plex-mono-500.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 500;
+        }
+
+        * {
+          box-sizing: border-box;
+        }
+
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          container-type: size;
+        }
+
+        .scene {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+
+        .ground {
+          position: absolute;
+          inset: 0;
+          background: #0b1224;
+        }
+
+        .ground-rule {
+          position: absolute;
+          left: 5.5cqw;
+          right: 5.5cqw;
+          top: 274px;
+          height: 1px;
+          background: #094145;
+        }
+
+        .camera {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          transform: scale(0.96);
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        .kicker {
+          position: absolute;
+          left: 5.5cqw;
+          top: 48px;
+          color: #ff6b1a;
+          font-family: "IBM Plex Mono";
+          font-size: 16px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+
+        .title {
+          position: absolute;
+          left: 5.5cqw;
+          top: 82px;
+          width: 78cqw;
+          height: 150px;
+        }
+
+        .depth-stack {
+          position: relative;
+          display: inline-block;
+          width: 100%;
+          height: 100%;
+          white-space: nowrap;
+        }
+
+        .depth-text {
+          position: absolute;
+          top: 0;
+          left: 0;
+          display: block;
+          font-family: "Teko";
+          font-size: 144px;
+          font-weight: 700;
+          letter-spacing: -0.04em;
+          line-height: 0.92;
+          text-transform: lowercase;
+          will-change: transform, opacity;
+        }
+
+        .depth-back {
+          pointer-events: none;
+        }
+
+        .depth-back.layer-4 {
+          z-index: 1;
+          color: rgba(255, 107, 26, 0.18);
+        }
+
+        .depth-back.layer-3 {
+          z-index: 2;
+          color: rgba(255, 107, 26, 0.30);
+        }
+
+        .depth-back.layer-2 {
+          z-index: 3;
+          color: rgba(255, 107, 26, 0.44);
+        }
+
+        .depth-back.layer-1 {
+          z-index: 4;
+          color: rgba(255, 107, 26, 0.64);
+        }
+
+        .depth-front {
+          position: relative;
+          z-index: 5;
+          color: #f3e4c8;
+        }
+
+        .lane-field {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+        }
+
+        .lane {
+          position: absolute;
+          top: 295px;
+          left: 50%;
+          height: 540px;
+          overflow: hidden;
+          border-top: 1px solid #094145;
+          border-bottom: 1px solid #094145;
+          background: #06292c;
+          will-change: transform, opacity;
+        }
+
+        .lane-outer {
+          width: 590px;
+        }
+
+        .lane-center {
+          z-index: 5;
+          top: 270px;
+          width: 680px;
+          height: 575px;
+          border-top-color: #ff6b1a;
+          border-bottom-color: #ff6b1a;
+        }
+
+        .portrait {
+          position: absolute;
+          inset: 0;
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          will-change: transform, opacity;
+        }
+
+        .lane-wildkin .portrait {
+          object-position: 50% 49%;
+          filter: saturate(0.84) contrast(1.1) brightness(0.68);
+        }
+
+        .lane-elemental .portrait {
+          object-position: 50% 50%;
+          filter: saturate(1.06) contrast(1.08) brightness(0.94);
+        }
+
+        .lane-relicborn .portrait {
+          object-position: 50% 48%;
+          filter: saturate(0.78) contrast(1.08) brightness(0.64);
+        }
+
+        .lane-wash {
+          position: absolute;
+          inset: 0;
+          background: rgba(11, 18, 36, 0.32);
+        }
+
+        .lane-center .lane-wash {
+          background: rgba(11, 18, 36, 0.08);
+        }
+
+        .selection-spine {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 7px;
+          height: 100%;
+          background: #ff6b1a;
+          transform-origin: 50% 100%;
+          will-change: transform;
+        }
+
+        .lane-outer .selection-spine {
+          width: 2px;
+        }
+
+        .family-label {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          min-height: 68px;
+          padding: 0 28px;
+          border-top: 1px solid #094145;
+          background: rgba(11, 18, 36, 0.92);
+          color: #f3e4c8;
+          font-family: "IBM Plex Mono";
+          font-size: 28px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          line-height: 1;
+          text-transform: uppercase;
+          will-change: transform, opacity;
+        }
+
+        .lane-center .family-label {
+          border-top-color: #ff6b1a;
+          background: #ff6b1a;
+          color: #0b1224;
+        }
+
+        .family-index {
+          font-size: 15px;
+          opacity: 0.62;
+        }
+
+        .corner-mark {
+          position: absolute;
+          right: 5.5cqw;
+          top: 50px;
+          color: #117e87;
+          font-family: "IBM Plex Mono";
+          font-size: 14px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="02-choose-your-workling"
+        data-width="1920"
+        data-height="1080"
+        data-duration="2.7"
+      >
+        <section
+          class="scene clip"
+          data-start="0"
+          data-duration="2.7"
+          data-track-index="0"
+        >
+          <div class="ground"></div>
+          <div class="ground-rule"></div>
+
+          <div class="camera">
+            <div class="kicker">/ companion class select</div>
+            <div class="corner-mark">03 families / one bond</div>
+
+            <div class="title" aria-label="choose your Workling">
+              <div class="depth-stack">
+                <div class="depth-text depth-back layer-4" data-depth-x="12" data-depth-y="12">choose your Workling</div>
+                <div class="depth-text depth-back layer-3" data-depth-x="9" data-depth-y="9">choose your Workling</div>
+                <div class="depth-text depth-back layer-2" data-depth-x="6" data-depth-y="6">choose your Workling</div>
+                <div class="depth-text depth-back layer-1" data-depth-x="3" data-depth-y="3">choose your Workling</div>
+                <div class="depth-text depth-front">choose your Workling</div>
+              </div>
+            </div>
+
+            <div class="lane-field">
+              <article class="lane lane-outer lane-wildkin" data-target-x="-610">
+                <img class="portrait" src="assets/worklings-wildkin.png" alt="" />
+                <div class="lane-wash"></div>
+                <div class="selection-spine"></div>
+                <div class="family-label">
+                  <span>Wildkin</span>
+                  <span class="family-index">01</span>
+                </div>
+              </article>
+
+              <article class="lane lane-center lane-elemental" data-target-x="0" data-layout-ignore>
+                <img class="portrait" src="assets/worklings-elemental.png" alt="" />
+                <div class="lane-wash"></div>
+                <div class="selection-spine"></div>
+                <div class="family-label">
+                  <span>Elemental</span>
+                  <span class="family-index">02 / selected</span>
+                </div>
+              </article>
+
+              <article class="lane lane-outer lane-relicborn" data-target-x="610">
+                <img class="portrait" src="assets/worklings-relicborn.png" alt="" />
+                <div class="lane-wash"></div>
+                <div class="selection-spine"></div>
+                <div class="family-label">
+                  <span>Relicborn</span>
+                  <span class="family-index">03</span>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+
+        const root02 = document.querySelector('[data-composition-id="02-choose-your-workling"]');
+        const camera02 = root02.querySelector('.camera');
+        const lanes02 = Array.from(root02.querySelectorAll('.lane'));
+        const phase02 = { scale: 0.96 };
+        const drift02 = { p: 0 };
+        const tl = gsap.timeline({ paused: true });
+
+        tl.to(
+          phase02,
+          { scale: 1, duration: 0.42, ease: 'power2.out' },
+          0
+        );
+
+        tl.to(
+          phase02,
+          { scale: 1.07, duration: 1.25, ease: 'power3.out' },
+          1.45
+        );
+
+        tl.to(
+          drift02,
+          {
+            p: Math.PI * 2,
+            duration: 2.7,
+            ease: 'none',
+            onUpdate: () => {
+              const dx = Math.sin(drift02.p) * 3;
+              const dy = Math.sin(drift02.p * 1.3) * 2;
+              camera02.style.transform = `scale(${phase02.scale}) translate(${dx}px, ${dy}px)`;
+            },
+          },
+          0
+        );
+
+        const laneOrder02 = [lanes02[1], lanes02[0], lanes02[2]];
+        laneOrder02.forEach((lane, index) => {
+          const targetX = Number(lane.dataset.targetX);
+          tl.fromTo(
+            lane,
+            {
+              xPercent: -50,
+              x: targetX * 0.15,
+              y: 18,
+              scale: 0.72,
+              opacity: 0,
+            },
+            {
+              xPercent: -50,
+              x: targetX,
+              y: 0,
+              scale: 1,
+              opacity: 1,
+              duration: 0.72,
+              ease: 'power3.out',
+            },
+            0.04 + index * 0.06
+          );
+        });
+
+        tl.fromTo(
+          root02.querySelector('.depth-front'),
+          { x: -34, opacity: 0 },
+          { x: 0, opacity: 1, duration: 0.58, ease: 'power3.out' },
+          0.18
+        );
+
+        tl.fromTo(
+          root02.querySelector('.kicker'),
+          { x: -18, opacity: 0 },
+          { x: 0, opacity: 1, duration: 0.42, ease: 'power3.out' },
+          0.08
+        );
+
+        tl.fromTo(
+          root02.querySelector('.corner-mark'),
+          { x: 18, opacity: 0 },
+          { x: 0, opacity: 1, duration: 0.42, ease: 'power3.out' },
+          0.22
+        );
+
+        Array.from(root02.querySelectorAll('.family-label')).forEach((label, index) => {
+          tl.fromTo(
+            label,
+            { y: 22, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.38, ease: 'power3.out' },
+            0.78 + index * 0.12
+          );
+        });
+
+        Array.from(root02.querySelectorAll('.selection-spine')).forEach((spine, index) => {
+          tl.fromTo(
+            spine,
+            { scaleY: 0 },
+            { scaleY: 1, duration: 0.46, ease: 'power3.out' },
+            0.72 + index * 0.10
+          );
+        });
+
+        Array.from(root02.querySelectorAll('.depth-back')).forEach((layer, index) => {
+          tl.fromTo(
+            layer,
+            { x: 0, y: 0, opacity: 0 },
+            {
+              x: Number(layer.dataset.depthX),
+              y: Number(layer.dataset.depthY),
+              opacity: 1,
+              duration: 0.46,
+              ease: 'power2.out',
+            },
+            1.02 + index * 0.06
+          );
+        });
+
+        tl.fromTo(
+          root02.querySelector('.lane-elemental .portrait'),
+          { scale: 1.10 },
+          { scale: 1, duration: 1.12, ease: 'power2.out' },
+          0.18
+        );
+
+        tl.fromTo(
+          root02.querySelector('.lane-wildkin .portrait'),
+          { scale: 1.08, x: 24 },
+          { scale: 1, x: 0, duration: 1.05, ease: 'power2.out' },
+          0.22
+        );
+
+        tl.fromTo(
+          root02.querySelector('.lane-relicborn .portrait'),
+          { scale: 1.08, x: -24 },
+          { scale: 1, x: 0, duration: 1.05, ease: 'power2.out' },
+          0.28
+        );
+
+        tl.to(
+          root02.querySelector('.lane-elemental .portrait'),
+          { scale: 1.055, duration: 1.18, ease: 'power2.inOut' },
+          1.52
+        );
+
+        tl.to(
+          root02.querySelectorAll('.lane-outer .portrait'),
+          { opacity: 0.72, duration: 0.62, ease: 'power2.out' },
+          1.54
+        );
+
+        window.__timelines['02-choose-your-workling'] = tl;
+      </script>
+    </template>
+  </body>
+</html>

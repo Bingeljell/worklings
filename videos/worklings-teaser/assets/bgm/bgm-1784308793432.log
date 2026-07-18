@@ -1,0 +1,46 @@
+'[Errno 8] nodename nor servname provided, or not known' thrown while requesting HEAD https://huggingface.co/facebook/musicgen-small/resolve/main/processor_config.json
+Retrying in 1s [Retry 1/5].
+Traceback (most recent call last):
+  File "<string>", line 38, in <module>
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/transformers/models/auto/processing_auto.py", line 225, in from_pretrained
+    processor_config_file = cached_file(pretrained_model_name_or_path, PROCESSOR_NAME, **cached_file_kwargs)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/transformers/utils/hub.py", line 293, in cached_file
+    file = cached_files(path_or_repo_id=path_or_repo_id, filenames=[filename], **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/transformers/utils/hub.py", line 527, in cached_files
+    raise e
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/transformers/utils/hub.py", line 437, in cached_files
+    hf_hub_download(
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/file_download.py", line 1013, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/file_download.py", line 1147, in _hf_hub_download_to_cache_dir
+    _get_metadata_or_catch_error(
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/file_download.py", line 1707, in _get_metadata_or_catch_error
+    metadata = get_hf_file_metadata(
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/file_download.py", line 1615, in get_hf_file_metadata
+    response = _httpx_follow_relative_redirects_with_backoff(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/utils/_http.py", line 719, in _httpx_follow_relative_redirects_with_backoff
+    response = http_backoff(
+               ^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/utils/_http.py", line 596, in http_backoff
+    return next(
+           ^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/huggingface_hub/utils/_http.py", line 504, in _http_backoff_base
+    response = client.request(method=method, url=url, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/httpx/_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/nikhilshahane/projects/avigya_video/videos/avigya-copy-led-proof/.venv-musicgen/lib/python3.11/site-packages/httpx/_client.py", line 901, in send
+    raise RuntimeError("Cannot send a request, as the client has been closed.")
+RuntimeError: Cannot send a request, as the client has been closed.

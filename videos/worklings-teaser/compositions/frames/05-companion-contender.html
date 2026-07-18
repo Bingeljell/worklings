@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Your companion. Your contender.</title>
+  </head>
+  <body>
+    <template id="f05-companion-contender-template">
+      <style>
+        @font-face {
+          font-family: "Teko";
+          src: url("assets/fonts/teko-700.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 700;
+          font-display: block;
+        }
+
+        @font-face {
+          font-family: "IBM Plex Mono";
+          src: url("assets/fonts/ibm-plex-mono-500.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 500;
+          font-display: block;
+        }
+
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          container-type: size;
+          color: #f3e4c8;
+          background: transparent;
+        }
+
+        *,
+        *::before,
+        *::after {
+          box-sizing: border-box;
+        }
+
+        .scene-fill {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #0b1224;
+        }
+
+        .zoom-outer,
+        .zoom-inner {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          will-change: transform;
+        }
+
+        .zoom-outer {
+          transform-origin: 50% 50%;
+        }
+
+        .hero-art {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: fill;
+          image-rendering: pixelated;
+        }
+
+        .art-veil {
+          position: absolute;
+          inset: 0;
+          background: rgba(11, 18, 36, 0.14);
+        }
+
+        .hero-target {
+          position: absolute;
+          left: 51.0417cqw;
+          top: 51.8519cqh;
+          width: 1px;
+          height: 1px;
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .title-field {
+          position: absolute;
+          left: 4.7917cqw;
+          top: 45cqh;
+          width: 40.625cqw;
+          height: 35cqh;
+          padding: 2.5926cqh 1.875cqw 2.2222cqh;
+          overflow: hidden;
+          background: rgba(11, 18, 36, 0.9);
+          border-left: 1px solid #ff6b1a;
+          z-index: 5;
+        }
+
+        .lockup-kicker {
+          display: flex;
+          align-items: center;
+          gap: 0.9375cqw;
+          color: #ff6b1a;
+          font-family: "IBM Plex Mono";
+          font-size: 0.7292cqw;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          line-height: 1;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .kicker-rule {
+          display: block;
+          width: 1.875cqw;
+          height: 2px;
+          flex: 0 0 1.875cqw;
+          background: #ff6b1a;
+          transform-origin: 0 50%;
+        }
+
+        .companion-line {
+          display: block;
+          margin-top: 1.3889cqh;
+          color: #f3e4c8;
+          font-family: "Teko";
+          font-size: 4.4271cqw;
+          font-weight: 700;
+          letter-spacing: -0.035em;
+          line-height: 0.9;
+          text-transform: lowercase;
+          white-space: nowrap;
+          will-change: transform, opacity;
+        }
+
+        .contender-plate {
+          position: relative;
+          display: block;
+          width: 34.375cqw;
+          height: 18.5185cqh;
+          margin-top: 0.7407cqh;
+          overflow: hidden;
+          background: #ff6b1a;
+          transform-origin: 0 50%;
+          will-change: transform, opacity;
+        }
+
+        .depth-stack {
+          position: absolute;
+          left: 1.3542cqw;
+          top: 2.7778cqh;
+          height: 15.1852cqh;
+          white-space: nowrap;
+        }
+
+        .depth-text {
+          font-family: "Teko";
+          font-size: 5.7292cqw;
+          font-weight: 700;
+          letter-spacing: -0.04em;
+          line-height: 0.92;
+          text-transform: lowercase;
+          white-space: nowrap;
+          will-change: transform, opacity;
+        }
+
+        .depth-text.is-back {
+          position: absolute;
+          top: 0;
+          left: 0;
+          pointer-events: none;
+        }
+
+        .depth-text.is-front {
+          position: relative;
+          z-index: 10;
+          color: #0b1224;
+        }
+
+        .depth-text[data-depth-index="4"] {
+          color: rgba(11, 18, 36, 0.16);
+          transform: translate(8px, 8px);
+        }
+
+        .depth-text[data-depth-index="3"] {
+          color: rgba(11, 18, 36, 0.28);
+          transform: translate(6px, 6px);
+        }
+
+        .depth-text[data-depth-index="2"] {
+          color: rgba(11, 18, 36, 0.4);
+          transform: translate(4px, 4px);
+        }
+
+        .depth-text[data-depth-index="1"] {
+          color: rgba(11, 18, 36, 0.52);
+          transform: translate(2px, 2px);
+        }
+
+        .rune-sigil {
+          position: absolute;
+          right: 10.8333cqw;
+          top: 18.5185cqh;
+          width: 5.2083cqw;
+          height: 5.2083cqw;
+          border: 1px solid rgba(255, 107, 26, 0.74);
+          z-index: 4;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+
+        .rune-sigil::before,
+        .rune-sigil::after {
+          content: "";
+          position: absolute;
+          background: #ff6b1a;
+        }
+
+        .rune-sigil::before {
+          left: 50%;
+          top: 14%;
+          width: 1px;
+          height: 72%;
+        }
+
+        .rune-sigil::after {
+          left: 14%;
+          top: 50%;
+          width: 72%;
+          height: 1px;
+        }
+
+        .rune-core {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 1.1458cqw;
+          height: 1.1458cqw;
+          border: 1px solid #ff6b1a;
+          transform: translate(-50%, -50%) rotate(45deg);
+        }
+
+        .flash {
+          position: absolute;
+          inset: 0;
+          background: #f3e4c8;
+          pointer-events: none;
+          z-index: 9;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="05-companion-contender"
+        data-width="1920"
+        data-height="1080"
+        data-duration="3.4"
+      >
+        <div class="scene-fill" aria-hidden="true"></div>
+
+        <div id="f05-companion-contender-zoom-outer" class="zoom-outer">
+          <div id="f05-companion-contender-zoom-inner" class="zoom-inner">
+            <img
+              class="hero-art"
+              src="assets/worklings-social-preview.jpg"
+              alt="Three Worklings companions gathered before ancient rune ruins"
+            />
+            <div class="art-veil" aria-hidden="true"></div>
+            <span id="f05-companion-contender-target" class="hero-target" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <div id="f05-companion-contender-rune" class="rune-sigil" aria-hidden="true">
+          <span class="rune-core"></span>
+        </div>
+
+        <section id="f05-companion-contender-title" class="title-field" aria-label="Your companion. Your contender.">
+          <div id="f05-companion-contender-kicker" class="lockup-kicker">
+            <span id="f05-companion-contender-kicker-rule" class="kicker-rule" aria-hidden="true"></span>
+            <span>worklings // arena signal</span>
+          </div>
+          <span id="f05-companion-contender-companion" class="companion-line">your companion.</span>
+          <div id="f05-companion-contender-plate" class="contender-plate">
+            <div id="f05-companion-contender-depth" class="depth-stack" aria-hidden="true">
+              <div class="depth-text is-back" data-depth-index="4">your contender.</div>
+              <div class="depth-text is-back" data-depth-index="3">your contender.</div>
+              <div class="depth-text is-back" data-depth-index="2">your contender.</div>
+              <div class="depth-text is-back" data-depth-index="1">your contender.</div>
+              <div class="depth-text is-front" data-depth-index="0">your contender.</div>
+            </div>
+          </div>
+        </section>
+
+        <div id="f05-companion-contender-flash" class="flash" aria-hidden="true"></div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+
+        const zoomOuter = document.getElementById("f05-companion-contender-zoom-outer");
+        const zoomInner = document.getElementById("f05-companion-contender-zoom-inner");
+        const target = document.getElementById("f05-companion-contender-target");
+        const root = target.closest('[data-composition-id="05-companion-contender"]');
+        const rune = document.getElementById("f05-companion-contender-rune");
+        const depthLayers = document.querySelectorAll("#f05-companion-contender-depth .depth-text");
+
+        const rootRect = root.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const targetOffsetX = targetRect.left + targetRect.width / 2 - (rootRect.left + rootRect.width / 2);
+        const targetOffsetY = targetRect.top + targetRect.height / 2 - (rootRect.top + rootRect.height / 2);
+        const counterX = -targetOffsetX;
+        const counterY = -targetOffsetY;
+
+        const tl = gsap.timeline({ paused: true });
+
+        tl.fromTo(
+          "#f05-companion-contender-flash",
+          { opacity: 0.96 },
+          { opacity: 0, duration: 0.42, ease: "power4.out" },
+          0,
+        );
+
+        tl.fromTo(
+          zoomOuter,
+          { scale: 1 },
+          { scale: 1.045, duration: 1.34, ease: "power3.inOut" },
+          0,
+        );
+        tl.fromTo(
+          zoomInner,
+          { x: 0, y: 0 },
+          { x: counterX, y: counterY, duration: 1.34, ease: "power3.inOut" },
+          0,
+        );
+
+        tl.fromTo(
+          "#f05-companion-contender-title",
+          { opacity: 0, x: -42 },
+          { opacity: 1, x: 0, duration: 0.52, ease: "power3.out" },
+          0.48,
+        );
+        tl.fromTo(
+          "#f05-companion-contender-kicker",
+          { opacity: 0, x: 22 },
+          { opacity: 1, x: 0, duration: 0.38, ease: "power3.out" },
+          0.62,
+        );
+        tl.fromTo(
+          "#f05-companion-contender-kicker-rule",
+          { scaleX: 0 },
+          { scaleX: 1, duration: 0.34, ease: "power4.out" },
+          0.68,
+        );
+        tl.fromTo(
+          "#f05-companion-contender-companion",
+          { opacity: 0, y: 24 },
+          { opacity: 1, y: 0, duration: 0.48, ease: "power3.out" },
+          0.76,
+        );
+
+        tl.fromTo(
+          "#f05-companion-contender-plate",
+          { opacity: 0, scaleX: 0 },
+          { opacity: 1, scaleX: 1, duration: 0.46, ease: "power4.out" },
+          1.02,
+        );
+
+        depthLayers.forEach((layer) => {
+          const index = Number(layer.dataset.depthIndex);
+          tl.fromTo(
+            layer,
+            { opacity: 0 },
+            { opacity: 1, duration: 0.36, ease: "power2.out" },
+            1.12 + (4 - index) * 0.055,
+          );
+        });
+
+        tl.fromTo(
+          rune,
+          { opacity: 0, scale: 0.84, rotation: -18 },
+          { opacity: 0.72, scale: 1, rotation: 0, duration: 0.58, ease: "power3.out" },
+          1.28,
+        );
+
+        const runePhase = { p: 0 };
+        tl.to(
+          runePhase,
+          {
+            p: Math.PI * 2,
+            duration: 1.56,
+            ease: "none",
+            onUpdate: () => {
+              const pulse = Math.sin(runePhase.p);
+              rune.style.transform = `scale(${1 + pulse * 0.012})`;
+              rune.style.opacity = String(0.64 + pulse * 0.08);
+            },
+          },
+          1.84,
+        );
+
+        window.__timelines["05-companion-contender"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

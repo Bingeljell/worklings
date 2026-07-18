@@ -4,9 +4,9 @@
   <img src="assets/worklings-social-preview.jpg" alt="Wildkin, Elemental, and Relicborn Worklings gathered in a magical woodland" width="900">
 </p>
 
-As an MMO fan whose been itching to find some outlet, I figured having a pet that actually feels like a pet rather than some superficial toy was in order. No idea where this is going to go - but I'm thinking an eventual evolution into a Battle bot - maybe even multiplayer over time.
+As an MMO fan whose been itching to find some outlet, I figured having a pet that actually feels like a pet that lives in your computer, but responds to stimuli from your actions, rather than some superficial toy was in order. Think of a pet that will level up as you complete tasks and do work. Levels come with stat points, build trees, ability to quest, gear, etc...  THe sky is the limit, but we'll see. I'm also keen on multiplayer at some point. We're so early! 
 
-The rest of this readme has been written by AI, but read and edited by me.
+The rest of this readme has been written by AI, but read and edited by me wherever necessary
 
 Worklings is an experimental macOS desktop pet inspired by the persistence, progression, and attachment of an MMO character. It is meant to feel like a small living creature rather than another status widget. The immediate step is to get a Workling to react to Codex activity, but the longer-term goal is broader: a private, local pet that can react to work across IDEs, agents, and other explicitly connected applications. Each Workling has its own needs, preferences, moods, and routines, and its behavior should remain meaningful even when no integration is active.
 

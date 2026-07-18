@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Every legend starts small</title>
+  </head>
+  <body>
+    <template id="f01-legend-starts-small-template">
+      <style>
+        @font-face {
+          font-family: "Teko";
+          src: url("assets/fonts/teko-700.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 700;
+          font-display: block;
+        }
+
+        @font-face {
+          font-family: "IBM Plex Mono";
+          src: url("assets/fonts/ibm-plex-mono-500.woff2") format("woff2");
+          font-style: normal;
+          font-weight: 500;
+          font-display: block;
+        }
+
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          container-type: size;
+          color: #f3e4c8;
+          background: transparent;
+        }
+
+        *,
+        *::before,
+        *::after {
+          box-sizing: border-box;
+        }
+
+        .scene-fill {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #0b1224;
+        }
+
+        .camera {
+          position: absolute;
+          inset: -5cqh -2.8125cqw;
+          overflow: hidden;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        .world {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #0b1224;
+        }
+
+        .world-art {
+          position: absolute;
+          inset: -10cqh -11.25cqw;
+          width: calc(100% + 22.5cqw);
+          height: calc(100% + 20cqh);
+          object-fit: cover;
+          object-position: 82% 50%;
+          transform: scale(1.34);
+          transform-origin: 76% 52%;
+          image-rendering: pixelated;
+          opacity: 0.72;
+        }
+
+        .world-veil {
+          position: absolute;
+          inset: 0;
+          background: rgba(11, 18, 36, 0.62);
+        }
+
+        .left-ink {
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 43%;
+          background: rgba(11, 18, 36, 0.34);
+        }
+
+        .title-field {
+          position: absolute;
+          top: 10.3704cqh;
+          right: 5.2083cqw;
+          width: 52.0833cqw;
+          min-height: 52cqh;
+          padding: 3.8889cqh 2.9167cqw 4.0741cqh;
+          background: rgba(11, 18, 36, 0.83);
+          border-left: 1px solid #094145;
+          z-index: 6;
+        }
+
+        .kicker {
+          display: flex;
+          align-items: center;
+          gap: 0.9375cqw;
+          height: 2.2222cqh;
+          color: #ff6b1a;
+          font-family: "IBM Plex Mono";
+          font-size: 0.7292cqw;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          line-height: 1;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .kicker-rule {
+          display: block;
+          width: 1.875cqw;
+          height: 2px;
+          flex: 0 0 1.875cqw;
+          background: #ff6b1a;
+          transform-origin: 0 50%;
+        }
+
+        .headline {
+          margin-top: 2.7778cqh;
+          width: 100%;
+          font-family: "Teko";
+          font-weight: 700;
+          letter-spacing: -0.045em;
+          line-height: 0.86;
+          text-transform: lowercase;
+        }
+
+        .headline-top,
+        .headline-hit {
+          display: flex;
+          align-items: baseline;
+          width: 100%;
+          white-space: nowrap;
+        }
+
+        .headline-top {
+          gap: 1.4583cqw;
+          color: #f3e4c8;
+          font-size: 8.3333cqw;
+        }
+
+        .headline-hit {
+          margin-top: 1.5741cqh;
+          color: #ff6b1a;
+          font-size: 9.7917cqw;
+        }
+
+        .word {
+          display: inline-block;
+          will-change: transform, opacity;
+        }
+
+        .finale-rule {
+          display: block;
+          width: 1.875cqw;
+          height: 2px;
+          margin-top: 3.4259cqh;
+          background: #ff6b1a;
+          transform-origin: 0 50%;
+        }
+
+        .wildkin-unit {
+          position: absolute;
+          left: 9.7917cqw;
+          top: 39.8148cqh;
+          width: 22.3958cqw;
+          height: 22.3958cqw;
+          z-index: 5;
+          will-change: transform, opacity;
+        }
+
+        .wildkin-breath {
+          position: absolute;
+          inset: 0;
+          width: 22.3958cqw;
+          height: 22.3958cqw;
+          transform-origin: 50% 76%;
+          will-change: transform;
+        }
+
+        .sprite-pose {
+          position: absolute;
+          inset: 0;
+          width: 22.3958cqw;
+          height: 22.3958cqw;
+          overflow: hidden;
+        }
+
+        .sprite-pose img {
+          position: absolute;
+          width: 89.5833cqw;
+          height: 67.1875cqw;
+          max-width: none;
+          image-rendering: pixelated;
+          user-select: none;
+        }
+
+        .pose-walk-a img {
+          left: -44.7917cqw;
+          top: 0;
+        }
+
+        .pose-walk-b img {
+          left: -67.1875cqw;
+          top: 0;
+        }
+
+        .pose-alert img {
+          left: 0;
+          top: 0;
+        }
+
+        .pose-walk-b,
+        .pose-alert {
+          opacity: 0;
+        }
+
+        .wildkin-baseline {
+          position: absolute;
+          left: 11.3542cqw;
+          top: 76.6667cqh;
+          width: 17.1875cqw;
+          height: 1px;
+          background: #ff6b1a;
+          opacity: 0.58;
+          transform-origin: 0 50%;
+          z-index: 6;
+        }
+
+        .wildkin-label {
+          position: absolute;
+          left: 11.3542cqw;
+          top: 78.5185cqh;
+          color: #f3e4c8;
+          font-family: "IBM Plex Mono";
+          font-size: 0.7292cqw;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          line-height: 1;
+          text-transform: uppercase;
+          white-space: nowrap;
+          z-index: 6;
+        }
+
+        .rune-trace {
+          position: absolute;
+          right: 4.8958cqw;
+          top: 58.5185cqh;
+          width: 38.0208cqw;
+          height: 1px;
+          background: #094145;
+          transform-origin: 100% 50%;
+          z-index: 3;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="01-legend-starts-small"
+        data-width="1920"
+        data-height="1080"
+        data-duration="2.4"
+      >
+        <div class="scene-fill" aria-hidden="true"></div>
+
+        <div id="f01-legend-starts-small-camera" class="camera">
+          <div id="f01-legend-starts-small-world" class="world">
+            <img
+              class="world-art"
+              src="assets/worklings-social-preview.jpg"
+              alt=""
+              aria-hidden="true"
+            />
+            <div class="world-veil" aria-hidden="true"></div>
+            <div class="left-ink" aria-hidden="true"></div>
+          </div>
+
+          <div class="title-field">
+            <div id="f01-legend-starts-small-kicker" class="kicker">
+              <span class="kicker-rule" aria-hidden="true"></span>
+              <span>worklings // origin 01</span>
+            </div>
+            <div class="headline" aria-label="Every legend starts small">
+              <div class="headline-top">
+                <span id="f01-legend-starts-small-every" class="word">every</span>
+                <span id="f01-legend-starts-small-legend" class="word">legend</span>
+              </div>
+              <div class="headline-hit">
+                <span id="f01-legend-starts-small-hit" class="word">starts small</span>
+              </div>
+            </div>
+            <span id="f01-legend-starts-small-finale-rule" class="finale-rule" aria-hidden="true"></span>
+          </div>
+
+          <div id="f01-legend-starts-small-wildkin" class="wildkin-unit">
+            <div id="f01-legend-starts-small-breath" class="wildkin-breath">
+              <div id="f01-legend-starts-small-walk-a" class="sprite-pose pose-walk-a">
+                <img src="assets/worklings-wildkin-spritesheet.png" alt="Wildkin companion" />
+              </div>
+              <div id="f01-legend-starts-small-walk-b" class="sprite-pose pose-walk-b" aria-hidden="true">
+                <img src="assets/worklings-wildkin-spritesheet.png" alt="" />
+              </div>
+              <div id="f01-legend-starts-small-alert" class="sprite-pose pose-alert" aria-hidden="true">
+                <img src="assets/worklings-wildkin-spritesheet.png" alt="" />
+              </div>
+            </div>
+          </div>
+
+          <span id="f01-legend-starts-small-baseline" class="wildkin-baseline" aria-hidden="true"></span>
+          <span id="f01-legend-starts-small-label" class="wildkin-label">wildkin // signal awake</span>
+          <span id="f01-legend-starts-small-rune-trace" class="rune-trace" aria-hidden="true"></span>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+
+        const tl = gsap.timeline({ paused: true });
+        const camera = document.getElementById("f01-legend-starts-small-camera");
+        const world = document.getElementById("f01-legend-starts-small-world");
+        const wildkin = document.getElementById("f01-legend-starts-small-wildkin");
+        const breath = document.getElementById("f01-legend-starts-small-breath");
+
+        const PULSE = 0.3;
+        const BEATS = [PULSE * 0.6, PULSE * 1.7, PULSE * 2.8];
+
+        const cameraPhase = { scale: 1 };
+        const cameraDrift = { p: 0 };
+
+        tl.fromTo(
+          world,
+          { opacity: 0.12 },
+          { opacity: 1, duration: 0.56, ease: "power3.out" },
+          0,
+        );
+
+        tl.to(
+          cameraPhase,
+          { scale: 1.045, duration: 0.74, ease: "power2.out" },
+          0,
+        );
+        tl.to(
+          cameraPhase,
+          { scale: 1.1, duration: 1.62, ease: "power2.inOut" },
+          0.78,
+        );
+        tl.to(
+          cameraDrift,
+          {
+            p: Math.PI * 2,
+            duration: 2.4,
+            ease: "none",
+            onUpdate: () => {
+              const dx = Math.sin(cameraDrift.p) * 3;
+              const dy = Math.sin(cameraDrift.p * 1.3) * 2;
+              camera.style.transform = `scale(${cameraPhase.scale}) translate(${dx}px, ${dy}px)`;
+            },
+          },
+          0,
+        );
+
+        tl.fromTo(
+          "#f01-legend-starts-small-kicker",
+          { opacity: 0, x: 30 },
+          { opacity: 1, x: 0, duration: 0.42, ease: "power3.out" },
+          0.08,
+        );
+        tl.fromTo(
+          "#f01-legend-starts-small-every",
+          { opacity: 0, scale: 1.42 },
+          { opacity: 1, scale: 1, duration: 0.48, ease: "power4.out" },
+          BEATS[0],
+        );
+        tl.fromTo(
+          "#f01-legend-starts-small-legend",
+          { opacity: 0, x: 230 },
+          { opacity: 1, x: 0, duration: 0.44, ease: "expo.out" },
+          BEATS[1],
+        );
+        tl.fromTo(
+          "#f01-legend-starts-small-hit",
+          { opacity: 0, y: 72, rotation: 2.8 },
+          { opacity: 1, y: 0, rotation: 0, duration: 0.52, ease: "circ.out" },
+          BEATS[2],
+        );
+
+        tl.fromTo(
+          "#f01-legend-starts-small-finale-rule",
+          { scaleX: 0, opacity: 0 },
+          { scaleX: 1, opacity: 1, duration: 0.34, ease: "power4.out" },
+          1.05,
+        );
+        tl.fromTo(
+          "#f01-legend-starts-small-rune-trace",
+          { scaleX: 0, opacity: 0 },
+          { scaleX: 1, opacity: 1, duration: 0.72, ease: "power3.out" },
+          0.44,
+        );
+
+        tl.fromTo(
+          wildkin,
+          { opacity: 0, x: -56, scale: 0.93 },
+          { opacity: 1, x: 0, scale: 1, duration: 0.44, ease: "power4.out" },
+          0.1,
+        );
+        tl.to(wildkin, { x: 38, duration: 0.22, ease: "power2.inOut" }, 0.5);
+        tl.set("#f01-legend-starts-small-walk-a", { opacity: 0 }, 0.6);
+        tl.set("#f01-legend-starts-small-walk-b", { opacity: 1 }, 0.6);
+        tl.to(wildkin, { x: 76, duration: 0.24, ease: "power2.inOut" }, 0.72);
+        tl.set("#f01-legend-starts-small-walk-b", { opacity: 0 }, 0.92);
+        tl.set("#f01-legend-starts-small-alert", { opacity: 1 }, 0.92);
+        tl.to(wildkin, { x: 84, duration: 0.28, ease: "power3.out" }, 0.92);
+
+        tl.fromTo(
+          "#f01-legend-starts-small-baseline",
+          { scaleX: 0, opacity: 0 },
+          { scaleX: 1, opacity: 0.58, duration: 0.48, ease: "power3.out" },
+          0.72,
+        );
+        tl.fromTo(
+          "#f01-legend-starts-small-label",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.38, ease: "power3.out" },
+          0.94,
+        );
+
+        const breathPhase = { p: 0 };
+        tl.to(
+          breathPhase,
+          {
+            p: Math.PI,
+            duration: 1.18,
+            ease: "none",
+            onUpdate: () => {
+              const scale = 1 + Math.sin(breathPhase.p) * 0.008;
+              const y = Math.sin(breathPhase.p) * 2.5;
+              breath.style.transform = `translateY(${y}px) scale(${scale})`;
+            },
+          },
+          1.22,
+        );
+
+        window.__timelines["01-legend-starts-small"] = tl;
+      </script>
+    </template>
+  </body>
+</html>
