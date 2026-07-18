@@ -114,7 +114,7 @@ Activity is behavioral context, not a productivity score. A Workling's survival 
 
 The release scripts build an architecture-specific release executable, assemble `Worklings.app`, write bundle metadata, apply an ad-hoc signature, create a compressed DMG and SHA-256 checksum, then mount and inspect the final artifact.
 
-The public `v0.1.0-alpha.1` asset predates the Worklings technical rename and is still branded Build Companion. The first Worklings-branded public artifact has not yet been published.
+The first Worklings-branded public artifact is the `v0.1.0-alpha.2` GitHub prerelease. The older `v0.1.0-alpha.1` asset predates the Worklings technical rename and is still branded Build Companion.
 
 ## Testing strategy
 
