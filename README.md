@@ -145,6 +145,7 @@ Near-term work focuses on tuning the care loop, safe roaming, and desktop intera
 - [Product brief](docs/product_brief.md)
 - [Architecture](docs/architecture.md)
 - [Pet Brain](docs/pet_brain.md)
+- [Progression design](docs/progression.md)
 - [Pet interaction model](docs/pet_interaction.md)
 - [Beta distribution](docs/distribution.md)
 - [Git workflow](docs/git_workflow.md)
