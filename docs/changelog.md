@@ -1,5 +1,6 @@
 # Changelog
 
+- **2026-07-19 > docs/pet_brain.md, docs/pet_interaction.md, and docs/architecture.md > Fullness-first rewrite and progression alignment > Rewrites the Pet Brain and interaction docs to be shorter and player-facing, states every threshold and care effect in Fullness terms with a single internal-hunger note, frames needs as the condition layer, records the planned additive progression fields, and links the activity boundary to the progression design.**
 - **2026-07-19 > docs/progression.md and README.md > progression design direction > Defines the two-layer condition/progression model, the normalized activity-event vocabulary and sources including daily wake and GitHub connect, XP with a condition multiplier and deferred caps, banked stat points per level, a battle-facing five-stat sheet with ambient effects, and caps-not-cryptography fairness principles.**
 
 - **2026-07-18 > README.md, docs/distribution.md, docs/architecture.md, and docs/product_brief.md > v0.1.0-alpha.2 release status > Records the published `v0.1.0-alpha.2` GitHub prerelease as the first Worklings-branded DMG and narrows remaining distribution work to Developer ID signing and notarization.**

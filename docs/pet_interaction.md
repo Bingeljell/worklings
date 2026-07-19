@@ -1,54 +1,25 @@
 # Pet Interaction Model
 
-## Purpose
+How you read and care for a Workling. Information reveals progressively — the pet itself, then hover, then the care card, then the menu bar — so Pixel feels like a companion, not a monitoring dashboard.
 
-This document defines how a user understands and cares for a Workling. It covers implemented behavioral surfaces and accessibility while keeping future movement intelligence and additional art direction separate.
+Everything below describes implemented behavior unless marked deferred. Values are **Fullness-first**: higher always means better, matching the [Pet Brain](pet_brain.md).
 
-Pixel is the current fixed-name test Workling and can render as the moss-fox Wildkin, ember-newt Elemental, or keyback pangolin Relicborn. The menu-bar choice changes appearance immediately and persists without resetting needs, preferences, or relationship progress.
+## 1. The pet is the primary UI
 
-The Workling must communicate important needs without requiring the user to inspect the menu bar. Interaction should remain lightweight enough that Pixel feels like a companion instead of a monitoring dashboard.
+- Urgent hunger, exhaustion, sadness, or low trust must be visible on the pet itself.
+- Care reactions briefly override the underlying expression.
+- Happy and content states stay quiet — no thought-bubble spam.
+- No condition may rely on colour alone.
 
-## Implementation status
+All three families share one pose contract, so every mood and reaction reads the same whichever Workling is active. An eight-frame smoke effect covers launch, wake, tuck-away, and family swaps.
 
-Ambient mood and reaction frames for all three selectable families, a reduced-motion-safe idle cycle, opt-in single-display roaming with walking frames, delayed hover, click-versus-drag handling, the pet-anchored care card, shared menu actions, positive wellbeing meters, favourite markers, reaction feedback, and basic accessibility labels are implemented. Mood-driven movement, richer care animation, adoption, and a complete settings experience remain deferred.
+## 2. Hover summary
 
-## Interaction hierarchy
+Hover for ~500ms and a small read-only summary appears: natural language ("Pixel is hungry and getting tired"), at most two conditions, no numbers. It dismisses when the pointer leaves, never steals focus or blocks dragging, and stays inside the display. The same summary is exposed to accessibility tools without hovering.
 
-Information is revealed progressively through four surfaces.
+## 3. Care card
 
-### 1. Ambient pet state
-
-The pet itself is the primary signal. Every family uses the shared pose order, expression mapping, idle frame cycle, and occasional thought bubbles to communicate semantic state.
-
-- Urgent hunger, exhaustion, sadness, or low trust must have a visible state.
-- Reactions to care actions may temporarily override the underlying expression.
-- Persistent happy or content thought bubbles should not create visual noise.
-- Important conditions must not rely on colour alone.
-
-### 2. Hover summary
-
-Hovering over the pet for approximately 500 milliseconds reveals a small non-interactive summary.
-
-- Use natural language, such as “Pixel is hungry and getting tired.”
-- Show at most two relevant conditions.
-- Do not show exact numeric values in the hover summary.
-- Dismiss when the pointer leaves without taking focus.
-- Do not intercept dragging or clicks.
-- Keep the summary inside the active display's visible frame.
-
-The same summary must be available to accessibility technologies without requiring hover.
-
-### 3. Click care card
-
-A click opens an interactive care card anchored near the pet. A drag moves the pet and must not open the card.
-
-- Only one care card may be open.
-- Clicking outside the card or pressing Escape closes it.
-- The card may become key so its controls support keyboard and accessibility interaction.
-- Opening or closing the card must not move the pet.
-- Performing a care action updates the card immediately and leaves it open for feedback.
-
-Current card structure:
+Click opens it; drag moves the pet and never opens it. One card at a time; Escape or an outside click closes it; opening it never moves the pet; care actions update it live and leave it open.
 
 ```text
 ┌────────────────────────────┐
@@ -66,139 +37,62 @@ Current card structure:
 └────────────────────────────┘
 ```
 
-All exact-value meters are positive wellbeing measures: a higher value and longer bar always mean the Workling is doing better. The interface displays **Fullness** as the inverse of the Pet Brain's internal hunger value. Natural-language conditions may still describe the Workling as hungry.
+Every meter is a wellbeing measure: longer bar, better pet. Natural language may still call the Workling "hungry" — that's flavour, not a different scale.
 
-The current implementation combines SwiftUI care surfaces with a family-aware runtime sprite renderer. Wildkin, Elemental, and Relicborn use the same twelve-frame sheet contract. A separate eight-frame smoke sheet overlays the pet during launch, wake, tuck-away, and family replacement; state variants, action animation, and asset-specific licensing metadata remain separate work.
+## 4. Menu bar
 
-### 4. Menu bar
-
-The menu bar remains a reliable fallback and application-control surface.
-
-- Keep wake, tuck away, persistence warnings, and quit controls.
-- Keep the checked Choose Workling submenu as the immediate family selector.
-- Switching family must preserve the current name, needs, preferences, and progression timestamp.
-- Swap the family only while the dense smoke frame obscures the pet.
-- Care actions may remain duplicated during the experiment.
-- Both surfaces must call the same session actions and display the same state.
-- Keep the persistent roaming toggle in the menu bar so movement can be paused without catching the pet.
-- If the care card proves successful, detailed care can later move out of the menu bar.
+The reliable fallback: wake, tuck away, persistence warnings, quit, the checked Choose Workling selector, the persistent roaming toggle, and (for now) duplicate care actions. Both surfaces call the same `PetSession` actions and show the same state. Family swaps happen under the dense smoke frame and preserve name, needs, favourites, and progression time.
 
 ## Idle roaming
 
-Idle roaming is an explicit, persistent opt-in. It makes Pixel wander occasionally within the current display without changing pet needs or relationship state.
+An explicit opt-in. Pixel occasionally wanders within the current display — needs and relationship state never change from movement.
 
-- Keep the complete companion window inside the display's visible frame with a margin.
-- Reflect a movement inward when a planned direction is blocked by a display edge.
-- Pause immediately for hover, care-card interaction, dragging, tuck-away, or macOS Reduce Motion.
-- Clamp a user drag into the visible frame when it ends, then allow roaming to resume.
-- Never move between displays autonomously.
-- Use walking frames and face the direction of travel without flipping text or care surfaces.
+- Stays fully inside the visible frame, reflects inward off edges, never crosses displays.
+- Pauses instantly for hover, the care card, dragging, tuck-away, or Reduce Motion.
+- Walks with the walking frames, faces its direction of travel, and never flips text.
+- A drag that ends off-frame is clamped back in; roaming then resumes.
 
-The initial pattern is deterministic and intentionally modest. Personality, mood, activity context, obstacles, and attention-seeking may influence later movement intents, but they are outside this slice.
+Mood, personality, and activity context will drive movement later; today's pattern is deterministic and modest.
 
-## Pointer behavior
+## Click versus drag
 
-The pet window distinguishes a click from a drag using movement rather than timing alone.
+Movement, not timing, tells them apart: within click tolerance → card on release; beyond it → drag, click suppressed. AppKit owns the tracking; SwiftUI only presents content.
 
-- Pointer movement within the normal click tolerance opens the card on release.
-- Movement beyond the tolerance begins dragging and suppresses the click action.
-- A click no longer performs the pet action directly; Pet is an explicit card/menu action.
-- Hover content disappears while dragging or while the care card is open.
-
-Native AppKit tracking and window-drag behavior should own these distinctions. SwiftUI presents content but should not independently compete for pointer gestures.
-
-## Urgency model
-
-Every internal need maps to an urgency level used by ambient presentation and hover summaries. Hunger thresholds below use the Pet Brain's internal value; the exact-value interface shows the inverse as Fullness.
+## Urgency
 
 | Need | Notice | Urgent | Critical |
 | --- | ---: | ---: | ---: |
-| Hunger | `>= 55` | `>= 75` | `>= 90` |
+| Fullness | `<= 45` | `<= 25` | `<= 10` |
 | Energy | `<= 45` | `<= 20` | `<= 10` |
 | Happiness | `<= 45` | `<= 30` | `<= 15` |
 | Trust | `<= 35` | `<= 20` | `<= 10` |
 
-When several conditions compete:
+Priority when conditions compete: critical physical needs, then other criticals, then urgent physical needs, then trust and happiness; notice-level conditions only appear unopposed. Hover shows at most two. Ambient bubbles show one urgent-or-worse condition with a cooldown of at least fifteen minutes unless things get worse.
 
-1. Critical physical needs take priority.
-2. Other critical needs follow.
-3. Urgent physical needs follow.
-4. Trust and happiness follow.
-5. Notice-level conditions appear only when no urgent condition displaces them.
+## Action availability
 
-The hover summary reports at most two conditions in that order. Ambient thought bubbles report only one urgent or critical condition and use a cooldown to avoid nagging.
+Derived from the Pet Brain, never duplicated in the UI: Feed disabled at Fullness 100, Play below 15 Energy, Sleep at 100 Energy, Pet always on. Disabled actions explain themselves through accessible help text. Favourites are marked identically on the card and in the menu.
 
-## Care action availability
+## Feedback
 
-The interface derives availability from the Pet Brain rather than duplicating rules in SwiftUI or AppKit.
-
-- Feed is disabled when hunger is already zero.
-- Play is disabled below 15 energy.
-- Sleep is disabled at 100 energy.
-- Pet remains available.
-- Disabled actions explain why through accessible help text.
-
-Favourite food and play choices are marked consistently in both care surfaces. Preference bonuses remain domain rules, not interface rules.
-
-## Feedback policy
-
-- Care reactions override need content for approximately three seconds.
-- Reaction feedback uses text plus an expression change.
-- After the reaction expires, the current need state resumes.
-- Happy/content ambient bubbles are suppressed by default.
-- Urgent need bubbles should use a cooldown of at least fifteen minutes unless urgency increases.
-- The care card always reflects the latest exact values, even while a reaction is showing.
+Reactions run ~3 seconds as text plus an expression change, then need state resumes. The card always shows current exact values, even mid-reaction.
 
 ## Accessibility
 
-- Expose pet name, mood, and hover summary in the pet's accessibility label or description.
-- Make every care action keyboard reachable when the card is open.
-- Label progress indicators with names and numeric values.
-- Never use colour as the only indication of state or disabled behavior.
-- Continue respecting Reduce Motion.
-- Ensure card and hover placement work with larger text without hiding actions.
+Name, mood, and the hover summary live in the pet's accessibility label. Every card action is keyboard-reachable, meters carry names and values, colour is never the only signal, Reduce Motion is respected everywhere, and larger text must not hide actions.
 
-## Implementation boundaries
+## Boundaries
 
-- `CompanionCore` owns the selected family, urgency, summaries, action availability, roaming plans, safe screen targets, and other testable presentation decisions.
-- The application target owns hover timing, AppKit tracking, card placement, focus, and dismissal.
-- `CompanionCore` defines the deterministic smoke-frame midpoint; the application target owns transition timing, window ordering, and interruption.
-- The application target owns roaming animation, interruption, and the local opt-in preference.
-- `PetSession` remains the single source of live state and actions.
-- Menu-bar and pet-anchored controls reuse the same domain models.
-- No Codex-specific logic enters this slice.
+`CompanionCore` owns every testable decision: urgency, summaries, availability, roaming plans, smoke midpoints, screen targets. The app target owns timing, tracking, placement, focus, and animation. `PetSession` is the single source of live state. No provider-specific logic enters this layer.
 
 ## Verification
 
-Automated checks should cover:
+`swift run CompanionCoreChecks` covers the domain rules above. Manual macOS review covers hover, click-versus-drag, card focus and dismissal, menu/card consistency, VoiceOver, Reduce Motion, family swaps under smoke, and roaming interruptions.
 
-- decoded need values remain within `0...100`;
-- urgency thresholds and priority ordering;
-- two-condition summary limits and wording;
-- care action availability and explanations;
-- reaction precedence over ambient need content;
-- existing simulation, persistence, presentation, and placement behavior;
-- family defaulting, state-preserving selection, and JSON round trips;
-- reveal, conceal, and family-swap visibility at the dense smoke midpoint;
-- deterministic roaming plans, display-relative targets, bounds, and edge reflection.
+## Deferred
 
-Manual macOS review should cover:
-
-- hover delay, dismissal, and display-edge placement;
-- click versus drag discrimination;
-- card focus, outside-click dismissal, and Escape;
-- live updates after every care action;
-- menu/card consistency;
-- VoiceOver labels, keyboard navigation, and Reduce Motion;
-- all three family choices, checkmarks, immediate sprite swaps, and restart persistence;
-- launch/wake reveal, tuck-away conceal, and family replacement under smoke;
-- instant reveal, conceal, and family switching with Reduce Motion enabled;
-- roaming opt-in persistence, walking direction, interaction pauses, drag clamping, and tuck/wake behavior.
-
-## Deferred work
-
-- Additional action animation states.
-- Mood-driven movement, obstacle awareness, and multi-display travel.
-- Codex and other activity adapters.
-- Adoption, naming, and personality-selection flows.
-- A complete settings and save-recovery interface.
+- Richer action animation states.
+- Mood-driven movement, obstacles, multi-display travel.
+- Activity adapters and reactions from the [progression design](progression.md).
+- Adoption, naming, personality selection.
+- A full settings and save-recovery interface.

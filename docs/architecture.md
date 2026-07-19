@@ -22,7 +22,7 @@ The simulation works without an activity source. UI surfaces call the same sessi
 Activity source -> normalized event -> activity context -> Pet Brain intent -> presentation
 ```
 
-Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract.
+Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract. The event vocabulary, sources, and the progression systems built on top of it are defined in the [progression design](progression.md).
 
 ## Technology and targets
 
