@@ -135,10 +135,16 @@ public struct PetPresentation: Equatable, Sendable {
             return moodContent
         }
 
+        let reactionFace: PetFace = switch reaction {
+        case .tooTiredToPlay: .sleepy
+        case .sharedSetback: .sad
+        default: .happy
+        }
+
         return PetPresentation(
             moodLabel: moodContent.moodLabel,
             palette: moodContent.palette,
-            face: reaction == .tooTiredToPlay ? .sleepy : .happy,
+            face: reactionFace,
             thought: reaction.thought
         )
     }
@@ -154,6 +160,11 @@ private extension PetReaction {
         case .comforted: "I like you."
         case .rested: "Much better."
         case .tooTiredToPlay: "Maybe after a nap…"
+        case .happyToSeeYou: "A new day!"
+        case .celebratedTask: "We did it!"
+        case .sharedSetback: "We'll get the next one."
+        case .proudOfMilestone: "Shipped!"
+        case .gladYouAreBack: "You're back!"
         }
     }
 }

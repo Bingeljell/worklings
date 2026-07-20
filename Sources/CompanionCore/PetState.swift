@@ -210,6 +210,11 @@ public enum PetReaction: String, Equatable, Sendable {
     case comforted
     case rested
     case tooTiredToPlay
+    case happyToSeeYou
+    case celebratedTask
+    case sharedSetback
+    case proudOfMilestone
+    case gladYouAreBack
 }
 
 public struct PetInteractionResult: Equatable, Sendable {

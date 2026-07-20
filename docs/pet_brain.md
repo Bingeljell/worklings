@@ -64,6 +64,29 @@ First match wins:
 
 `PetCareStatus` separately ranks notice/urgent/critical conditions for hover summaries and action availability — see the [interaction model](pet_interaction.md).
 
+## Activity events
+
+Real-world stimulus arrives as normalized, content-free events — kind, timestamp, source id, nothing else. See the [progression design](progression.md) for the vocabulary and sources.
+
+Structural events (`workStarted`, `workEnded`, `awaitingInput`, `userIdle`) shape a short-lived **activity context** that is never persisted and expires to quiet after 30 minutes without events. That context changes how fast needs drain:
+
+- While work is happening, Fullness drains 1.25× faster and Energy 1.3× faster — your Workling works up an appetite and gets tired alongside you.
+- While the user is away, Trust drains 2/hour — the Workling misses you. It stops the moment `userReturned` arrives, since that flips the context back to present.
+
+Share-worthy moments get visible reactions and small need changes:
+
+| Event | Effect | Reaction |
+| --- | --- | --- |
+| `dailyWake` | Happiness +3, Trust +1 | "A new day!" |
+| `taskCompleted` | Happiness +4 | "We did it!" |
+| `taskFailed` | Fullness -4, Energy -3, Happiness -3 | "We'll get the next one." |
+| `milestone` | Happiness +6, Trust +2 | "Shipped!" |
+| `userReturned` | none directly — presence can't be farmed | "You're back!" |
+
+These values are alpha tuning. In debug builds, the paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context; it is compiled out of release builds.
+
+A caveat worth knowing: because the context expires to quiet (present) after 30 minutes of silence, a genuinely idle user who never fires `userReturned` stops draining trust after that window rather than indefinitely. A real presence source (see [progression design](progression.md)) should re-emit `userIdle` periodically so ongoing absence keeps registering.
+
 ## Presentation
 
 `PetPresentation` turns mood and the latest reaction into a face, palette, label, and short thought; `WorklingPetView` maps that to the selected family's sprite frames. Care reactions take over for about three seconds, then normal state resumes.
@@ -82,7 +105,7 @@ Progression fields — level, XP, banked stat points, allocated stats — will e
 
 ## Next Pet Brain work
 
-- Activity context: a short-lived input layer for normalized events, separate from long-lived relationship state.
+- The `dailyWake` and presence sources, so activity reactions fire without the debug menu.
 - The condition XP multiplier and progression fields from the [progression design](progression.md).
 - Tune need rates from real usage.
 - Personality beyond two favourites.
