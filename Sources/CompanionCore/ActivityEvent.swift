@@ -159,21 +159,4 @@ public enum SimulatedActivitySource {
     public static func event(_ kind: ActivityEventKind, at timestamp: Date) -> ActivityEvent {
         ActivityEvent(kind: kind, timestamp: timestamp, sourceId: sourceId)
     }
-
-    public static func demoScript(startingAt start: Date) -> [ActivityEvent] {
-        let minuteOffsets: [(ActivityEventKind, Double)] = [
-            (.dailyWake, 0),
-            (.workStarted, 1),
-            (.awaitingInput, 10),
-            (.userReturned, 12),
-            (.taskCompleted, 15),
-            (.milestone, 25),
-            (.workEnded, 30),
-            (.userIdle, 45)
-        ]
-
-        return minuteOffsets.map { kind, offset in
-            event(kind, at: start.addingTimeInterval(offset * 60))
-        }
-    }
 }

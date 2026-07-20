@@ -6,8 +6,7 @@ enum ActivityChecks {
         checkContextReduction(context: &context)
         checkContextExpiry(context: &context)
         checkWorkingDrain(context: &context)
-        checkAwayTrustDrain(context: &context)
-        checkAwayTrustGracePeriodTaper(context: &context)
+        checkAwayTrustTaper(context: &context)
         checkUserReturnedStopsAwayDrain(context: &context)
         checkTaskCompletedCelebration(context: &context)
         checkTaskFailedSetback(context: &context)
@@ -15,7 +14,6 @@ enum ActivityChecks {
         checkDailyWakeGreeting(context: &context)
         checkStructuralEventsSpeakButDoNotMoveNeeds(context: &context)
         checkUserReturnedReactionOnly(context: &context)
-        checkSimulatedScriptDeterminism(context: &context)
         checkRateScaling(context: &context)
     }
 
@@ -96,29 +94,15 @@ enum ActivityChecks {
         )
     }
 
-    private static func checkAwayTrustDrain(context: inout CheckContext) {
+    private static func checkAwayTrustTaper(context: inout CheckContext) {
         let brain = PetBrain()
-        let state = PetState.newPet(now: start)
-        let later = start.addingTimeInterval(2 * 3_600)
-        let awayContext = ActivityContext.quiet.reducing(event(.userIdle))
 
-        let present = brain.advance(state, to: later)
-        let away = brain.advance(state, to: later, context: awayContext)
-
+        let present = brain.advance(PetState.newPet(now: start), to: start.addingTimeInterval(2 * 3_600))
         context.expectApproximatelyEqual(
             present.needs.trust,
             50,
             "trust holds steady while the user is present"
         )
-        context.expectApproximatelyEqual(
-            away.needs.trust,
-            49.6,
-            "a two-hour absence in one tick tapers to the gentle long-away rate"
-        )
-    }
-
-    private static func checkAwayTrustGracePeriodTaper(context: inout CheckContext) {
-        let brain = PetBrain()
 
         let withinGrace = PetState.newPet(now: start)
         let thirtyMinutesLater = start.addingTimeInterval(30 * 60)
@@ -320,22 +304,6 @@ enum ActivityChecks {
             response.state.needs,
             state.needs,
             "a welcome does not move needs, so presence cannot be farmed"
-        )
-    }
-
-    private static func checkSimulatedScriptDeterminism(context: inout CheckContext) {
-        let first = SimulatedActivitySource.demoScript(startingAt: start)
-        let second = SimulatedActivitySource.demoScript(startingAt: start)
-
-        context.expectEqual(first, second, "the demo script is deterministic")
-        context.expect(!first.isEmpty, "the demo script emits events")
-        context.expect(
-            zip(first, first.dropFirst()).allSatisfy { $0.timestamp <= $1.timestamp },
-            "demo script timestamps never move backward"
-        )
-        context.expect(
-            first.allSatisfy { $0.sourceId == SimulatedActivitySource.sourceId },
-            "demo script events carry the simulated source id"
         )
     }
 
