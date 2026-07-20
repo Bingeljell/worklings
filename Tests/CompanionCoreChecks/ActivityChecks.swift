@@ -7,6 +7,7 @@ enum ActivityChecks {
         checkContextExpiry(context: &context)
         checkWorkingDrain(context: &context)
         checkAwayTrustDrain(context: &context)
+        checkAwayTrustGracePeriodTaper(context: &context)
         checkUserReturnedStopsAwayDrain(context: &context)
         checkTaskCompletedCelebration(context: &context)
         checkTaskFailedSetback(context: &context)
@@ -111,8 +112,56 @@ enum ActivityChecks {
         )
         context.expectApproximatelyEqual(
             away.needs.trust,
-            46,
-            "trust drains while the user is away"
+            49.6,
+            "a two-hour absence in one tick tapers to the gentle long-away rate"
+        )
+    }
+
+    private static func checkAwayTrustGracePeriodTaper(context: inout CheckContext) {
+        let brain = PetBrain()
+
+        let withinGrace = PetState.newPet(now: start)
+        let thirtyMinutesLater = start.addingTimeInterval(30 * 60)
+        let shortContext = ActivityContext(
+            isWorking: false,
+            isAwaitingInput: false,
+            isUserPresent: false,
+            awaySince: start,
+            lastEventAt: start
+        )
+        let shortResult = brain.advance(withinGrace, to: thirtyMinutesLater, context: shortContext)
+        context.expectApproximatelyEqual(
+            shortResult.needs.trust,
+            49,
+            "a thirty-minute absence stays within the grace period at the full away rate"
+        )
+
+        var taperedState = PetState.newPet(now: start)
+        var taperedContext = ActivityContext(
+            isWorking: false,
+            isAwaitingInput: false,
+            isUserPresent: false,
+            awaySince: start,
+            lastEventAt: start
+        )
+        var now = start
+
+        for _ in 0..<4 {
+            now = now.addingTimeInterval(3_600)
+            taperedState = brain.advance(taperedState, to: now, context: taperedContext)
+            taperedContext = ActivityContext(
+                isWorking: false,
+                isAwaitingInput: false,
+                isUserPresent: false,
+                awaySince: taperedContext.awaySince,
+                lastEventAt: now
+            )
+        }
+
+        context.expectApproximatelyEqual(
+            taperedState.needs.trust,
+            47.4,
+            "hourly ticks show the taper: the full rate for the first hour, then a gentle trickle"
         )
     }
 

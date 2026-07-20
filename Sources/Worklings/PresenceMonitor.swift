@@ -43,7 +43,7 @@ final class PresenceMonitor {
 
     private func checkPresence() {
         let idleSeconds = Self.systemIdleSeconds()
-        guard let kind = PresenceEvaluator.transition(
+        guard let signal = PresenceEvaluator.signal(
             idleSeconds: idleSeconds,
             wasIdle: wasIdle,
             threshold: idleThreshold
@@ -51,8 +51,16 @@ final class PresenceMonitor {
             return
         }
 
-        wasIdle = kind == .userIdle
-        session.receive(SystemActivitySource.event(kind, at: Date()))
+        switch signal {
+        case .wentIdle:
+            wasIdle = true
+            session.receive(SystemActivitySource.event(.userIdle, at: Date()))
+        case .stillIdle:
+            session.extendActivity(.userIdle)
+        case .returned:
+            wasIdle = false
+            session.receive(SystemActivitySource.event(.userReturned, at: Date()))
+        }
     }
 
     /// `kCGAnyInputEventType`, expressed as its raw value because Swift does

@@ -8,6 +8,8 @@ public struct PetSimulationRates: Equatable, Sendable {
     public let workingHungerMultiplier: Double
     public let workingEnergyMultiplier: Double
     public let awayTrustPerHour: Double
+    public let awayGracePeriodHours: Double
+    public let longAwayTrustPerHour: Double
 
     public init(
         hungerPerHour: Double = 4,
@@ -16,7 +18,9 @@ public struct PetSimulationRates: Equatable, Sendable {
         maximumOfflineHours: Double = 24 * 7,
         workingHungerMultiplier: Double = 1.25,
         workingEnergyMultiplier: Double = 1.3,
-        awayTrustPerHour: Double = 2
+        awayTrustPerHour: Double = 2,
+        awayGracePeriodHours: Double = 1,
+        longAwayTrustPerHour: Double = 0.2
     ) {
         self.hungerPerHour = max(hungerPerHour, 0)
         self.energyPerHour = max(energyPerHour, 0)
@@ -25,11 +29,14 @@ public struct PetSimulationRates: Equatable, Sendable {
         self.workingHungerMultiplier = max(workingHungerMultiplier, 0)
         self.workingEnergyMultiplier = max(workingEnergyMultiplier, 0)
         self.awayTrustPerHour = max(awayTrustPerHour, 0)
+        self.awayGracePeriodHours = max(awayGracePeriodHours, 0)
+        self.longAwayTrustPerHour = max(longAwayTrustPerHour, 0)
     }
 
     /// Multiplies every per-hour rate by `factor`, so a real-time wait during
     /// manual testing can stand in for hours without touching event deltas
-    /// or production tuning.
+    /// or production tuning. The grace period is divided by the same factor
+    /// so both tiers of the away-trust rate stay reachable within a short test.
     public func scaled(by factor: Double) -> PetSimulationRates {
         PetSimulationRates(
             hungerPerHour: hungerPerHour * factor,
@@ -38,7 +45,9 @@ public struct PetSimulationRates: Equatable, Sendable {
             maximumOfflineHours: maximumOfflineHours,
             workingHungerMultiplier: workingHungerMultiplier,
             workingEnergyMultiplier: workingEnergyMultiplier,
-            awayTrustPerHour: awayTrustPerHour * factor
+            awayTrustPerHour: awayTrustPerHour * factor,
+            awayGracePeriodHours: factor > 0 ? awayGracePeriodHours / factor : awayGracePeriodHours,
+            longAwayTrustPerHour: longAwayTrustPerHour * factor
         )
     }
 }
@@ -73,7 +82,7 @@ public struct PetBrain: Sendable {
         let happiness = state.needs.happiness
             - rates.happinessPerHour * elapsedHours
             - distress * 0.75 * elapsedHours
-        let awayTrustDrain = context.isUserPresent ? 0 : rates.awayTrustPerHour * elapsedHours
+        let awayTrustDrain = awayTrustRate(for: context, at: now) * elapsedHours
         let trust = state.needs.trust - distress * 0.2 * elapsedHours - awayTrustDrain
 
         return updatedState(
@@ -241,6 +250,23 @@ public struct PetBrain: Sendable {
             ),
             reaction: reaction
         )
+    }
+
+    /// The two-tier away rate: a full-strength rate for a short absence,
+    /// tapering to a gentle trickle beyond the grace period so an evening or
+    /// a weekend away costs far less than the same duration would at the
+    /// short-absence rate. Applies the single rate reached by `now` across
+    /// the whole tick, an approximation that matters only for one unusually
+    /// large gap (e.g. the Mac slept through the tier boundary); at the
+    /// normal one-tick-per-minute cadence the tiers land correctly.
+    private func awayTrustRate(for context: ActivityContext, at now: Date) -> Double {
+        guard !context.isUserPresent else {
+            return 0
+        }
+        let awayHours = max(0, now.timeIntervalSince(context.awaySince ?? now)) / 3_600
+        return awayHours > rates.awayGracePeriodHours
+            ? rates.longAwayTrustPerHour
+            : rates.awayTrustPerHour
     }
 
     private func result(

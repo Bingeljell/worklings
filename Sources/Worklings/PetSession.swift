@@ -87,6 +87,13 @@ final class PetSession: ObservableObject {
         }
     }
 
+    /// Refreshes an ongoing signal (e.g. "still away") without repeating its
+    /// one-time reaction, so a genuine multi-hour absence keeps registering
+    /// as away instead of silently expiring back to quiet.
+    func extendActivity(_ kind: ActivityEventKind, at now: Date = Date()) {
+        activityContext = activityContext.reducing(SystemActivitySource.event(kind, at: now))
+    }
+
     func perform(_ action: PetAction, at now: Date = Date()) {
         let actionKind: PetCareActionKind
         switch action {

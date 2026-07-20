@@ -48,12 +48,18 @@ public struct ActivityContext: Equatable, Sendable {
     public let isWorking: Bool
     public let isAwaitingInput: Bool
     public let isUserPresent: Bool
+    /// When the current, unbroken absence began, or `nil` while present.
+    /// Distinct from `lastEventAt`: a repeated `userIdle` "still away" touch
+    /// refreshes `lastEventAt` to avoid expiry but must not reset this, or a
+    /// long absence could never be told apart from a short one.
+    public let awaySince: Date?
     public let lastEventAt: Date?
 
     public static let quiet = ActivityContext(
         isWorking: false,
         isAwaitingInput: false,
         isUserPresent: true,
+        awaySince: nil,
         lastEventAt: nil
     )
 
@@ -61,18 +67,26 @@ public struct ActivityContext: Equatable, Sendable {
         isWorking: Bool,
         isAwaitingInput: Bool,
         isUserPresent: Bool,
+        awaySince: Date? = nil,
         lastEventAt: Date?
     ) {
         self.isWorking = isWorking
         self.isAwaitingInput = isAwaitingInput
         self.isUserPresent = isUserPresent
+        self.awaySince = awaySince
         self.lastEventAt = lastEventAt
     }
 
     public func reducing(_ event: ActivityEvent) -> ActivityContext {
         switch event.kind {
         case .dailyWake, .userReturned:
-            return updating(isUserPresent: true, at: event.timestamp)
+            return ActivityContext(
+                isWorking: isWorking,
+                isAwaitingInput: isAwaitingInput,
+                isUserPresent: true,
+                awaySince: nil,
+                lastEventAt: event.timestamp
+            )
         case .workStarted:
             return updating(isWorking: true, isAwaitingInput: false, at: event.timestamp)
         case .workEnded:
@@ -84,12 +98,21 @@ public struct ActivityContext: Equatable, Sendable {
         case .milestone:
             return updating(at: event.timestamp)
         case .userIdle:
-            return updating(isUserPresent: false, at: event.timestamp)
+            return ActivityContext(
+                isWorking: isWorking,
+                isAwaitingInput: isAwaitingInput,
+                isUserPresent: false,
+                awaySince: isUserPresent ? event.timestamp : awaySince,
+                lastEventAt: event.timestamp
+            )
         }
     }
 
     /// Returns `.quiet` when no event has arrived within the interval, so a
-    /// stale work block cannot keep influencing the simulation forever.
+    /// stale work block cannot keep influencing the simulation forever. Under
+    /// normal operation a live presence source keeps touching `lastEventAt`
+    /// throughout a genuine absence, so this is a fallback for abnormal
+    /// termination (a crash, a missed `workEnded`), not the everyday path.
     public func expiring(
         at now: Date,
         after interval: TimeInterval = ActivityContext.defaultExpiryInterval
@@ -104,13 +127,13 @@ public struct ActivityContext: Equatable, Sendable {
     private func updating(
         isWorking: Bool? = nil,
         isAwaitingInput: Bool? = nil,
-        isUserPresent: Bool? = nil,
         at timestamp: Date
     ) -> ActivityContext {
         ActivityContext(
             isWorking: isWorking ?? self.isWorking,
             isAwaitingInput: isAwaitingInput ?? self.isAwaitingInput,
-            isUserPresent: isUserPresent ?? self.isUserPresent,
+            isUserPresent: isUserPresent,
+            awaySince: awaySince,
             lastEventAt: timestamp
         )
     }

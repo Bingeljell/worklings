@@ -26,23 +26,28 @@ public enum DailyWakeTracker {
     }
 }
 
-/// Turns raw system idle seconds into a presence transition. Pure and
+/// What a presence poll should do: fire a one-time transition event, keep an
+/// ongoing absence alive without repeating its reaction, or nothing.
+public enum PresenceSignal: Equatable, Sendable {
+    case wentIdle
+    case stillIdle
+    case returned
+}
+
+/// Turns raw system idle seconds into a presence signal. Pure and
 /// deterministic so the threshold crossing is testable without a real clock
 /// or real input events; the caller owns polling and remembering `wasIdle`.
 public enum PresenceEvaluator {
     public static let defaultIdleThreshold: TimeInterval = 5 * 60
 
-    public static func transition(
+    public static func signal(
         idleSeconds: TimeInterval,
         wasIdle: Bool,
         threshold: TimeInterval = PresenceEvaluator.defaultIdleThreshold
-    ) -> ActivityEventKind? {
-        if !wasIdle && idleSeconds >= threshold {
-            return .userIdle
+    ) -> PresenceSignal? {
+        if idleSeconds >= threshold {
+            return wasIdle ? .stillIdle : .wentIdle
         }
-        if wasIdle && idleSeconds < threshold {
-            return .userReturned
-        }
-        return nil
+        return wasIdle ? .returned : nil
     }
 }

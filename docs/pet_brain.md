@@ -71,7 +71,7 @@ Real-world stimulus arrives as normalized, content-free events — kind, timesta
 Structural events (`workStarted`, `workEnded`, `awaitingInput`, `userIdle`) shape a short-lived **activity context** that is never persisted and expires to quiet after 30 minutes without events. That context changes how fast needs drain:
 
 - While work is happening, Fullness drains 1.25× faster and Energy 1.3× faster — your Workling works up an appetite and gets tired alongside you.
-- While the user is away, Trust drains 2/hour — the Workling misses you. It stops the moment `userReturned` arrives, since that flips the context back to present.
+- While the user is away, Trust drains at a **two-tier rate**: the first hour of an absence costs 2/hour, and anything beyond that tapers to a gentle 0.2/hour. A quick break costs a little; an evening or a weekend away costs very little more than the first hour did. It stops the moment `userReturned` arrives, since that flips the context back to present.
 
 Every event gets a visible reaction, so its effect is never invisible — including the structural ones, which move no needs directly but still say something:
 
@@ -89,7 +89,7 @@ Every event gets a visible reaction, so its effect is never invisible — includ
 
 These values are alpha tuning. In debug builds only, three environment variables make manual testing practical without waiting on real clocks: `WORKLINGS_IDLE_THRESHOLD_SECONDS` shortens how long counts as "away," `WORKLINGS_PRESENCE_POLL_SECONDS` shortens how often presence is checked, and `WORKLINGS_DEBUG_RATE_SCALE` multiplies every per-hour need rate so a few real seconds can stand in for hours. The paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context. All of this is compiled out of release builds.
 
-A caveat worth knowing: because the context expires to quiet (present) after 30 minutes of silence, a genuinely idle user who never fires `userReturned` stops draining trust after that window rather than indefinitely. A real presence source (see [progression design](progression.md)) should re-emit `userIdle` periodically so ongoing absence keeps registering.
+The live presence source keeps a genuine absence alive by quietly re-touching the context roughly every 15 seconds, without repeating the "Oh, you're away…" reaction — so the two-tier rate above sees the absence's real duration rather than losing track of it. The 30-minute expiry is a fallback for abnormal termination only (a crash, a `workStarted` whose `workEnded` never arrives), not the everyday path.
 
 ## Presentation
 
@@ -109,7 +109,6 @@ Progression fields — level, XP, banked stat points, allocated stats — will e
 
 ## Next Pet Brain work
 
-- The `dailyWake` and presence sources, so activity reactions fire without the debug menu.
 - The condition XP multiplier and progression fields from the [progression design](progression.md).
 - Tune need rates from real usage.
 - Personality beyond two favourites.

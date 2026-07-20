@@ -68,12 +68,12 @@ enum ActivitySourceChecks {
 
     private static func checkPresenceGoesIdle(context: inout CheckContext) {
         context.expectEqual(
-            PresenceEvaluator.transition(idleSeconds: 301, wasIdle: false),
-            .userIdle,
-            "crossing the idle threshold while present emits userIdle"
+            PresenceEvaluator.signal(idleSeconds: 301, wasIdle: false),
+            .wentIdle,
+            "crossing the idle threshold while present signals wentIdle"
         )
         context.expectEqual(
-            PresenceEvaluator.transition(idleSeconds: 299, wasIdle: false),
+            PresenceEvaluator.signal(idleSeconds: 299, wasIdle: false),
             nil,
             "staying under the idle threshold emits nothing"
         )
@@ -81,23 +81,23 @@ enum ActivitySourceChecks {
 
     private static func checkPresenceStaysIdle(context: inout CheckContext) {
         context.expectEqual(
-            PresenceEvaluator.transition(idleSeconds: 600, wasIdle: true),
-            nil,
-            "remaining idle does not re-emit userIdle"
+            PresenceEvaluator.signal(idleSeconds: 600, wasIdle: true),
+            .stillIdle,
+            "remaining idle signals stillIdle so the absence can be kept alive"
         )
     }
 
     private static func checkPresenceReturns(context: inout CheckContext) {
         context.expectEqual(
-            PresenceEvaluator.transition(idleSeconds: 2, wasIdle: true),
-            .userReturned,
-            "dropping below the idle threshold while away emits userReturned"
+            PresenceEvaluator.signal(idleSeconds: 2, wasIdle: true),
+            .returned,
+            "dropping below the idle threshold while away signals returned"
         )
     }
 
     private static func checkPresenceStaysPresent(context: inout CheckContext) {
         context.expectEqual(
-            PresenceEvaluator.transition(idleSeconds: 0, wasIdle: false),
+            PresenceEvaluator.signal(idleSeconds: 0, wasIdle: false),
             nil,
             "staying present emits nothing"
         )
