@@ -5,17 +5,26 @@ public struct PetSimulationRates: Equatable, Sendable {
     public let energyPerHour: Double
     public let happinessPerHour: Double
     public let maximumOfflineHours: Double
+    public let workingHungerMultiplier: Double
+    public let workingEnergyMultiplier: Double
+    public let awayTrustPerHour: Double
 
     public init(
         hungerPerHour: Double = 4,
         energyPerHour: Double = 3,
         happinessPerHour: Double = 1,
-        maximumOfflineHours: Double = 24 * 7
+        maximumOfflineHours: Double = 24 * 7,
+        workingHungerMultiplier: Double = 1.25,
+        workingEnergyMultiplier: Double = 1.3,
+        awayTrustPerHour: Double = 2
     ) {
         self.hungerPerHour = max(hungerPerHour, 0)
         self.energyPerHour = max(energyPerHour, 0)
         self.happinessPerHour = max(happinessPerHour, 0)
         self.maximumOfflineHours = max(maximumOfflineHours, 0)
+        self.workingHungerMultiplier = max(workingHungerMultiplier, 0)
+        self.workingEnergyMultiplier = max(workingEnergyMultiplier, 0)
+        self.awayTrustPerHour = max(awayTrustPerHour, 0)
     }
 }
 
@@ -26,15 +35,21 @@ public struct PetBrain: Sendable {
         self.rates = rates
     }
 
-    public func advance(_ state: PetState, to now: Date) -> PetState {
+    public func advance(
+        _ state: PetState,
+        to now: Date,
+        context: ActivityContext = .quiet
+    ) -> PetState {
         let elapsedSeconds = now.timeIntervalSince(state.lastUpdatedAt)
         guard elapsedSeconds > 0 else {
             return state
         }
 
         let elapsedHours = min(elapsedSeconds / 3_600, rates.maximumOfflineHours)
-        let hunger = state.needs.hunger + rates.hungerPerHour * elapsedHours
-        let energy = state.needs.energy - rates.energyPerHour * elapsedHours
+        let hungerMultiplier = context.isWorking ? rates.workingHungerMultiplier : 1
+        let energyMultiplier = context.isWorking ? rates.workingEnergyMultiplier : 1
+        let hunger = state.needs.hunger + rates.hungerPerHour * hungerMultiplier * elapsedHours
+        let energy = state.needs.energy - rates.energyPerHour * energyMultiplier * elapsedHours
 
         let hungerPenalty = max(hunger - 75, 0) / 25
         let exhaustionPenalty = max(20 - energy, 0) / 20
@@ -43,7 +58,8 @@ public struct PetBrain: Sendable {
         let happiness = state.needs.happiness
             - rates.happinessPerHour * elapsedHours
             - distress * 0.75 * elapsedHours
-        let trust = state.needs.trust - distress * 0.2 * elapsedHours
+        let awayTrustDrain = context.isUserPresent ? 0 : rates.awayTrustPerHour * elapsedHours
+        let trust = state.needs.trust - distress * 0.2 * elapsedHours - awayTrustDrain
 
         return updatedState(
             from: state,
@@ -119,6 +135,88 @@ public struct PetBrain: Sendable {
                 reaction: .rested
             )
         }
+    }
+
+    /// Applies an observed activity event to the pet. Structural events shape
+    /// the activity context only; moments worth sharing move needs slightly
+    /// and return a visible reaction. Effects are alpha tuning.
+    public func observe(
+        _ event: ActivityEvent,
+        on state: PetState,
+        at now: Date
+    ) -> PetActivityResponse {
+        let currentState = advance(state, to: now)
+        let needs = currentState.needs
+
+        switch event.kind {
+        case .dailyWake:
+            return response(
+                from: currentState,
+                happiness: needs.happiness + 3,
+                trust: needs.trust + 1,
+                at: now,
+                reaction: .happyToSeeYou
+            )
+
+        case .taskCompleted:
+            return response(
+                from: currentState,
+                happiness: needs.happiness + 4,
+                trust: needs.trust,
+                at: now,
+                reaction: .celebratedTask
+            )
+
+        case .taskFailed:
+            return response(
+                from: currentState,
+                hunger: needs.hunger + 4,
+                energy: needs.energy - 3,
+                happiness: needs.happiness - 3,
+                trust: needs.trust,
+                at: now,
+                reaction: .sharedSetback
+            )
+
+        case .milestone:
+            return response(
+                from: currentState,
+                happiness: needs.happiness + 6,
+                trust: needs.trust + 2,
+                at: now,
+                reaction: .proudOfMilestone
+            )
+
+        case .userReturned:
+            return PetActivityResponse(state: currentState, reaction: .gladYouAreBack)
+
+        case .workStarted, .workEnded, .awaitingInput, .userIdle:
+            return PetActivityResponse(state: currentState, reaction: nil)
+        }
+    }
+
+    private func response(
+        from state: PetState,
+        hunger: Double? = nil,
+        energy: Double? = nil,
+        happiness: Double,
+        trust: Double,
+        at now: Date,
+        reaction: PetReaction
+    ) -> PetActivityResponse {
+        PetActivityResponse(
+            state: updatedState(
+                from: state,
+                needs: PetNeeds(
+                    hunger: hunger ?? state.needs.hunger,
+                    energy: energy ?? state.needs.energy,
+                    happiness: happiness,
+                    trust: trust
+                ),
+                at: now
+            ),
+            reaction: reaction
+        )
     }
 
     private func result(

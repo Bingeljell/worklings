@@ -19,6 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var familyMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
     private var playMenuItems: [NSMenuItem] = []
+    #if DEBUG
+    private var activityContextMenuItem: NSMenuItem?
+    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let petSession = PetSession()
@@ -103,6 +106,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         visibilityItem.target = self
         menu.addItem(visibilityItem)
+
+        #if DEBUG
+        menu.addItem(.separator())
+        menu.addItem(makeSimulateActivityMenuItem())
+        #endif
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(
@@ -142,6 +151,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         warningMenuItem?.title = petSession.persistenceWarning ?? ""
         warningMenuItem?.isHidden = petSession.persistenceWarning == nil
+
+        #if DEBUG
+        activityContextMenuItem?.title = Self.describe(petSession.activityContext)
+        #endif
 
         updateRoamingMenuItem()
 
@@ -289,6 +302,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         petSession?.perform(.play(activity))
     }
+
+    #if DEBUG
+    private func makeSimulateActivityMenuItem() -> NSMenuItem {
+        let parentItem = NSMenuItem(title: "Simulate Activity", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: "Simulate Activity")
+
+        let contextItem = NSMenuItem(title: "Context: quiet", action: nil, keyEquivalent: "")
+        contextItem.isEnabled = false
+        submenu.addItem(contextItem)
+        activityContextMenuItem = contextItem
+        submenu.addItem(.separator())
+
+        for kind in ActivityEventKind.allCases {
+            let item = NSMenuItem(
+                title: kind.displayName,
+                action: #selector(simulateActivity(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = kind.rawValue
+            submenu.addItem(item)
+        }
+
+        parentItem.submenu = submenu
+        return parentItem
+    }
+
+    @objc
+    private func simulateActivity(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let kind = ActivityEventKind(rawValue: rawValue) else {
+            return
+        }
+        petSession?.receive(SimulatedActivitySource.event(kind, at: Date()))
+    }
+
+    private static func describe(_ context: ActivityContext) -> String {
+        var parts: [String] = []
+        if context.isWorking {
+            parts.append("working")
+        }
+        if context.isAwaitingInput {
+            parts.append("agent waiting")
+        }
+        if !context.isUserPresent {
+            parts.append("user away")
+        }
+        if parts.isEmpty {
+            parts.append("quiet")
+        }
+        return "Context: " + parts.joined(separator: " · ")
+    }
+    #endif
 
     @objc
     private func petCompanion() {

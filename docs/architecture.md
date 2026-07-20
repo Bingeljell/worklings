@@ -2,7 +2,7 @@
 
 ## Status
 
-The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, and direct-download packaging toolchain are implemented. Intent-driven movement and activity integrations remain planned.
+The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, direct-download packaging toolchain, and the normalized activity-event pipeline with a debug simulated source are implemented. Intent-driven movement and real activity adapters remain planned.
 
 ## Implemented system
 
@@ -16,11 +16,13 @@ SwiftUI pet and card ──┘       │             │
 
 The simulation works without an activity source. UI surfaces call the same session actions and consume the same state.
 
-## Planned activity boundary
+## Activity boundary
 
 ```text
 Activity source -> normalized event -> activity context -> Pet Brain intent -> presentation
 ```
+
+The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is the first source. Real adapters remain planned.
 
 Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract. The event vocabulary, sources, and the progression systems built on top of it are defined in the [progression design](progression.md).
 
@@ -100,7 +102,7 @@ ActivityEvent
   intensity      optional normalized value
 ```
 
-An event reducer will convert short-lived events into activity context. The Pet Brain should consume that context without knowing whether it originated in Codex, another agent, an IDE, or the operating system.
+The event reducer converts short-lived events into activity context. The Pet Brain consumes that context without knowing whether it originated in Codex, another agent, an IDE, or the operating system.
 
 The first Codex adapter should use documented lifecycle signals rather than UI scraping or unstable transcript parsing. It must be optional and fail closed.
 
@@ -134,7 +136,7 @@ The first Worklings-branded public artifact is the `v0.1.0-alpha.2` GitHub prere
 | Worklings rebrand and legacy-save copy | Complete |
 | App bundle, DMG, checksum, and mounted verification | Complete |
 | Safe idle roaming within one display | Complete |
-| Provider-neutral event pipeline with a simulated source | Planned |
+| Provider-neutral event pipeline with a simulated source | Complete |
 | Codex adapter | Planned |
 | Wildkin, Elemental, and Relicborn runtime selection | Complete |
 | Adoption and initial creature setup | Planned |

@@ -7,6 +7,7 @@ final class PetSession: ObservableObject {
     @Published private(set) var state: PetState
     @Published private(set) var reaction: PetReaction?
     @Published private(set) var persistenceWarning: String?
+    @Published private(set) var activityContext: ActivityContext = .quiet
 
     private let brain: PetBrain
     private let store: PetStateFileStore
@@ -52,13 +53,33 @@ final class PetSession: ObservableObject {
     }
 
     func advance(to now: Date = Date()) {
-        let nextState = brain.advance(state, to: now)
+        let currentContext = activityContext.expiring(at: now)
+        if currentContext != activityContext {
+            activityContext = currentContext
+        }
+
+        let nextState = brain.advance(state, to: now, context: currentContext)
         guard nextState != state else {
             return
         }
 
         state = nextState
         persist()
+    }
+
+    func receive(_ event: ActivityEvent, at now: Date = Date()) {
+        activityContext = activityContext.reducing(event)
+
+        let response = brain.observe(event, on: state, at: now)
+        if response.state != state {
+            state = response.state
+            persist()
+        }
+
+        if let eventReaction = response.reaction {
+            reaction = eventReaction
+            scheduleReactionClear(eventReaction)
+        }
     }
 
     func perform(_ action: PetAction, at now: Date = Date()) {
