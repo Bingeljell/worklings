@@ -1,0 +1,17 @@
+# Text sources: normalize to LF regardless of the contributor's platform.
+*.swift text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.html text eol=lf
+
+# Binary assets: never diff, never line-ending convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.dmg binary
+*.mp4 binary
+*.mov binary
+*.wav binary
+*.mp3 binary
+*.woff2 binary
