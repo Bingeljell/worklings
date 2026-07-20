@@ -10,6 +10,9 @@ public struct PetSimulationRates: Equatable, Sendable {
     public let awayTrustPerHour: Double
     public let awayGracePeriodHours: Double
     public let longAwayTrustPerHour: Double
+    public let workLogCooldownMinutes: Double
+    public let workLogDailyCap: Int
+    public let workLogHappinessGain: Double
 
     public init(
         hungerPerHour: Double = 4,
@@ -20,7 +23,10 @@ public struct PetSimulationRates: Equatable, Sendable {
         workingEnergyMultiplier: Double = 1.3,
         awayTrustPerHour: Double = 2,
         awayGracePeriodHours: Double = 1,
-        longAwayTrustPerHour: Double = 0.2
+        longAwayTrustPerHour: Double = 0.2,
+        workLogCooldownMinutes: Double = 30,
+        workLogDailyCap: Int = 6,
+        workLogHappinessGain: Double = 3
     ) {
         self.hungerPerHour = max(hungerPerHour, 0)
         self.energyPerHour = max(energyPerHour, 0)
@@ -31,12 +37,17 @@ public struct PetSimulationRates: Equatable, Sendable {
         self.awayTrustPerHour = max(awayTrustPerHour, 0)
         self.awayGracePeriodHours = max(awayGracePeriodHours, 0)
         self.longAwayTrustPerHour = max(longAwayTrustPerHour, 0)
+        self.workLogCooldownMinutes = max(workLogCooldownMinutes, 0)
+        self.workLogDailyCap = max(workLogDailyCap, 0)
+        self.workLogHappinessGain = max(workLogHappinessGain, 0)
     }
 
     /// Multiplies every per-hour rate by `factor`, so a real-time wait during
     /// manual testing can stand in for hours without touching event deltas
-    /// or production tuning. The grace period is divided by the same factor
-    /// so both tiers of the away-trust rate stay reachable within a short test.
+    /// or production tuning. The grace period and the Log Work cooldown are
+    /// divided by the same factor so every gated tier stays reachable within
+    /// a short test; the daily cap and per-log gain are flat amounts, not
+    /// rates, so they are left untouched.
     public func scaled(by factor: Double) -> PetSimulationRates {
         PetSimulationRates(
             hungerPerHour: hungerPerHour * factor,
@@ -47,7 +58,10 @@ public struct PetSimulationRates: Equatable, Sendable {
             workingEnergyMultiplier: workingEnergyMultiplier,
             awayTrustPerHour: awayTrustPerHour * factor,
             awayGracePeriodHours: factor > 0 ? awayGracePeriodHours / factor : awayGracePeriodHours,
-            longAwayTrustPerHour: longAwayTrustPerHour * factor
+            longAwayTrustPerHour: longAwayTrustPerHour * factor,
+            workLogCooldownMinutes: factor > 0 ? workLogCooldownMinutes / factor : workLogCooldownMinutes,
+            workLogDailyCap: workLogDailyCap,
+            workLogHappinessGain: workLogHappinessGain
         )
     }
 }
@@ -225,7 +239,71 @@ public struct PetBrain: Sendable {
 
         case .userIdle:
             return PetActivityResponse(state: currentState, reaction: .noticedYouAreAway)
+
+        case .workLogged:
+            let count = currentWorkLogCount(state: currentState, at: now)
+            return PetActivityResponse(
+                state: updatedState(
+                    from: currentState,
+                    needs: PetNeeds(
+                        hunger: needs.hunger,
+                        energy: needs.energy,
+                        happiness: needs.happiness + rates.workLogHappinessGain,
+                        trust: needs.trust
+                    ),
+                    at: now,
+                    lastWorkLogAt: now,
+                    workLogCountToday: count + 1,
+                    workLogCountDate: now
+                ),
+                reaction: .loggedWork
+            )
         }
+    }
+
+    /// Whether logging work is currently allowed: a cooldown between logs and
+    /// a hard daily cap, so a self-reported source — the least verifiable
+    /// kind of event — cannot be farmed by repeated clicking. There is no
+    /// user-adjustable point value; every credited log grants the same fixed
+    /// amount, which is the actual fix for that failure mode.
+    public func workLogAvailability(state: PetState, at now: Date) -> PetActionAvailability {
+        if let lastWorkLogAt = state.lastWorkLogAt {
+            let elapsedMinutes = now.timeIntervalSince(lastWorkLogAt) / 60
+            if elapsedMinutes < rates.workLogCooldownMinutes {
+                let remaining = max(1, Int((rates.workLogCooldownMinutes - elapsedMinutes).rounded(.up)))
+                return PetActionAvailability(
+                    isEnabled: false,
+                    explanation: remaining == 1
+                        ? "Give it a minute before logging again."
+                        : "Give it \(remaining) more minutes before logging again."
+                )
+            }
+        }
+
+        guard currentWorkLogCount(state: state, at: now) < rates.workLogDailyCap else {
+            return PetActionAvailability(
+                isEnabled: false,
+                explanation: "\(state.name) has logged enough work for today."
+            )
+        }
+
+        return PetActionAvailability(isEnabled: true)
+    }
+
+    /// `workLogCountToday` is only meaningful for the calendar day named by
+    /// `workLogCountDate`; a stale count from a previous day is never reset
+    /// in storage, only ignored here, so the save never needs a day-rollover
+    /// side effect.
+    private func currentWorkLogCount(
+        state: PetState,
+        at now: Date,
+        calendar: Calendar = .current
+    ) -> Int {
+        guard let workLogCountDate = state.workLogCountDate,
+              calendar.isDate(workLogCountDate, inSameDayAs: now) else {
+            return 0
+        }
+        return state.workLogCountToday
     }
 
     private func response(
@@ -296,7 +374,10 @@ public struct PetBrain: Sendable {
     private func updatedState(
         from state: PetState,
         needs: PetNeeds,
-        at now: Date
+        at now: Date,
+        lastWorkLogAt: Date? = nil,
+        workLogCountToday: Int? = nil,
+        workLogCountDate: Date? = nil
     ) -> PetState {
         PetState(
             schemaVersion: state.schemaVersion,
@@ -304,7 +385,10 @@ public struct PetBrain: Sendable {
             family: state.family,
             needs: needs,
             preferences: state.preferences,
-            lastUpdatedAt: now
+            lastUpdatedAt: now,
+            lastWorkLogAt: lastWorkLogAt ?? state.lastWorkLogAt,
+            workLogCountToday: workLogCountToday ?? state.workLogCountToday,
+            workLogCountDate: workLogCountDate ?? state.workLogCountDate
         )
     }
 }

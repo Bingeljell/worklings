@@ -10,6 +10,7 @@ public enum ActivityEventKind: String, CaseIterable, Codable, Equatable, Sendabl
     case milestone
     case userIdle
     case userReturned
+    case workLogged
 
     public var displayName: String {
         switch self {
@@ -22,6 +23,7 @@ public enum ActivityEventKind: String, CaseIterable, Codable, Equatable, Sendabl
         case .milestone: "Milestone"
         case .userIdle: "User Idle"
         case .userReturned: "User Returned"
+        case .workLogged: "Log Work"
         }
     }
 }
@@ -95,7 +97,7 @@ public struct ActivityContext: Equatable, Sendable {
             return updating(isAwaitingInput: false, at: event.timestamp)
         case .awaitingInput:
             return updating(isAwaitingInput: true, at: event.timestamp)
-        case .milestone:
+        case .milestone, .workLogged:
             return updating(at: event.timestamp)
         case .userIdle:
             return ActivityContext(

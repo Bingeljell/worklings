@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var feedMenuItem: NSMenuItem?
     private var playMenuItem: NSMenuItem?
     private var sleepMenuItem: NSMenuItem?
+    private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
@@ -113,6 +114,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sleepMenuItem = sleepItem
 
         menu.addItem(.separator())
+        let logWorkItem = NSMenuItem(
+            title: "Log Work",
+            action: #selector(logWork),
+            keyEquivalent: ""
+        )
+        logWorkItem.target = self
+        menu.addItem(logWorkItem)
+        logWorkMenuItem = logWorkItem
+
+        menu.addItem(.separator())
         let roamingItem = NSMenuItem(
             title: "Let Pixel Roam",
             action: #selector(toggleRoaming),
@@ -200,6 +211,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         apply(
             status.availability(for: .sleep, state: state),
             to: sleepMenuItem
+        )
+        apply(
+            petSession.workLogAvailability(),
+            to: logWorkMenuItem
         )
 
         for menuItem in foodMenuItems {
@@ -378,6 +393,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "Context: " + parts.joined(separator: " · ")
     }
     #endif
+
+    @objc
+    private func logWork() {
+        petSession?.logWork()
+    }
 
     @objc
     private func petCompanion() {

@@ -86,10 +86,24 @@ Every event gets a visible reaction, so its effect is never invisible — includ
 | `workEnded` | none | "Taking a breather." |
 | `awaitingInput` | none | "Waiting on you…" |
 | `userIdle` | none directly — only the drain above | "Oh, you're away…" |
+| `workLogged` | Happiness +3, gated by cooldown and daily cap | "Logged!" |
 
 These values are alpha tuning. In debug builds only, three environment variables make manual testing practical without waiting on real clocks: `WORKLINGS_IDLE_THRESHOLD_SECONDS` shortens how long counts as "away," `WORKLINGS_PRESENCE_POLL_SECONDS` shortens how often presence is checked, and `WORKLINGS_DEBUG_RATE_SCALE` multiplies every per-hour need rate so a few real seconds can stand in for hours. The paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context. All of this is compiled out of release builds.
 
 The live presence source keeps a genuine absence alive by quietly re-touching the context roughly every 15 seconds, without repeating the "Oh, you're away…" reaction — so the two-tier rate above sees the absence's real duration rather than losing track of it. The 30-minute expiry is a fallback for abnormal termination only (a crash, a `workStarted` whose `workEnded` never arrives), not the everyday path.
+
+## Log Work
+
+The first self-reported source: a paw-menu item and a care-card button that let you tell Pixel about work with no natural start or end — a meeting, a decision, helping someone. It fires `workLogged`, tagged with the `manual` source id so it's always distinguishable from externally verifiable sources like a future GitHub milestone.
+
+There is no user-chosen point value — every credited log grants the same fixed Happiness gain, because a self-adjustable reward is exactly the loophole that makes idle-game economies gameable. Fairness instead comes from two caps, mirroring the "caps, not cryptography" principle in the [progression design](progression.md):
+
+- A cooldown between credited logs.
+- A hard daily cap on how many logs are ever credited.
+
+Both are checked before the action is even available — Log Work is disabled with an explanation exactly like Feed at zero hunger, never silently clicked and rejected. `PetBrain.workLogAvailability` is the single source of truth both the menu and the care card read.
+
+The daily cap is tracked on the save (`lastWorkLogAt`, `workLogCountToday`, `workLogCountDate`) but never proactively reset: a stale count from a previous day is simply ignored once the stored date no longer matches today, so there is no day-rollover code path to get wrong.
 
 ## Presentation
 
@@ -97,7 +111,7 @@ The live presence source keeps a genuine absence alive by quietly re-touching th
 
 ## The save
 
-Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, and the last progression timestamp.
+Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, the last progression timestamp, and Log Work's cooldown/daily-cap bookkeeping.
 
 An unreadable save is never overwritten — it's preserved, persistence pauses for the session, and a fresh in-memory pet takes over. First launch after the rebrand copies a legacy Build Companion save forward without deleting it.
 
@@ -105,7 +119,7 @@ Progression fields — level, XP, banked stat points, allocated stats — will e
 
 ## Checks
 
-`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, urgency, presentation, and placement.
+`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, urgency, presentation, placement, and Log Work's cooldown, daily cap, and day rollover.
 
 ## Next Pet Brain work
 

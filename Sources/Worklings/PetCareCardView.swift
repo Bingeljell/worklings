@@ -102,7 +102,24 @@ struct PetCareCardView: View {
                     session.perform(.sleep)
                 }
             }
+
+            logWorkButton
         }
+    }
+
+    private var logWorkButton: some View {
+        let availability = session.workLogAvailability()
+
+        return Button {
+            session.logWork()
+        } label: {
+            Label("Log Work", systemImage: "checkmark.circle.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(!availability.isEnabled)
+        .help(availability.explanation ?? "Tell \(state.name) about work you did.")
+        .frame(maxWidth: .infinity)
     }
 
     private var feedMenu: some View {

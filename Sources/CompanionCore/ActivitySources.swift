@@ -10,6 +10,17 @@ public enum SystemActivitySource {
     }
 }
 
+/// Events the user explicitly logs by hand — self-reported, and therefore
+/// tagged distinctly from externally verifiable sources so fairness rules
+/// can treat them differently later.
+public enum ManualActivitySource {
+    public static let sourceId = "manual"
+
+    public static func event(_ kind: ActivityEventKind, at timestamp: Date) -> ActivityEvent {
+        ActivityEvent(kind: kind, timestamp: timestamp, sourceId: sourceId)
+    }
+}
+
 /// Decides whether the first interaction of a new calendar day has happened,
 /// independent of how many times the app has launched that day. The caller
 /// owns persisting `lastWakeAt`; this function only makes the determination.

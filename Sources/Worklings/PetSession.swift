@@ -55,6 +55,17 @@ final class PetSession: ObservableObject {
         PetCareStatus.make(state: state)
     }
 
+    func workLogAvailability(at now: Date = Date()) -> PetActionAvailability {
+        brain.workLogAvailability(state: state, at: now)
+    }
+
+    func logWork(at now: Date = Date()) {
+        guard workLogAvailability(at: now).isEnabled else {
+            return
+        }
+        receive(ManualActivitySource.event(.workLogged, at: now), at: now)
+    }
+
     func advance(to now: Date = Date()) {
         checkDailyWake(now: now)
 

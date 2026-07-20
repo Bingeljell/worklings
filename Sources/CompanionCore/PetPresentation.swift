@@ -170,6 +170,7 @@ private extension PetReaction {
         case .tookABreak: "Taking a breather."
         case .waitingOnYou: "Waiting on you…"
         case .noticedYouAreAway: "Oh, you're away…"
+        case .loggedWork: "Logged!"
         }
     }
 }
