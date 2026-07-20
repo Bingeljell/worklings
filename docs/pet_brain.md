@@ -121,8 +121,34 @@ Progression fields — level, XP, banked stat points, allocated stats — will e
 
 `swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, urgency, presentation, placement, and Log Work's cooldown, daily cap, and day rollover.
 
+## Tuning reference
+
+Every number on this page is alpha tuning, but they live in different places depending on how they're changed. This table is the index — if a value below drifts from the source, trust the source.
+
+| Knob | Default | Where |
+| --- | --- | --- |
+| Fullness / Energy / Happiness decay per hour | 4 / 3 / 1 | `PetSimulationRates` in `Sources/CompanionCore/PetBrain.swift` |
+| Maximum offline catch-up | 7 days | `PetSimulationRates.maximumOfflineHours` |
+| Working Fullness / Energy multiplier | 1.25× / 1.3× | `PetSimulationRates.workingHungerMultiplier` / `.workingEnergyMultiplier` |
+| Away Trust rate (first hour / beyond) | 2/hour / 0.2/hour | `PetSimulationRates.awayTrustPerHour` / `.longAwayTrustPerHour` |
+| Away grace period | 1 hour | `PetSimulationRates.awayGracePeriodHours` |
+| Log Work cooldown / daily cap / gain | 30 min / 6 per day / +3 Happiness | `PetSimulationRates.workLogCooldownMinutes` / `.workLogDailyCap` / `.workLogHappinessGain` |
+| Feed (favourite / other) | Fullness +30/+20, Happiness +8/+3, Trust +3/+1 | `PetBrain.perform`, `.feed` case (inline, not in `PetSimulationRates`) |
+| Play (favourite / other) | Fullness -8/-7, Energy -14/-12, Happiness +22/+14, Trust +6/+3 | `PetBrain.perform`, `.play` case (inline) |
+| Pet / Sleep | Happiness +8/Trust +4 · Fullness -6/Energy +35/Happiness +2 | `PetBrain.perform`, `.pet`/`.sleep` cases (inline) |
+| Play requires Energy ≥ | 15 | `PetBrain.perform`, `.play` case (inline) |
+| `dailyWake` / `taskCompleted` / `taskFailed` / `milestone` deltas | see the [event table](#activity-events) above | `PetBrain.observe` (inline) |
+| Mood thresholds (Hungry/Sleepy/Wary/Sad/Happy) | Fullness ≤25, Energy ≤20, Trust ≤20, Happiness ≤30, Happy needs all three healthy | `PetState.mood` in `Sources/CompanionCore/PetState.swift` (inline) |
+| Notice / Urgent / Critical thresholds | Fullness 45/25/10, Energy 45/20/10, Happiness 45/30/15, Trust 35/20/10 | `PetCareStatus` condition functions in `Sources/CompanionCore/PetCareStatus.swift` (inline) |
+| Activity context expiry | 30 minutes | `ActivityContext.defaultExpiryInterval` in `Sources/CompanionCore/ActivityEvent.swift` |
+| Presence idle threshold / poll interval | 5 min / 15 sec | `PresenceEvaluator.defaultIdleThreshold` (CompanionCore) / `PresenceMonitor`'s `pollInterval` default (`Sources/Worklings/PresenceMonitor.swift`) |
+| Debug-only overrides | env vars, compiled out of release | `WORKLINGS_IDLE_THRESHOLD_SECONDS`, `WORKLINGS_PRESENCE_POLL_SECONDS`, `WORKLINGS_DEBUG_RATE_SCALE` in `Sources/Worklings/AppDelegate.swift` |
+
+Everything in `PetSimulationRates` is a named, constructor-injected constant — the easy case, already the right shape for tuning. Everything marked "inline" is a magic number sitting directly in a `switch` case, which works but means tuning it means editing source and rebuilding rather than adjusting one obvious place. Consolidating the inline constants into `PetSimulationRates` (or a sibling struct) so every knob lives in one discoverable, named location is worth doing — deliberately not done now, to avoid restructuring numbers that are still actively being tuned turn by turn.
+
 ## Next Pet Brain work
 
+- Consolidate the "inline" tuning constants above into named, injectable structs, once the numbers themselves have settled down.
 - The condition XP multiplier and progression fields from the [progression design](progression.md).
 - Tune need rates from real usage.
 - Personality beyond two favourites.
