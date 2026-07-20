@@ -4,6 +4,8 @@ import Foundation
 
 @MainActor
 final class PetSession: ObservableObject {
+    private static let lastDailyWakeDateDefaultsKey = "lastDailyWakeDate"
+
     @Published private(set) var state: PetState
     @Published private(set) var reaction: PetReaction?
     @Published private(set) var persistenceWarning: String?
@@ -15,8 +17,8 @@ final class PetSession: ObservableObject {
     private var tickTask: Task<Void, Never>?
     private var reactionTask: Task<Void, Never>?
 
-    init(now: Date = Date()) {
-        brain = PetBrain()
+    init(now: Date = Date(), rates: PetSimulationRates = PetSimulationRates()) {
+        brain = PetBrain(rates: rates)
         store = Self.makeDefaultStore()
 
         let initialState: PetState
@@ -40,6 +42,7 @@ final class PetSession: ObservableObject {
         persistenceEnabled = canPersist
 
         persist()
+        checkDailyWake(now: now)
         startTicking()
     }
 
@@ -53,6 +56,8 @@ final class PetSession: ObservableObject {
     }
 
     func advance(to now: Date = Date()) {
+        checkDailyWake(now: now)
+
         let currentContext = activityContext.expiring(at: now)
         if currentContext != activityContext {
             activityContext = currentContext
@@ -127,6 +132,18 @@ final class PetSession: ObservableObject {
             persistenceWarning = "Pet state could not be saved."
             NSLog("Worklings could not save pet state: %@", String(describing: error))
         }
+    }
+
+    private func checkDailyWake(now: Date) {
+        let defaults = UserDefaults.standard
+        let lastWakeAt = defaults.object(forKey: Self.lastDailyWakeDateDefaultsKey) as? Date
+
+        guard DailyWakeTracker.shouldWake(lastWakeAt: lastWakeAt, now: now) else {
+            return
+        }
+
+        defaults.set(now, forKey: Self.lastDailyWakeDateDefaultsKey)
+        receive(SystemActivitySource.event(.dailyWake, at: now))
     }
 
     private func startTicking() {

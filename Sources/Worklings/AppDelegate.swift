@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
+    private var presenceMonitor: PresenceMonitor?
     private var statusItem: NSStatusItem?
     private var visibilityMenuItem: NSMenuItem?
     private var petHeaderMenuItem: NSMenuItem?
@@ -24,10 +25,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        let rateScale = ProcessInfo.processInfo.environment["WORKLINGS_DEBUG_RATE_SCALE"]
+            .flatMap(Double.init) ?? 1
+        let petSession = PetSession(rates: PetSimulationRates().scaled(by: rateScale))
+        #else
         let petSession = PetSession()
+        #endif
         let companionController = CompanionPanelController(session: petSession)
         self.petSession = petSession
         self.companionController = companionController
+
+        #if DEBUG
+        let idleThreshold = ProcessInfo.processInfo.environment["WORKLINGS_IDLE_THRESHOLD_SECONDS"]
+            .flatMap(TimeInterval.init) ?? PresenceEvaluator.defaultIdleThreshold
+        let pollInterval = ProcessInfo.processInfo.environment["WORKLINGS_PRESENCE_POLL_SECONDS"]
+            .flatMap(TimeInterval.init) ?? 15
+        let presenceMonitor = PresenceMonitor(
+            session: petSession,
+            idleThreshold: idleThreshold,
+            pollInterval: pollInterval
+        )
+        #else
+        let presenceMonitor = PresenceMonitor(session: petSession)
+        #endif
+        self.presenceMonitor = presenceMonitor
+        presenceMonitor.start()
 
         configureStatusItem()
         companionController.setRoamingEnabled(

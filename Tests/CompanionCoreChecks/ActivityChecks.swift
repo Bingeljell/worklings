@@ -12,9 +12,10 @@ enum ActivityChecks {
         checkTaskFailedSetback(context: &context)
         checkMilestonePride(context: &context)
         checkDailyWakeGreeting(context: &context)
-        checkStructuralEventsStayQuiet(context: &context)
+        checkStructuralEventsSpeakButDoNotMoveNeeds(context: &context)
         checkUserReturnedReactionOnly(context: &context)
         checkSimulatedScriptDeterminism(context: &context)
+        checkRateScaling(context: &context)
     }
 
     private static let start = Date(timeIntervalSinceReferenceDate: 10_000)
@@ -233,21 +234,28 @@ enum ActivityChecks {
         )
     }
 
-    private static func checkStructuralEventsStayQuiet(context: inout CheckContext) {
+    private static func checkStructuralEventsSpeakButDoNotMoveNeeds(context: inout CheckContext) {
         let brain = PetBrain()
         let state = PetState.newPet(now: start)
 
-        for kind in [ActivityEventKind.workStarted, .workEnded, .awaitingInput, .userIdle] {
+        let expectations: [(ActivityEventKind, PetReaction)] = [
+            (.workStarted, .startedWorking),
+            (.workEnded, .tookABreak),
+            (.awaitingInput, .waitingOnYou),
+            (.userIdle, .noticedYouAreAway)
+        ]
+
+        for (kind, expectedReaction) in expectations {
             let response = brain.observe(event(kind), on: state, at: start)
             context.expectEqual(
                 response.reaction,
-                nil,
-                "\(kind.rawValue) produces no visible reaction"
+                expectedReaction,
+                "\(kind.rawValue) speaks its state so its effect is observable while testing"
             )
             context.expectEqual(
                 response.state.needs,
                 state.needs,
-                "\(kind.rawValue) does not move needs"
+                "\(kind.rawValue) still does not move needs directly"
             )
         }
     }
@@ -279,6 +287,42 @@ enum ActivityChecks {
         context.expect(
             first.allSatisfy { $0.sourceId == SimulatedActivitySource.sourceId },
             "demo script events carry the simulated source id"
+        )
+    }
+
+    private static func checkRateScaling(context: inout CheckContext) {
+        let base = PetSimulationRates()
+        let scaled = base.scaled(by: 360)
+
+        context.expectApproximatelyEqual(
+            scaled.hungerPerHour,
+            base.hungerPerHour * 360,
+            "scaling multiplies the hunger rate"
+        )
+        context.expectApproximatelyEqual(
+            scaled.awayTrustPerHour,
+            base.awayTrustPerHour * 360,
+            "scaling multiplies the away-trust rate"
+        )
+        context.expectEqual(
+            scaled.maximumOfflineHours,
+            base.maximumOfflineHours,
+            "scaling leaves the offline cap untouched"
+        )
+        context.expectEqual(
+            scaled.workingHungerMultiplier,
+            base.workingHungerMultiplier,
+            "scaling leaves the working multiplier untouched"
+        )
+
+        let brain = PetBrain(rates: scaled)
+        let state = PetState.newPet(now: start)
+        let tenSecondsLater = start.addingTimeInterval(10)
+
+        let advanced = brain.advance(state, to: tenSecondsLater)
+        context.expect(
+            advanced.needs.hunger > state.needs.hunger + 0.5,
+            "a scaled rate makes a ten-second wait produce a visible change"
         )
     }
 }

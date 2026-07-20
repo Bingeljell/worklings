@@ -26,6 +26,21 @@ public struct PetSimulationRates: Equatable, Sendable {
         self.workingEnergyMultiplier = max(workingEnergyMultiplier, 0)
         self.awayTrustPerHour = max(awayTrustPerHour, 0)
     }
+
+    /// Multiplies every per-hour rate by `factor`, so a real-time wait during
+    /// manual testing can stand in for hours without touching event deltas
+    /// or production tuning.
+    public func scaled(by factor: Double) -> PetSimulationRates {
+        PetSimulationRates(
+            hungerPerHour: hungerPerHour * factor,
+            energyPerHour: energyPerHour * factor,
+            happinessPerHour: happinessPerHour * factor,
+            maximumOfflineHours: maximumOfflineHours,
+            workingHungerMultiplier: workingHungerMultiplier,
+            workingEnergyMultiplier: workingEnergyMultiplier,
+            awayTrustPerHour: awayTrustPerHour * factor
+        )
+    }
 }
 
 public struct PetBrain: Sendable {
@@ -190,8 +205,17 @@ public struct PetBrain: Sendable {
         case .userReturned:
             return PetActivityResponse(state: currentState, reaction: .gladYouAreBack)
 
-        case .workStarted, .workEnded, .awaitingInput, .userIdle:
-            return PetActivityResponse(state: currentState, reaction: nil)
+        case .workStarted:
+            return PetActivityResponse(state: currentState, reaction: .startedWorking)
+
+        case .workEnded:
+            return PetActivityResponse(state: currentState, reaction: .tookABreak)
+
+        case .awaitingInput:
+            return PetActivityResponse(state: currentState, reaction: .waitingOnYou)
+
+        case .userIdle:
+            return PetActivityResponse(state: currentState, reaction: .noticedYouAreAway)
         }
     }
 

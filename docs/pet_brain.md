@@ -73,7 +73,7 @@ Structural events (`workStarted`, `workEnded`, `awaitingInput`, `userIdle`) shap
 - While work is happening, Fullness drains 1.25× faster and Energy 1.3× faster — your Workling works up an appetite and gets tired alongside you.
 - While the user is away, Trust drains 2/hour — the Workling misses you. It stops the moment `userReturned` arrives, since that flips the context back to present.
 
-Share-worthy moments get visible reactions and small need changes:
+Every event gets a visible reaction, so its effect is never invisible — including the structural ones, which move no needs directly but still say something:
 
 | Event | Effect | Reaction |
 | --- | --- | --- |
@@ -82,8 +82,12 @@ Share-worthy moments get visible reactions and small need changes:
 | `taskFailed` | Fullness -4, Energy -3, Happiness -3 | "We'll get the next one." |
 | `milestone` | Happiness +6, Trust +2 | "Shipped!" |
 | `userReturned` | none directly — presence can't be farmed | "You're back!" |
+| `workStarted` | none | "Let's get to work!" |
+| `workEnded` | none | "Taking a breather." |
+| `awaitingInput` | none | "Waiting on you…" |
+| `userIdle` | none directly — only the drain above | "Oh, you're away…" |
 
-These values are alpha tuning. In debug builds, the paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context; it is compiled out of release builds.
+These values are alpha tuning. In debug builds only, three environment variables make manual testing practical without waiting on real clocks: `WORKLINGS_IDLE_THRESHOLD_SECONDS` shortens how long counts as "away," `WORKLINGS_PRESENCE_POLL_SECONDS` shortens how often presence is checked, and `WORKLINGS_DEBUG_RATE_SCALE` multiplies every per-hour need rate so a few real seconds can stand in for hours. The paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context. All of this is compiled out of release builds.
 
 A caveat worth knowing: because the context expires to quiet (present) after 30 minutes of silence, a genuinely idle user who never fires `userReturned` stops draining trust after that window rather than indefinitely. A real presence source (see [progression design](progression.md)) should re-emit `userIdle` periodically so ongoing absence keeps registering.
 

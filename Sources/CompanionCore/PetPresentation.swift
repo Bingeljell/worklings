@@ -137,7 +137,8 @@ public struct PetPresentation: Equatable, Sendable {
 
         let reactionFace: PetFace = switch reaction {
         case .tooTiredToPlay: .sleepy
-        case .sharedSetback: .sad
+        case .sharedSetback, .noticedYouAreAway: .sad
+        case .tookABreak, .waitingOnYou: .neutral
         default: .happy
         }
 
@@ -165,6 +166,10 @@ private extension PetReaction {
         case .sharedSetback: "We'll get the next one."
         case .proudOfMilestone: "Shipped!"
         case .gladYouAreBack: "You're back!"
+        case .startedWorking: "Let's get to work!"
+        case .tookABreak: "Taking a breather."
+        case .waitingOnYou: "Waiting on you…"
+        case .noticedYouAreAway: "Oh, you're away…"
         }
     }
 }
