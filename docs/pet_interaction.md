@@ -13,6 +13,8 @@ Everything below describes implemented behavior unless marked deferred. Values a
 
 All three families share one pose contract, so every mood and reaction reads the same whichever Workling is active. An eight-frame smoke effect covers launch, wake, tuck-away, and family swaps.
 
+A small name pill sits below the pet at all times — not just after opening the card — so identity never requires a click to see. It hides during the smoke transition alongside everything else and is marked accessibility-hidden since the name is already spoken through the pet's accessibility label.
+
 ## 2. Hover summary
 
 Hover for ~500ms and a small read-only summary appears: natural language ("Pixel is hungry and getting tired"), at most two conditions, no numbers. It dismisses when the pointer leaves, never steals focus or blocks dragging, and stays inside the display. The same summary is exposed to accessibility tools without hovering.
