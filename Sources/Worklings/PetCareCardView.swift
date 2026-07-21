@@ -1,10 +1,16 @@
 import CompanionCore
 import SwiftUI
 
+private enum CareCardTab: String, CaseIterable {
+    case condition = "Condition"
+    case stats = "Stats"
+}
+
 struct PetCareCardView: View {
     @ObservedObject var session: PetSession
     @State private var isEditingName = false
     @State private var draftName = ""
+    @State private var selectedTab: CareCardTab = .condition
     @FocusState private var nameFieldIsFocused: Bool
 
     private var state: PetState {
@@ -22,10 +28,23 @@ struct PetCareCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            progression
-            needs
-            actions
-            preferences
+
+            Picker("", selection: $selectedTab) {
+                ForEach(CareCardTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            switch selectedTab {
+            case .condition:
+                needs
+                actions
+                preferences
+            case .stats:
+                statsTab
+            }
 
             if let warning = session.persistenceWarning {
                 Label(warning, systemImage: "exclamationmark.triangle.fill")
@@ -107,17 +126,33 @@ struct PetCareCardView: View {
         isEditingName = false
     }
 
-    private var progression: some View {
+    private var statsTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            levelSummary
+
+            VStack(spacing: 8) {
+                ForEach(PetStatKind.allCases, id: \.self) { stat in
+                    statRow(for: stat)
+                }
+            }
+
+            Text("Abilities and gear are on the way.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var levelSummary: some View {
         let currentLevelXP = PetProgressionCurve.totalXPRequired(forLevel: state.level)
         let nextLevelXP = PetProgressionCurve.totalXPRequired(forLevel: state.level + 1)
-        let progress = nextLevelXP > currentLevelXP
-            ? (state.totalXP - currentLevelXP) / (nextLevelXP - currentLevelXP)
-            : 1
+        let xpIntoLevel = max(0, state.totalXP - currentLevelXP)
+        let xpForLevel = nextLevelXP - currentLevelXP
+        let progress = xpForLevel > 0 ? xpIntoLevel / xpForLevel : 1
 
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Level \(state.level) · \(state.petClass.displayName)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                 Spacer()
                 Text(state.petClass.role)
                     .font(.caption2)
@@ -125,9 +160,38 @@ struct PetCareCardView: View {
             }
             ProgressView(value: min(max(progress, 0), 1))
                 .tint(.yellow)
+            Text("\(Int(xpIntoLevel)) / \(Int(xpForLevel)) XP to next level")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Level \(state.level) \(state.petClass.displayName), \(state.petClass.role)")
+        .accessibilityLabel(
+            "Level \(state.level) \(state.petClass.displayName), \(state.petClass.role), "
+            + "\(Int(xpIntoLevel)) of \(Int(xpForLevel)) XP to next level"
+        )
+    }
+
+    private func statRow(for stat: PetStatKind) -> some View {
+        let isSignature = state.petClass.signatureStat == stat
+        let value = state.stats.value(for: stat)
+
+        return HStack(spacing: 6) {
+            Text(stat.displayName)
+                .font(.caption)
+                .fontWeight(isSignature ? .bold : .regular)
+            if isSignature {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.yellow)
+            }
+            Spacer()
+            Text("\(value)")
+                .font(.system(.caption, design: .monospaced))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            isSignature ? "\(stat.displayName), signature stat, \(value)" : "\(stat.displayName), \(value)"
+        )
     }
 
     private var needs: some View {
