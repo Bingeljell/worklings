@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var warningMenuItem: NSMenuItem?
     private var feedMenuItem: NSMenuItem?
     private var playMenuItem: NSMenuItem?
+    private var petMenuItem: NSMenuItem?
     private var sleepMenuItem: NSMenuItem?
     private var focusSessionMenuItem: NSMenuItem?
     private var logWorkMenuItem: NSMenuItem?
@@ -25,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var playMenuItems: [NSMenuItem] = []
     #if DEBUG
     private var activityContextMenuItem: NSMenuItem?
+    private var isRunningActivitySimulation = false
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -70,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
-        let headerItem = NSMenuItem(title: "Pixel — Content", action: nil, keyEquivalent: "")
+        let headerItem = NSMenuItem(title: "Loading…", action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
         menu.addItem(headerItem)
         petHeaderMenuItem = headerItem
@@ -110,15 +112,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.playMenuItem = playMenuItem
 
         let petItem = NSMenuItem(
-            title: "Pet Pixel",
+            title: "Pet",
             action: #selector(petCompanion),
             keyEquivalent: ""
         )
         petItem.target = self
         menu.addItem(petItem)
+        petMenuItem = petItem
 
         let sleepItem = NSMenuItem(
-            title: "Let Pixel Sleep",
+            title: "Let Sleep",
             action: #selector(sleep),
             keyEquivalent: ""
         )
@@ -148,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         let roamingItem = NSMenuItem(
-            title: "Let Pixel Roam",
+            title: "Let Roam",
             action: #selector(toggleRoaming),
             keyEquivalent: ""
         )
@@ -209,6 +212,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         warningMenuItem?.title = petSession.persistenceWarning ?? ""
         warningMenuItem?.isHidden = petSession.persistenceWarning == nil
+
+        petMenuItem?.title = "Pet \(state.name)"
+        sleepMenuItem?.title = "Let \(state.name) Sleep"
 
         #if DEBUG
         activityContextMenuItem?.title = Self.describe(petSession.activityContext)
@@ -432,6 +438,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let parentItem = NSMenuItem(title: "Simulate Activity", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: "Simulate Activity")
 
+        let runScriptItem = NSMenuItem(
+            title: "Run a Full Day, Sped Up",
+            action: #selector(runActivitySimulation),
+            keyEquivalent: ""
+        )
+        runScriptItem.target = self
+        submenu.addItem(runScriptItem)
+        submenu.addItem(.separator())
+
         let contextItem = NSMenuItem(title: "Context: quiet", action: nil, keyEquivalent: "")
         contextItem.isEnabled = false
         submenu.addItem(contextItem)
@@ -460,6 +475,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         petSession?.receive(SimulatedActivitySource.event(kind, at: Date()))
+    }
+
+    /// A scripted rehearsal of a full working day, compressed into seconds
+    /// of real time so XP, leveling, and stat growth are visible without
+    /// waiting on real clocks. Every timestamp is anchored backward from
+    /// `end` (real "now" at kickoff) rather than forward from "now," so the
+    /// pet's `lastUpdatedAt` never lands in the future — a forward-anchored
+    /// script would leave the pet's condition frozen until real time caught
+    /// up to the simulated end point. `workStarted` to `workEnded` is 11
+    /// simulated minutes apart, just past Focus Session's minimum
+    /// qualifying duration, so its XP grant actually fires.
+    @objc
+    private func runActivitySimulation() {
+        guard let petSession, !isRunningActivitySimulation else {
+            return
+        }
+        isRunningActivitySimulation = true
+
+        let script: [(minutesBeforeEnd: Double, kind: ActivityEventKind)] = [
+            (15, .dailyWake),
+            (14, .workStarted),
+            (3, .workEnded),
+            (2, .workLogged),
+            (1, .taskCompleted),
+            (0, .milestone)
+        ]
+        let end = Date()
+
+        Task { @MainActor in
+            for (minutesBeforeEnd, kind) in script {
+                let timestamp = end.addingTimeInterval(-minutesBeforeEnd * 60)
+                petSession.receive(SimulatedActivitySource.event(kind, at: timestamp))
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            isRunningActivitySimulation = false
+        }
     }
 
     private static func describe(_ context: ActivityContext) -> String {
@@ -534,6 +585,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        let name = petSession?.state.name ?? "your Workling"
         let isEnabled = companionController.isRoamingEnabled
         let isAvailable = companionController.isRoamingAvailable
 
@@ -542,13 +594,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 ? "Disable Roaming (Reduce Motion Active)"
                 : "Roaming Unavailable (Reduce Motion Active)"
         } else {
-            roamingMenuItem?.title = isEnabled ? "Pause Roaming" : "Let Pixel Roam"
+            roamingMenuItem?.title = isEnabled ? "Pause Roaming" : "Let \(name) Roam"
         }
 
         roamingMenuItem?.state = isEnabled ? .on : .off
         roamingMenuItem?.isEnabled = isAvailable || isEnabled
         roamingMenuItem?.toolTip = isAvailable
-            ? "Allow Pixel to wander within the current display."
+            ? "Allow \(name) to wander within the current display."
             : "Roaming pauses while macOS Reduce Motion is enabled."
     }
 
