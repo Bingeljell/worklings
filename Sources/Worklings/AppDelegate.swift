@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
+    private var classMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
     private var playMenuItems: [NSMenuItem] = []
     #if DEBUG
@@ -95,6 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         renameItem.target = self
         menu.addItem(renameItem)
+
+        menu.addItem(makeClassMenuItem())
 
         menu.addItem(.separator())
 
@@ -194,7 +197,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         petHeaderMenuItem?.title = [
             state.name,
             presentation.moodLabel,
-            state.family.displayName
+            state.family.displayName,
+            "Lv.\(state.level) \(state.petClass.displayName)"
         ].joined(separator: " · ")
         needsMenuItem?.title = [
             "Fullness \(Int(state.needs.fullness.rounded()))",
@@ -218,6 +222,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 continue
             }
             menuItem.state = family == state.family ? .on : .off
+        }
+
+        for menuItem in classMenuItems {
+            guard let rawValue = menuItem.representedObject as? String,
+                  let petClass = PetClass(rawValue: rawValue) else {
+                continue
+            }
+            menuItem.state = petClass == state.petClass ? .on : .off
         }
 
         apply(
@@ -289,6 +301,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .elemental: "Elemental — Ember-Newt"
         case .relicborn: "Relicborn — Keyback Pangolin"
         }
+    }
+
+    private func makeClassMenuItem() -> NSMenuItem {
+        let parentItem = NSMenuItem(title: "Choose Class", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: "Choose Class")
+
+        classMenuItems = PetClass.allCases.map { petClass in
+            let item = NSMenuItem(
+                title: "\(petClass.displayName) — \(petClass.role)",
+                action: #selector(selectClass(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = petClass.rawValue
+            submenu.addItem(item)
+            return item
+        }
+
+        parentItem.submenu = submenu
+        return parentItem
     }
 
     private func makeFoodMenuItem() -> NSMenuItem {
@@ -366,6 +398,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             petSession?.selectFamily(family)
         }
+    }
+
+    @objc
+    private func selectClass(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let petClass = PetClass(rawValue: rawValue) else {
+            return
+        }
+        petSession?.selectClass(petClass)
     }
 
     @objc

@@ -22,6 +22,7 @@ struct PetCareCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
+            progression
             needs
             actions
             preferences
@@ -104,6 +105,29 @@ struct PetCareCardView: View {
         }
         session.rename(to: draftName)
         isEditingName = false
+    }
+
+    private var progression: some View {
+        let currentLevelXP = PetProgressionCurve.totalXPRequired(forLevel: state.level)
+        let nextLevelXP = PetProgressionCurve.totalXPRequired(forLevel: state.level + 1)
+        let progress = nextLevelXP > currentLevelXP
+            ? (state.totalXP - currentLevelXP) / (nextLevelXP - currentLevelXP)
+            : 1
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Level \(state.level) · \(state.petClass.displayName)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                Spacer()
+                Text(state.petClass.role)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            ProgressView(value: min(max(progress, 0), 1))
+                .tint(.yellow)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Level \(state.level) \(state.petClass.displayName), \(state.petClass.role)")
     }
 
     private var needs: some View {

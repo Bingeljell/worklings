@@ -93,9 +93,10 @@ final class PetSession: ObservableObject {
     }
 
     func receive(_ event: ActivityEvent, at now: Date = Date()) {
+        let previousContext = activityContext
         activityContext = activityContext.reducing(event)
 
-        let response = brain.observe(event, on: state, at: now)
+        let response = brain.observe(event, on: state, at: now, context: previousContext)
         if response.state != state {
             state = response.state
             persist()
@@ -144,6 +145,15 @@ final class PetSession: ObservableObject {
         }
 
         state = state.selectingFamily(family)
+        persist()
+    }
+
+    func selectClass(_ petClass: PetClass) {
+        guard petClass != state.petClass else {
+            return
+        }
+
+        state = state.selectingClass(petClass)
         persist()
     }
 
