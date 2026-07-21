@@ -117,7 +117,7 @@ The daily cap is tracked on the save (`lastWorkLogAt`, `workLogCountToday`, `wor
 
 ## The save
 
-Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, the last progression timestamp, and Log Work's cooldown/daily-cap bookkeeping.
+Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, the last progression timestamp, Log Work's cooldown/daily-cap bookkeeping, and — additively, per the [progression design](progression.md) — total XP, class, stats, and daily XP-accrual bookkeeping. Level is never itself stored; it is always derived from total XP.
 
 An unreadable save is never overwritten — it's preserved, persistence pauses for the session, and a fresh in-memory pet takes over. First launch after the rebrand copies a legacy Build Companion save forward without deleting it.
 
@@ -125,7 +125,7 @@ Progression fields — level, XP, banked stat points, allocated stats — will e
 
 ## Checks
 
-`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, and Log Work's cooldown, daily cap, and day rollover.
+`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic simulation, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, Log Work's cooldown/daily cap/day rollover, and the [XP/level/class/stat system](progression.md#tuning-reference)'s curve, condition multiplier, per-source and overall daily caps, day rollover, and class-weighted stat growth.
 
 ## Tuning reference
 
@@ -156,8 +156,7 @@ Everything in `PetSimulationRates` is a named, constructor-injected constant —
 ## Next Pet Brain work
 
 - Consolidate the "inline" tuning constants above into named, injectable structs, once the numbers themselves have settled down.
-- The condition XP multiplier and progression fields from the [progression design](progression.md).
-- Tune need rates from real usage.
+- Tune need rates and XP/stat-growth rates from real usage.
 - Personality beyond two favourites.
 - Reversible neglect and runaway recovery.
 - Mood- and need-driven movement, attention-seeking, and sleep intents on top of idle roaming.

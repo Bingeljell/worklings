@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the agreed design direction for activity awareness, experience, levels, and stats. None of it is implemented. It exists so that implementation slices, and eventually external contributors, build toward one coherent game rather than a collection of features.
+This is the agreed design direction for activity awareness, experience, levels, and stats. Activity awareness (events, context, sources) and XP/levels/class/stats are implemented; everything past that — abilities, gear, dungeons, endgame, PVP — is not. It exists so that implementation slices, and eventually external contributors, build toward one coherent game rather than a collection of features.
 
 The care loop described in [Pet Brain](pet_brain.md) is implemented and remains the foundation this design builds on.
 
@@ -87,16 +87,17 @@ XP is earned from normalized events and from care quality, so progression is pro
 | Source | Notes |
 | --- | --- |
 | `dailyWake` | The login reward. Modest, reliable, streak-friendly. |
-| Completed work blocks | The workhorse source: sustained real activity. |
-| `taskCompleted` | Agent and build completions. |
-| `milestone` | Commits small, merged PRs largest. |
+| Completed work blocks (`workEnded`) | The workhorse source: sustained real activity, gated by a minimum qualifying duration so starting and immediately stopping earns nothing. |
 | Care actions | A trickle, so tending the pet always means something. |
+| `workLogged` | A small amount alongside its fixed Happiness gain, reusing the same cooldown and cap. |
+| `taskCompleted` | Agent and build completions. Formula defined now; dormant until a real adapter fires it (only the debug simulated source can today). |
+| `milestone` | Commits small, merged PRs largest. Formula defined now; dormant for the same reason. |
 
-**Condition multiplier.** XP accrual scales with current wellbeing. A Workling at strong Fullness, Energy, Happiness, and Trust earns at full rate; a neglected one at a fraction. This is one multiplier inside the Pet Brain and the primary coupling between the two layers.
+**Condition multiplier.** XP accrual scales with current wellbeing — the average of Fullness, Energy, Happiness, and Trust, floored so neglect slows accrual without ever fully halting it. This is the primary coupling between the two layers.
 
-**Caps and diminishing returns.** Because inputs reflect real activity, per-source and per-day caps are the fairness mechanism (see below). Exact values are deferred alpha tuning; the accrual design must support them from the start rather than retrofitting.
+**Caps and diminishing returns.** Every source has its own daily cap, and an overall daily cap holds across all sources combined — the actual fairness mechanism (see below). Both reset lazily by comparing a stored date to "now," the same pattern Log Work already established, so there is no day-rollover code path to get wrong. Exact values are alpha tuning; see the Tuning reference below.
 
-**Curve.** Levels 1–20 use a hand-authored XP table during alpha. Tables are easier to tune than formulas and can be replaced by a formula once the shape is validated.
+**Curve.** Level is derived from cumulative XP via a quadratic formula, not a stored value or a hand-authored table — level and XP can never disagree with each other, and the formula has no upper bound, so raising a level cap later never requires migrating anything.
 
 ## Levels
 
@@ -156,13 +157,31 @@ Exact cap values and rates are deliberately deferred; realism-derived inputs mak
 
 ## Persistence
 
-Progression fields (level, XP, banked points, allocated stats, daily accrual bookkeeping) extend the existing versioned save additively, following the pattern established by the family field: older saves load unchanged with defaults, and no migration destroys care state.
+Progression fields (XP, class, stats, daily accrual bookkeeping) extend the existing versioned save additively, following the pattern established by the family field: older saves load unchanged with defaults, and no migration destroys care state. Level is never itself stored — it is always derived from XP, so the two can never desync.
+
+## Tuning reference
+
+Same posture as [Pet Brain's tuning reference](pet_brain.md#tuning-reference): every number below is alpha tuning, living in named `PetProgressionRates` fields (`Sources/CompanionCore/PetProgression.swift`), easy to retune without touching the mechanism.
+
+| Knob | Default | Field |
+| --- | --- | --- |
+| `dailyWake` XP | 20 | `dailyWakeXP` |
+| Focus Session XP per minute / minimum qualifying duration / daily cap | 2 / 10 min / 200 | `focusSessionXPPerMinute` / `focusSessionMinimumMinutes` / `focusSessionDailyCap` |
+| Care action XP / daily cap | 3 / 60 | `careActionXP` / `careActionDailyCap` |
+| `taskCompleted` XP / daily cap | 15 / 150 | `taskCompletedXP` / `taskCompletedDailyCap` |
+| `milestone` XP / daily cap | 40 / 200 | `milestoneXP` / `milestoneDailyCap` |
+| `workLogged` XP / daily cap | 5 / 30 | `workLoggedXP` / `workLoggedDailyCap` |
+| Overall daily XP cap (across every source combined) | 500 | `overallDailyCap` |
+| Signature stat gain per level / every other stat | 3 / 1 | `signatureStatGainPerLevel` / `otherStatGainPerLevel` |
+| Condition multiplier floor | 0.2 | `conditionMultiplierFloor` |
+| Level curve | `50 × (level − 1) × level` cumulative XP | `PetProgressionCurve.totalXPRequired(forLevel:)` |
+| Starting stat value | 5 | `PetStats.startingValue` |
 
 ## Implementation order
 
 1. Event vocabulary, activity context, and the simulated source in `CompanionCore`, with behavioral checks. **Done.**
 2. `dailyWake`, presence, Log Work, Focus Session, and pet renaming — the cheapest real stimuli and companion-identity basics. **Done.**
-3. XP, levels, class, and class-weighted stat growth on the event stream, as an additive save-schema revision. **In progress.**
+3. XP, levels, class, and class-weighted stat growth on the event stream, as an additive save-schema revision. **Done.**
 4. GitHub connect and the first agent adapter, once reactions feel right on real input.
 5. Dungeons/PVE: level-gated text encounters against the stat sheet, reusing existing mood/reaction sprite states.
 6. Abilities and their own points currency, gear as an effective-stats computation layer, and multiplayer-normalized PVP, far later, on top of the sheet this document defines.
