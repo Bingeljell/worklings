@@ -68,9 +68,14 @@ public struct PetSimulationRates: Equatable, Sendable {
 
 public struct PetBrain: Sendable {
     public let rates: PetSimulationRates
+    public let progressionRates: PetProgressionRates
 
-    public init(rates: PetSimulationRates = PetSimulationRates()) {
+    public init(
+        rates: PetSimulationRates = PetSimulationRates(),
+        progressionRates: PetProgressionRates = PetProgressionRates()
+    ) {
         self.rates = rates
+        self.progressionRates = progressionRates
     }
 
     public func advance(
@@ -177,31 +182,54 @@ public struct PetBrain: Sendable {
 
     /// Applies an observed activity event to the pet. Structural events shape
     /// the activity context only; moments worth sharing move needs slightly
-    /// and return a visible reaction. Effects are alpha tuning.
+    /// and return a visible reaction. `context` is the activity context from
+    /// *before* this event was reduced into it, needed only to recover
+    /// `workingSince` for a `workEnded` session-duration check. Effects are
+    /// alpha tuning.
     public func observe(
         _ event: ActivityEvent,
         on state: PetState,
-        at now: Date
+        at now: Date,
+        context: ActivityContext = .quiet
     ) -> PetActivityResponse {
         let currentState = advance(state, to: now)
         let needs = currentState.needs
 
         switch event.kind {
         case .dailyWake:
-            return response(
+            let updated = updatedState(
                 from: currentState,
-                happiness: needs.happiness + 3,
-                trust: needs.trust + 1,
-                at: now,
+                needs: PetNeeds(
+                    hunger: needs.hunger,
+                    energy: needs.energy,
+                    happiness: needs.happiness + 3,
+                    trust: needs.trust + 1
+                ),
+                at: now
+            )
+            return PetActivityResponse(
+                state: grantingXP(progressionRates.dailyWakeXP, source: .dailyWake, to: updated, at: now),
                 reaction: .happyToSeeYou
             )
 
         case .taskCompleted:
-            return response(
+            let updated = updatedState(
                 from: currentState,
-                happiness: needs.happiness + 4,
-                trust: needs.trust,
-                at: now,
+                needs: PetNeeds(
+                    hunger: needs.hunger,
+                    energy: needs.energy,
+                    happiness: needs.happiness + 4,
+                    trust: needs.trust
+                ),
+                at: now
+            )
+            return PetActivityResponse(
+                state: grantingXP(
+                    progressionRates.taskCompletedXP,
+                    source: .taskCompleted,
+                    to: updated,
+                    at: now
+                ),
                 reaction: .celebratedTask
             )
 
@@ -217,11 +245,18 @@ public struct PetBrain: Sendable {
             )
 
         case .milestone:
-            return response(
+            let updated = updatedState(
                 from: currentState,
-                happiness: needs.happiness + 6,
-                trust: needs.trust + 2,
-                at: now,
+                needs: PetNeeds(
+                    hunger: needs.hunger,
+                    energy: needs.energy,
+                    happiness: needs.happiness + 6,
+                    trust: needs.trust + 2
+                ),
+                at: now
+            )
+            return PetActivityResponse(
+                state: grantingXP(progressionRates.milestoneXP, source: .milestone, to: updated, at: now),
                 reaction: .proudOfMilestone
             )
 
@@ -232,7 +267,19 @@ public struct PetBrain: Sendable {
             return PetActivityResponse(state: currentState, reaction: .startedWorking)
 
         case .workEnded:
-            return PetActivityResponse(state: currentState, reaction: .tookABreak)
+            var updated = currentState
+            if let workingSince = context.workingSince {
+                let minutes = now.timeIntervalSince(workingSince) / 60
+                if minutes >= progressionRates.focusSessionMinimumMinutes {
+                    updated = grantingXP(
+                        minutes * progressionRates.focusSessionXPPerMinute,
+                        source: .focusSession,
+                        to: updated,
+                        at: now
+                    )
+                }
+            }
+            return PetActivityResponse(state: updated, reaction: .tookABreak)
 
         case .awaitingInput:
             return PetActivityResponse(state: currentState, reaction: .waitingOnYou)
@@ -242,20 +289,21 @@ public struct PetBrain: Sendable {
 
         case .workLogged:
             let count = currentWorkLogCount(state: currentState, at: now)
-            return PetActivityResponse(
-                state: updatedState(
-                    from: currentState,
-                    needs: PetNeeds(
-                        hunger: needs.hunger,
-                        energy: needs.energy,
-                        happiness: needs.happiness + rates.workLogHappinessGain,
-                        trust: needs.trust
-                    ),
-                    at: now,
-                    lastWorkLogAt: now,
-                    workLogCountToday: count + 1,
-                    workLogCountDate: now
+            let updated = updatedState(
+                from: currentState,
+                needs: PetNeeds(
+                    hunger: needs.hunger,
+                    energy: needs.energy,
+                    happiness: needs.happiness + rates.workLogHappinessGain,
+                    trust: needs.trust
                 ),
+                at: now,
+                lastWorkLogAt: now,
+                workLogCountToday: count + 1,
+                workLogCountDate: now
+            )
+            return PetActivityResponse(
+                state: grantingXP(progressionRates.workLoggedXP, source: .workLogged, to: updated, at: now),
                 reaction: .loggedWork
             )
         }
@@ -347,6 +395,10 @@ public struct PetBrain: Sendable {
             : rates.awayTrustPerHour
     }
 
+    /// Care actions grant a small trickle of XP on every successful outcome
+    /// (refusals like "too tired to play" never reach this helper), so
+    /// tending the pet always means something toward the character sheet,
+    /// not just its condition.
     private func result(
         from state: PetState,
         hunger: Double,
@@ -356,18 +408,81 @@ public struct PetBrain: Sendable {
         at now: Date,
         reaction: PetReaction
     ) -> PetInteractionResult {
-        PetInteractionResult(
-            state: updatedState(
-                from: state,
-                needs: PetNeeds(
-                    hunger: hunger,
-                    energy: energy,
-                    happiness: happiness,
-                    trust: trust
-                ),
-                at: now
+        let updated = updatedState(
+            from: state,
+            needs: PetNeeds(
+                hunger: hunger,
+                energy: energy,
+                happiness: happiness,
+                trust: trust
             ),
+            at: now
+        )
+        return PetInteractionResult(
+            state: grantingXP(progressionRates.careActionXP, source: .care, to: updated, at: now),
             reaction: reaction
+        )
+    }
+
+    /// Grants XP from `source`, subject to the condition multiplier, a
+    /// per-source daily cap, and an overall daily cap — the actual fairness
+    /// mechanism (see the progression design's "caps, not cryptography").
+    /// Crossing a level threshold applies that many levels' worth of
+    /// class-weighted stat growth in the same step, so one large grant can
+    /// never skip growth for an intermediate level.
+    private func grantingXP(
+        _ rawAmount: Double,
+        source: XPSource,
+        to state: PetState,
+        at now: Date,
+        calendar: Calendar = .current
+    ) -> PetState {
+        guard rawAmount > 0 else {
+            return state
+        }
+
+        let isSameDay = state.dailyXPDate.map { calendar.isDate($0, inSameDayAs: now) } ?? false
+        let dailyXPBySource = isSameDay ? state.dailyXPBySource : [:]
+
+        let grantedTodayForSource = dailyXPBySource[source.rawValue] ?? 0
+        let grantedTodayOverall = dailyXPBySource.values.reduce(0, +)
+
+        let sourceHeadroom = max(0, progressionRates.dailyCap(for: source) - grantedTodayForSource)
+        let overallHeadroom = max(0, progressionRates.overallDailyCap - grantedTodayOverall)
+
+        let multiplier = state.needs.xpMultiplier(floor: progressionRates.conditionMultiplierFloor)
+        let amount = min(rawAmount * multiplier, sourceHeadroom, overallHeadroom)
+        guard amount > 0 else {
+            return state
+        }
+
+        var updatedDailyXPBySource = dailyXPBySource
+        updatedDailyXPBySource[source.rawValue] = grantedTodayForSource + amount
+
+        let newTotalXP = state.totalXP + amount
+        let levelsGained = PetProgressionCurve.level(forTotalXP: newTotalXP)
+            - PetProgressionCurve.level(forTotalXP: state.totalXP)
+
+        var stats = state.stats
+        if levelsGained > 0 {
+            let signatureStat = state.petClass.signatureStat
+            for _ in 0..<levelsGained {
+                stats = stats.growing(
+                    signatureStat: signatureStat,
+                    signatureGain: progressionRates.signatureStatGainPerLevel,
+                    otherGain: progressionRates.otherStatGainPerLevel
+                )
+            }
+        }
+
+        return updatedState(
+            from: state,
+            needs: state.needs,
+            at: now,
+            totalXP: newTotalXP,
+            stats: stats,
+            dailyXPBySource: updatedDailyXPBySource,
+            dailyXPDate: now
         )
     }
 
@@ -377,7 +492,11 @@ public struct PetBrain: Sendable {
         at now: Date,
         lastWorkLogAt: Date? = nil,
         workLogCountToday: Int? = nil,
-        workLogCountDate: Date? = nil
+        workLogCountDate: Date? = nil,
+        totalXP: Double? = nil,
+        stats: PetStats? = nil,
+        dailyXPBySource: [String: Double]? = nil,
+        dailyXPDate: Date? = nil
     ) -> PetState {
         PetState(
             schemaVersion: state.schemaVersion,
@@ -388,7 +507,12 @@ public struct PetBrain: Sendable {
             lastUpdatedAt: now,
             lastWorkLogAt: lastWorkLogAt ?? state.lastWorkLogAt,
             workLogCountToday: workLogCountToday ?? state.workLogCountToday,
-            workLogCountDate: workLogCountDate ?? state.workLogCountDate
+            workLogCountDate: workLogCountDate ?? state.workLogCountDate,
+            totalXP: totalXP ?? state.totalXP,
+            petClass: state.petClass,
+            stats: stats ?? state.stats,
+            dailyXPBySource: dailyXPBySource ?? state.dailyXPBySource,
+            dailyXPDate: dailyXPDate ?? state.dailyXPDate
         )
     }
 }
