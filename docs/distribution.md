@@ -8,7 +8,7 @@ Generated application bundles, disk images, and checksums are release artifacts.
 
 ## Current release status
 
-The packaging and verification scripts are fully renamed to Worklings. The current public prerelease is `v0.1.0-alpha.2` (build number 2), the first Worklings-branded DMG, published through GitHub Releases for Apple Silicon. The older `v0.1.0-alpha.1` prerelease was created before the rebrand and still contains a Build Companion app and filename; it remains as a historical artifact. Each subsequent public version must use a new tag and an increased build number rather than replacing an existing release.
+The packaging and verification scripts are fully renamed to Worklings. The current public prerelease is `v0.1.0-alpha.3` (build number 3), published through GitHub Releases for Apple Silicon, bringing real activity awareness (dailyWake, presence-driven reactions, Log Work, Focus Session), pet renaming, and the persistent name pill. `v0.1.0-alpha.2` was the first Worklings-branded DMG and remains available as a prior release. The older `v0.1.0-alpha.1` prerelease was created before the rebrand and still contains a Build Companion app and filename; it remains as a historical artifact. Each subsequent public version must use a new tag and an increased build number rather than replacing an existing release.
 
 The first Worklings-branded installation is a transition rather than an in-place app replacement: `Build Companion.app` and `Worklings.app` have different names and bundle identifiers. Quit Build Companion, install Worklings, launch it once, and verify that Pixel's state was copied forward. The old application can then be removed without deleting either Application Support directory. Later Worklings versions replace `Worklings.app` normally.
 
@@ -94,7 +94,7 @@ Application launch remains a manual smoke test because launching a foreground ma
 Build the next Worklings application bundle with:
 
 ```bash
-scripts/build_app_bundle --version 0.1.0-alpha.2 --build-number 2
+scripts/build_app_bundle --version 0.1.0-alpha.3 --build-number 3
 ```
 
 The builder refuses to replace an existing application bundle. Choose a new output directory for an isolated test, or deliberately remove an obsolete generated artifact before rebuilding it.
@@ -102,7 +102,7 @@ The builder refuses to replace an existing application bundle. Choose a new outp
 Package the application bundle as a DMG with:
 
 ```bash
-scripts/build_dmg --version 0.1.0-alpha.2
+scripts/build_dmg --version 0.1.0-alpha.3
 ```
 
 The DMG builder validates the existing app's version, architecture, and signature before packaging it. It creates a compressed read-only image, verifies the image, and writes a SHA-256 checksum beside it.
@@ -110,7 +110,7 @@ The DMG builder validates the existing app's version, architecture, and signatur
 Verify the complete release artifact with:
 
 ```bash
-scripts/verify_release --version 0.1.0-alpha.2
+scripts/verify_release --version 0.1.0-alpha.3
 ```
 
 The verifier confirms the external checksum and DMG integrity, mounts the image read-only, checks the Applications shortcut, and validates the packaged app's identifier, version, build number, minimum system, architecture, and code signature.
