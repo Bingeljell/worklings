@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-21 > README.md and docs/distribution.md > v0.1.0-alpha.3 release status > Hyperlinks the README's changelog mention to `docs/changelog.md`, and records the published `v0.1.0-alpha.3` GitHub prerelease (build number 3) as bringing real activity awareness, Log Work, Focus Session, pet renaming, and the persistent name pill, bumping the packaging command examples to match.**
+
 - **2026-07-21 > Sources/Worklings/WildkinPetView.swift and docs/pet_interaction.md > persistent name pill > Adds a small name pill below the pet that is always visible instead of only after opening the care card, hiding during the smoke transition like the rest of the pet and marked accessibility-hidden since the name is already spoken through the pet's accessibility label.**
 
 - **2026-07-21 > Sources/CompanionCore/PetState.swift, Sources/Worklings/PetSession.swift, AppDelegate.swift, PetCareCardView.swift, Tests/CompanionCoreChecks/PetBrainChecks.swift, WorkLogChecks.swift, and docs/pet_brain.md > pet renaming > Adds `PetState.renamed(to:)`, trimming input and rejecting anything empty or over the new 24-character `maximumNameLength` by leaving the pet unchanged rather than accepting a bad value; wires it to a "Rename…" paw-menu alert and a pencil-icon inline editor next to the name in the care card, both gated the same way as every other action — the confirm control disables on an invalid draft rather than accepting and rejecting a submission.**
