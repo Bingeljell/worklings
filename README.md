@@ -12,6 +12,8 @@ Worklings is an experimental macOS desktop pet inspired by the persistence, prog
 
 What remains to be decided is whether or not the pet will be context general-context aware or only where its connected to specific apps. (Easier to do in the world of agentic engineering, but harder when looking at broader knowledge work tasks.)
 
+To keep track of the progress, you can see the /docs/changelog.md - this will have all the stuff we've added over the dev cycle.
+
 ## What we are building
 
 Worklings combines three ideas:
