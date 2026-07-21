@@ -2,7 +2,7 @@
 
 The Pet Brain is the Workling's life simulation — the **condition layer** from the [progression design](progression.md). It runs entirely locally, works without any integration, and is deterministic: the same state and the same clock always produce the same pet.
 
-Pixel is the current test Workling and can appear as the Wildkin moss-fox, Elemental ember-newt, or Relicborn keyback pangolin. Changing family never resets care progress.
+Pixel is the current test Workling and can appear as the Wildkin moss-fox, Elemental ember-newt, or Relicborn keyback pangolin. Changing family never resets care progress. Renaming is the same shape of change: `PetState.renamed(to:)` trims the input, rejects anything empty or over `PetState.maximumNameLength` (24 characters) by leaving the pet unchanged, and otherwise preserves every other field exactly like family selection does. The paw menu's "Rename…" opens a system alert; the care card's pencil icon next to the name opens an inline editor — both call the same `PetSession.rename(to:)`.
 
 ## Who owns what
 
@@ -125,7 +125,7 @@ Progression fields — level, XP, banked stat points, allocated stats — will e
 
 ## Checks
 
-`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, urgency, presentation, placement, and Log Work's cooldown, daily cap, and day rollover.
+`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, and Log Work's cooldown, daily cap, and day rollover.
 
 ## Tuning reference
 
@@ -148,6 +148,7 @@ Every number on this page is alpha tuning, but they live in different places dep
 | Notice / Urgent / Critical thresholds | Fullness 45/25/10, Energy 45/20/10, Happiness 45/30/15, Trust 35/20/10 | `PetCareStatus` condition functions in `Sources/CompanionCore/PetCareStatus.swift` (inline) |
 | Activity context expiry | 30 minutes | `ActivityContext.defaultExpiryInterval` in `Sources/CompanionCore/ActivityEvent.swift` |
 | Presence idle threshold / poll interval | 5 min / 15 sec | `PresenceEvaluator.defaultIdleThreshold` (CompanionCore) / `PresenceMonitor`'s `pollInterval` default (`Sources/Worklings/PresenceMonitor.swift`) |
+| Maximum pet name length | 24 characters | `PetState.maximumNameLength` in `Sources/CompanionCore/PetState.swift` |
 | Debug-only overrides | env vars, compiled out of release | `WORKLINGS_IDLE_THRESHOLD_SECONDS`, `WORKLINGS_PRESENCE_POLL_SECONDS`, `WORKLINGS_DEBUG_RATE_SCALE` in `Sources/Worklings/AppDelegate.swift` |
 
 Everything in `PetSimulationRates` is a named, constructor-injected constant — the easy case, already the right shape for tuning. Everything marked "inline" is a magic number sitting directly in a `switch` case, which works but means tuning it means editing source and rebuilding rather than adjusting one obvious place. Consolidating the inline constants into `PetSimulationRates` (or a sibling struct) so every knob lives in one discoverable, named location is worth doing — deliberately not done now, to avoid restructuring numbers that are still actively being tuned turn by turn.

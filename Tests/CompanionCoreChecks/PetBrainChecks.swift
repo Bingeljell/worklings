@@ -7,6 +7,7 @@ enum PetBrainChecks {
         checkFullnessPresentation(context: &context)
         checkNewPetDefaults(context: &context)
         checkFamilySelection(context: &context)
+        checkRenaming(context: &context)
         checkMoodPriority(context: &context)
         checkDeterministicProgression(context: &context)
         checkBackwardClock(context: &context)
@@ -65,6 +66,34 @@ enum PetBrainChecks {
             state.lastUpdatedAt,
             "family selection does not advance simulation time"
         )
+    }
+
+    private static func checkRenaming(context: inout CheckContext) {
+        let state = PetState.newPet(now: Date(timeIntervalSinceReferenceDate: 1_600))
+        let renamed = state.renamed(to: "  Ember  ")
+
+        context.expectEqual(renamed.name, "Ember", "renaming trims surrounding whitespace")
+        context.expectEqual(renamed.family, state.family, "renaming preserves family")
+        context.expectEqual(renamed.needs, state.needs, "renaming preserves needs")
+        context.expectEqual(
+            renamed.lastUpdatedAt,
+            state.lastUpdatedAt,
+            "renaming does not advance simulation time"
+        )
+
+        context.expect(!PetState.isValidName(""), "an empty name is invalid")
+        context.expect(!PetState.isValidName("   "), "a whitespace-only name is invalid")
+        context.expect(
+            !PetState.isValidName(String(repeating: "a", count: PetState.maximumNameLength + 1)),
+            "a name past the maximum length is invalid"
+        )
+        context.expect(
+            PetState.isValidName(String(repeating: "a", count: PetState.maximumNameLength)),
+            "a name at the maximum length is valid"
+        )
+
+        let rejected = state.renamed(to: "   ")
+        context.expectEqual(rejected.name, state.name, "renaming to an invalid name is a no-op")
     }
 
     private static func checkMoodPriority(context: inout CheckContext) {

@@ -147,6 +147,15 @@ final class PetSession: ObservableObject {
         persist()
     }
 
+    func rename(to name: String) {
+        guard PetState.isValidName(name) else {
+            return
+        }
+
+        state = state.renamed(to: name)
+        persist()
+    }
+
     private func persist() {
         guard persistenceEnabled else {
             return

@@ -87,6 +87,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         menu.addItem(makeFamilyMenuItem())
+
+        let renameItem = NSMenuItem(
+            title: "Rename…",
+            action: #selector(renamePet),
+            keyEquivalent: ""
+        )
+        renameItem.target = self
+        menu.addItem(renameItem)
+
         menu.addItem(.separator())
 
         let feedMenuItem = makeFoodMenuItem()
@@ -320,6 +329,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         parentItem.submenu = submenu
         return parentItem
+    }
+
+    @objc
+    private func renamePet() {
+        guard let petSession else {
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Rename \(petSession.state.name)"
+        alert.informativeText = "Choose a new name (up to \(PetState.maximumNameLength) characters)."
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        textField.stringValue = petSession.state.name
+        textField.placeholderString = "Name"
+        alert.accessoryView = textField
+        alert.window.initialFirstResponder = textField
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+        petSession.rename(to: textField.stringValue)
     }
 
     @objc

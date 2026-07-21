@@ -193,6 +193,34 @@ public struct PetState: Codable, Equatable, Sendable {
         )
     }
 
+    public static let maximumNameLength = 24
+
+    public static func isValidName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed.count <= maximumNameLength
+    }
+
+    /// Returns the pet unchanged if `name` isn't valid once trimmed, so a
+    /// caller can attempt a rename without first duplicating the validation.
+    public func renamed(to name: String) -> PetState {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.isValidName(trimmed) else {
+            return self
+        }
+
+        return PetState(
+            schemaVersion: schemaVersion,
+            name: trimmed,
+            family: family,
+            needs: needs,
+            preferences: preferences,
+            lastUpdatedAt: lastUpdatedAt,
+            lastWorkLogAt: lastWorkLogAt,
+            workLogCountToday: workLogCountToday,
+            workLogCountDate: workLogCountDate
+        )
+    }
+
     public var mood: PetMood {
         if needs.hunger >= 75 {
             return .hungry

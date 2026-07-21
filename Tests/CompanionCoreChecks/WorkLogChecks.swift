@@ -10,6 +10,7 @@ enum WorkLogChecks {
         checkDailyCapBlocksFurtherLogging(context: &context)
         checkDailyCapResetsOnNewDay(context: &context)
         checkFamilySelectionPreservesWorkLogState(context: &context)
+        checkRenamingPreservesWorkLogState(context: &context)
         checkManualSourceId(context: &context)
         checkWorkLoggedContextIsNeutral(context: &context)
     }
@@ -152,6 +153,29 @@ enum WorkLogChecks {
             switched.workLogCountToday,
             logged.workLogCountToday,
             "switching family preserves today's work log count"
+        )
+    }
+
+    private static func checkRenamingPreservesWorkLogState(context: inout CheckContext) {
+        let brain = PetBrain()
+        let state = PetState.newPet(now: start)
+        let logged = brain.observe(
+            ManualActivitySource.event(.workLogged, at: start),
+            on: state,
+            at: start
+        ).state
+
+        let renamed = logged.renamed(to: "Ember")
+
+        context.expectEqual(
+            renamed.lastWorkLogAt,
+            logged.lastWorkLogAt,
+            "renaming preserves the work log cooldown timestamp"
+        )
+        context.expectEqual(
+            renamed.workLogCountToday,
+            logged.workLogCountToday,
+            "renaming preserves today's work log count"
         )
     }
 
