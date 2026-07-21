@@ -119,6 +119,15 @@ public struct PetState: Codable, Equatable, Sendable {
     public let lastWorkLogAt: Date?
     public let workLogCountToday: Int
     public let workLogCountDate: Date?
+    public let totalXP: Double
+    public let petClass: PetClass
+    public let stats: PetStats
+    /// XP granted today, keyed by `XPSource.rawValue`. Like
+    /// `workLogCountToday`, only meaningful for the day named by
+    /// `dailyXPDate`; a stale entry from a previous day is ignored, never
+    /// proactively reset.
+    public let dailyXPBySource: [String: Double]
+    public let dailyXPDate: Date?
 
     public init(
         schemaVersion: Int = PetState.currentSchemaVersion,
@@ -129,7 +138,12 @@ public struct PetState: Codable, Equatable, Sendable {
         lastUpdatedAt: Date,
         lastWorkLogAt: Date? = nil,
         workLogCountToday: Int = 0,
-        workLogCountDate: Date? = nil
+        workLogCountDate: Date? = nil,
+        totalXP: Double = 0,
+        petClass: PetClass = .wellspring,
+        stats: PetStats = PetStats(),
+        dailyXPBySource: [String: Double] = [:],
+        dailyXPDate: Date? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.name = name
@@ -140,6 +154,11 @@ public struct PetState: Codable, Equatable, Sendable {
         self.lastWorkLogAt = lastWorkLogAt
         self.workLogCountToday = workLogCountToday
         self.workLogCountDate = workLogCountDate
+        self.totalXP = max(totalXP, 0)
+        self.petClass = petClass
+        self.stats = stats
+        self.dailyXPBySource = dailyXPBySource
+        self.dailyXPDate = dailyXPDate
     }
 
     public init(from decoder: Decoder) throws {
@@ -153,7 +172,15 @@ public struct PetState: Codable, Equatable, Sendable {
             lastUpdatedAt: try container.decode(Date.self, forKey: .lastUpdatedAt),
             lastWorkLogAt: try container.decodeIfPresent(Date.self, forKey: .lastWorkLogAt),
             workLogCountToday: try container.decodeIfPresent(Int.self, forKey: .workLogCountToday) ?? 0,
-            workLogCountDate: try container.decodeIfPresent(Date.self, forKey: .workLogCountDate)
+            workLogCountDate: try container.decodeIfPresent(Date.self, forKey: .workLogCountDate),
+            totalXP: try container.decodeIfPresent(Double.self, forKey: .totalXP) ?? 0,
+            petClass: try container.decodeIfPresent(PetClass.self, forKey: .petClass) ?? .wellspring,
+            stats: try container.decodeIfPresent(PetStats.self, forKey: .stats) ?? PetStats(),
+            dailyXPBySource: try container.decodeIfPresent(
+                [String: Double].self,
+                forKey: .dailyXPBySource
+            ) ?? [:],
+            dailyXPDate: try container.decodeIfPresent(Date.self, forKey: .dailyXPDate)
         )
     }
 
@@ -189,7 +216,35 @@ public struct PetState: Codable, Equatable, Sendable {
             lastUpdatedAt: lastUpdatedAt,
             lastWorkLogAt: lastWorkLogAt,
             workLogCountToday: workLogCountToday,
-            workLogCountDate: workLogCountDate
+            workLogCountDate: workLogCountDate,
+            totalXP: totalXP,
+            petClass: petClass,
+            stats: stats,
+            dailyXPBySource: dailyXPBySource,
+            dailyXPDate: dailyXPDate
+        )
+    }
+
+    /// Class is freely reassignable, the same way family is — there is
+    /// nothing yet (no ability trees, no gear) that a class swap would need
+    /// to protect. Stat growth already earned never changes; only future
+    /// growth follows the new class's signature stat.
+    public func selectingClass(_ petClass: PetClass) -> PetState {
+        PetState(
+            schemaVersion: schemaVersion,
+            name: name,
+            family: family,
+            needs: needs,
+            preferences: preferences,
+            lastUpdatedAt: lastUpdatedAt,
+            lastWorkLogAt: lastWorkLogAt,
+            workLogCountToday: workLogCountToday,
+            workLogCountDate: workLogCountDate,
+            totalXP: totalXP,
+            petClass: petClass,
+            stats: stats,
+            dailyXPBySource: dailyXPBySource,
+            dailyXPDate: dailyXPDate
         )
     }
 
@@ -217,8 +272,19 @@ public struct PetState: Codable, Equatable, Sendable {
             lastUpdatedAt: lastUpdatedAt,
             lastWorkLogAt: lastWorkLogAt,
             workLogCountToday: workLogCountToday,
-            workLogCountDate: workLogCountDate
+            workLogCountDate: workLogCountDate,
+            totalXP: totalXP,
+            petClass: petClass,
+            stats: stats,
+            dailyXPBySource: dailyXPBySource,
+            dailyXPDate: dailyXPDate
         )
+    }
+
+    /// Derived from `totalXP` rather than stored, so level and XP can never
+    /// disagree with each other. See `PetProgressionCurve`.
+    public var level: Int {
+        PetProgressionCurve.level(forTotalXP: totalXP)
     }
 
     public var mood: PetMood {
