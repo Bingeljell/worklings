@@ -113,6 +113,12 @@ public struct PetState: Codable, Equatable, Sendable {
     public let needs: PetNeeds
     public let preferences: PetPreferences
     public let lastUpdatedAt: Date
+    /// Log Work fairness bookkeeping. `workLogCountToday` only reflects the
+    /// calendar day named by `workLogCountDate`; a caller must compare dates
+    /// before trusting the count, since it is never proactively reset.
+    public let lastWorkLogAt: Date?
+    public let workLogCountToday: Int
+    public let workLogCountDate: Date?
 
     public init(
         schemaVersion: Int = PetState.currentSchemaVersion,
@@ -120,7 +126,10 @@ public struct PetState: Codable, Equatable, Sendable {
         family: PetFamily = .wildkin,
         needs: PetNeeds,
         preferences: PetPreferences,
-        lastUpdatedAt: Date
+        lastUpdatedAt: Date,
+        lastWorkLogAt: Date? = nil,
+        workLogCountToday: Int = 0,
+        workLogCountDate: Date? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.name = name
@@ -128,6 +137,9 @@ public struct PetState: Codable, Equatable, Sendable {
         self.needs = needs
         self.preferences = preferences
         self.lastUpdatedAt = lastUpdatedAt
+        self.lastWorkLogAt = lastWorkLogAt
+        self.workLogCountToday = workLogCountToday
+        self.workLogCountDate = workLogCountDate
     }
 
     public init(from decoder: Decoder) throws {
@@ -138,7 +150,10 @@ public struct PetState: Codable, Equatable, Sendable {
             family: try container.decodeIfPresent(PetFamily.self, forKey: .family) ?? .wildkin,
             needs: try container.decode(PetNeeds.self, forKey: .needs),
             preferences: try container.decode(PetPreferences.self, forKey: .preferences),
-            lastUpdatedAt: try container.decode(Date.self, forKey: .lastUpdatedAt)
+            lastUpdatedAt: try container.decode(Date.self, forKey: .lastUpdatedAt),
+            lastWorkLogAt: try container.decodeIfPresent(Date.self, forKey: .lastWorkLogAt),
+            workLogCountToday: try container.decodeIfPresent(Int.self, forKey: .workLogCountToday) ?? 0,
+            workLogCountDate: try container.decodeIfPresent(Date.self, forKey: .workLogCountDate)
         )
     }
 
@@ -171,7 +186,38 @@ public struct PetState: Codable, Equatable, Sendable {
             family: family,
             needs: needs,
             preferences: preferences,
-            lastUpdatedAt: lastUpdatedAt
+            lastUpdatedAt: lastUpdatedAt,
+            lastWorkLogAt: lastWorkLogAt,
+            workLogCountToday: workLogCountToday,
+            workLogCountDate: workLogCountDate
+        )
+    }
+
+    public static let maximumNameLength = 24
+
+    public static func isValidName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed.count <= maximumNameLength
+    }
+
+    /// Returns the pet unchanged if `name` isn't valid once trimmed, so a
+    /// caller can attempt a rename without first duplicating the validation.
+    public func renamed(to name: String) -> PetState {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.isValidName(trimmed) else {
+            return self
+        }
+
+        return PetState(
+            schemaVersion: schemaVersion,
+            name: trimmed,
+            family: family,
+            needs: needs,
+            preferences: preferences,
+            lastUpdatedAt: lastUpdatedAt,
+            lastWorkLogAt: lastWorkLogAt,
+            workLogCountToday: workLogCountToday,
+            workLogCountDate: workLogCountDate
         )
     }
 
@@ -215,6 +261,11 @@ public enum PetReaction: String, Equatable, Sendable {
     case sharedSetback
     case proudOfMilestone
     case gladYouAreBack
+    case startedWorking
+    case tookABreak
+    case waitingOnYou
+    case noticedYouAreAway
+    case loggedWork
 }
 
 public struct PetInteractionResult: Equatable, Sendable {

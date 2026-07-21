@@ -49,6 +49,17 @@ struct WorklingPetView: View {
                         .offset(y: -79)
                         .transition(.scale.combined(with: .opacity))
                 }
+
+                if !motion.isTransitioning {
+                    Text(session.state.name)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        .offset(y: 74)
+                        .accessibilityHidden(true)
+                }
             }
             .opacity(motion.isPetVisible ? 1 : 0)
 

@@ -13,6 +13,8 @@ Everything below describes implemented behavior unless marked deferred. Values a
 
 All three families share one pose contract, so every mood and reaction reads the same whichever Workling is active. An eight-frame smoke effect covers launch, wake, tuck-away, and family swaps.
 
+A small name pill sits below the pet at all times — not just after opening the card — so identity never requires a click to see. It hides during the smoke transition alongside everything else and is marked accessibility-hidden since the name is already spoken through the pet's accessibility label.
+
 ## 2. Hover summary
 
 Hover for ~500ms and a small read-only summary appears: natural language ("Pixel is hungry and getting tired"), at most two conditions, no numbers. It dismisses when the pointer leaves, never steals focus or blocks dragging, and stays inside the display. The same summary is exposed to accessibility tools without hovering.
@@ -39,9 +41,11 @@ Click opens it; drag moves the pet and never opens it. One card at a time; Escap
 
 Every meter is a wellbeing measure: longer bar, better pet. Natural language may still call the Workling "hungry" — that's flavour, not a different scale.
 
+A pencil icon beside the name opens an inline editor; the confirm control disables on an invalid draft (empty, or over 24 characters) rather than accepting a submission and rejecting it after the fact.
+
 ## 4. Menu bar
 
-The reliable fallback: wake, tuck away, persistence warnings, quit, the checked Choose Workling selector, the persistent roaming toggle, and (for now) duplicate care actions. Both surfaces call the same `PetSession` actions and show the same state. Family swaps happen under the dense smoke frame and preserve name, needs, favourites, and progression time.
+The reliable fallback: wake, tuck away, persistence warnings, quit, the checked Choose Workling selector, a "Rename…" alert, the persistent roaming toggle, and (for now) duplicate care actions. Both surfaces call the same `PetSession` actions and show the same state. Family swaps happen under the dense smoke frame and preserve name, needs, favourites, and progression time.
 
 ## Idle roaming
 
@@ -83,7 +87,7 @@ Name, mood, and the hover summary live in the pet's accessibility label. Every c
 
 ## Boundaries
 
-`CompanionCore` owns every testable decision: urgency, summaries, availability, roaming plans, smoke midpoints, screen targets. The app target owns timing, tracking, placement, focus, and animation. `PetSession` is the single source of live state. No provider-specific logic enters this layer.
+`CompanionCore` owns every testable decision: urgency, summaries, availability, naming validity, roaming plans, smoke midpoints, screen targets. The app target owns timing, tracking, placement, focus, and animation. `PetSession` is the single source of live state. No provider-specific logic enters this layer.
 
 ## Verification
 
@@ -94,5 +98,5 @@ Name, mood, and the hover summary live in the pet's accessibility label. Every c
 - Richer action animation states.
 - Mood-driven movement, obstacles, multi-display travel.
 - Activity adapters and reactions from the [progression design](progression.md).
-- Adoption, naming, personality selection.
+- Adoption and personality selection.
 - A full settings and save-recovery interface.

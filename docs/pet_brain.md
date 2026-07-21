@@ -2,7 +2,7 @@
 
 The Pet Brain is the Workling's life simulation — the **condition layer** from the [progression design](progression.md). It runs entirely locally, works without any integration, and is deterministic: the same state and the same clock always produce the same pet.
 
-Pixel is the current test Workling and can appear as the Wildkin moss-fox, Elemental ember-newt, or Relicborn keyback pangolin. Changing family never resets care progress.
+Pixel is the current test Workling and can appear as the Wildkin moss-fox, Elemental ember-newt, or Relicborn keyback pangolin. Changing family never resets care progress. Renaming is the same shape of change: `PetState.renamed(to:)` trims the input, rejects anything empty or over `PetState.maximumNameLength` (24 characters) by leaving the pet unchanged, and otherwise preserves every other field exactly like family selection does. The paw menu's "Rename…" opens a system alert; the care card's pencil icon next to the name opens an inline editor — both call the same `PetSession.rename(to:)`.
 
 ## Who owns what
 
@@ -71,9 +71,9 @@ Real-world stimulus arrives as normalized, content-free events — kind, timesta
 Structural events (`workStarted`, `workEnded`, `awaitingInput`, `userIdle`) shape a short-lived **activity context** that is never persisted and expires to quiet after 30 minutes without events. That context changes how fast needs drain:
 
 - While work is happening, Fullness drains 1.25× faster and Energy 1.3× faster — your Workling works up an appetite and gets tired alongside you.
-- While the user is away, Trust drains 2/hour — the Workling misses you. It stops the moment `userReturned` arrives, since that flips the context back to present.
+- While the user is away, Trust drains at a **two-tier rate**: the first hour of an absence costs 2/hour, and anything beyond that tapers to a gentle 0.2/hour. A quick break costs a little; an evening or a weekend away costs very little more than the first hour did. It stops the moment `userReturned` arrives, since that flips the context back to present.
 
-Share-worthy moments get visible reactions and small need changes:
+Every event gets a visible reaction, so its effect is never invisible — including the structural ones, which move no needs directly but still say something:
 
 | Event | Effect | Reaction |
 | --- | --- | --- |
@@ -82,10 +82,34 @@ Share-worthy moments get visible reactions and small need changes:
 | `taskFailed` | Fullness -4, Energy -3, Happiness -3 | "We'll get the next one." |
 | `milestone` | Happiness +6, Trust +2 | "Shipped!" |
 | `userReturned` | none directly — presence can't be farmed | "You're back!" |
+| `workStarted` | none | "Let's get to work!" |
+| `workEnded` | none | "Taking a breather." |
+| `awaitingInput` | none | "Waiting on you…" |
+| `userIdle` | none directly — only the drain above | "Oh, you're away…" |
+| `workLogged` | Happiness +3, gated by cooldown and daily cap | "Logged!" |
 
-These values are alpha tuning. In debug builds, the paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context; it is compiled out of release builds.
+These values are alpha tuning. In debug builds only, three environment variables make manual testing practical without waiting on real clocks: `WORKLINGS_IDLE_THRESHOLD_SECONDS` shortens how long counts as "away," `WORKLINGS_PRESENCE_POLL_SECONDS` shortens how often presence is checked, and `WORKLINGS_DEBUG_RATE_SCALE` multiplies every per-hour need rate so a few real seconds can stand in for hours. The paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context. All of this is compiled out of release builds.
 
-A caveat worth knowing: because the context expires to quiet (present) after 30 minutes of silence, a genuinely idle user who never fires `userReturned` stops draining trust after that window rather than indefinitely. A real presence source (see [progression design](progression.md)) should re-emit `userIdle` periodically so ongoing absence keeps registering.
+The live presence source keeps a genuine absence alive by quietly re-touching the context roughly every 15 seconds, without repeating the "Oh, you're away…" reaction — so the two-tier rate above sees the absence's real duration rather than losing track of it. The 30-minute expiry is a fallback for abnormal termination only (a crash, a `workStarted` whose `workEnded` never arrives), not the everyday path.
+
+## Focus Session
+
+A paw-menu item and a care-card button that toggle between "Start Focus Session" and "End Focus Session," firing real `workStarted` and `workEnded` events for a work block with an actual beginning and end — unlike Log Work's point-in-time nature. It's tagged with the `manual` source id, the same as Log Work: starting or ending the block is still something the user asserts by clicking, not something Worklings can verify on its own. A future agent adapter emitting the same event kinds automatically would carry a different source id, so the two can be treated differently once that distinction matters.
+
+Neither `workStarted` nor `workEnded` grants Happiness or Trust directly — there is nothing to game, because the only effect is the existing working multiplier (see [Activity events](#activity-events) above): Fullness and Energy drain faster for the duration of the block, exactly as they already do for the simulated version of these events. This is the first real trigger for that multiplier; the [progression design](progression.md) lists sustained work blocks as a planned XP source, which will read from this same event pair once it exists.
+
+## Log Work
+
+The first self-reported source that grants a reward: a paw-menu item and a care-card button that let you tell Pixel about work with no natural start or end — a meeting, a decision, helping someone. It fires `workLogged`, tagged with the `manual` source id so it's always distinguishable from externally verifiable sources like a future GitHub milestone.
+
+There is no user-chosen point value — every credited log grants the same fixed Happiness gain, because a self-adjustable reward is exactly the loophole that makes idle-game economies gameable. Fairness instead comes from two caps, mirroring the "caps, not cryptography" principle in the [progression design](progression.md):
+
+- A cooldown between credited logs.
+- A hard daily cap on how many logs are ever credited.
+
+Both are checked before the action is even available — Log Work is disabled with an explanation exactly like Feed at zero hunger, never silently clicked and rejected. `PetBrain.workLogAvailability` is the single source of truth both the menu and the care card read.
+
+The daily cap is tracked on the save (`lastWorkLogAt`, `workLogCountToday`, `workLogCountDate`) but never proactively reset: a stale count from a previous day is simply ignored once the stored date no longer matches today, so there is no day-rollover code path to get wrong.
 
 ## Presentation
 
@@ -93,7 +117,7 @@ A caveat worth knowing: because the context expires to quiet (present) after 30 
 
 ## The save
 
-Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, and the last progression timestamp.
+Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, the last progression timestamp, and Log Work's cooldown/daily-cap bookkeeping.
 
 An unreadable save is never overwritten — it's preserved, persistence pauses for the session, and a fresh in-memory pet takes over. First launch after the rebrand copies a legacy Build Companion save forward without deleting it.
 
@@ -101,11 +125,37 @@ Progression fields — level, XP, banked stat points, allocated stats — will e
 
 ## Checks
 
-`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, urgency, presentation, and placement.
+`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, and Log Work's cooldown, daily cap, and day rollover.
+
+## Tuning reference
+
+Every number on this page is alpha tuning, but they live in different places depending on how they're changed. This table is the index — if a value below drifts from the source, trust the source.
+
+| Knob | Default | Where |
+| --- | --- | --- |
+| Fullness / Energy / Happiness decay per hour | 4 / 3 / 1 | `PetSimulationRates` in `Sources/CompanionCore/PetBrain.swift` |
+| Maximum offline catch-up | 7 days | `PetSimulationRates.maximumOfflineHours` |
+| Working Fullness / Energy multiplier | 1.25× / 1.3× | `PetSimulationRates.workingHungerMultiplier` / `.workingEnergyMultiplier` |
+| Away Trust rate (first hour / beyond) | 2/hour / 0.2/hour | `PetSimulationRates.awayTrustPerHour` / `.longAwayTrustPerHour` |
+| Away grace period | 1 hour | `PetSimulationRates.awayGracePeriodHours` |
+| Log Work cooldown / daily cap / gain | 30 min / 6 per day / +3 Happiness | `PetSimulationRates.workLogCooldownMinutes` / `.workLogDailyCap` / `.workLogHappinessGain` |
+| Feed (favourite / other) | Fullness +30/+20, Happiness +8/+3, Trust +3/+1 | `PetBrain.perform`, `.feed` case (inline, not in `PetSimulationRates`) |
+| Play (favourite / other) | Fullness -8/-7, Energy -14/-12, Happiness +22/+14, Trust +6/+3 | `PetBrain.perform`, `.play` case (inline) |
+| Pet / Sleep | Happiness +8/Trust +4 · Fullness -6/Energy +35/Happiness +2 | `PetBrain.perform`, `.pet`/`.sleep` cases (inline) |
+| Play requires Energy ≥ | 15 | `PetBrain.perform`, `.play` case (inline) |
+| `dailyWake` / `taskCompleted` / `taskFailed` / `milestone` deltas | see the [event table](#activity-events) above | `PetBrain.observe` (inline) |
+| Mood thresholds (Hungry/Sleepy/Wary/Sad/Happy) | Fullness ≤25, Energy ≤20, Trust ≤20, Happiness ≤30, Happy needs all three healthy | `PetState.mood` in `Sources/CompanionCore/PetState.swift` (inline) |
+| Notice / Urgent / Critical thresholds | Fullness 45/25/10, Energy 45/20/10, Happiness 45/30/15, Trust 35/20/10 | `PetCareStatus` condition functions in `Sources/CompanionCore/PetCareStatus.swift` (inline) |
+| Activity context expiry | 30 minutes | `ActivityContext.defaultExpiryInterval` in `Sources/CompanionCore/ActivityEvent.swift` |
+| Presence idle threshold / poll interval | 5 min / 15 sec | `PresenceEvaluator.defaultIdleThreshold` (CompanionCore) / `PresenceMonitor`'s `pollInterval` default (`Sources/Worklings/PresenceMonitor.swift`) |
+| Maximum pet name length | 24 characters | `PetState.maximumNameLength` in `Sources/CompanionCore/PetState.swift` |
+| Debug-only overrides | env vars, compiled out of release | `WORKLINGS_IDLE_THRESHOLD_SECONDS`, `WORKLINGS_PRESENCE_POLL_SECONDS`, `WORKLINGS_DEBUG_RATE_SCALE` in `Sources/Worklings/AppDelegate.swift` |
+
+Everything in `PetSimulationRates` is a named, constructor-injected constant — the easy case, already the right shape for tuning. Everything marked "inline" is a magic number sitting directly in a `switch` case, which works but means tuning it means editing source and rebuilding rather than adjusting one obvious place. Consolidating the inline constants into `PetSimulationRates` (or a sibling struct) so every knob lives in one discoverable, named location is worth doing — deliberately not done now, to avoid restructuring numbers that are still actively being tuned turn by turn.
 
 ## Next Pet Brain work
 
-- The `dailyWake` and presence sources, so activity reactions fire without the debug menu.
+- Consolidate the "inline" tuning constants above into named, injectable structs, once the numbers themselves have settled down.
 - The condition XP multiplier and progression fields from the [progression design](progression.md).
 - Tune need rates from real usage.
 - Personality beyond two favourites.

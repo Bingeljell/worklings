@@ -6,15 +6,15 @@ enum ActivityChecks {
         checkContextReduction(context: &context)
         checkContextExpiry(context: &context)
         checkWorkingDrain(context: &context)
-        checkAwayTrustDrain(context: &context)
+        checkAwayTrustTaper(context: &context)
         checkUserReturnedStopsAwayDrain(context: &context)
         checkTaskCompletedCelebration(context: &context)
         checkTaskFailedSetback(context: &context)
         checkMilestonePride(context: &context)
         checkDailyWakeGreeting(context: &context)
-        checkStructuralEventsStayQuiet(context: &context)
+        checkStructuralEventsSpeakButDoNotMoveNeeds(context: &context)
         checkUserReturnedReactionOnly(context: &context)
-        checkSimulatedScriptDeterminism(context: &context)
+        checkRateScaling(context: &context)
     }
 
     private static let start = Date(timeIntervalSinceReferenceDate: 10_000)
@@ -94,24 +94,58 @@ enum ActivityChecks {
         )
     }
 
-    private static func checkAwayTrustDrain(context: inout CheckContext) {
+    private static func checkAwayTrustTaper(context: inout CheckContext) {
         let brain = PetBrain()
-        let state = PetState.newPet(now: start)
-        let later = start.addingTimeInterval(2 * 3_600)
-        let awayContext = ActivityContext.quiet.reducing(event(.userIdle))
 
-        let present = brain.advance(state, to: later)
-        let away = brain.advance(state, to: later, context: awayContext)
-
+        let present = brain.advance(PetState.newPet(now: start), to: start.addingTimeInterval(2 * 3_600))
         context.expectApproximatelyEqual(
             present.needs.trust,
             50,
             "trust holds steady while the user is present"
         )
+
+        let withinGrace = PetState.newPet(now: start)
+        let thirtyMinutesLater = start.addingTimeInterval(30 * 60)
+        let shortContext = ActivityContext(
+            isWorking: false,
+            isAwaitingInput: false,
+            isUserPresent: false,
+            awaySince: start,
+            lastEventAt: start
+        )
+        let shortResult = brain.advance(withinGrace, to: thirtyMinutesLater, context: shortContext)
         context.expectApproximatelyEqual(
-            away.needs.trust,
-            46,
-            "trust drains while the user is away"
+            shortResult.needs.trust,
+            49,
+            "a thirty-minute absence stays within the grace period at the full away rate"
+        )
+
+        var taperedState = PetState.newPet(now: start)
+        var taperedContext = ActivityContext(
+            isWorking: false,
+            isAwaitingInput: false,
+            isUserPresent: false,
+            awaySince: start,
+            lastEventAt: start
+        )
+        var now = start
+
+        for _ in 0..<4 {
+            now = now.addingTimeInterval(3_600)
+            taperedState = brain.advance(taperedState, to: now, context: taperedContext)
+            taperedContext = ActivityContext(
+                isWorking: false,
+                isAwaitingInput: false,
+                isUserPresent: false,
+                awaySince: taperedContext.awaySince,
+                lastEventAt: now
+            )
+        }
+
+        context.expectApproximatelyEqual(
+            taperedState.needs.trust,
+            47.4,
+            "hourly ticks show the taper: the full rate for the first hour, then a gentle trickle"
         )
     }
 
@@ -233,21 +267,28 @@ enum ActivityChecks {
         )
     }
 
-    private static func checkStructuralEventsStayQuiet(context: inout CheckContext) {
+    private static func checkStructuralEventsSpeakButDoNotMoveNeeds(context: inout CheckContext) {
         let brain = PetBrain()
         let state = PetState.newPet(now: start)
 
-        for kind in [ActivityEventKind.workStarted, .workEnded, .awaitingInput, .userIdle] {
+        let expectations: [(ActivityEventKind, PetReaction)] = [
+            (.workStarted, .startedWorking),
+            (.workEnded, .tookABreak),
+            (.awaitingInput, .waitingOnYou),
+            (.userIdle, .noticedYouAreAway)
+        ]
+
+        for (kind, expectedReaction) in expectations {
             let response = brain.observe(event(kind), on: state, at: start)
             context.expectEqual(
                 response.reaction,
-                nil,
-                "\(kind.rawValue) produces no visible reaction"
+                expectedReaction,
+                "\(kind.rawValue) speaks its state so its effect is observable while testing"
             )
             context.expectEqual(
                 response.state.needs,
                 state.needs,
-                "\(kind.rawValue) does not move needs"
+                "\(kind.rawValue) still does not move needs directly"
             )
         }
     }
@@ -266,19 +307,39 @@ enum ActivityChecks {
         )
     }
 
-    private static func checkSimulatedScriptDeterminism(context: inout CheckContext) {
-        let first = SimulatedActivitySource.demoScript(startingAt: start)
-        let second = SimulatedActivitySource.demoScript(startingAt: start)
+    private static func checkRateScaling(context: inout CheckContext) {
+        let base = PetSimulationRates()
+        let scaled = base.scaled(by: 360)
 
-        context.expectEqual(first, second, "the demo script is deterministic")
-        context.expect(!first.isEmpty, "the demo script emits events")
-        context.expect(
-            zip(first, first.dropFirst()).allSatisfy { $0.timestamp <= $1.timestamp },
-            "demo script timestamps never move backward"
+        context.expectApproximatelyEqual(
+            scaled.hungerPerHour,
+            base.hungerPerHour * 360,
+            "scaling multiplies the hunger rate"
         )
+        context.expectApproximatelyEqual(
+            scaled.awayTrustPerHour,
+            base.awayTrustPerHour * 360,
+            "scaling multiplies the away-trust rate"
+        )
+        context.expectEqual(
+            scaled.maximumOfflineHours,
+            base.maximumOfflineHours,
+            "scaling leaves the offline cap untouched"
+        )
+        context.expectEqual(
+            scaled.workingHungerMultiplier,
+            base.workingHungerMultiplier,
+            "scaling leaves the working multiplier untouched"
+        )
+
+        let brain = PetBrain(rates: scaled)
+        let state = PetState.newPet(now: start)
+        let tenSecondsLater = start.addingTimeInterval(10)
+
+        let advanced = brain.advance(state, to: tenSecondsLater)
         context.expect(
-            first.allSatisfy { $0.sourceId == SimulatedActivitySource.sourceId },
-            "demo script events carry the simulated source id"
+            advanced.needs.hunger > state.needs.hunger + 0.5,
+            "a scaled rate makes a ten-second wait produce a visible change"
         )
     }
 }

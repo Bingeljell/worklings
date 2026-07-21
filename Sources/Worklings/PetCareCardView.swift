@@ -3,6 +3,9 @@ import SwiftUI
 
 struct PetCareCardView: View {
     @ObservedObject var session: PetSession
+    @State private var isEditingName = false
+    @State private var draftName = ""
+    @FocusState private var nameFieldIsFocused: Bool
 
     private var state: PetState {
         session.state
@@ -37,8 +40,23 @@ struct PetCareCardView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
-                Text(state.name)
-                    .font(.system(size: 21, weight: .bold, design: .rounded))
+                if isEditingName {
+                    nameEditor
+                } else {
+                    Text(state.name)
+                        .font(.system(size: 21, weight: .bold, design: .rounded))
+                    Button {
+                        draftName = state.name
+                        isEditingName = true
+                        nameFieldIsFocused = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Rename \(state.name).")
+                }
+
                 Spacer()
                 Text(presentation.moodLabel)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -52,6 +70,40 @@ struct PetCareCardView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         }
+    }
+
+    private var nameEditor: some View {
+        HStack(spacing: 6) {
+            TextField("Name", text: $draftName)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .focused($nameFieldIsFocused)
+                .onSubmit(commitRename)
+                .frame(maxWidth: 140)
+
+            Button {
+                commitRename()
+            } label: {
+                Image(systemName: "checkmark.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!PetState.isValidName(draftName))
+
+            Button {
+                isEditingName = false
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private func commitRename() {
+        guard PetState.isValidName(draftName) else {
+            return
+        }
+        session.rename(to: draftName)
+        isEditingName = false
     }
 
     private var needs: some View {
@@ -102,7 +154,46 @@ struct PetCareCardView: View {
                     session.perform(.sleep)
                 }
             }
+
+            focusSessionButton
+            logWorkButton
         }
+    }
+
+    private var focusSessionButton: some View {
+        let isActive = session.isFocusSessionActive
+
+        return Button {
+            session.toggleFocusSession()
+        } label: {
+            Label(
+                isActive ? "End Focus Session" : "Start Focus Session",
+                systemImage: isActive ? "stop.circle.fill" : "timer"
+            )
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .help(
+            isActive
+                ? "Wrap up this focus session."
+                : "Tell \(state.name) you're settling in to work."
+        )
+        .frame(maxWidth: .infinity)
+    }
+
+    private var logWorkButton: some View {
+        let availability = session.workLogAvailability()
+
+        return Button {
+            session.logWork()
+        } label: {
+            Label("Log Work", systemImage: "checkmark.circle.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(!availability.isEnabled)
+        .help(availability.explanation ?? "Tell \(state.name) about work you did.")
+        .frame(maxWidth: .infinity)
     }
 
     private var feedMenu: some View {

@@ -4,6 +4,8 @@ import Foundation
 
 @MainActor
 final class PetSession: ObservableObject {
+    private static let lastDailyWakeDateDefaultsKey = "lastDailyWakeDate"
+
     @Published private(set) var state: PetState
     @Published private(set) var reaction: PetReaction?
     @Published private(set) var persistenceWarning: String?
@@ -15,8 +17,8 @@ final class PetSession: ObservableObject {
     private var tickTask: Task<Void, Never>?
     private var reactionTask: Task<Void, Never>?
 
-    init(now: Date = Date()) {
-        brain = PetBrain()
+    init(now: Date = Date(), rates: PetSimulationRates = PetSimulationRates()) {
+        brain = PetBrain(rates: rates)
         store = Self.makeDefaultStore()
 
         let initialState: PetState
@@ -40,6 +42,7 @@ final class PetSession: ObservableObject {
         persistenceEnabled = canPersist
 
         persist()
+        checkDailyWake(now: now)
         startTicking()
     }
 
@@ -52,7 +55,29 @@ final class PetSession: ObservableObject {
         PetCareStatus.make(state: state)
     }
 
+    func workLogAvailability(at now: Date = Date()) -> PetActionAvailability {
+        brain.workLogAvailability(state: state, at: now)
+    }
+
+    func logWork(at now: Date = Date()) {
+        guard workLogAvailability(at: now).isEnabled else {
+            return
+        }
+        receive(ManualActivitySource.event(.workLogged, at: now), at: now)
+    }
+
+    var isFocusSessionActive: Bool {
+        activityContext.isWorking
+    }
+
+    func toggleFocusSession(at now: Date = Date()) {
+        let kind: ActivityEventKind = isFocusSessionActive ? .workEnded : .workStarted
+        receive(ManualActivitySource.event(kind, at: now), at: now)
+    }
+
     func advance(to now: Date = Date()) {
+        checkDailyWake(now: now)
+
         let currentContext = activityContext.expiring(at: now)
         if currentContext != activityContext {
             activityContext = currentContext
@@ -80,6 +105,13 @@ final class PetSession: ObservableObject {
             reaction = eventReaction
             scheduleReactionClear(eventReaction)
         }
+    }
+
+    /// Refreshes an ongoing signal (e.g. "still away") without repeating its
+    /// one-time reaction, so a genuine multi-hour absence keeps registering
+    /// as away instead of silently expiring back to quiet.
+    func extendActivity(_ kind: ActivityEventKind, at now: Date = Date()) {
+        activityContext = activityContext.reducing(SystemActivitySource.event(kind, at: now))
     }
 
     func perform(_ action: PetAction, at now: Date = Date()) {
@@ -115,6 +147,15 @@ final class PetSession: ObservableObject {
         persist()
     }
 
+    func rename(to name: String) {
+        guard PetState.isValidName(name) else {
+            return
+        }
+
+        state = state.renamed(to: name)
+        persist()
+    }
+
     private func persist() {
         guard persistenceEnabled else {
             return
@@ -127,6 +168,18 @@ final class PetSession: ObservableObject {
             persistenceWarning = "Pet state could not be saved."
             NSLog("Worklings could not save pet state: %@", String(describing: error))
         }
+    }
+
+    private func checkDailyWake(now: Date) {
+        let defaults = UserDefaults.standard
+        let lastWakeAt = defaults.object(forKey: Self.lastDailyWakeDateDefaultsKey) as? Date
+
+        guard DailyWakeTracker.shouldWake(lastWakeAt: lastWakeAt, now: now) else {
+            return
+        }
+
+        defaults.set(now, forKey: Self.lastDailyWakeDateDefaultsKey)
+        receive(SystemActivitySource.event(.dailyWake, at: now))
     }
 
     private func startTicking() {

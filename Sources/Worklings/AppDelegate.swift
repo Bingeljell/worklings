@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
+    private var presenceMonitor: PresenceMonitor?
     private var statusItem: NSStatusItem?
     private var visibilityMenuItem: NSMenuItem?
     private var petHeaderMenuItem: NSMenuItem?
@@ -15,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var feedMenuItem: NSMenuItem?
     private var playMenuItem: NSMenuItem?
     private var sleepMenuItem: NSMenuItem?
+    private var focusSessionMenuItem: NSMenuItem?
+    private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
@@ -24,10 +27,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        let rateScale = ProcessInfo.processInfo.environment["WORKLINGS_DEBUG_RATE_SCALE"]
+            .flatMap(Double.init) ?? 1
+        let petSession = PetSession(rates: PetSimulationRates().scaled(by: rateScale))
+        #else
         let petSession = PetSession()
+        #endif
         let companionController = CompanionPanelController(session: petSession)
         self.petSession = petSession
         self.companionController = companionController
+
+        #if DEBUG
+        let idleThreshold = ProcessInfo.processInfo.environment["WORKLINGS_IDLE_THRESHOLD_SECONDS"]
+            .flatMap(TimeInterval.init) ?? PresenceEvaluator.defaultIdleThreshold
+        let pollInterval = ProcessInfo.processInfo.environment["WORKLINGS_PRESENCE_POLL_SECONDS"]
+            .flatMap(TimeInterval.init) ?? 15
+        let presenceMonitor = PresenceMonitor(
+            session: petSession,
+            idleThreshold: idleThreshold,
+            pollInterval: pollInterval
+        )
+        #else
+        let presenceMonitor = PresenceMonitor(session: petSession)
+        #endif
+        self.presenceMonitor = presenceMonitor
+        presenceMonitor.start()
 
         configureStatusItem()
         companionController.setRoamingEnabled(
@@ -62,6 +87,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         menu.addItem(makeFamilyMenuItem())
+
+        let renameItem = NSMenuItem(
+            title: "Rename…",
+            action: #selector(renamePet),
+            keyEquivalent: ""
+        )
+        renameItem.target = self
+        menu.addItem(renameItem)
+
         menu.addItem(.separator())
 
         let feedMenuItem = makeFoodMenuItem()
@@ -88,6 +122,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sleepItem.target = self
         menu.addItem(sleepItem)
         sleepMenuItem = sleepItem
+
+        menu.addItem(.separator())
+        let focusSessionItem = NSMenuItem(
+            title: "Start Focus Session",
+            action: #selector(toggleFocusSession),
+            keyEquivalent: ""
+        )
+        focusSessionItem.target = self
+        menu.addItem(focusSessionItem)
+        focusSessionMenuItem = focusSessionItem
+
+        menu.addItem(.separator())
+        let logWorkItem = NSMenuItem(
+            title: "Log Work",
+            action: #selector(logWork),
+            keyEquivalent: ""
+        )
+        logWorkItem.target = self
+        menu.addItem(logWorkItem)
+        logWorkMenuItem = logWorkItem
 
         menu.addItem(.separator())
         let roamingItem = NSMenuItem(
@@ -178,6 +232,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             status.availability(for: .sleep, state: state),
             to: sleepMenuItem
         )
+        apply(
+            petSession.workLogAvailability(),
+            to: logWorkMenuItem
+        )
+        updateFocusSessionMenuItem()
 
         for menuItem in foodMenuItems {
             guard let rawValue = menuItem.representedObject as? String,
@@ -273,6 +332,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc
+    private func renamePet() {
+        guard let petSession else {
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Rename \(petSession.state.name)"
+        alert.informativeText = "Choose a new name (up to \(PetState.maximumNameLength) characters)."
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        textField.stringValue = petSession.state.name
+        textField.placeholderString = "Name"
+        alert.accessoryView = textField
+        alert.window.initialFirstResponder = textField
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+        petSession.rename(to: textField.stringValue)
+    }
+
+    @objc
     private func selectFamily(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let family = PetFamily(rawValue: rawValue) else {
@@ -355,6 +438,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "Context: " + parts.joined(separator: " · ")
     }
     #endif
+
+    private func updateFocusSessionMenuItem() {
+        guard let petSession else {
+            return
+        }
+
+        let isActive = petSession.isFocusSessionActive
+        focusSessionMenuItem?.title = isActive ? "End Focus Session" : "Start Focus Session"
+        focusSessionMenuItem?.state = isActive ? .on : .off
+        focusSessionMenuItem?.toolTip = isActive
+            ? "Wrap up this focus session."
+            : "Tell \(petSession.state.name) you're settling in to work."
+    }
+
+    @objc
+    private func toggleFocusSession() {
+        petSession?.toggleFocusSession()
+    }
+
+    @objc
+    private func logWork() {
+        petSession?.logWork()
+    }
 
     @objc
     private func petCompanion() {
