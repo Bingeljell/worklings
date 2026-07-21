@@ -66,6 +66,15 @@ final class PetSession: ObservableObject {
         receive(ManualActivitySource.event(.workLogged, at: now), at: now)
     }
 
+    var isFocusSessionActive: Bool {
+        activityContext.isWorking
+    }
+
+    func toggleFocusSession(at now: Date = Date()) {
+        let kind: ActivityEventKind = isFocusSessionActive ? .workEnded : .workStarted
+        receive(ManualActivitySource.event(kind, at: now), at: now)
+    }
+
     func advance(to now: Date = Date()) {
         checkDailyWake(now: now)
 

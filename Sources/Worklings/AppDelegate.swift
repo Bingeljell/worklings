@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var feedMenuItem: NSMenuItem?
     private var playMenuItem: NSMenuItem?
     private var sleepMenuItem: NSMenuItem?
+    private var focusSessionMenuItem: NSMenuItem?
     private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
@@ -112,6 +113,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sleepItem.target = self
         menu.addItem(sleepItem)
         sleepMenuItem = sleepItem
+
+        menu.addItem(.separator())
+        let focusSessionItem = NSMenuItem(
+            title: "Start Focus Session",
+            action: #selector(toggleFocusSession),
+            keyEquivalent: ""
+        )
+        focusSessionItem.target = self
+        menu.addItem(focusSessionItem)
+        focusSessionMenuItem = focusSessionItem
 
         menu.addItem(.separator())
         let logWorkItem = NSMenuItem(
@@ -216,6 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             petSession.workLogAvailability(),
             to: logWorkMenuItem
         )
+        updateFocusSessionMenuItem()
 
         for menuItem in foodMenuItems {
             guard let rawValue = menuItem.representedObject as? String,
@@ -393,6 +405,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "Context: " + parts.joined(separator: " · ")
     }
     #endif
+
+    private func updateFocusSessionMenuItem() {
+        guard let petSession else {
+            return
+        }
+
+        let isActive = petSession.isFocusSessionActive
+        focusSessionMenuItem?.title = isActive ? "End Focus Session" : "Start Focus Session"
+        focusSessionMenuItem?.state = isActive ? .on : .off
+        focusSessionMenuItem?.toolTip = isActive
+            ? "Wrap up this focus session."
+            : "Tell \(petSession.state.name) you're settling in to work."
+    }
+
+    @objc
+    private func toggleFocusSession() {
+        petSession?.toggleFocusSession()
+    }
 
     @objc
     private func logWork() {

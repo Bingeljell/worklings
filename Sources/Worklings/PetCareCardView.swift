@@ -103,8 +103,30 @@ struct PetCareCardView: View {
                 }
             }
 
+            focusSessionButton
             logWorkButton
         }
+    }
+
+    private var focusSessionButton: some View {
+        let isActive = session.isFocusSessionActive
+
+        return Button {
+            session.toggleFocusSession()
+        } label: {
+            Label(
+                isActive ? "End Focus Session" : "Start Focus Session",
+                systemImage: isActive ? "stop.circle.fill" : "timer"
+            )
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .help(
+            isActive
+                ? "Wrap up this focus session."
+                : "Tell \(state.name) you're settling in to work."
+        )
+        .frame(maxWidth: .infinity)
     }
 
     private var logWorkButton: some View {

@@ -92,9 +92,15 @@ These values are alpha tuning. In debug builds only, three environment variables
 
 The live presence source keeps a genuine absence alive by quietly re-touching the context roughly every 15 seconds, without repeating the "Oh, you're away…" reaction — so the two-tier rate above sees the absence's real duration rather than losing track of it. The 30-minute expiry is a fallback for abnormal termination only (a crash, a `workStarted` whose `workEnded` never arrives), not the everyday path.
 
+## Focus Session
+
+A paw-menu item and a care-card button that toggle between "Start Focus Session" and "End Focus Session," firing real `workStarted` and `workEnded` events for a work block with an actual beginning and end — unlike Log Work's point-in-time nature. It's tagged with the `manual` source id, the same as Log Work: starting or ending the block is still something the user asserts by clicking, not something Worklings can verify on its own. A future agent adapter emitting the same event kinds automatically would carry a different source id, so the two can be treated differently once that distinction matters.
+
+Neither `workStarted` nor `workEnded` grants Happiness or Trust directly — there is nothing to game, because the only effect is the existing working multiplier (see [Activity events](#activity-events) above): Fullness and Energy drain faster for the duration of the block, exactly as they already do for the simulated version of these events. This is the first real trigger for that multiplier; the [progression design](progression.md) lists sustained work blocks as a planned XP source, which will read from this same event pair once it exists.
+
 ## Log Work
 
-The first self-reported source: a paw-menu item and a care-card button that let you tell Pixel about work with no natural start or end — a meeting, a decision, helping someone. It fires `workLogged`, tagged with the `manual` source id so it's always distinguishable from externally verifiable sources like a future GitHub milestone.
+The first self-reported source that grants a reward: a paw-menu item and a care-card button that let you tell Pixel about work with no natural start or end — a meeting, a decision, helping someone. It fires `workLogged`, tagged with the `manual` source id so it's always distinguishable from externally verifiable sources like a future GitHub milestone.
 
 There is no user-chosen point value — every credited log grants the same fixed Happiness gain, because a self-adjustable reward is exactly the loophole that makes idle-game economies gameable. Fairness instead comes from two caps, mirroring the "caps, not cryptography" principle in the [progression design](progression.md):
 
