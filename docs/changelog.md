@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-21 > docs/progression.md > the character/class design direction > Reframes Worklings as an avatar/character, not just a pet, and records the full systems ladder (level, stats, class, abilities, gear, dungeons, endgame, PVP) in build order. Replaces banked, manually-spent stat points with automatic class-weighted stat growth so a future abilities currency never has to share a schema with stat growth, splits persisted base stats from a future computed effective-stats layer for gear, softens the fairness posture for PVE-only cheating while keeping PVP deferred behind multiplayer normalization, and locks in the five-class roster (Wellspring, Juggernaut, Aegis, Maverick, Tinkerer), each a modern-culture term that also carries its own mythic weight.**
+
 - **2026-07-21 > README.md and docs/distribution.md > v0.1.0-alpha.3 release status > Hyperlinks the README's changelog mention to `docs/changelog.md`, and records the published `v0.1.0-alpha.3` GitHub prerelease (build number 3) as bringing real activity awareness, Log Work, Focus Session, pet renaming, and the persistent name pill, bumping the packaging command examples to match.**
 
 - **2026-07-21 > Sources/Worklings/WildkinPetView.swift and docs/pet_interaction.md > persistent name pill > Adds a small name pill below the pet that is always visible instead of only after opening the care card, hiding during the smoke transition like the rest of the pet and marked accessibility-hidden since the name is already spoken through the pet's accessibility label.**
