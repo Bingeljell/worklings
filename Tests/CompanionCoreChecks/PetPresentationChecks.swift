@@ -8,7 +8,41 @@ enum PetPresentationChecks {
         checkNeedPresentations(context: &context)
         checkReactionOverride(context: &context)
         checkTiredReaction(context: &context)
+        checkLearningRate(context: &context)
         checkSmokeTransitionPlans(context: &context)
+    }
+
+    private static func checkLearningRate(context: inout CheckContext) {
+        let thriving = makeState(
+            needs: PetNeeds(hunger: 0, energy: 100, happiness: 100, trust: 100)
+        )
+        let middling = makeState(
+            needs: PetNeeds(hunger: 40, energy: 60, happiness: 60, trust: 60)
+        )
+        let neglected = makeState(
+            needs: PetNeeds(hunger: 100, energy: 0, happiness: 0, trust: 0)
+        )
+
+        context.expectEqual(
+            PetPresentation.learningRatePercent(for: thriving),
+            100,
+            "a fully-cared pet learns at the full rate"
+        )
+        context.expectEqual(
+            PetPresentation.learningRatePercent(for: middling),
+            60,
+            "learning rate tracks average wellbeing"
+        )
+        context.expectEqual(
+            PetPresentation.learningRatePercent(for: neglected),
+            20,
+            "learning rate never drops below the condition floor"
+        )
+        context.expectEqual(
+            PetPresentation.learningRateLabel(for: thriving),
+            "Learning at 100% — a happier Workling earns faster",
+            "learning rate label reads as one plain line"
+        )
     }
 
     private static func checkHappyPresentationIsQuiet(context: inout CheckContext) {

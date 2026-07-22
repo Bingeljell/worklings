@@ -161,11 +161,15 @@ struct PetCareCardView: View {
             Text("\(Int(progress.xpIntoLevel)) / \(Int(progress.xpForLevel)) XP to next level")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            Text(PetPresentation.learningRateLabel(for: state))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(levelLabel), \(state.petClass.role), "
-            + "\(Int(progress.xpIntoLevel)) of \(Int(progress.xpForLevel)) XP to next level"
+            + "\(Int(progress.xpIntoLevel)) of \(Int(progress.xpForLevel)) XP to next level, "
+            + PetPresentation.learningRateLabel(for: state)
         )
     }
 

@@ -93,7 +93,7 @@ XP is earned from normalized events and from care quality, so progression is pro
 | `taskCompleted` | Agent and build completions. Formula defined now; dormant until a real adapter fires it (only the debug simulated source can today). |
 | `milestone` | Commits small, merged PRs largest. Formula defined now; dormant for the same reason. |
 
-**Condition multiplier.** XP accrual scales with current wellbeing — the average of Fullness, Energy, Happiness, and Trust, floored so neglect slows accrual without ever fully halting it. This is the primary coupling between the two layers.
+**Condition multiplier.** XP accrual scales with current wellbeing — the average of Fullness, Energy, Happiness, and Trust, floored so neglect slows accrual without ever fully halting it. This is the primary coupling between the two layers. The care card surfaces it as one plain line under the XP bar ("Learning at N% …", `PetPresentation.learningRateLabel`) so the multiplier is legible rather than reverse-engineered from shrunken grants. **Later:** a proper wellbeing score with its own visual treatment (not a bar) is deferred — the single line is the alpha stand-in.
 
 **Caps and diminishing returns.** Every source has its own daily cap, and an overall daily cap holds across all sources combined — the actual fairness mechanism (see below). Both reset lazily by comparing a stored date to "now," the same pattern Log Work already established, so there is no day-rollover code path to get wrong. Exact values are alpha tuning; see the Tuning reference below.
 
