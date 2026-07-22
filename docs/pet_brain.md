@@ -100,6 +100,8 @@ A paw-menu item and a care-card button that toggle between "Start Focus Session"
 
 Neither `workStarted` nor `workEnded` grants Happiness or Trust directly — there is nothing to game, because the only effect is the existing working multiplier (see [Activity events](#activity-events) above): Fullness and Energy drain faster for the duration of the block, exactly as they already do for the simulated version of these events. This is the first real trigger for that multiplier; the [progression design](progression.md) lists sustained work blocks as a planned XP source, which will read from this same event pair once it exists.
 
+A session's XP duration is measured between the events' own timestamps, never delivery time, and **idle time inside a block doesn't count**: returning from an absence shifts the block's effective start forward by the time away, and ending a block while still away stops counting at the moment of departure. A block worked 10 minutes, idled 30, worked 5 reads as 15 focus minutes.
+
 ## Log Work
 
 The first self-reported source that grants a reward: a paw-menu item and a care-card button that let you tell Pixel about work with no natural start or end — a meeting, a decision, helping someone. It fires `workLogged`, tagged with the `manual` source id so it's always distinguishable from externally verifiable sources like a future GitHub milestone.

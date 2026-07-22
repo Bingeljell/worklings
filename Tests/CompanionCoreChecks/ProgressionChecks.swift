@@ -14,6 +14,9 @@ enum ProgressionChecks {
         checkFocusSessionBelowMinimumDurationGrantsNoXP(context: &context)
         checkFocusSessionAboveMinimumDurationGrantsXP(context: &context)
         checkFocusSessionDurationIgnoresDeliveryDelay(context: &context)
+        checkIdleTimeIsDiscountedFromFocusSessions(context: &context)
+        checkWorkEndedWhileAwayStopsCountingAtDeparture(context: &context)
+        checkXPMultiplierUsesPreActionCondition(context: &context)
         checkObserveAdvancesWithActivityContext(context: &context)
         checkBackloggedEventBooksIntoItsOwnDay(context: &context)
         checkPerSourceDailyCapBlocksFurtherGrants(context: &context)
@@ -236,6 +239,89 @@ enum ProgressionChecks {
             11 * brain.progressionRates.focusSessionXPPerMinute,
             accuracy: 1,
             "focus XP is measured between the events' own timestamps, not delivery time"
+        )
+    }
+
+    private static func checkIdleTimeIsDiscountedFromFocusSessions(context: inout CheckContext) {
+        var activity = ActivityContext.quiet.reducing(
+            ManualActivitySource.event(.workStarted, at: start)
+        )
+        activity = activity.reducing(
+            SystemActivitySource.event(.userIdle, at: start.addingTimeInterval(10 * 60))
+        )
+        activity = activity.reducing(
+            SystemActivitySource.event(.userReturned, at: start.addingTimeInterval(40 * 60))
+        )
+
+        context.expectEqual(
+            activity.workingSince,
+            start.addingTimeInterval(30 * 60),
+            "returning from a 30-minute absence shifts the work block's start forward by 30 minutes"
+        )
+
+        let brain = PetBrain()
+        let sessionEnd = start.addingTimeInterval(45 * 60)
+        let response = brain.observe(
+            ManualActivitySource.event(.workEnded, at: sessionEnd),
+            on: fullHealthState(),
+            at: sessionEnd,
+            context: activity
+        )
+        context.expectApproximatelyEqual(
+            response.state.totalXP,
+            15 * brain.progressionRates.focusSessionXPPerMinute,
+            accuracy: 1,
+            "a 45-minute block idled through for 30 minutes grants XP for the 15 minutes worked"
+        )
+    }
+
+    private static func checkWorkEndedWhileAwayStopsCountingAtDeparture(context: inout CheckContext) {
+        var activity = ActivityContext.quiet.reducing(
+            ManualActivitySource.event(.workStarted, at: start)
+        )
+        activity = activity.reducing(
+            SystemActivitySource.event(.userIdle, at: start.addingTimeInterval(12 * 60))
+        )
+
+        let brain = PetBrain()
+        let sessionEnd = start.addingTimeInterval(60 * 60)
+        let response = brain.observe(
+            ManualActivitySource.event(.workEnded, at: sessionEnd),
+            on: fullHealthState(),
+            at: sessionEnd,
+            context: activity
+        )
+        context.expectApproximatelyEqual(
+            response.state.totalXP,
+            12 * brain.progressionRates.focusSessionXPPerMinute,
+            accuracy: 1,
+            "a block ended while the user is still away counts only the time before they left"
+        )
+    }
+
+    private static func checkXPMultiplierUsesPreActionCondition(context: inout CheckContext) {
+        let brain = PetBrain()
+        var state = fullHealthState()
+        state = PetState(
+            schemaVersion: state.schemaVersion,
+            name: state.name,
+            family: state.family,
+            needs: PetNeeds(hunger: 90, energy: 15, happiness: 10, trust: 20),
+            preferences: state.preferences,
+            lastUpdatedAt: state.lastUpdatedAt,
+            totalXP: 0,
+            petClass: state.petClass
+        )
+
+        let expectedMultiplier = state.needs.xpMultiplier(
+            floor: brain.progressionRates.conditionMultiplierFloor
+        )
+        let result = brain.perform(.pet, on: state, at: start)
+
+        context.expectApproximatelyEqual(
+            result.state.totalXP,
+            brain.progressionRates.careActionXP * expectedMultiplier,
+            "a care action's XP scales with the condition the pet was in before the action, not after"
         )
     }
 

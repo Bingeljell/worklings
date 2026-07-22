@@ -208,7 +208,7 @@ public struct PetBrain: Sendable {
                 at: now
             )
             return PetActivityResponse(
-                state: grantingXP(progressionRates.dailyWakeXP, source: .dailyWake, to: updated, at: now, day: event.timestamp),
+                state: grantingXP(progressionRates.dailyWakeXP, source: .dailyWake, to: updated, at: now, day: event.timestamp, condition: needs),
                 reaction: .happyToSeeYou
             )
 
@@ -229,7 +229,8 @@ public struct PetBrain: Sendable {
                     source: .taskCompleted,
                     to: updated,
                     at: now,
-                    day: event.timestamp
+                    day: event.timestamp,
+                    condition: needs
                 ),
                 reaction: .celebratedTask
             )
@@ -257,7 +258,7 @@ public struct PetBrain: Sendable {
                 at: now
             )
             return PetActivityResponse(
-                state: grantingXP(progressionRates.milestoneXP, source: .milestone, to: updated, at: now, day: event.timestamp),
+                state: grantingXP(progressionRates.milestoneXP, source: .milestone, to: updated, at: now, day: event.timestamp, condition: needs),
                 reaction: .proudOfMilestone
             )
 
@@ -272,15 +273,22 @@ public struct PetBrain: Sendable {
             if let workingSince = context.workingSince {
                 // Duration is measured between the events' own timestamps,
                 // never delivery time: a session drained late from the inbox
-                // must not be credited for the delay.
-                let minutes = max(0, event.timestamp.timeIntervalSince(workingSince)) / 60
+                // must not be credited for the delay. A block ended while the
+                // user is still away stops counting at the moment they left —
+                // the return path already discounts finished absences by
+                // shifting workingSince forward.
+                let sessionEnd = context.isUserPresent
+                    ? event.timestamp
+                    : min(event.timestamp, context.awaySince ?? event.timestamp)
+                let minutes = max(0, sessionEnd.timeIntervalSince(workingSince)) / 60
                 if minutes >= progressionRates.focusSessionMinimumMinutes {
                     updated = grantingXP(
                         minutes * progressionRates.focusSessionXPPerMinute,
                         source: .focusSession,
                         to: updated,
                         at: now,
-                        day: event.timestamp
+                        day: event.timestamp,
+                        condition: needs
                     )
                 }
             }
@@ -308,7 +316,7 @@ public struct PetBrain: Sendable {
                 workLogCountDate: now
             )
             return PetActivityResponse(
-                state: grantingXP(progressionRates.workLoggedXP, source: .workLogged, to: updated, at: now, day: event.timestamp),
+                state: grantingXP(progressionRates.workLoggedXP, source: .workLogged, to: updated, at: now, day: event.timestamp, condition: needs),
                 reaction: .loggedWork
             )
         }
@@ -424,7 +432,7 @@ public struct PetBrain: Sendable {
             at: now
         )
         return PetInteractionResult(
-            state: grantingXP(progressionRates.careActionXP, source: .care, to: updated, at: now),
+            state: grantingXP(progressionRates.careActionXP, source: .care, to: updated, at: now, condition: state.needs),
             reaction: reaction
         )
     }
@@ -440,12 +448,17 @@ public struct PetBrain: Sendable {
     /// pre-midnight event drained after midnight books into the day the work
     /// actually happened. Defaults to `now` for care actions, which are
     /// always immediate.
+    /// `condition` is the needs the pet was in *before* the action or event
+    /// being rewarded improved them, so an action's own boost can never
+    /// inflate its own multiplier. Defaults to the state's needs for grants
+    /// with no preceding bump.
     private func grantingXP(
         _ rawAmount: Double,
         source: XPSource,
         to state: PetState,
         at now: Date,
         day: Date? = nil,
+        condition: PetNeeds? = nil,
         calendar: Calendar = .current
     ) -> PetState {
         guard rawAmount > 0 else {
@@ -462,7 +475,8 @@ public struct PetBrain: Sendable {
         let sourceHeadroom = max(0, progressionRates.dailyCap(for: source) - grantedTodayForSource)
         let overallHeadroom = max(0, progressionRates.overallDailyCap - grantedTodayOverall)
 
-        let multiplier = state.needs.xpMultiplier(floor: progressionRates.conditionMultiplierFloor)
+        let multiplier = (condition ?? state.needs)
+            .xpMultiplier(floor: progressionRates.conditionMultiplierFloor)
         let amount = min(rawAmount * multiplier, sourceHeadroom, overallHeadroom)
         guard amount > 0 else {
             return state

@@ -90,12 +90,24 @@ public struct ActivityContext: Equatable, Sendable {
     public func reducing(_ event: ActivityEvent) -> ActivityContext {
         switch event.kind {
         case .dailyWake, .userReturned:
+            // Returning from an absence shifts an open work block's start
+            // forward by the time spent away, so the absence never counts as
+            // focus time: a block worked 10 minutes, idled 30, worked 5 reads
+            // as 15 minutes, not 45.
+            let adjustedWorkingSince: Date?
+            if let workingSince, let awaySince, awaySince > workingSince {
+                adjustedWorkingSince = workingSince.addingTimeInterval(
+                    max(0, event.timestamp.timeIntervalSince(awaySince))
+                )
+            } else {
+                adjustedWorkingSince = workingSince
+            }
             return ActivityContext(
                 isWorking: isWorking,
                 isAwaitingInput: isAwaitingInput,
                 isUserPresent: true,
                 awaySince: nil,
-                workingSince: workingSince,
+                workingSince: adjustedWorkingSince,
                 lastEventAt: event.timestamp
             )
         case .workStarted:
