@@ -53,7 +53,7 @@ enum WorkLogChecks {
             "logging work records when it happened"
         )
         context.expectEqual(
-            response.state.workLogCountToday,
+            response.state.workLog.current(on: start, default: 0),
             1,
             "logging work counts toward today's tally"
         )
@@ -105,7 +105,7 @@ enum WorkLogChecks {
             now = now.addingTimeInterval(11 * 60)
         }
 
-        context.expectEqual(state.workLogCountToday, 2, "two credited logs reach the tight test cap")
+        context.expectEqual(state.workLog.current(on: now, default: 0), 2, "two credited logs reach the tight test cap")
         context.expect(
             !brain.workLogAvailability(state: state, at: now).isEnabled,
             "the daily cap blocks logging after enough credited entries"
@@ -150,9 +150,9 @@ enum WorkLogChecks {
             "switching family preserves the work log cooldown timestamp"
         )
         context.expectEqual(
-            switched.workLogCountToday,
-            logged.workLogCountToday,
-            "switching family preserves today's work log count"
+            switched.workLog,
+            logged.workLog,
+            "switching family preserves today's work log tally"
         )
     }
 
@@ -173,9 +173,9 @@ enum WorkLogChecks {
             "renaming preserves the work log cooldown timestamp"
         )
         context.expectEqual(
-            renamed.workLogCountToday,
-            logged.workLogCountToday,
-            "renaming preserves today's work log count"
+            renamed.workLog,
+            logged.workLog,
+            "renaming preserves today's work log tally"
         )
     }
 

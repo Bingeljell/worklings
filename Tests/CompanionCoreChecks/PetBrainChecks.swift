@@ -41,7 +41,7 @@ enum PetBrainChecks {
         let now = Date(timeIntervalSinceReferenceDate: 1_000)
         let state = PetState.newPet(now: now)
 
-        context.expectEqual(state.schemaVersion, 1, "new pet uses current schema")
+        context.expectEqual(state.schemaVersion, 2, "new pet uses current schema")
         context.expectEqual(state.name, "Pixel", "new pet uses placeholder name")
         context.expectEqual(state.family, .wildkin, "existing pet default remains Wildkin")
         context.expectEqual(state.preferences.favouriteFood, .berries, "new pet has favourite food")

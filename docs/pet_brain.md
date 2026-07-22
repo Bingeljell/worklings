@@ -113,7 +113,7 @@ There is no user-chosen point value — every credited log grants the same fixed
 
 Both are checked before the action is even available — Log Work is disabled with an explanation exactly like Feed at zero hunger, never silently clicked and rejected. `PetBrain.workLogAvailability` is the single source of truth both the menu and the care card read.
 
-The daily cap is tracked on the save (`lastWorkLogAt`, `workLogCountToday`, `workLogCountDate`) but never proactively reset: a stale count from a previous day is simply ignored once the stored date no longer matches today, so there is no day-rollover code path to get wrong.
+The daily cap is tracked on the save (`lastWorkLogAt` plus the `workLog` daily tally) but never proactively reset: a stale count from a previous day is simply ignored once the tally's stored date no longer matches today, so there is no day-rollover code path to get wrong. `workLog` and the per-source `dailyXP` ledger share one `DailyTally` type — the single place that "valid only today" bookkeeping lives.
 
 ## Presentation
 

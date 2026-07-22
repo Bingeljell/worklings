@@ -105,7 +105,7 @@ public enum PetFamily: String, CaseIterable, Codable, Equatable, Sendable {
 }
 
 public struct PetState: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public let schemaVersion: Int
     public let name: String
@@ -113,21 +113,17 @@ public struct PetState: Codable, Equatable, Sendable {
     public let needs: PetNeeds
     public let preferences: PetPreferences
     public let lastUpdatedAt: Date
-    /// Log Work fairness bookkeeping. `workLogCountToday` only reflects the
-    /// calendar day named by `workLogCountDate`; a caller must compare dates
-    /// before trusting the count, since it is never proactively reset.
     public let lastWorkLogAt: Date?
-    public let workLogCountToday: Int
-    public let workLogCountDate: Date?
+    /// Log Work fairness bookkeeping: how many logs were credited on its
+    /// stored day. Read through `DailyTally.current(on:)` so a stale count is
+    /// ignored rather than proactively reset.
+    public let workLog: DailyTally<Int>
     public let totalXP: Double
     public let petClass: PetClass
     public let stats: PetStats
-    /// XP granted today, keyed by `XPSource.rawValue`. Like
-    /// `workLogCountToday`, only meaningful for the day named by
-    /// `dailyXPDate`; a stale entry from a previous day is ignored, never
-    /// proactively reset.
-    public let dailyXPBySource: [String: Double]
-    public let dailyXPDate: Date?
+    /// XP granted on its stored day, keyed by `XPSource.rawValue`. Same
+    /// day-scoped semantics as `workLog`.
+    public let dailyXP: DailyTally<[String: Double]>
 
     public init(
         schemaVersion: Int = PetState.currentSchemaVersion,
@@ -137,13 +133,11 @@ public struct PetState: Codable, Equatable, Sendable {
         preferences: PetPreferences,
         lastUpdatedAt: Date,
         lastWorkLogAt: Date? = nil,
-        workLogCountToday: Int = 0,
-        workLogCountDate: Date? = nil,
+        workLog: DailyTally<Int> = DailyTally(value: 0),
         totalXP: Double = 0,
         petClass: PetClass = .wellspring,
         stats: PetStats = PetStats(),
-        dailyXPBySource: [String: Double] = [:],
-        dailyXPDate: Date? = nil
+        dailyXP: DailyTally<[String: Double]> = DailyTally(value: [:])
     ) {
         self.schemaVersion = schemaVersion
         self.name = name
@@ -152,17 +146,43 @@ public struct PetState: Codable, Equatable, Sendable {
         self.preferences = preferences
         self.lastUpdatedAt = lastUpdatedAt
         self.lastWorkLogAt = lastWorkLogAt
-        self.workLogCountToday = workLogCountToday
-        self.workLogCountDate = workLogCountDate
+        self.workLog = workLog
         self.totalXP = max(totalXP, 0)
         self.petClass = petClass
         self.stats = stats
-        self.dailyXPBySource = dailyXPBySource
-        self.dailyXPDate = dailyXPDate
+        self.dailyXP = dailyXP
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, name, family, needs, preferences, lastUpdatedAt
+        case lastWorkLogAt, workLog, totalXP, petClass, stats, dailyXP
+    }
+
+    /// The pre-v2 flat daily fields, read only to fold a v1 save into the
+    /// unified tallies. Kept separate from `CodingKeys` so the synthesized
+    /// encoder never writes them back.
+    private enum LegacyCodingKeys: String, CodingKey {
+        case workLogCountToday, workLogCountDate, dailyXPBySource, dailyXPDate
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+
+        let workLog = try container.decodeIfPresent(DailyTally<Int>.self, forKey: .workLog)
+            ?? DailyTally(
+                date: try legacy.decodeIfPresent(Date.self, forKey: .workLogCountDate),
+                value: try legacy.decodeIfPresent(Int.self, forKey: .workLogCountToday) ?? 0
+            )
+        let dailyXP = try container.decodeIfPresent(
+            DailyTally<[String: Double]>.self,
+            forKey: .dailyXP
+        )
+            ?? DailyTally(
+                date: try legacy.decodeIfPresent(Date.self, forKey: .dailyXPDate),
+                value: try legacy.decodeIfPresent([String: Double].self, forKey: .dailyXPBySource) ?? [:]
+            )
+
         self.init(
             schemaVersion: try container.decode(Int.self, forKey: .schemaVersion),
             name: try container.decode(String.self, forKey: .name),
@@ -171,16 +191,11 @@ public struct PetState: Codable, Equatable, Sendable {
             preferences: try container.decode(PetPreferences.self, forKey: .preferences),
             lastUpdatedAt: try container.decode(Date.self, forKey: .lastUpdatedAt),
             lastWorkLogAt: try container.decodeIfPresent(Date.self, forKey: .lastWorkLogAt),
-            workLogCountToday: try container.decodeIfPresent(Int.self, forKey: .workLogCountToday) ?? 0,
-            workLogCountDate: try container.decodeIfPresent(Date.self, forKey: .workLogCountDate),
+            workLog: workLog,
             totalXP: try container.decodeIfPresent(Double.self, forKey: .totalXP) ?? 0,
             petClass: try container.decodeIfPresent(PetClass.self, forKey: .petClass) ?? .wellspring,
             stats: try container.decodeIfPresent(PetStats.self, forKey: .stats) ?? PetStats(),
-            dailyXPBySource: try container.decodeIfPresent(
-                [String: Double].self,
-                forKey: .dailyXPBySource
-            ) ?? [:],
-            dailyXPDate: try container.decodeIfPresent(Date.self, forKey: .dailyXPDate)
+            dailyXP: dailyXP
         )
     }
 
@@ -211,26 +226,32 @@ public struct PetState: Codable, Equatable, Sendable {
     /// per wither — a missed field here fails to compile rather than
     /// silently dropping state.
     private func replacing(
+        schemaVersion: Int? = nil,
         name: String? = nil,
         family: PetFamily? = nil,
         petClass: PetClass? = nil
     ) -> PetState {
         PetState(
-            schemaVersion: schemaVersion,
+            schemaVersion: schemaVersion ?? self.schemaVersion,
             name: name ?? self.name,
             family: family ?? self.family,
             needs: needs,
             preferences: preferences,
             lastUpdatedAt: lastUpdatedAt,
             lastWorkLogAt: lastWorkLogAt,
-            workLogCountToday: workLogCountToday,
-            workLogCountDate: workLogCountDate,
+            workLog: workLog,
             totalXP: totalXP,
             petClass: petClass ?? self.petClass,
             stats: stats,
-            dailyXPBySource: dailyXPBySource,
-            dailyXPDate: dailyXPDate
+            dailyXP: dailyXP
         )
+    }
+
+    /// Restamps the schema version, preserving every field. Used by the file
+    /// store to finish migrating a loaded older save to the current version;
+    /// the field-level upgrade already happened during decode.
+    func upgradedToSchema(_ version: Int) -> PetState {
+        replacing(schemaVersion: version)
     }
 
     public func selectingFamily(_ family: PetFamily) -> PetState {

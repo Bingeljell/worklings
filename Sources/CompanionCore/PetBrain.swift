@@ -282,7 +282,7 @@ public struct PetBrain: Sendable {
             return PetActivityResponse(state: currentState, reaction: .noticedYouAreAway)
 
         case .workLogged:
-            let count = currentWorkLogCount(state: currentState, at: now)
+            let count = currentState.workLog.current(on: now, default: 0)
             let updated = updatedState(
                 from: currentState,
                 needs: PetNeeds(
@@ -293,8 +293,7 @@ public struct PetBrain: Sendable {
                 ),
                 at: now,
                 lastWorkLogAt: now,
-                workLogCountToday: count + 1,
-                workLogCountDate: now
+                workLog: DailyTally(date: now, value: count + 1)
             )
             return PetActivityResponse(
                 state: grantingXP(progressionRates.workLoggedXP, source: .workLogged, to: updated, at: now, day: event.timestamp, condition: needs),
@@ -322,7 +321,7 @@ public struct PetBrain: Sendable {
             }
         }
 
-        guard currentWorkLogCount(state: state, at: now) < rates.workLogDailyCap else {
+        guard state.workLog.current(on: now, default: 0) < rates.workLogDailyCap else {
             return PetActionAvailability(
                 isEnabled: false,
                 explanation: "\(state.name) has logged enough work for today."
@@ -330,22 +329,6 @@ public struct PetBrain: Sendable {
         }
 
         return PetActionAvailability(isEnabled: true)
-    }
-
-    /// `workLogCountToday` is only meaningful for the calendar day named by
-    /// `workLogCountDate`; a stale count from a previous day is never reset
-    /// in storage, only ignored here, so the save never needs a day-rollover
-    /// side effect.
-    private func currentWorkLogCount(
-        state: PetState,
-        at now: Date,
-        calendar: Calendar = .current
-    ) -> Int {
-        guard let workLogCountDate = state.workLogCountDate,
-              calendar.isDate(workLogCountDate, inSameDayAs: now) else {
-            return 0
-        }
-        return state.workLogCountToday
     }
 
     /// A share-worthy event's full effect: a happiness/trust bump plus an XP
@@ -477,8 +460,7 @@ public struct PetBrain: Sendable {
         }
 
         let day = day ?? now
-        let isSameDay = state.dailyXPDate.map { calendar.isDate($0, inSameDayAs: day) } ?? false
-        let dailyXPBySource = isSameDay ? state.dailyXPBySource : [:]
+        let dailyXPBySource = state.dailyXP.current(on: day, default: [:], calendar: calendar)
 
         let grantedTodayForSource = dailyXPBySource[source.rawValue] ?? 0
         let grantedTodayOverall = dailyXPBySource.values.reduce(0, +)
@@ -518,8 +500,7 @@ public struct PetBrain: Sendable {
             at: now,
             totalXP: newTotalXP,
             stats: stats,
-            dailyXPBySource: updatedDailyXPBySource,
-            dailyXPDate: day
+            dailyXP: DailyTally(date: day, value: updatedDailyXPBySource)
         )
     }
 
@@ -528,12 +509,10 @@ public struct PetBrain: Sendable {
         needs: PetNeeds,
         at now: Date,
         lastWorkLogAt: Date? = nil,
-        workLogCountToday: Int? = nil,
-        workLogCountDate: Date? = nil,
+        workLog: DailyTally<Int>? = nil,
         totalXP: Double? = nil,
         stats: PetStats? = nil,
-        dailyXPBySource: [String: Double]? = nil,
-        dailyXPDate: Date? = nil
+        dailyXP: DailyTally<[String: Double]>? = nil
     ) -> PetState {
         PetState(
             schemaVersion: state.schemaVersion,
@@ -543,13 +522,11 @@ public struct PetBrain: Sendable {
             preferences: state.preferences,
             lastUpdatedAt: now,
             lastWorkLogAt: lastWorkLogAt ?? state.lastWorkLogAt,
-            workLogCountToday: workLogCountToday ?? state.workLogCountToday,
-            workLogCountDate: workLogCountDate ?? state.workLogCountDate,
+            workLog: workLog ?? state.workLog,
             totalXP: totalXP ?? state.totalXP,
             petClass: state.petClass,
             stats: stats ?? state.stats,
-            dailyXPBySource: dailyXPBySource ?? state.dailyXPBySource,
-            dailyXPDate: dailyXPDate ?? state.dailyXPDate
+            dailyXP: dailyXP ?? state.dailyXP
         )
     }
 }
