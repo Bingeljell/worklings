@@ -36,6 +36,8 @@ The repository contains early concepts for three Workling families:
 
 The moss-fox, ember-newt, and keyback pangolin establish world and silhouette direction. All three are packaged, mapped through the same twelve-frame pose contract, and selectable as Pixel's persistent appearance. This is not yet an adoption flow: switching family preserves the same name, needs, preferences, and relationship progress.
 
+Families, species, and the five-class roster are catalogued in [Characters](characters.md), the single home for the identity layer.
+
 ## MVP progress
 
 | Area | Implemented | Remaining |

@@ -127,19 +127,11 @@ Every stat has an ambient effect from day one so growth is meaningful long befor
 
 ## Class
 
-Class decides how the five stats grow: each class has one signature stat that grows fastest per level, with the remaining four still growing at a slower, steady rate so no stat is ever permanently frozen. This is what makes stat growth mean something before abilities or gear exist — a `Warden` and a `Striker` visibly diverge on the same sheet from level one.
+Class decides how the five stats grow: each class has one signature stat that grows fastest per level, with the remaining four still growing at a slower, steady rate so no stat is ever permanently frozen. This is what makes stat growth mean something before abilities or gear exist — a Juggernaut and a Maverick visibly diverge on the same sheet from level one.
 
 Class is freely reassignable for now, the same way family is — there is nothing yet (no ability trees, no gear) that a class swap would need to protect. Once abilities lock to a class, reassignment may need to become a deliberate, costed action; that is a later revisit, not a constraint today.
 
-Every class name is deliberately dual-coded: a term with real currency in modern work/maker culture today, that also carries its own mythic or abstract weight independent of any RPG convention. The roster maps one class per stat, each filling a traditional RPG role:
-
-| Stat | Class | Role | Flavor |
-| --- | --- | --- | --- |
-| Vitality | **Wellspring** | Healer / Support | The source others draw on — sustains, restores, never runs dry. |
-| Power | **Juggernaut** | Heavy offense | Hits like an unstoppable force — raw, overwhelming offense. |
-| Guard | **Aegis** | Tank | The shield everyone stands behind — mitigates, endures, protects. |
-| Agility | **Maverick** | Finesse offense | Moves fast, breaks convention — quick, decisive, takes the opening first. |
-| Wit | **Tinkerer** | Mage-equivalent | Technology so advanced it might as well be magic — clever, inventive, otherworldly effective. |
+The five-class roster — one class per stat, each filling a traditional RPG role, every name dual-coded between modern work/maker culture and its own mythic weight — lives in [Characters](characters.md#classes), the identity layer's single home, alongside families and species. In short: Vitality → **Wellspring**, Power → **Juggernaut**, Guard → **Aegis**, Agility → **Maverick**, Wit → **Tinkerer**.
 
 ## Fairness
 
