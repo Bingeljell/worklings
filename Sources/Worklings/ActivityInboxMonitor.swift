@@ -84,10 +84,12 @@ final class ActivityInboxMonitor {
             return
         }
 
-        let eventFileURLs = fileURLs
-            .filter { $0.pathExtension == "json" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let eventFileURLs = fileURLs.filter { $0.pathExtension == "json" }
 
+        // Decode the whole batch before delivering any of it, so events can
+        // be handed to the session in event-timestamp order regardless of how
+        // adapters happened to name their files.
+        var events: [ActivityEvent] = []
         for fileURL in eventFileURLs {
             let fileName = fileURL.lastPathComponent
             guard !undeletableFileNames.contains(fileName) else {
@@ -97,7 +99,7 @@ final class ActivityInboxMonitor {
             if let data = try? Data(contentsOf: fileURL) {
                 switch ActivityInbox.decode(data, receivedAt: Date()) {
                 case .success(let event):
-                    session.receive(event)
+                    events.append(event)
                 case .failure(let rejection):
                     NSLog(
                         "Worklings discarded inbox file %@: %@",
@@ -113,6 +115,10 @@ final class ActivityInboxMonitor {
                 undeletableFileNames.insert(fileName)
                 NSLog("Worklings could not remove inbox file %@.", fileName)
             }
+        }
+
+        for event in ActivityInbox.ordered(events) {
+            session.receive(event)
         }
     }
 

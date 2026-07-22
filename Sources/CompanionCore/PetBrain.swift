@@ -192,7 +192,7 @@ public struct PetBrain: Sendable {
         at now: Date,
         context: ActivityContext = .quiet
     ) -> PetActivityResponse {
-        let currentState = advance(state, to: now)
+        let currentState = advance(state, to: now, context: context)
         let needs = currentState.needs
 
         switch event.kind {
@@ -208,7 +208,7 @@ public struct PetBrain: Sendable {
                 at: now
             )
             return PetActivityResponse(
-                state: grantingXP(progressionRates.dailyWakeXP, source: .dailyWake, to: updated, at: now),
+                state: grantingXP(progressionRates.dailyWakeXP, source: .dailyWake, to: updated, at: now, day: event.timestamp),
                 reaction: .happyToSeeYou
             )
 
@@ -228,7 +228,8 @@ public struct PetBrain: Sendable {
                     progressionRates.taskCompletedXP,
                     source: .taskCompleted,
                     to: updated,
-                    at: now
+                    at: now,
+                    day: event.timestamp
                 ),
                 reaction: .celebratedTask
             )
@@ -256,7 +257,7 @@ public struct PetBrain: Sendable {
                 at: now
             )
             return PetActivityResponse(
-                state: grantingXP(progressionRates.milestoneXP, source: .milestone, to: updated, at: now),
+                state: grantingXP(progressionRates.milestoneXP, source: .milestone, to: updated, at: now, day: event.timestamp),
                 reaction: .proudOfMilestone
             )
 
@@ -269,13 +270,17 @@ public struct PetBrain: Sendable {
         case .workEnded:
             var updated = currentState
             if let workingSince = context.workingSince {
-                let minutes = now.timeIntervalSince(workingSince) / 60
+                // Duration is measured between the events' own timestamps,
+                // never delivery time: a session drained late from the inbox
+                // must not be credited for the delay.
+                let minutes = max(0, event.timestamp.timeIntervalSince(workingSince)) / 60
                 if minutes >= progressionRates.focusSessionMinimumMinutes {
                     updated = grantingXP(
                         minutes * progressionRates.focusSessionXPPerMinute,
                         source: .focusSession,
                         to: updated,
-                        at: now
+                        at: now,
+                        day: event.timestamp
                     )
                 }
             }
@@ -303,7 +308,7 @@ public struct PetBrain: Sendable {
                 workLogCountDate: now
             )
             return PetActivityResponse(
-                state: grantingXP(progressionRates.workLoggedXP, source: .workLogged, to: updated, at: now),
+                state: grantingXP(progressionRates.workLoggedXP, source: .workLogged, to: updated, at: now, day: event.timestamp),
                 reaction: .loggedWork
             )
         }
@@ -430,18 +435,25 @@ public struct PetBrain: Sendable {
     /// Crossing a level threshold applies that many levels' worth of
     /// class-weighted stat growth in the same step, so one large grant can
     /// never skip growth for an intermediate level.
+    /// `day` names the calendar day the grant is charged against — the
+    /// event's own timestamp for observed events, so a backlogged
+    /// pre-midnight event drained after midnight books into the day the work
+    /// actually happened. Defaults to `now` for care actions, which are
+    /// always immediate.
     private func grantingXP(
         _ rawAmount: Double,
         source: XPSource,
         to state: PetState,
         at now: Date,
+        day: Date? = nil,
         calendar: Calendar = .current
     ) -> PetState {
         guard rawAmount > 0 else {
             return state
         }
 
-        let isSameDay = state.dailyXPDate.map { calendar.isDate($0, inSameDayAs: now) } ?? false
+        let day = day ?? now
+        let isSameDay = state.dailyXPDate.map { calendar.isDate($0, inSameDayAs: day) } ?? false
         let dailyXPBySource = isSameDay ? state.dailyXPBySource : [:]
 
         let grantedTodayForSource = dailyXPBySource[source.rawValue] ?? 0
@@ -482,7 +494,7 @@ public struct PetBrain: Sendable {
             totalXP: newTotalXP,
             stats: stats,
             dailyXPBySource: updatedDailyXPBySource,
-            dailyXPDate: now
+            dailyXPDate: day
         )
     }
 

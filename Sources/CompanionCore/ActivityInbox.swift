@@ -113,6 +113,14 @@ public enum ActivityInbox {
         return .success(ActivityEvent(kind: kind, timestamp: timestamp, sourceId: sourceId))
     }
 
+    /// Delivery order for a drained batch: by event timestamp, oldest first.
+    /// Filenames carry no ordering contract, so without this a workEnded file
+    /// that happens to sort before its workStarted sibling would be reduced
+    /// first, dropping the session and leaving the context stuck "working".
+    public static func ordered(_ events: [ActivityEvent]) -> [ActivityEvent] {
+        events.sorted { $0.timestamp < $1.timestamp }
+    }
+
     /// Lowercase alphanumerics plus `.`, `_`, `-`, starting alphanumeric, at
     /// most `maxSourceIdLength` characters. Ids are lowercased before this
     /// check so `"Codex"` and `"codex"` are the same adapter, not two.

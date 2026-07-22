@@ -36,6 +36,7 @@ struct PetCareCardView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .accessibilityLabel("Care card section")
 
             switch selectedTab {
             case .condition:

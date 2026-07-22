@@ -13,6 +13,9 @@ enum ProgressionChecks {
         checkWorkLoggedGrantsXP(context: &context)
         checkFocusSessionBelowMinimumDurationGrantsNoXP(context: &context)
         checkFocusSessionAboveMinimumDurationGrantsXP(context: &context)
+        checkFocusSessionDurationIgnoresDeliveryDelay(context: &context)
+        checkObserveAdvancesWithActivityContext(context: &context)
+        checkBackloggedEventBooksIntoItsOwnDay(context: &context)
         checkPerSourceDailyCapBlocksFurtherGrants(context: &context)
         checkOverallDailyCapBlocksGrantsAcrossSources(context: &context)
         checkDailyCapsResetOnNewDay(context: &context)
@@ -194,6 +197,94 @@ enum ProgressionChecks {
         context.expect(
             response.state.totalXP > 0,
             "a focus session past the minimum duration grants proportional XP"
+        )
+    }
+
+    private static func checkFocusSessionDurationIgnoresDeliveryDelay(context: inout CheckContext) {
+        let brain = PetBrain()
+        let state = fullHealthState()
+        let workingContext = ActivityContext.quiet.reducing(
+            ManualActivitySource.event(.workStarted, at: start)
+        )
+
+        let shortSessionEnd = start.addingTimeInterval(5 * 60)
+        let lateDelivery = start.addingTimeInterval(25 * 60)
+        let shortResponse = brain.observe(
+            ManualActivitySource.event(.workEnded, at: shortSessionEnd),
+            on: state,
+            at: lateDelivery,
+            context: workingContext
+        )
+        context.expectEqual(
+            shortResponse.state.totalXP,
+            0,
+            "a below-minimum session drained late from the inbox is not credited for the delay"
+        )
+
+        let sessionEnd = start.addingTimeInterval(11 * 60)
+        let response = brain.observe(
+            ManualActivitySource.event(.workEnded, at: sessionEnd),
+            on: state,
+            at: start.addingTimeInterval(40 * 60),
+            context: workingContext
+        )
+        // The slight tolerance absorbs the condition multiplier dipping just
+        // under 1 as needs decay across the 40 delivery minutes; the bug this
+        // guards against would have produced ~80 XP (40 minutes), not ~22.
+        context.expectApproximatelyEqual(
+            response.state.totalXP,
+            11 * brain.progressionRates.focusSessionXPPerMinute,
+            accuracy: 1,
+            "focus XP is measured between the events' own timestamps, not delivery time"
+        )
+    }
+
+    private static func checkObserveAdvancesWithActivityContext(context: inout CheckContext) {
+        let brain = PetBrain()
+        let state = fullHealthState()
+        let workingContext = ActivityContext.quiet.reducing(
+            ManualActivitySource.event(.workStarted, at: start)
+        )
+        let later = start.addingTimeInterval(2 * 3_600)
+
+        let observed = brain.observe(
+            ManualActivitySource.event(.awaitingInput, at: later),
+            on: state,
+            at: later,
+            context: workingContext
+        )
+        let advanced = brain.advance(state, to: later, context: workingContext)
+
+        context.expectEqual(
+            observed.state.needs,
+            advanced.needs,
+            "an event advancing the clock applies the same working decay as the timer path"
+        )
+    }
+
+    private static func checkBackloggedEventBooksIntoItsOwnDay(context: inout CheckContext) {
+        let calendar = Calendar.current
+        let beforeMidnight = calendar.date(
+            from: DateComponents(year: 2026, month: 7, day: 20, hour: 23, minute: 58)
+        )!
+        let afterMidnight = calendar.date(
+            from: DateComponents(year: 2026, month: 7, day: 21, hour: 0, minute: 3)
+        )!
+
+        let brain = PetBrain()
+        var state = fullHealthState()
+        state = brain.advance(state, to: beforeMidnight.addingTimeInterval(-3_600))
+
+        let response = brain.observe(
+            ManualActivitySource.event(.taskCompleted, at: beforeMidnight),
+            on: state,
+            at: afterMidnight
+        )
+
+        context.expectEqual(
+            response.state.dailyXPDate,
+            beforeMidnight,
+            "a pre-midnight event drained after midnight is charged against the day the work happened"
         )
     }
 

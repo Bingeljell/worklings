@@ -17,6 +17,18 @@ enum InboxChecks {
         checkStaleTimestamp(context: &context)
         checkFutureTimestamp(context: &context)
         checkFutureSkewTolerated(context: &context)
+        checkOrderedSortsByEventTimestamp(context: &context)
+    }
+
+    private static func checkOrderedSortsByEventTimestamp(context: inout CheckContext) {
+        let ended = ActivityEvent(kind: .workEnded, timestamp: now.addingTimeInterval(660), sourceId: "codex")
+        let started = ActivityEvent(kind: .workStarted, timestamp: now, sourceId: "codex")
+
+        context.expectEqual(
+            ActivityInbox.ordered([ended, started]),
+            [started, ended],
+            "a drained batch is delivered oldest-first regardless of file order"
+        )
     }
 
     private static let now = Date(timeIntervalSinceReferenceDate: 800_000_000)

@@ -123,8 +123,6 @@ Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, writ
 
 An unreadable save is never overwritten — it's preserved, persistence pauses for the session, and a fresh in-memory pet takes over. First launch after the rebrand copies a legacy Build Companion save forward without deleting it.
 
-Progression fields — level, XP, banked stat points, allocated stats — will extend this save **additively** per the [progression design](progression.md), the same way the family field did: old saves load unchanged.
-
 ## Checks
 
 `swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic simulation, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, Log Work's cooldown/daily cap/day rollover, and the [XP/level/class/stat system](progression.md#tuning-reference)'s curve, condition multiplier, per-source and overall daily caps, day rollover, and class-weighted stat growth.
