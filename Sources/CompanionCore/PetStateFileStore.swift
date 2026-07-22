@@ -19,14 +19,20 @@ public struct PetStateFileStore: Sendable {
         let data = try Data(contentsOf: fileURL)
         let state = try JSONDecoder().decode(PetState.self, from: data)
 
-        guard state.schemaVersion == PetState.currentSchemaVersion else {
+        // A save from a newer app may carry fields this build can't honor, so
+        // it is rejected rather than silently downgraded. Older saves are
+        // migrated forward: the decoder already folded any legacy flat fields
+        // into the unified tallies, leaving only the version to restamp.
+        if state.schemaVersion == PetState.currentSchemaVersion {
+            return state
+        }
+        guard state.schemaVersion < PetState.currentSchemaVersion else {
             throw PetStateFileStoreError.unsupportedSchema(
                 found: state.schemaVersion,
                 supported: PetState.currentSchemaVersion
             )
         }
-
-        return state
+        return state.upgradedToSchema(PetState.currentSchemaVersion)
     }
 
     public func save(_ state: PetState) throws {

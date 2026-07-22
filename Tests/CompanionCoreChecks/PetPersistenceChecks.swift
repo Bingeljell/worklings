@@ -16,8 +16,61 @@ enum PetPersistenceChecks {
         checkMissingFile(store: store, context: &context)
         checkRoundTrip(store: store, context: &context)
         checkDecodedNeedClamping(store: store, context: &context)
+        checkLegacyDailyFieldsMigrate(store: store, context: &context)
         checkUnsupportedSchema(store: store, context: &context)
         checkCorruptFilePreservation(store: store, context: &context)
+    }
+
+    /// A pre-v2 save stored Log Work's count and the daily XP ledger as four
+    /// flat fields; v2 folds them into `workLog`/`dailyXP` tallies. Loading an
+    /// old save must carry those values across and restamp the schema version.
+    private static func checkLegacyDailyFieldsMigrate(
+        store: PetStateFileStore,
+        context: inout CheckContext
+    ) {
+        let day = 700_000.0
+        let json = """
+        {
+          "dailyXPBySource": { "focusSession": 40 },
+          "dailyXPDate": \(day),
+          "lastUpdatedAt": \(day),
+          "name": "Pixel",
+          "needs": { "energy": 80, "happiness": 70, "hunger": 15, "trust": 50 },
+          "preferences": {
+            "favouriteFood": "berries",
+            "favouritePlayActivity": "puzzle"
+          },
+          "schemaVersion": 1,
+          "workLogCountDate": \(day),
+          "workLogCountToday": 3
+        }
+        """
+
+        do {
+            try Data(json.utf8).write(to: store.fileURL, options: .atomic)
+            guard let state = try store.load() else {
+                context.expect(false, "legacy save should decode")
+                return
+            }
+            let onDay = Date(timeIntervalSinceReferenceDate: day)
+            context.expectEqual(
+                state.schemaVersion,
+                PetState.currentSchemaVersion,
+                "loading an older save restamps it to the current schema"
+            )
+            context.expectEqual(
+                state.workLog.current(on: onDay, default: 0),
+                3,
+                "the legacy work log count migrates into the workLog tally"
+            )
+            context.expectEqual(
+                state.dailyXP.current(on: onDay, default: [:]),
+                ["focusSession": 40],
+                "the legacy daily XP ledger migrates into the dailyXP tally"
+            )
+        } catch {
+            context.expect(false, "legacy save should migrate safely: \(error)")
+        }
     }
 
     private static func checkDecodedNeedClamping(
@@ -135,7 +188,7 @@ enum PetPersistenceChecks {
         } catch let error as PetStateFileStoreError {
             context.expectEqual(
                 error,
-                .unsupportedSchema(found: 999, supported: 1),
+                .unsupportedSchema(found: 999, supported: 2),
                 "unsupported schema reports found and supported versions"
             )
         } catch {

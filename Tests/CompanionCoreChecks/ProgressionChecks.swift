@@ -53,7 +53,7 @@ enum ProgressionChecks {
         context.expectEqual(state.petClass, .wellspring, "a new pet defaults to Wellspring")
         context.expectEqual(state.stats.vitality, PetStats.startingValue, "stats start at the baseline")
         context.expectEqual(state.stats.wit, PetStats.startingValue, "every stat starts at the baseline")
-        context.expect(state.dailyXPBySource.isEmpty, "no XP has been granted today")
+        context.expect(state.dailyXP.value.isEmpty, "no XP has been granted today")
     }
 
     private static func checkCurveIsMonotonicAndUnbounded(context: inout CheckContext) {
@@ -368,7 +368,7 @@ enum ProgressionChecks {
         )
 
         context.expectEqual(
-            response.state.dailyXPDate,
+            response.state.dailyXP.date,
             beforeMidnight,
             "a pre-midnight event drained after midnight is charged against the day the work happened"
         )
