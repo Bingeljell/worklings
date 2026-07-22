@@ -23,9 +23,12 @@ Hover for ~500ms and a small read-only summary appears: natural language ("Pixel
 
 Click opens it; drag moves the pet and never opens it. One card at a time; Escape or an outside click closes it; opening it never moves the pet; care actions update it live and leave it open.
 
+A segmented control splits the card into two tabs, so the condition layer and the progression layer never compete for the same space:
+
 ```text
 ┌────────────────────────────┐
 │ Pixel              Hungry  │
+│  [ Condition ] [ Stats ]   │
 │                            │
 │ Fullness   ██░░░░░░░░  18  │
 │ Energy     ████░░░░░░  38  │
@@ -38,6 +41,8 @@ Click opens it; drag moves the pet and never opens it. One card at a time; Escap
 │ ♥ Berries · ♥ Puzzle       │
 └────────────────────────────┘
 ```
+
+The **Stats** tab shows level, class, and role; an XP bar labelled with the actual current/required numbers, not just a bar; and all five stats, with the active class's signature stat marked with a star. It's the natural home for abilities and gear once those exist.
 
 Every meter is a wellbeing measure: longer bar, better pet. Natural language may still call the Workling "hungry" — that's flavour, not a different scale.
 

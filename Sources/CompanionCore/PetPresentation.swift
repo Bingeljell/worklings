@@ -80,6 +80,29 @@ public struct PetPresentation: Equatable, Sendable {
         self.thought = thought
     }
 
+    /// The one place the level-and-class readout is formatted, so the care
+    /// card, the menu-bar header, and accessibility labels can never drift
+    /// into different spellings of the same fact.
+    public static func levelClassLabel(for state: PetState) -> String {
+        "Level \(state.level) \(state.petClass.displayName)"
+    }
+
+    /// Surfaces the condition multiplier — the care→XP coupling — as one plain
+    /// line, so it stops being an invisible number players can only reverse-
+    /// engineer from shrunken grants. Uses the same default floor the live
+    /// brain runs with (`PetSession` never overrides `PetProgressionRates`), so
+    /// the percentage shown is the rate XP is actually granted at.
+    public static func learningRatePercent(for state: PetState) -> Int {
+        let multiplier = state.needs.xpMultiplier(
+            floor: PetProgressionRates().conditionMultiplierFloor
+        )
+        return Int((multiplier * 100).rounded())
+    }
+
+    public static func learningRateLabel(for state: PetState) -> String {
+        "Learning at \(learningRatePercent(for: state))% — a happier Workling earns faster"
+    }
+
     public static func make(
         state: PetState,
         reaction: PetReaction? = nil

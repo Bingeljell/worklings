@@ -35,6 +35,20 @@ Worklings may eventually come from several creature families. These early concep
 
 All three families use the same twelve-frame pose contract and are selectable at runtime from the menu bar.
 
+## Classes
+
+Family is the cosmetic axis — class is the mechanical one. Every Workling levels up from real activity, and its class decides which stat grows fastest. Each class name is dual-coded: a term with real currency in modern work/maker culture that also carries its own mythic weight.
+
+| Class | Signature stat | Role | Flavor |
+| --- | --- | --- | --- |
+| **Wellspring** | Vitality | Healer / Support | The source others draw on — sustains, restores, never runs dry. |
+| **Juggernaut** | Power | Heavy offense | Hits like an unstoppable force — raw, overwhelming offense. |
+| **Aegis** | Guard | Tank | The shield everyone stands behind — mitigates, endures, protects. |
+| **Maverick** | Agility | Finesse offense | Moves fast, breaks convention — quick, decisive, takes the opening first. |
+| **Tinkerer** | Wit | Mage-equivalent | Technology so advanced it might as well be magic — clever, inventive, otherworldly effective. |
+
+Classes are freely swappable for now; once abilities and gear exist, changing class will become a more deliberate choice. Families, species, and the class roster all live in the [character compendium](docs/characters.md).
+
 ## Current state
 
 The current experimental build includes:
@@ -50,6 +64,7 @@ The current experimental build includes:
 - automatic copy-forward of a legacy Build Companion save;
 - hover summaries for relevant needs;
 - a clickable care card with Feed, Play, Pet, and Sleep actions;
+- XP, levels, and five class-weighted stats earned from care and real work activity, with a Choose Class menu and a Stats tab on the care card;
 - menu-bar wake, tuck-away, care, and quit controls;
 - Worklings-branded app, DMG, checksum, and release-verification scripts;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.

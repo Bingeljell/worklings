@@ -90,6 +90,8 @@ Every event gets a visible reaction, so its effect is never invisible — includ
 
 These values are alpha tuning. In debug builds only, three environment variables make manual testing practical without waiting on real clocks: `WORKLINGS_IDLE_THRESHOLD_SECONDS` shortens how long counts as "away," `WORKLINGS_PRESENCE_POLL_SECONDS` shortens how often presence is checked, and `WORKLINGS_DEBUG_RATE_SCALE` multiplies every per-hour need rate so a few real seconds can stand in for hours. The paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context. All of this is compiled out of release builds.
 
+**Run a Full Day, Sped Up** is a scripted rehearsal at the top of that same submenu: `dailyWake` → `workStarted` → (11 simulated minutes later) `workEnded` → `workLogged` → `taskCompleted` → `milestone`, paced about 1.5 real seconds apart so reactions and XP are visible one at a time instead of all at once. Every step's timestamp is anchored backward from the moment the script starts, not forward from it, so the pet's `lastUpdatedAt` never lands in the future — a forward-anchored script would leave real-time condition decay frozen until wall-clock time caught up to the simulated end point. The `workStarted`→`workEnded` gap is deliberately just past Focus Session's minimum qualifying duration so that XP grant actually fires. Open the care card's Stats tab before running it to watch XP and stats move live.
+
 The live presence source keeps a genuine absence alive by quietly re-touching the context roughly every 15 seconds, without repeating the "Oh, you're away…" reaction — so the two-tier rate above sees the absence's real duration rather than losing track of it. The 30-minute expiry is a fallback for abnormal termination only (a crash, a `workStarted` whose `workEnded` never arrives), not the everyday path.
 
 ## Focus Session
@@ -97,6 +99,8 @@ The live presence source keeps a genuine absence alive by quietly re-touching th
 A paw-menu item and a care-card button that toggle between "Start Focus Session" and "End Focus Session," firing real `workStarted` and `workEnded` events for a work block with an actual beginning and end — unlike Log Work's point-in-time nature. It's tagged with the `manual` source id, the same as Log Work: starting or ending the block is still something the user asserts by clicking, not something Worklings can verify on its own. A future agent adapter emitting the same event kinds automatically would carry a different source id, so the two can be treated differently once that distinction matters.
 
 Neither `workStarted` nor `workEnded` grants Happiness or Trust directly — there is nothing to game, because the only effect is the existing working multiplier (see [Activity events](#activity-events) above): Fullness and Energy drain faster for the duration of the block, exactly as they already do for the simulated version of these events. This is the first real trigger for that multiplier; the [progression design](progression.md) lists sustained work blocks as a planned XP source, which will read from this same event pair once it exists.
+
+A session's XP duration is measured between the events' own timestamps, never delivery time, and **idle time inside a block doesn't count**: returning from an absence shifts the block's effective start forward by the time away, and ending a block while still away stops counting at the moment of departure. A block worked 10 minutes, idled 30, worked 5 reads as 15 focus minutes.
 
 ## Log Work
 
@@ -117,15 +121,13 @@ The daily cap is tracked on the save (`lastWorkLogAt`, `workLogCountToday`, `wor
 
 ## The save
 
-Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, the last progression timestamp, and Log Work's cooldown/daily-cap bookkeeping.
+Versioned JSON at `~/Library/Application Support/Worklings/pet-state.json`, written atomically. Version 1 holds: schema version, name, family, the four needs (as hunger internally), favourites, the last progression timestamp, Log Work's cooldown/daily-cap bookkeeping, and — additively, per the [progression design](progression.md) — total XP, class, stats, and daily XP-accrual bookkeeping. Level is never itself stored; it is always derived from total XP.
 
 An unreadable save is never overwritten — it's preserved, persistence pauses for the session, and a fresh in-memory pet takes over. First launch after the rebrand copies a legacy Build Companion save forward without deleting it.
 
-Progression fields — level, XP, banked stat points, allocated stats — will extend this save **additively** per the [progression design](progression.md), the same way the family field did: old saves load unchanged.
-
 ## Checks
 
-`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic progression, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, and Log Work's cooldown, daily cap, and day rollover.
+`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic simulation, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, Log Work's cooldown/daily cap/day rollover, and the [XP/level/class/stat system](progression.md#tuning-reference)'s curve, condition multiplier, per-source and overall daily caps, day rollover, and class-weighted stat growth.
 
 ## Tuning reference
 
@@ -156,8 +158,7 @@ Everything in `PetSimulationRates` is a named, constructor-injected constant —
 ## Next Pet Brain work
 
 - Consolidate the "inline" tuning constants above into named, injectable structs, once the numbers themselves have settled down.
-- The condition XP multiplier and progression fields from the [progression design](progression.md).
-- Tune need rates from real usage.
+- Tune need rates and XP/stat-growth rates from real usage.
 - Personality beyond two favourites.
 - Reversible neglect and runaway recovery.
 - Mood- and need-driven movement, attention-seeking, and sleep intents on top of idle roaming.

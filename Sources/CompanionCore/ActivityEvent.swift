@@ -55,6 +55,11 @@ public struct ActivityContext: Equatable, Sendable {
     /// refreshes `lastEventAt` to avoid expiry but must not reset this, or a
     /// long absence could never be told apart from a short one.
     public let awaySince: Date?
+    /// When the current, unbroken work block began, or `nil` while not
+    /// working. Lets `workEnded` compute a session's real duration even
+    /// though `lastEventAt` may have been refreshed by an unrelated event
+    /// during the block (e.g. a `milestone` while working).
+    public let workingSince: Date?
     public let lastEventAt: Date?
 
     public static let quiet = ActivityContext(
@@ -62,6 +67,7 @@ public struct ActivityContext: Equatable, Sendable {
         isAwaitingInput: false,
         isUserPresent: true,
         awaySince: nil,
+        workingSince: nil,
         lastEventAt: nil
     )
 
@@ -70,23 +76,38 @@ public struct ActivityContext: Equatable, Sendable {
         isAwaitingInput: Bool,
         isUserPresent: Bool,
         awaySince: Date? = nil,
+        workingSince: Date? = nil,
         lastEventAt: Date?
     ) {
         self.isWorking = isWorking
         self.isAwaitingInput = isAwaitingInput
         self.isUserPresent = isUserPresent
         self.awaySince = awaySince
+        self.workingSince = workingSince
         self.lastEventAt = lastEventAt
     }
 
     public func reducing(_ event: ActivityEvent) -> ActivityContext {
         switch event.kind {
         case .dailyWake, .userReturned:
+            // Returning from an absence shifts an open work block's start
+            // forward by the time spent away, so the absence never counts as
+            // focus time: a block worked 10 minutes, idled 30, worked 5 reads
+            // as 15 minutes, not 45.
+            let adjustedWorkingSince: Date?
+            if let workingSince, let awaySince, awaySince > workingSince {
+                adjustedWorkingSince = workingSince.addingTimeInterval(
+                    max(0, event.timestamp.timeIntervalSince(awaySince))
+                )
+            } else {
+                adjustedWorkingSince = workingSince
+            }
             return ActivityContext(
                 isWorking: isWorking,
                 isAwaitingInput: isAwaitingInput,
                 isUserPresent: true,
                 awaySince: nil,
+                workingSince: adjustedWorkingSince,
                 lastEventAt: event.timestamp
             )
         case .workStarted:
@@ -105,6 +126,7 @@ public struct ActivityContext: Equatable, Sendable {
                 isAwaitingInput: isAwaitingInput,
                 isUserPresent: false,
                 awaySince: isUserPresent ? event.timestamp : awaySince,
+                workingSince: workingSince,
                 lastEventAt: event.timestamp
             )
         }
@@ -131,11 +153,20 @@ public struct ActivityContext: Equatable, Sendable {
         isAwaitingInput: Bool? = nil,
         at timestamp: Date
     ) -> ActivityContext {
-        ActivityContext(
-            isWorking: isWorking ?? self.isWorking,
+        let nextIsWorking = isWorking ?? self.isWorking
+        let nextWorkingSince: Date?
+        if let isWorking {
+            nextWorkingSince = isWorking ? (self.isWorking ? workingSince : timestamp) : nil
+        } else {
+            nextWorkingSince = workingSince
+        }
+
+        return ActivityContext(
+            isWorking: nextIsWorking,
             isAwaitingInput: isAwaitingInput ?? self.isAwaitingInput,
             isUserPresent: isUserPresent,
             awaySince: awaySince,
+            workingSince: nextWorkingSince,
             lastEventAt: timestamp
         )
     }

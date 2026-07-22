@@ -4,10 +4,12 @@ import CompanionCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let roamingDefaultsKey = "idleRoamingEnabled"
+    private static let activityInboxDefaultsKey = "activityInboxEnabled"
 
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
+    private var activityInboxMonitor: ActivityInboxMonitor?
     private var statusItem: NSStatusItem?
     private var visibilityMenuItem: NSMenuItem?
     private var petHeaderMenuItem: NSMenuItem?
@@ -15,15 +17,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var warningMenuItem: NSMenuItem?
     private var feedMenuItem: NSMenuItem?
     private var playMenuItem: NSMenuItem?
+    private var petMenuItem: NSMenuItem?
     private var sleepMenuItem: NSMenuItem?
     private var focusSessionMenuItem: NSMenuItem?
     private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
+    private var activityInboxMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
+    private var classMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
     private var playMenuItems: [NSMenuItem] = []
     #if DEBUG
     private var activityContextMenuItem: NSMenuItem?
+    private var isRunningActivitySimulation = false
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -54,6 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.presenceMonitor = presenceMonitor
         presenceMonitor.start()
 
+        let activityInboxMonitor = ActivityInboxMonitor(session: petSession)
+        self.activityInboxMonitor = activityInboxMonitor
+        if UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) {
+            activityInboxMonitor.start()
+        }
+
         configureStatusItem()
         companionController.setRoamingEnabled(
             UserDefaults.standard.bool(forKey: Self.roamingDefaultsKey)
@@ -69,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
-        let headerItem = NSMenuItem(title: "Pixel — Content", action: nil, keyEquivalent: "")
+        let headerItem = NSMenuItem(title: "Loading…", action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
         menu.addItem(headerItem)
         petHeaderMenuItem = headerItem
@@ -96,6 +108,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         renameItem.target = self
         menu.addItem(renameItem)
 
+        menu.addItem(makeClassMenuItem())
+
         menu.addItem(.separator())
 
         let feedMenuItem = makeFoodMenuItem()
@@ -107,15 +121,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.playMenuItem = playMenuItem
 
         let petItem = NSMenuItem(
-            title: "Pet Pixel",
+            title: "Pet",
             action: #selector(petCompanion),
             keyEquivalent: ""
         )
         petItem.target = self
         menu.addItem(petItem)
+        petMenuItem = petItem
 
         let sleepItem = NSMenuItem(
-            title: "Let Pixel Sleep",
+            title: "Let Sleep",
             action: #selector(sleep),
             keyEquivalent: ""
         )
@@ -145,13 +160,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         let roamingItem = NSMenuItem(
-            title: "Let Pixel Roam",
+            title: "Let Roam",
             action: #selector(toggleRoaming),
             keyEquivalent: ""
         )
         roamingItem.target = self
         menu.addItem(roamingItem)
         roamingMenuItem = roamingItem
+
+        let activityInboxItem = NSMenuItem(
+            title: "Accept Work Tool Events",
+            action: #selector(toggleActivityInbox),
+            keyEquivalent: ""
+        )
+        activityInboxItem.target = self
+        activityInboxItem.toolTip = "Lets connected tools drop activity events into a local inbox folder. Off by default; nothing is read but event kind, source, and time."
+        menu.addItem(activityInboxItem)
+        activityInboxMenuItem = activityInboxItem
 
         let visibilityItem = NSMenuItem(
             title: "Tuck Away Companion",
@@ -194,7 +219,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         petHeaderMenuItem?.title = [
             state.name,
             presentation.moodLabel,
-            state.family.displayName
+            state.family.displayName,
+            PetPresentation.levelClassLabel(for: state)
         ].joined(separator: " · ")
         needsMenuItem?.title = [
             "Fullness \(Int(state.needs.fullness.rounded()))",
@@ -206,19 +232,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         warningMenuItem?.title = petSession.persistenceWarning ?? ""
         warningMenuItem?.isHidden = petSession.persistenceWarning == nil
 
+        petMenuItem?.title = "Pet \(state.name)"
+        sleepMenuItem?.title = "Let \(state.name) Sleep"
+
         #if DEBUG
         activityContextMenuItem?.title = Self.describe(petSession.activityContext)
         #endif
 
         updateRoamingMenuItem()
+        updateActivityInboxMenuItem()
 
-        for menuItem in familyMenuItems {
-            guard let rawValue = menuItem.representedObject as? String,
-                  let family = PetFamily(rawValue: rawValue) else {
-                continue
-            }
-            menuItem.state = family == state.family ? .on : .off
-        }
+        syncCheckmarks(familyMenuItems, selectedRawValue: state.family.rawValue)
+        syncCheckmarks(classMenuItems, selectedRawValue: state.petClass.rawValue)
 
         apply(
             status.availability(for: .feed, state: state),
@@ -238,20 +263,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         updateFocusSessionMenuItem()
 
-        for menuItem in foodMenuItems {
-            guard let rawValue = menuItem.representedObject as? String,
-                  let food = PetFood(rawValue: rawValue) else {
-                continue
-            }
-            menuItem.state = food == state.preferences.favouriteFood ? .on : .off
-        }
+        syncCheckmarks(foodMenuItems, selectedRawValue: state.preferences.favouriteFood.rawValue)
+        syncCheckmarks(
+            playMenuItems,
+            selectedRawValue: state.preferences.favouritePlayActivity.rawValue
+        )
+    }
 
-        for menuItem in playMenuItems {
-            guard let rawValue = menuItem.representedObject as? String,
-                  let activity = PetPlayActivity(rawValue: rawValue) else {
-                continue
-            }
-            menuItem.state = activity == state.preferences.favouritePlayActivity ? .on : .off
+    private func syncCheckmarks(_ items: [NSMenuItem], selectedRawValue: String) {
+        for item in items {
+            item.state = (item.representedObject as? String) == selectedRawValue ? .on : .off
         }
     }
 
@@ -263,24 +284,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuItem?.toolTip = availability.explanation
     }
 
-    private func makeFamilyMenuItem() -> NSMenuItem {
-        let parentItem = NSMenuItem(title: "Choose Workling", action: nil, keyEquivalent: "")
-        let submenu = NSMenu(title: "Choose Workling")
+    /// The one submenu builder behind every raw-representable choice menu
+    /// (family, class, food, play), so wiring changes — target retention,
+    /// represented objects, accessibility — happen in exactly one place.
+    private func makeChoiceMenuItem<Choice: CaseIterable & RawRepresentable>(
+        title: String,
+        action: Selector,
+        titleFor: (Choice) -> String
+    ) -> (parent: NSMenuItem, items: [NSMenuItem]) where Choice.RawValue == String {
+        let parentItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: title)
 
-        familyMenuItems = PetFamily.allCases.map { family in
-            let item = NSMenuItem(
-                title: familySelectionTitle(for: family),
-                action: #selector(selectFamily(_:)),
-                keyEquivalent: ""
-            )
+        let items = Choice.allCases.map { choice in
+            let item = NSMenuItem(title: titleFor(choice), action: action, keyEquivalent: "")
             item.target = self
-            item.representedObject = family.rawValue
+            item.representedObject = choice.rawValue
             submenu.addItem(item)
             return item
         }
 
         parentItem.submenu = submenu
-        return parentItem
+        return (parentItem, items)
+    }
+
+    private func makeFamilyMenuItem() -> NSMenuItem {
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Choose Workling",
+            action: #selector(selectFamily(_:)),
+            titleFor: familySelectionTitle(for:)
+        )
+        familyMenuItems = items
+        return parent
     }
 
     private func familySelectionTitle(for family: PetFamily) -> String {
@@ -291,44 +325,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func makeClassMenuItem() -> NSMenuItem {
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Choose Class",
+            action: #selector(selectClass(_:)),
+            titleFor: { (petClass: PetClass) in "\(petClass.displayName) — \(petClass.role)" }
+        )
+        classMenuItems = items
+        return parent
+    }
+
     private func makeFoodMenuItem() -> NSMenuItem {
-        let parentItem = NSMenuItem(title: "Feed", action: nil, keyEquivalent: "")
-        let submenu = NSMenu(title: "Feed")
-
-        foodMenuItems = PetFood.allCases.map { food in
-            let item = NSMenuItem(
-                title: food.displayName,
-                action: #selector(feed(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = food.rawValue
-            submenu.addItem(item)
-            return item
-        }
-
-        parentItem.submenu = submenu
-        return parentItem
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Feed",
+            action: #selector(feed(_:)),
+            titleFor: { (food: PetFood) in food.displayName }
+        )
+        foodMenuItems = items
+        return parent
     }
 
     private func makePlayMenuItem() -> NSMenuItem {
-        let parentItem = NSMenuItem(title: "Play", action: nil, keyEquivalent: "")
-        let submenu = NSMenu(title: "Play")
-
-        playMenuItems = PetPlayActivity.allCases.map { activity in
-            let item = NSMenuItem(
-                title: activity.displayName,
-                action: #selector(play(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = activity.rawValue
-            submenu.addItem(item)
-            return item
-        }
-
-        parentItem.submenu = submenu
-        return parentItem
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Play",
+            action: #selector(play(_:)),
+            titleFor: { (activity: PetPlayActivity) in activity.displayName }
+        )
+        playMenuItems = items
+        return parent
     }
 
     @objc
@@ -369,6 +393,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc
+    private func selectClass(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let petClass = PetClass(rawValue: rawValue) else {
+            return
+        }
+        petSession?.selectClass(petClass)
+    }
+
+    @objc
     private func feed(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let food = PetFood(rawValue: rawValue) else {
@@ -390,6 +423,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func makeSimulateActivityMenuItem() -> NSMenuItem {
         let parentItem = NSMenuItem(title: "Simulate Activity", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: "Simulate Activity")
+
+        let runScriptItem = NSMenuItem(
+            title: "Run a Full Day, Sped Up",
+            action: #selector(runActivitySimulation),
+            keyEquivalent: ""
+        )
+        runScriptItem.target = self
+        submenu.addItem(runScriptItem)
+        submenu.addItem(.separator())
 
         let contextItem = NSMenuItem(title: "Context: quiet", action: nil, keyEquivalent: "")
         contextItem.isEnabled = false
@@ -419,6 +461,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         petSession?.receive(SimulatedActivitySource.event(kind, at: Date()))
+    }
+
+    /// A scripted rehearsal of a full working day, compressed into seconds
+    /// of real time so XP, leveling, and stat growth are visible without
+    /// waiting on real clocks. Every timestamp is anchored backward from
+    /// `end` (real "now" at kickoff) rather than forward from "now," so the
+    /// pet's `lastUpdatedAt` never lands in the future — a forward-anchored
+    /// script would leave the pet's condition frozen until real time caught
+    /// up to the simulated end point. `workStarted` to `workEnded` is 11
+    /// simulated minutes apart, just past Focus Session's minimum
+    /// qualifying duration, so its XP grant actually fires.
+    @objc
+    private func runActivitySimulation() {
+        guard let petSession, !isRunningActivitySimulation else {
+            return
+        }
+        isRunningActivitySimulation = true
+
+        let script: [(minutesBeforeEnd: Double, kind: ActivityEventKind)] = [
+            (15, .dailyWake),
+            (14, .workStarted),
+            (3, .workEnded),
+            (2, .workLogged),
+            (1, .taskCompleted),
+            (0, .milestone)
+        ]
+        let end = Date()
+
+        Task { @MainActor in
+            for (minutesBeforeEnd, kind) in script {
+                let timestamp = end.addingTimeInterval(-minutesBeforeEnd * 60)
+                petSession.receive(SimulatedActivitySource.event(kind, at: timestamp))
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            isRunningActivitySimulation = false
+        }
     }
 
     private static func describe(_ context: ActivityContext) -> String {
@@ -493,6 +571,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        let name = petSession?.state.name ?? "your Workling"
         let isEnabled = companionController.isRoamingEnabled
         let isAvailable = companionController.isRoamingAvailable
 
@@ -501,14 +580,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 ? "Disable Roaming (Reduce Motion Active)"
                 : "Roaming Unavailable (Reduce Motion Active)"
         } else {
-            roamingMenuItem?.title = isEnabled ? "Pause Roaming" : "Let Pixel Roam"
+            roamingMenuItem?.title = isEnabled ? "Pause Roaming" : "Let \(name) Roam"
         }
 
         roamingMenuItem?.state = isEnabled ? .on : .off
         roamingMenuItem?.isEnabled = isAvailable || isEnabled
         roamingMenuItem?.toolTip = isAvailable
-            ? "Allow Pixel to wander within the current display."
+            ? "Allow \(name) to wander within the current display."
             : "Roaming pauses while macOS Reduce Motion is enabled."
+    }
+
+    @objc
+    private func toggleActivityInbox() {
+        guard let activityInboxMonitor else {
+            return
+        }
+
+        let shouldEnable = !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
+        UserDefaults.standard.set(shouldEnable, forKey: Self.activityInboxDefaultsKey)
+
+        if shouldEnable {
+            activityInboxMonitor.start()
+        } else {
+            activityInboxMonitor.stop()
+        }
+        updateActivityInboxMenuItem()
+    }
+
+    private func updateActivityInboxMenuItem() {
+        let isEnabled = UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
+        activityInboxMenuItem?.state = isEnabled ? .on : .off
     }
 
     @objc
