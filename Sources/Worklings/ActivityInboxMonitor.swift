@@ -6,6 +6,10 @@ import Foundation
 /// inspects — valid or not — so the directory never accumulates. Reads only
 /// the fields `ActivityInbox` validates; a rejected file is logged by reason
 /// and removed without influencing the pet.
+///
+/// The directory watch fires on the main queue, but all listing, reading,
+/// decoding, and deleting happens off the main actor; only delivering the
+/// decoded events to the session returns to it.
 @MainActor
 final class ActivityInboxMonitor {
     private let session: PetSession
@@ -14,6 +18,10 @@ final class ActivityInboxMonitor {
     /// Files that could not be deleted, remembered so a stuck file cannot be
     /// re-delivered on every subsequent drain.
     private var undeletableFileNames: Set<String> = []
+    /// Coalesces bursts: one drain runs at a time, and any watch events that
+    /// arrive mid-drain fold into a single follow-up pass.
+    private var isDraining = false
+    private var needsAnotherDrain = false
 
     init(session: PetSession, directoryURL: URL = ActivityInboxMonitor.defaultDirectoryURL()) {
         self.session = session
@@ -54,7 +62,7 @@ final class ActivityInboxMonitor {
             queue: .main
         )
         source.setEventHandler { [weak self] in
-            self?.drain()
+            self?.scheduleDrain()
         }
         source.setCancelHandler {
             close(descriptor)
@@ -62,7 +70,7 @@ final class ActivityInboxMonitor {
         directorySource = source
         source.resume()
 
-        drain()
+        scheduleDrain()
     }
 
     func stop() {
@@ -70,7 +78,41 @@ final class ActivityInboxMonitor {
         directorySource = nil
     }
 
-    private func drain() {
+    private func scheduleDrain() {
+        guard !isDraining else {
+            needsAnotherDrain = true
+            return
+        }
+        isDraining = true
+
+        let directoryURL = directoryURL
+        let skipped = undeletableFileNames
+        Task { [weak self] in
+            let outcome = await Self.collectEvents(in: directoryURL, skipping: skipped)
+
+            guard let self else {
+                return
+            }
+            self.undeletableFileNames.formUnion(outcome.undeletableFileNames)
+            for event in ActivityInbox.ordered(outcome.events) {
+                self.session.receive(event)
+            }
+
+            self.isDraining = false
+            if self.needsAnotherDrain {
+                self.needsAnotherDrain = false
+                self.scheduleDrain()
+            }
+        }
+    }
+
+    /// The blocking half of a drain: list, read, decode, and delete, all off
+    /// the main actor. Returns the decoded events unordered; the caller
+    /// orders them by event timestamp before delivery.
+    private nonisolated static func collectEvents(
+        in directoryURL: URL,
+        skipping: Set<String>
+    ) async -> (events: [ActivityEvent], undeletableFileNames: Set<String>) {
         let fileManager = FileManager.default
         let fileURLs: [URL]
         do {
@@ -81,18 +123,14 @@ final class ActivityInboxMonitor {
             )
         } catch {
             NSLog("Worklings could not read the activity inbox: %@", String(describing: error))
-            return
+            return ([], [])
         }
 
-        let eventFileURLs = fileURLs.filter { $0.pathExtension == "json" }
-
-        // Decode the whole batch before delivering any of it, so events can
-        // be handed to the session in event-timestamp order regardless of how
-        // adapters happened to name their files.
         var events: [ActivityEvent] = []
-        for fileURL in eventFileURLs {
+        var undeletable: Set<String> = []
+        for fileURL in fileURLs where fileURL.pathExtension == "json" {
             let fileName = fileURL.lastPathComponent
-            guard !undeletableFileNames.contains(fileName) else {
+            guard !skipping.contains(fileName) else {
                 continue
             }
 
@@ -112,14 +150,12 @@ final class ActivityInboxMonitor {
             do {
                 try fileManager.removeItem(at: fileURL)
             } catch {
-                undeletableFileNames.insert(fileName)
+                undeletable.insert(fileName)
                 NSLog("Worklings could not remove inbox file %@.", fileName)
             }
         }
 
-        for event in ActivityInbox.ordered(events) {
-            session.receive(event)
-        }
+        return (events, undeletable)
     }
 
     static func defaultDirectoryURL() -> URL {

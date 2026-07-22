@@ -63,6 +63,21 @@ public enum ActivityInbox {
         let timestamp: String?
     }
 
+    /// Shared across decodes so a drained backlog doesn't rebuild them per
+    /// file. `ISO8601DateFormatter` is documented thread-safe; the decoder
+    /// holds no per-decode state and drains are serialized by the monitor.
+    private static let decoder = JSONDecoder()
+    private nonisolated(unsafe) static let fractionalTimestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    private nonisolated(unsafe) static let wholeTimestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     /// Turns one dropped file's bytes into a normalized event, or the precise
     /// reason it was refused. A missing timestamp means "just now" from the
     /// writer's point of view and resolves to `now`.
@@ -74,7 +89,7 @@ public enum ActivityInbox {
             return .failure(.payloadTooLarge)
         }
 
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
+        guard let payload = try? decoder.decode(Payload.self, from: data) else {
             return .failure(.unreadablePayload)
         }
 
@@ -139,14 +154,6 @@ public enum ActivityInbox {
     }
 
     private static func parseTimestamp(_ raw: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: raw) {
-            return date
-        }
-
-        let whole = ISO8601DateFormatter()
-        whole.formatOptions = [.withInternetDateTime]
-        return whole.date(from: raw)
+        fractionalTimestampFormatter.date(from: raw) ?? wholeTimestampFormatter.date(from: raw)
     }
 }
