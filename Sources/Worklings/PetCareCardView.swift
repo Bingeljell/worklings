@@ -144,31 +144,28 @@ struct PetCareCardView: View {
     }
 
     private var levelSummary: some View {
-        let currentLevelXP = PetProgressionCurve.totalXPRequired(forLevel: state.level)
-        let nextLevelXP = PetProgressionCurve.totalXPRequired(forLevel: state.level + 1)
-        let xpIntoLevel = max(0, state.totalXP - currentLevelXP)
-        let xpForLevel = nextLevelXP - currentLevelXP
-        let progress = xpForLevel > 0 ? xpIntoLevel / xpForLevel : 1
+        let progress = PetProgressionCurve.progress(forTotalXP: state.totalXP)
+        let levelLabel = PetPresentation.levelClassLabel(for: state)
 
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Level \(state.level) · \(state.petClass.displayName)")
+                Text(levelLabel)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                 Spacer()
                 Text(state.petClass.role)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            ProgressView(value: min(max(progress, 0), 1))
+            ProgressView(value: progress.fraction)
                 .tint(.yellow)
-            Text("\(Int(xpIntoLevel)) / \(Int(xpForLevel)) XP to next level")
+            Text("\(Int(progress.xpIntoLevel)) / \(Int(progress.xpForLevel)) XP to next level")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Level \(state.level) \(state.petClass.displayName), \(state.petClass.role), "
-            + "\(Int(xpIntoLevel)) of \(Int(xpForLevel)) XP to next level"
+            "\(levelLabel), \(state.petClass.role), "
+            + "\(Int(progress.xpIntoLevel)) of \(Int(progress.xpForLevel)) XP to next level"
         )
     }
 

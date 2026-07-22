@@ -220,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             state.name,
             presentation.moodLabel,
             state.family.displayName,
-            "Lv.\(state.level) \(state.petClass.displayName)"
+            PetPresentation.levelClassLabel(for: state)
         ].joined(separator: " · ")
         needsMenuItem?.title = [
             "Fullness \(Int(state.needs.fullness.rounded()))",
@@ -242,21 +242,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateRoamingMenuItem()
         updateActivityInboxMenuItem()
 
-        for menuItem in familyMenuItems {
-            guard let rawValue = menuItem.representedObject as? String,
-                  let family = PetFamily(rawValue: rawValue) else {
-                continue
-            }
-            menuItem.state = family == state.family ? .on : .off
-        }
-
-        for menuItem in classMenuItems {
-            guard let rawValue = menuItem.representedObject as? String,
-                  let petClass = PetClass(rawValue: rawValue) else {
-                continue
-            }
-            menuItem.state = petClass == state.petClass ? .on : .off
-        }
+        syncCheckmarks(familyMenuItems, selectedRawValue: state.family.rawValue)
+        syncCheckmarks(classMenuItems, selectedRawValue: state.petClass.rawValue)
 
         apply(
             status.availability(for: .feed, state: state),
@@ -276,20 +263,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         updateFocusSessionMenuItem()
 
-        for menuItem in foodMenuItems {
-            guard let rawValue = menuItem.representedObject as? String,
-                  let food = PetFood(rawValue: rawValue) else {
-                continue
-            }
-            menuItem.state = food == state.preferences.favouriteFood ? .on : .off
-        }
+        syncCheckmarks(foodMenuItems, selectedRawValue: state.preferences.favouriteFood.rawValue)
+        syncCheckmarks(
+            playMenuItems,
+            selectedRawValue: state.preferences.favouritePlayActivity.rawValue
+        )
+    }
 
-        for menuItem in playMenuItems {
-            guard let rawValue = menuItem.representedObject as? String,
-                  let activity = PetPlayActivity(rawValue: rawValue) else {
-                continue
-            }
-            menuItem.state = activity == state.preferences.favouritePlayActivity ? .on : .off
+    private func syncCheckmarks(_ items: [NSMenuItem], selectedRawValue: String) {
+        for item in items {
+            item.state = (item.representedObject as? String) == selectedRawValue ? .on : .off
         }
     }
 
@@ -301,24 +284,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuItem?.toolTip = availability.explanation
     }
 
-    private func makeFamilyMenuItem() -> NSMenuItem {
-        let parentItem = NSMenuItem(title: "Choose Workling", action: nil, keyEquivalent: "")
-        let submenu = NSMenu(title: "Choose Workling")
+    /// The one submenu builder behind every raw-representable choice menu
+    /// (family, class, food, play), so wiring changes — target retention,
+    /// represented objects, accessibility — happen in exactly one place.
+    private func makeChoiceMenuItem<Choice: CaseIterable & RawRepresentable>(
+        title: String,
+        action: Selector,
+        titleFor: (Choice) -> String
+    ) -> (parent: NSMenuItem, items: [NSMenuItem]) where Choice.RawValue == String {
+        let parentItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: title)
 
-        familyMenuItems = PetFamily.allCases.map { family in
-            let item = NSMenuItem(
-                title: familySelectionTitle(for: family),
-                action: #selector(selectFamily(_:)),
-                keyEquivalent: ""
-            )
+        let items = Choice.allCases.map { choice in
+            let item = NSMenuItem(title: titleFor(choice), action: action, keyEquivalent: "")
             item.target = self
-            item.representedObject = family.rawValue
+            item.representedObject = choice.rawValue
             submenu.addItem(item)
             return item
         }
 
         parentItem.submenu = submenu
-        return parentItem
+        return (parentItem, items)
+    }
+
+    private func makeFamilyMenuItem() -> NSMenuItem {
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Choose Workling",
+            action: #selector(selectFamily(_:)),
+            titleFor: familySelectionTitle(for:)
+        )
+        familyMenuItems = items
+        return parent
     }
 
     private func familySelectionTitle(for family: PetFamily) -> String {
@@ -330,63 +326,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func makeClassMenuItem() -> NSMenuItem {
-        let parentItem = NSMenuItem(title: "Choose Class", action: nil, keyEquivalent: "")
-        let submenu = NSMenu(title: "Choose Class")
-
-        classMenuItems = PetClass.allCases.map { petClass in
-            let item = NSMenuItem(
-                title: "\(petClass.displayName) — \(petClass.role)",
-                action: #selector(selectClass(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = petClass.rawValue
-            submenu.addItem(item)
-            return item
-        }
-
-        parentItem.submenu = submenu
-        return parentItem
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Choose Class",
+            action: #selector(selectClass(_:)),
+            titleFor: { (petClass: PetClass) in "\(petClass.displayName) — \(petClass.role)" }
+        )
+        classMenuItems = items
+        return parent
     }
 
     private func makeFoodMenuItem() -> NSMenuItem {
-        let parentItem = NSMenuItem(title: "Feed", action: nil, keyEquivalent: "")
-        let submenu = NSMenu(title: "Feed")
-
-        foodMenuItems = PetFood.allCases.map { food in
-            let item = NSMenuItem(
-                title: food.displayName,
-                action: #selector(feed(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = food.rawValue
-            submenu.addItem(item)
-            return item
-        }
-
-        parentItem.submenu = submenu
-        return parentItem
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Feed",
+            action: #selector(feed(_:)),
+            titleFor: { (food: PetFood) in food.displayName }
+        )
+        foodMenuItems = items
+        return parent
     }
 
     private func makePlayMenuItem() -> NSMenuItem {
-        let parentItem = NSMenuItem(title: "Play", action: nil, keyEquivalent: "")
-        let submenu = NSMenu(title: "Play")
-
-        playMenuItems = PetPlayActivity.allCases.map { activity in
-            let item = NSMenuItem(
-                title: activity.displayName,
-                action: #selector(play(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = activity.rawValue
-            submenu.addItem(item)
-            return item
-        }
-
-        parentItem.submenu = submenu
-        return parentItem
+        let (parent, items) = makeChoiceMenuItem(
+            title: "Play",
+            action: #selector(play(_:)),
+            titleFor: { (activity: PetPlayActivity) in activity.displayName }
+        )
+        playMenuItems = items
+        return parent
     }
 
     @objc

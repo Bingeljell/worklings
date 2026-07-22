@@ -197,42 +197,27 @@ public struct PetBrain: Sendable {
 
         switch event.kind {
         case .dailyWake:
-            let updated = updatedState(
+            return celebrating(
+                .happyToSeeYou,
+                happinessGain: 3,
+                trustGain: 1,
+                xp: progressionRates.dailyWakeXP,
+                source: .dailyWake,
                 from: currentState,
-                needs: PetNeeds(
-                    hunger: needs.hunger,
-                    energy: needs.energy,
-                    happiness: needs.happiness + 3,
-                    trust: needs.trust + 1
-                ),
-                at: now
-            )
-            return PetActivityResponse(
-                state: grantingXP(progressionRates.dailyWakeXP, source: .dailyWake, to: updated, at: now, day: event.timestamp, condition: needs),
-                reaction: .happyToSeeYou
+                at: now,
+                day: event.timestamp
             )
 
         case .taskCompleted:
-            let updated = updatedState(
+            return celebrating(
+                .celebratedTask,
+                happinessGain: 4,
+                trustGain: 0,
+                xp: progressionRates.taskCompletedXP,
+                source: .taskCompleted,
                 from: currentState,
-                needs: PetNeeds(
-                    hunger: needs.hunger,
-                    energy: needs.energy,
-                    happiness: needs.happiness + 4,
-                    trust: needs.trust
-                ),
-                at: now
-            )
-            return PetActivityResponse(
-                state: grantingXP(
-                    progressionRates.taskCompletedXP,
-                    source: .taskCompleted,
-                    to: updated,
-                    at: now,
-                    day: event.timestamp,
-                    condition: needs
-                ),
-                reaction: .celebratedTask
+                at: now,
+                day: event.timestamp
             )
 
         case .taskFailed:
@@ -247,19 +232,15 @@ public struct PetBrain: Sendable {
             )
 
         case .milestone:
-            let updated = updatedState(
+            return celebrating(
+                .proudOfMilestone,
+                happinessGain: 6,
+                trustGain: 2,
+                xp: progressionRates.milestoneXP,
+                source: .milestone,
                 from: currentState,
-                needs: PetNeeds(
-                    hunger: needs.hunger,
-                    energy: needs.energy,
-                    happiness: needs.happiness + 6,
-                    trust: needs.trust + 2
-                ),
-                at: now
-            )
-            return PetActivityResponse(
-                state: grantingXP(progressionRates.milestoneXP, source: .milestone, to: updated, at: now, day: event.timestamp, condition: needs),
-                reaction: .proudOfMilestone
+                at: now,
+                day: event.timestamp
             )
 
         case .userReturned:
@@ -365,6 +346,36 @@ public struct PetBrain: Sendable {
             return 0
         }
         return state.workLogCountToday
+    }
+
+    /// A share-worthy event's full effect: a happiness/trust bump plus an XP
+    /// grant whose condition multiplier reads the needs from *before* the
+    /// bump, charged against the event's own day.
+    private func celebrating(
+        _ reaction: PetReaction,
+        happinessGain: Double,
+        trustGain: Double,
+        xp: Double,
+        source: XPSource,
+        from state: PetState,
+        at now: Date,
+        day: Date
+    ) -> PetActivityResponse {
+        let needs = state.needs
+        let updated = updatedState(
+            from: state,
+            needs: PetNeeds(
+                hunger: needs.hunger,
+                energy: needs.energy,
+                happiness: needs.happiness + happinessGain,
+                trust: needs.trust + trustGain
+            ),
+            at: now
+        )
+        return PetActivityResponse(
+            state: grantingXP(xp, source: source, to: updated, at: now, day: day, condition: needs),
+            reaction: reaction
+        )
     }
 
     private func response(

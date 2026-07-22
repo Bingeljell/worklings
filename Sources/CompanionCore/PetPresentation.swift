@@ -80,6 +80,13 @@ public struct PetPresentation: Equatable, Sendable {
         self.thought = thought
     }
 
+    /// The one place the level-and-class readout is formatted, so the care
+    /// card, the menu-bar header, and accessibility labels can never drift
+    /// into different spellings of the same fact.
+    public static func levelClassLabel(for state: PetState) -> String {
+        "Level \(state.level) \(state.petClass.displayName)"
+    }
+
     public static func make(
         state: PetState,
         reaction: PetReaction? = nil

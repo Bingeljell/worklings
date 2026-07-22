@@ -165,14 +165,7 @@ final class ActivityInboxMonitor {
         }
         #endif
 
-        let fileManager = FileManager.default
-        let applicationSupportURL = fileManager.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? fileManager.temporaryDirectory
-
-        return applicationSupportURL
-            .appendingPathComponent("Worklings", isDirectory: true)
+        return WorklingsDirectories.applicationSupport()
             .appendingPathComponent("inbox", isDirectory: true)
     }
 }

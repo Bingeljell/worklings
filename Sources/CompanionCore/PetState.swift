@@ -206,11 +206,19 @@ public struct PetState: Codable, Equatable, Sendable {
         )
     }
 
-    public func selectingFamily(_ family: PetFamily) -> PetState {
+    /// The single full-field copy for the identity withers below, so adding
+    /// a stored field means updating exactly one copy site instead of one
+    /// per wither — a missed field here fails to compile rather than
+    /// silently dropping state.
+    private func replacing(
+        name: String? = nil,
+        family: PetFamily? = nil,
+        petClass: PetClass? = nil
+    ) -> PetState {
         PetState(
             schemaVersion: schemaVersion,
-            name: name,
-            family: family,
+            name: name ?? self.name,
+            family: family ?? self.family,
             needs: needs,
             preferences: preferences,
             lastUpdatedAt: lastUpdatedAt,
@@ -218,11 +226,15 @@ public struct PetState: Codable, Equatable, Sendable {
             workLogCountToday: workLogCountToday,
             workLogCountDate: workLogCountDate,
             totalXP: totalXP,
-            petClass: petClass,
+            petClass: petClass ?? self.petClass,
             stats: stats,
             dailyXPBySource: dailyXPBySource,
             dailyXPDate: dailyXPDate
         )
+    }
+
+    public func selectingFamily(_ family: PetFamily) -> PetState {
+        replacing(family: family)
     }
 
     /// Class is freely reassignable, the same way family is — there is
@@ -230,22 +242,7 @@ public struct PetState: Codable, Equatable, Sendable {
     /// to protect. Stat growth already earned never changes; only future
     /// growth follows the new class's signature stat.
     public func selectingClass(_ petClass: PetClass) -> PetState {
-        PetState(
-            schemaVersion: schemaVersion,
-            name: name,
-            family: family,
-            needs: needs,
-            preferences: preferences,
-            lastUpdatedAt: lastUpdatedAt,
-            lastWorkLogAt: lastWorkLogAt,
-            workLogCountToday: workLogCountToday,
-            workLogCountDate: workLogCountDate,
-            totalXP: totalXP,
-            petClass: petClass,
-            stats: stats,
-            dailyXPBySource: dailyXPBySource,
-            dailyXPDate: dailyXPDate
-        )
+        replacing(petClass: petClass)
     }
 
     public static let maximumNameLength = 24
@@ -263,22 +260,7 @@ public struct PetState: Codable, Equatable, Sendable {
             return self
         }
 
-        return PetState(
-            schemaVersion: schemaVersion,
-            name: trimmed,
-            family: family,
-            needs: needs,
-            preferences: preferences,
-            lastUpdatedAt: lastUpdatedAt,
-            lastWorkLogAt: lastWorkLogAt,
-            workLogCountToday: workLogCountToday,
-            workLogCountDate: workLogCountDate,
-            totalXP: totalXP,
-            petClass: petClass,
-            stats: stats,
-            dailyXPBySource: dailyXPBySource,
-            dailyXPDate: dailyXPDate
-        )
+        return replacing(name: trimmed)
     }
 
     /// Derived from `totalXP` rather than stored, so level and XP can never

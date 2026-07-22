@@ -9,17 +9,23 @@ import Foundation
 /// This type owns decoding and validation only, so the trust boundary is pure
 /// and deterministic; file watching and delivery live in the app target.
 public enum ActivityInbox {
-    /// Kinds an external adapter may emit. The app-owned lifecycle kinds stay
-    /// internal: `dailyWake` belongs to `DailyWakeTracker`, presence kinds to
-    /// the presence source, and `workLogged` to the user's own hand.
-    public static let acceptedKinds: Set<ActivityEventKind> = [
-        .workStarted,
-        .workEnded,
-        .taskCompleted,
-        .taskFailed,
-        .awaitingInput,
-        .milestone,
-    ]
+    /// Whether an external adapter may emit this kind. The app-owned
+    /// lifecycle kinds stay internal: `dailyWake` belongs to
+    /// `DailyWakeTracker`, presence kinds to the presence source, and
+    /// `workLogged` to the user's own hand. Exhaustive on purpose — adding a
+    /// kind refuses to compile until it is classified here.
+    public static func isAdapterEmittable(_ kind: ActivityEventKind) -> Bool {
+        switch kind {
+        case .workStarted, .workEnded, .taskCompleted, .taskFailed, .awaitingInput, .milestone:
+            return true
+        case .dailyWake, .userIdle, .userReturned, .workLogged:
+            return false
+        }
+    }
+
+    /// Kinds an external adapter may emit, derived from the exhaustive
+    /// classification above.
+    public static let acceptedKinds = Set(ActivityEventKind.allCases.filter(isAdapterEmittable))
 
     /// Ids the app itself emits under. A file claiming one could impersonate
     /// a self-reported or internal signal, so they are rejected outright.

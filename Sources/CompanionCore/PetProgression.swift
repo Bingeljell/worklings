@@ -150,6 +150,32 @@ public enum PetProgressionCurve {
         }
         return level
     }
+
+    /// Everything a progress readout needs, derived once: the level, how far
+    /// into it the total is, the level's full span, and the clamped 0...1
+    /// fraction. Any surface showing an XP bar reads this instead of
+    /// re-deriving the arithmetic.
+    public struct Progress: Equatable, Sendable {
+        public let level: Int
+        public let xpIntoLevel: Double
+        public let xpForLevel: Double
+        public let fraction: Double
+    }
+
+    public static func progress(forTotalXP totalXP: Double) -> Progress {
+        let level = level(forTotalXP: totalXP)
+        let currentLevelXP = totalXPRequired(forLevel: level)
+        let nextLevelXP = totalXPRequired(forLevel: level + 1)
+        let xpIntoLevel = max(0, totalXP - currentLevelXP)
+        let xpForLevel = nextLevelXP - currentLevelXP
+        let fraction = xpForLevel > 0 ? min(max(xpIntoLevel / xpForLevel, 0), 1) : 1
+        return Progress(
+            level: level,
+            xpIntoLevel: xpIntoLevel,
+            xpForLevel: xpForLevel,
+            fraction: fraction
+        )
+    }
 }
 
 /// Identifies which XP source a grant came from, purely for per-source

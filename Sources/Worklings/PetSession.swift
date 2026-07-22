@@ -217,16 +217,11 @@ final class PetSession: ObservableObject {
 
     private static func makeDefaultStore() -> PetStateFileStore {
         let fileManager = FileManager.default
-        let applicationSupportURL = fileManager.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? fileManager.temporaryDirectory
 
         let stateFileName = "pet-state.json"
-        let stateURL = applicationSupportURL
-            .appendingPathComponent("Worklings", isDirectory: true)
+        let stateURL = WorklingsDirectories.applicationSupport()
             .appendingPathComponent(stateFileName, isDirectory: false)
-        let legacyStateURL = applicationSupportURL
+        let legacyStateURL = WorklingsDirectories.applicationSupportBase()
             .appendingPathComponent("BuildCompanion", isDirectory: true)
             .appendingPathComponent(stateFileName, isDirectory: false)
 
