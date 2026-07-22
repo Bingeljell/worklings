@@ -9,6 +9,7 @@ enum CheckRunner {
         PetBrainChecks.run(context: &context)
         ActivityChecks.run(context: &context)
         ActivitySourceChecks.run(context: &context)
+        InboxChecks.run(context: &context)
         WorkLogChecks.run(context: &context)
         ProgressionChecks.run(context: &context)
         PetPersistenceChecks.run(context: &context)

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+# Drops one activity event into the Worklings inbox, the way any real adapter
+# would: write the JSON somewhere else first, then rename it in, so the app
+# never observes a half-written file. The app must have "Accept Work Tool
+# Events" enabled in the paw menu for the event to be picked up.
+
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: emit-activity-event <kind> <sourceId> [inbox-dir]
+
+  kind       one of: workStarted workEnded taskCompleted taskFailed
+             awaitingInput milestone
+  sourceId   lowercase identifier for the emitting tool, e.g. codex
+  inbox-dir  optional; defaults to
+             ~/Library/Application Support/Worklings/inbox
+EOF
+  exit 2
+}
+
+[ "$#" -ge 2 ] && [ "$#" -le 3 ] || usage
+
+kind="$1"
+source_id="$2"
+inbox_dir="${3:-$HOME/Library/Application Support/Worklings/inbox}"
+
+case "$kind" in
+  workStarted|workEnded|taskCompleted|taskFailed|awaitingInput|milestone) ;;
+  *)
+    printf 'Error: unsupported kind: %s\n' "$kind" >&2
+    usage
+    ;;
+esac
+
+mkdir -p "$inbox_dir"
+
+timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+event_file="$inbox_dir/$(date -u +%Y%m%dT%H%M%S)-$$-$RANDOM.json"
+staging_file="$(mktemp "$inbox_dir/.staging.XXXXXX")"
+
+printf '{"kind":"%s","sourceId":"%s","timestamp":"%s"}\n' \
+  "$kind" "$source_id" "$timestamp" > "$staging_file"
+mv "$staging_file" "$event_file"
+
+printf 'Emitted %s from %s into %s\n' "$kind" "$source_id" "$inbox_dir"

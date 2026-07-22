@@ -2,7 +2,7 @@
 
 ## Status
 
-The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, direct-download packaging toolchain, and the normalized activity-event pipeline with a debug simulated source are implemented. Intent-driven movement and real activity adapters remain planned.
+The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, direct-download packaging toolchain, the normalized activity-event pipeline with a debug simulated source, and the opt-in activity inbox external adapters write into are implemented. Intent-driven movement and the first real adapter (Codex) remain planned.
 
 ## Implemented system
 
@@ -22,7 +22,7 @@ The simulation works without an activity source. UI surfaces call the same sessi
 Activity source -> normalized event -> activity context -> Pet Brain intent -> presentation
 ```
 
-The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is the first source. Real adapters remain planned.
+The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is the first source, and the [activity inbox](#the-activity-inbox) is the doorway external adapters use; the adapters themselves remain planned.
 
 Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract. The event vocabulary, sources, and the progression systems built on top of it are defined in the [progression design](progression.md).
 
@@ -91,20 +91,27 @@ JSON remains appropriate until query, concurrency, or migration requirements dem
 
 ## Activity event pipeline
 
-The pipeline is designed but not implemented. Each future adapter should emit:
+The internal pipeline is implemented in `CompanionCore` (see [Runtime topology](#runtime-topology)): normalized events reduce into short-lived activity context, and the Pet Brain consumes that context without knowing whether an event originated in Codex, another agent, an IDE, or the operating system.
+
+### The activity inbox
+
+External adapters reach the pipeline through the **activity inbox**: a local spool directory the app watches, into which an adapter drops one small JSON file per event.
 
 ```text
-ActivityEvent
-  sourceID       stable adapter identifier
-  sessionID      optional opaque correlation identifier
-  phase          started | active | awaitingInput | completed | failed | stopped
-  occurredAt     timestamp
-  intensity      optional normalized value
+~/Library/Application Support/Worklings/inbox/<any-name>.json
+
+{
+  "kind":      "workStarted | workEnded | taskCompleted | taskFailed | awaitingInput | milestone",
+  "sourceId":  "stable lowercase adapter identifier, e.g. codex",
+  "timestamp": "optional ISO8601; omitted means now"
+}
 ```
 
-The event reducer converts short-lived events into activity context. The Pet Brain consumes that context without knowing whether it originated in Codex, another agent, an IDE, or the operating system.
+The boundary is deliberately a file drop rather than a socket or local server: an adapter needs nothing but the ability to write a file (a three-line shell hook suffices), a missing or closed app costs the adapter nothing, and no network port ever opens. Adapters should write the file elsewhere and rename it into the inbox so a half-written payload is never observed; `scripts/emit-activity-event` demonstrates the pattern and serves as manual test tooling.
 
-The first Codex adapter should use documented lifecycle signals rather than UI scraping or unstable transcript parsing. It must be optional and fail closed.
+Validation lives in `CompanionCore.ActivityInbox` as pure, checked functions: unknown or app-owned kinds (`dailyWake`, presence, `workLogged`) are rejected, reserved source ids (`system`, `manual`, `simulated`) cannot be impersonated, malformed or oversize payloads are discarded, and timestamps older than the activity-context expiry window are dropped so a backlog written while the app was closed never replays onto the pet. `ActivityInboxMonitor` in the app target watches the directory, feeds valid events into the same `PetSession.receive` path every internal source uses, and deletes each file it inspects. The contract has no fields for content, so the privacy boundary is structural: an adapter physically cannot hand the pet prompts, code, or file paths.
+
+The inbox is off by default and toggled by the "Accept Work Tool Events" menu item, independent of every other control. The first Codex adapter should use documented lifecycle signals rather than UI scraping or unstable transcript parsing, and emit into this inbox under its own source id.
 
 ## Privacy and permissions
 
@@ -137,6 +144,7 @@ The first Worklings-branded public artifact is the `v0.1.0-alpha.2` GitHub prere
 | App bundle, DMG, checksum, and mounted verification | Complete |
 | Safe idle roaming within one display | Complete |
 | Provider-neutral event pipeline with a simulated source | Complete |
+| Activity inbox boundary for external adapters | Complete |
 | Codex adapter | Planned |
 | Wildkin, Elemental, and Relicborn runtime selection | Complete |
 | Adoption and initial creature setup | Planned |

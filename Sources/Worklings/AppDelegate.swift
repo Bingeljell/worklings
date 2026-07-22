@@ -4,10 +4,12 @@ import CompanionCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let roamingDefaultsKey = "idleRoamingEnabled"
+    private static let activityInboxDefaultsKey = "activityInboxEnabled"
 
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
+    private var activityInboxMonitor: ActivityInboxMonitor?
     private var statusItem: NSStatusItem?
     private var visibilityMenuItem: NSMenuItem?
     private var petHeaderMenuItem: NSMenuItem?
@@ -20,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var focusSessionMenuItem: NSMenuItem?
     private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
+    private var activityInboxMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
     private var classMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
@@ -56,6 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #endif
         self.presenceMonitor = presenceMonitor
         presenceMonitor.start()
+
+        let activityInboxMonitor = ActivityInboxMonitor(session: petSession)
+        self.activityInboxMonitor = activityInboxMonitor
+        if UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) {
+            activityInboxMonitor.start()
+        }
 
         configureStatusItem()
         companionController.setRoamingEnabled(
@@ -159,6 +168,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(roamingItem)
         roamingMenuItem = roamingItem
 
+        let activityInboxItem = NSMenuItem(
+            title: "Accept Work Tool Events",
+            action: #selector(toggleActivityInbox),
+            keyEquivalent: ""
+        )
+        activityInboxItem.target = self
+        activityInboxItem.toolTip = "Lets connected tools drop activity events into a local inbox folder. Off by default; nothing is read but event kind, source, and time."
+        menu.addItem(activityInboxItem)
+        activityInboxMenuItem = activityInboxItem
+
         let visibilityItem = NSMenuItem(
             title: "Tuck Away Companion",
             action: #selector(toggleCompanionVisibility),
@@ -221,6 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #endif
 
         updateRoamingMenuItem()
+        updateActivityInboxMenuItem()
 
         for menuItem in familyMenuItems {
             guard let rawValue = menuItem.representedObject as? String,
@@ -602,6 +622,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         roamingMenuItem?.toolTip = isAvailable
             ? "Allow \(name) to wander within the current display."
             : "Roaming pauses while macOS Reduce Motion is enabled."
+    }
+
+    @objc
+    private func toggleActivityInbox() {
+        guard let activityInboxMonitor else {
+            return
+        }
+
+        let shouldEnable = !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
+        UserDefaults.standard.set(shouldEnable, forKey: Self.activityInboxDefaultsKey)
+
+        if shouldEnable {
+            activityInboxMonitor.start()
+        } else {
+            activityInboxMonitor.stop()
+        }
+        updateActivityInboxMenuItem()
+    }
+
+    private func updateActivityInboxMenuItem() {
+        let isEnabled = UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
+        activityInboxMenuItem?.state = isEnabled ? .on : .off
     }
 
     @objc
