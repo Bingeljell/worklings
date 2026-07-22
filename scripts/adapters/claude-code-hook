@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+# Claude Code activity adapter.
+#
+# Wire this to Claude Code's lifecycle hooks (see docs/adapters.md) so each
+# hook event drops one content-free event into the Worklings inbox. The hook
+# passes Claude Code's JSON on stdin; this adapter ignores it entirely and
+# emits only the fixed kind named on the command line — no prompt, code, file
+# path, or transcript ever leaves the tool. That is the privacy contract: the
+# adapter cannot forward content because it never reads any.
+#
+# Usage (from a settings.json hook command):
+#   /abs/path/scripts/adapters/claude-code-hook <kind>
+# where <kind> is the inbox kind that Claude Code hook is mapped to, e.g.
+#   SessionStart -> workStarted, Stop -> taskCompleted, SessionEnd -> workEnded.
+
+set -euo pipefail
+
+kind="${1:-}"
+if [ -z "$kind" ]; then
+  printf 'claude-code-hook: missing <kind> argument\n' >&2
+  exit 2
+fi
+
+# Locate the canonical emitter beside this script, so the adapter works no
+# matter what directory Claude Code invokes the hook from (the hook's cwd is
+# the user's project, not this repo).
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+emitter="$script_dir/../emit-activity-event"
+
+# Drain and discard stdin so Claude Code never blocks on a full pipe; the
+# payload is deliberately not parsed.
+cat >/dev/null 2>&1 || true
+
+# The emitter validates the kind and performs the atomic write-then-rename.
+# A hook must never fail the tool it is attached to, so a missing inbox or a
+# rejected kind is swallowed rather than surfaced as a non-zero exit.
+"$emitter" "$kind" claude-code >/dev/null 2>&1 || true

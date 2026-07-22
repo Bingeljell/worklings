@@ -111,7 +111,7 @@ The boundary is deliberately a file drop rather than a socket or local server: a
 
 Validation lives in `CompanionCore.ActivityInbox` as pure, checked functions: unknown or app-owned kinds (`dailyWake`, presence, `workLogged`) are rejected, reserved source ids (`system`, `manual`, `simulated`) cannot be impersonated, malformed or oversize payloads are discarded, and timestamps older than the activity-context expiry window are dropped so a backlog written while the app was closed never replays onto the pet. `ActivityInboxMonitor` in the app target watches the directory, feeds valid events into the same `PetSession.receive` path every internal source uses, and deletes each file it inspects. The contract has no fields for content, so the privacy boundary is structural: an adapter physically cannot hand the pet prompts, code, or file paths.
 
-The inbox is off by default and toggled by the "Accept Work Tool Events" menu item, independent of every other control. The first Codex adapter should use documented lifecycle signals rather than UI scraping or unstable transcript parsing, and emit into this inbox under its own source id.
+The inbox is off by default and toggled by the "Accept Work Tool Events" menu item, independent of every other control. Adapters use documented lifecycle signals rather than UI scraping or unstable transcript parsing, and emit into this inbox under their own source id. The first two — Claude Code (settings.json hooks) and Codex (`notify` program) — ship in `scripts/adapters/`; see [Activity adapters](adapters.md).
 
 ## Privacy and permissions
 

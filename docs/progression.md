@@ -68,7 +68,7 @@ Ordered roughly by implementation cost:
 3. **Presence.** System input idle time (no content, no per-app visibility) drives `userIdle` and `userReturned`, and bounds work blocks.
 4. **Local git.** FSEvents watching of explicitly connected repositories emits `milestone` on commit. Opt-in per repository.
 5. **GitHub connect.** See below.
-6. **Agent adapters.** Codex first, per the architecture doc: session lifecycle events from locally written session files map to `workStarted`, `awaitingInput`, `taskCompleted`, and `taskFailed`.
+6. **Agent adapters.** Claude Code and Codex ship in `scripts/adapters/` (see [Activity adapters](adapters.md)). Claude Code's hooks map a full lifecycle (`workStarted`/`taskCompleted`/`awaitingInput`/`workEnded`); Codex's `notify` program currently exposes only `agent-turn-complete`, so it maps `taskCompleted` alone until more of its lifecycle is documented.
 
 ### GitHub connect
 
