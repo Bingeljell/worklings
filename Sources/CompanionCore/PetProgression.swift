@@ -211,6 +211,11 @@ public struct PetProgressionRates: Equatable, Sendable {
     public let signatureStatGainPerLevel: Int
     public let otherStatGainPerLevel: Int
     public let conditionMultiplierFloor: Double
+    /// Per-event geometric decay applied to milestone grants within a day:
+    /// the Nth milestone credited today is worth `milestoneXP × factor^(N-1)`.
+    /// A batch of commits therefore tapers rather than piling linearly toward
+    /// the cap. 1.0 disables decay; the daily cap still backstops.
+    public let milestoneDecayFactor: Double
 
     public init(
         dailyWakeXP: Double = 20,
@@ -228,7 +233,8 @@ public struct PetProgressionRates: Equatable, Sendable {
         overallDailyCap: Double = 500,
         signatureStatGainPerLevel: Int = 3,
         otherStatGainPerLevel: Int = 1,
-        conditionMultiplierFloor: Double = 0.2
+        conditionMultiplierFloor: Double = 0.2,
+        milestoneDecayFactor: Double = 0.7
     ) {
         self.dailyWakeXP = max(dailyWakeXP, 0)
         self.focusSessionXPPerMinute = max(focusSessionXPPerMinute, 0)
@@ -246,6 +252,7 @@ public struct PetProgressionRates: Equatable, Sendable {
         self.signatureStatGainPerLevel = max(signatureStatGainPerLevel, 0)
         self.otherStatGainPerLevel = max(otherStatGainPerLevel, 0)
         self.conditionMultiplierFloor = min(max(conditionMultiplierFloor, 0), 1)
+        self.milestoneDecayFactor = min(max(milestoneDecayFactor, 0), 1)
     }
 
     public func dailyCap(for source: XPSource) -> Double {
@@ -256,6 +263,16 @@ public struct PetProgressionRates: Equatable, Sendable {
         case .taskCompleted: taskCompletedDailyCap
         case .milestone: milestoneDailyCap
         case .workLogged: workLoggedDailyCap
+        }
+    }
+
+    /// Per-event geometric decay factor for a source's within-day grants.
+    /// Only milestone tapers today; every other source is flat (1.0), so the
+    /// count-based decay in `grantingXP` is a no-op for them.
+    public func decayFactor(for source: XPSource) -> Double {
+        switch source {
+        case .milestone: milestoneDecayFactor
+        default: 1
         }
     }
 }

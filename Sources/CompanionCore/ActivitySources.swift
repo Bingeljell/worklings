@@ -21,6 +21,56 @@ public enum ManualActivitySource {
     }
 }
 
+/// Commits in a repository the user explicitly connected, surfaced as
+/// `milestone` events. Tagged distinctly from `manual`/`simulated` so fairness
+/// rules can later weigh a local commit differently from a self-reported log.
+public enum GitActivitySource {
+    public static let sourceId = "git"
+
+    public static func event(_ kind: ActivityEventKind, at timestamp: Date) -> ActivityEvent {
+        ActivityEvent(kind: kind, timestamp: timestamp, sourceId: sourceId)
+    }
+}
+
+/// The pure decision behind the local-git source: given a change in a
+/// repository's HEAD, how many `milestone` events does it represent?
+///
+/// Deliberately free of any git invocation so it is deterministically
+/// checkable. The app target supplies the facts by shelling out to git; this
+/// decides what the pet should see. It reasons only over commit identifiers and
+/// their ancestry — never a message, diff, or path — so the source's structural
+/// privacy is legible right here.
+public enum GitCommitDelta {
+    /// - Parameters:
+    ///   - oldSHA: the previously observed HEAD, or nil if none is recorded yet
+    ///     (a freshly connected repo). A nil baseline emits nothing, so
+    ///     connecting a repo with history already behind it grants no XP.
+    ///   - newSHA: the current HEAD.
+    ///   - oldIsAncestorOfNew: whether `old` is an ancestor of `new`. False for
+    ///     an amend, reset, or rebase that rewrote history instead of adding to
+    ///     it — not forward progress, so it emits nothing.
+    ///   - commitsAhead: how many commits `new` is ahead of `old`
+    ///     (`git rev-list --count old..new`) — one per genuine new commit, so a
+    ///     batch landed at once is credited per commit.
+    /// - Returns: how many `milestone` events to emit (never negative).
+    ///
+    /// Note: this answers "what does this HEAD movement represent," not "should
+    /// we credit it now." The no-retro-credit-for-offline-commits rule is a
+    /// caller-timing concern — the watcher syncs the baseline silently on
+    /// connect and launch, and only acts on this result during live watching.
+    public static func milestonesToEmit(
+        oldSHA: String?,
+        newSHA: String,
+        oldIsAncestorOfNew: Bool,
+        commitsAhead: Int
+    ) -> Int {
+        guard let oldSHA else { return 0 }
+        guard newSHA != oldSHA else { return 0 }
+        guard oldIsAncestorOfNew else { return 0 }
+        return max(0, commitsAhead)
+    }
+}
+
 /// Decides whether the first interaction of a new calendar day has happened,
 /// independent of how many times the app has launched that day. The caller
 /// owns persisting `lastWakeAt`; this function only makes the determination.

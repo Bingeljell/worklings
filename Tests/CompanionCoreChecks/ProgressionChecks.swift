@@ -22,6 +22,10 @@ enum ProgressionChecks {
         checkPerSourceDailyCapBlocksFurtherGrants(context: &context)
         checkOverallDailyCapBlocksGrantsAcrossSources(context: &context)
         checkDailyCapsResetOnNewDay(context: &context)
+        checkMilestonesDiminishWithinTheDay(context: &context)
+        checkMilestoneDecayStillHonoursTheCap(context: &context)
+        checkNonMilestoneSourcesDoNotDecay(context: &context)
+        checkMilestoneDecayResetsOnNewDay(context: &context)
         checkLevelUpAppliesClassWeightedStatGrowth(context: &context)
         checkSelectingClassPreservesEverythingElse(context: &context)
         checkFamilySelectionPreservesProgression(context: &context)
@@ -430,6 +434,105 @@ enum ProgressionChecks {
         context.expect(
             state.totalXP > cappedXP,
             "a new calendar day resets every source's daily XP bookkeeping"
+        )
+    }
+
+    private static func checkMilestonesDiminishWithinTheDay(context: inout CheckContext) {
+        let brain = PetBrain()
+        let base = PetProgressionRates().milestoneXP
+        let factor = PetProgressionRates().milestoneDecayFactor
+        var state = fullHealthState()
+
+        func emitMilestone() {
+            state = brain.observe(
+                SimulatedActivitySource.event(.milestone, at: start),
+                on: state,
+                at: start
+            ).state
+        }
+
+        emitMilestone()
+        context.expectApproximatelyEqual(
+            state.totalXP,
+            base,
+            "the first milestone of the day grants full XP"
+        )
+        emitMilestone()
+        context.expectApproximatelyEqual(
+            state.totalXP,
+            base + base * factor,
+            "the second milestone is worth the base times the decay factor"
+        )
+        emitMilestone()
+        context.expectApproximatelyEqual(
+            state.totalXP,
+            base + base * factor + base * factor * factor,
+            "milestones taper geometrically as more land the same day"
+        )
+        context.expectEqual(
+            state.dailyEventCount.value["milestone"],
+            3,
+            "each credited milestone increments the per-source daily count"
+        )
+    }
+
+    private static func checkMilestoneDecayStillHonoursTheCap(context: inout CheckContext) {
+        // A cap below the geometric ceiling (base / (1 - factor)) so it bites.
+        let rates = PetProgressionRates(milestoneDailyCap: 50, overallDailyCap: 1_000)
+        let brain = PetBrain(progressionRates: rates)
+        var state = fullHealthState()
+
+        for _ in 0..<10 {
+            state = brain.observe(
+                SimulatedActivitySource.event(.milestone, at: start),
+                on: state,
+                at: start
+            ).state
+        }
+
+        context.expectApproximatelyEqual(
+            state.totalXP,
+            50,
+            "the per-source daily cap still backstops decayed milestone grants"
+        )
+    }
+
+    private static func checkNonMilestoneSourcesDoNotDecay(context: inout CheckContext) {
+        let brain = PetBrain()
+        let taskXP = PetProgressionRates().taskCompletedXP
+        var state = fullHealthState()
+
+        state = brain.observe(SimulatedActivitySource.event(.taskCompleted, at: start), on: state, at: start).state
+        state = brain.observe(SimulatedActivitySource.event(.taskCompleted, at: start), on: state, at: start).state
+
+        context.expectApproximatelyEqual(
+            state.totalXP,
+            taskXP * 2,
+            "a source with no decay factor grants linearly, unaffected by the count"
+        )
+    }
+
+    private static func checkMilestoneDecayResetsOnNewDay(context: inout CheckContext) {
+        let brain = PetBrain()
+        var state = fullHealthState()
+
+        state = brain.observe(SimulatedActivitySource.event(.milestone, at: start), on: state, at: start).state
+        state = brain.observe(SimulatedActivitySource.event(.milestone, at: start), on: state, at: start).state
+        context.expectEqual(
+            state.dailyEventCount.value["milestone"],
+            2,
+            "two milestones the same day leave the per-source count at two"
+        )
+
+        // Detection isolates the count reset from the condition multiplier,
+        // which independently dips as needs decay across the intervening day.
+        let nextDay = start.addingTimeInterval(24 * 3_600)
+        state = brain.observe(SimulatedActivitySource.event(.milestone, at: nextDay), on: state, at: nextDay).state
+
+        context.expectEqual(
+            state.dailyEventCount.current(on: nextDay, default: [:])["milestone"],
+            1,
+            "a new calendar day resets the milestone count, so the next commit is a fresh first grant"
         )
     }
 

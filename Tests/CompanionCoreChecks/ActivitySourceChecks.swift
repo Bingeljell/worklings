@@ -12,6 +12,11 @@ enum ActivitySourceChecks {
         checkPresenceStaysIdle(context: &context)
         checkPresenceReturns(context: &context)
         checkPresenceStaysPresent(context: &context)
+        checkGitSourceId(context: &context)
+        checkGitForwardCommitEmitsPerCommit(context: &context)
+        checkGitFreshConnectEmitsNothing(context: &context)
+        checkGitUnchangedHeadEmitsNothing(context: &context)
+        checkGitHistoryRewriteEmitsNothing(context: &context)
     }
 
     private static var utcCalendar: Calendar {
@@ -100,6 +105,59 @@ enum ActivitySourceChecks {
             PresenceEvaluator.signal(idleSeconds: 0, wasIdle: false),
             nil,
             "staying present emits nothing"
+        )
+    }
+
+    private static func checkGitSourceId(context: inout CheckContext) {
+        let event = GitActivitySource.event(.milestone, at: Date(timeIntervalSinceReferenceDate: 0))
+        context.expectEqual(event.sourceId, "git", "commits carry the git source id")
+        context.expectEqual(event.kind, .milestone, "a commit surfaces as a milestone")
+    }
+
+    private static func checkGitForwardCommitEmitsPerCommit(context: inout CheckContext) {
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: "aaa", newSHA: "bbb", oldIsAncestorOfNew: true, commitsAhead: 1
+            ),
+            1,
+            "a single new commit on top of the last-seen HEAD emits one milestone"
+        )
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: "aaa", newSHA: "bbb", oldIsAncestorOfNew: true, commitsAhead: 5
+            ),
+            5,
+            "a batch landed at once is credited per commit"
+        )
+    }
+
+    private static func checkGitFreshConnectEmitsNothing(context: inout CheckContext) {
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: nil, newSHA: "bbb", oldIsAncestorOfNew: false, commitsAhead: 99
+            ),
+            0,
+            "a freshly connected repo with history behind it grants nothing (no retro-credit)"
+        )
+    }
+
+    private static func checkGitUnchangedHeadEmitsNothing(context: inout CheckContext) {
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: "aaa", newSHA: "aaa", oldIsAncestorOfNew: true, commitsAhead: 0
+            ),
+            0,
+            "an unchanged HEAD (e.g. a non-commit .git write) emits nothing"
+        )
+    }
+
+    private static func checkGitHistoryRewriteEmitsNothing(context: inout CheckContext) {
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: "aaa", newSHA: "ccc", oldIsAncestorOfNew: false, commitsAhead: 1
+            ),
+            0,
+            "an amend/reset/rebase that rewrites rather than advances history emits nothing"
         )
     }
 }

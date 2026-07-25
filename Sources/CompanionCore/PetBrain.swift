@@ -461,22 +461,32 @@ public struct PetBrain: Sendable {
 
         let day = day ?? now
         let dailyXPBySource = state.dailyXP.current(on: day, default: [:], calendar: calendar)
+        let dailyCountBySource = state.dailyEventCount.current(on: day, default: [:], calendar: calendar)
 
         let grantedTodayForSource = dailyXPBySource[source.rawValue] ?? 0
         let grantedTodayOverall = dailyXPBySource.values.reduce(0, +)
+        let countTodayForSource = dailyCountBySource[source.rawValue] ?? 0
 
         let sourceHeadroom = max(0, progressionRates.dailyCap(for: source) - grantedTodayForSource)
         let overallHeadroom = max(0, progressionRates.overallDailyCap - grantedTodayOverall)
 
+        // Per-event diminishing returns: the Nth grant from this source today
+        // is worth `factor^(N-1)` of its base, applied before the condition
+        // multiplier and the cap clamp. Flat (factor 1.0) for every source but
+        // milestone, so this is a no-op elsewhere.
+        let decay = pow(progressionRates.decayFactor(for: source), Double(countTodayForSource))
+
         let multiplier = (condition ?? state.needs)
             .xpMultiplier(floor: progressionRates.conditionMultiplierFloor)
-        let amount = min(rawAmount * multiplier, sourceHeadroom, overallHeadroom)
+        let amount = min(rawAmount * decay * multiplier, sourceHeadroom, overallHeadroom)
         guard amount > 0 else {
             return state
         }
 
         var updatedDailyXPBySource = dailyXPBySource
         updatedDailyXPBySource[source.rawValue] = grantedTodayForSource + amount
+        var updatedDailyCountBySource = dailyCountBySource
+        updatedDailyCountBySource[source.rawValue] = countTodayForSource + 1
 
         let newTotalXP = state.totalXP + amount
         let levelsGained = PetProgressionCurve.level(forTotalXP: newTotalXP)
@@ -500,7 +510,8 @@ public struct PetBrain: Sendable {
             at: now,
             totalXP: newTotalXP,
             stats: stats,
-            dailyXP: DailyTally(date: day, value: updatedDailyXPBySource)
+            dailyXP: DailyTally(date: day, value: updatedDailyXPBySource),
+            dailyEventCount: DailyTally(date: day, value: updatedDailyCountBySource)
         )
     }
 
@@ -512,7 +523,8 @@ public struct PetBrain: Sendable {
         workLog: DailyTally<Int>? = nil,
         totalXP: Double? = nil,
         stats: PetStats? = nil,
-        dailyXP: DailyTally<[String: Double]>? = nil
+        dailyXP: DailyTally<[String: Double]>? = nil,
+        dailyEventCount: DailyTally<[String: Int]>? = nil
     ) -> PetState {
         PetState(
             schemaVersion: state.schemaVersion,
@@ -526,7 +538,8 @@ public struct PetBrain: Sendable {
             totalXP: totalXP ?? state.totalXP,
             petClass: state.petClass,
             stats: stats ?? state.stats,
-            dailyXP: dailyXP ?? state.dailyXP
+            dailyXP: dailyXP ?? state.dailyXP,
+            dailyEventCount: dailyEventCount ?? state.dailyEventCount
         )
     }
 }
