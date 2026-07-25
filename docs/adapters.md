@@ -16,7 +16,7 @@ Both are self-locating: each finds `scripts/emit-activity-event` beside it, so i
 1. The Worklings app is running.
 2. **"Accept Work Tool Events"** is enabled in the paw menu (off by default). Without it, dropped events are ignored, not queued indefinitely — the monitor only drains while enabled.
 
-Everything below is opt-in: you edit your own tool configs. Nothing in this repo modifies files in your home directory for you.
+Everything below is opt-in: you edit your own tool configs by hand. Nothing in this repo modifies files in your home directory for you *today* — that is a deliberate choice for this alpha, not a permanent rule. A friendlier one-tap connector that writes these configs for you (with a backup and a clean disconnect) is a fair future trade-off; it is deferred only until there are testers to warrant it. See [Privacy and permissions](architecture.md#privacy-and-permissions) for the principle.
 
 ## Claude Code
 

@@ -117,6 +117,8 @@ The inbox is off by default and toggled by the "Accept Work Tool Events" menu it
 
 The current application processes state locally and requests no screen-recording, keystroke, or Accessibility permission. Future integrations must declare what they observe, why it is needed, and whether anything is retained. Sensitive capabilities must be independently opt-in.
 
+Privacy and safety here are values we weigh, not absolutes we refuse to trade against. There is no such thing as full privacy *and* full capability — every worthwhile feature sits somewhere on that curve. The bar is not "never touch anything sensitive"; it is that each trade-off is **evaluated deliberately, disclosed plainly, made opt-in, and kept reversible** — so a capability is worth its cost and the user is never surprised. A future convenience that edits a user's config on their behalf is not ruled out by principle; it must simply earn its place by that test (explicit action, backup, clean undo) rather than being silent.
+
 Activity is behavioral context, not a productivity score. A Workling's survival must not depend directly on how much the user works.
 
 ## Packaging and distribution
