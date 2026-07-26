@@ -67,24 +67,28 @@ final class GitCommitWatcher {
     /// watching. Returns false (and does nothing) if the path is not a git
     /// repository. A no-op if already connected.
     @discardableResult
-    func connect(path: String) -> Bool {
-        // Canonicalize to the repo top-level, so connecting a subdirectory, a
-        // symlink, or a `..`-laden path can't register the same repository twice
-        // and double its rewards.
-        guard let root = GitRepository.topLevel(atPath: path) else {
+    func connect(path: String) async -> Bool {
+        // Canonicalize to the repo top-level (off the main actor, so the
+        // connecting click is never blocked on git), so connecting a
+        // subdirectory, a symlink, or a `..`-laden path can't register the same
+        // repository twice and double its rewards.
+        guard let root = await Self.resolveTopLevel(path) else {
             return false
         }
         guard !registry.contains(path: root) else {
             return true
         }
         // Baseline starts nil and is set to the current HEAD by the off-main
-        // resync below, so we never retro-credit history already behind the
-        // repo, and the connecting click is not blocked on git.
+        // resync below, so we never retro-credit history already behind the repo.
         registry.add(path: root, lastSeenSHA: nil)
         if isRunning {
             resyncBaselineAndWatch(path: root)
         }
         return true
+    }
+
+    private nonisolated static func resolveTopLevel(_ path: String) async -> String? {
+        GitRepository.topLevel(atPath: path)
     }
 
     func disconnect(path: String) {

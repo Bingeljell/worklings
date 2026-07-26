@@ -708,7 +708,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        if !gitCommitWatcher.connect(path: url.path) {
+        // Resolve/connect off-main so a slow repo never freezes the click; the
+        // result comes back on the main actor for the alert.
+        Task { [weak self] in
+            let connected = await gitCommitWatcher.connect(path: url.path)
+            guard !connected, self != nil else {
+                return
+            }
             let alert = NSAlert()
             alert.messageText = "Not a git repository"
             alert.informativeText = "“\(url.lastPathComponent)” doesn’t look like a git repository. Choose the folder that contains its .git directory."
