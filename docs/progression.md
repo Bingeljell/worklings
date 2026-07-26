@@ -90,7 +90,7 @@ XP is earned from normalized events and from care quality, so progression is pro
 | Completed work blocks (`workEnded`) | The workhorse source: sustained real activity, gated by a minimum qualifying duration so starting and immediately stopping earns nothing. |
 | Care actions | A trickle, so tending the pet always means something. |
 | `workLogged` | A small amount alongside its fixed Happiness gain, reusing the same cooldown and cap. |
-| `taskCompleted` | Agent and build completions. Formula defined now; dormant until a real adapter fires it (only the debug simulated source can today). |
+| `taskCompleted` | Agent and build completions. Emitted by the Claude Code and Codex agent adapters (and the debug simulated source). |
 | `milestone` | Commits small, merged PRs largest. Emitted by the local-git source (one per commit, with within-day diminishing returns); the debug simulated source also fires it. |
 
 **Condition multiplier.** XP accrual scales with current wellbeing — the average of Fullness, Energy, Happiness, and Trust, floored so neglect slows accrual without ever fully halting it. This is the primary coupling between the two layers. The care card surfaces it as one plain line under the XP bar ("Learning at N% …", `PetPresentation.learningRateLabel`) so the multiplier is legible rather than reverse-engineered from shrunken grants. **Later:** a proper wellbeing score with its own visual treatment (not a bar) is deferred — the single line is the alpha stand-in.

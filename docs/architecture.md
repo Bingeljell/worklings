@@ -2,7 +2,7 @@
 
 ## Status
 
-The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, direct-download packaging toolchain, the normalized activity-event pipeline with a debug simulated source, and the opt-in activity inbox external adapters write into are implemented. Intent-driven movement and the first real adapter (Codex) remain planned.
+The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, direct-download packaging toolchain, the normalized activity-event pipeline with a debug simulated source, and the opt-in activity inbox external adapters write into are implemented. Intent-driven movement remains planned; the first real activity sources have since shipped — the Claude Code and Codex hook adapters with an in-app connector that wires them, and the in-app local-git commit watcher.
 
 ## Implemented system
 
