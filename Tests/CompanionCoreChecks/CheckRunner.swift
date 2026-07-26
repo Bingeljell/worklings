@@ -12,6 +12,7 @@ enum CheckRunner {
         InboxChecks.run(context: &context)
         WorkLogChecks.run(context: &context)
         ProgressionChecks.run(context: &context)
+        HookConfigMergerChecks.run(context: &context)
         PetPersistenceChecks.run(context: &context)
         PetPresentationChecks.run(context: &context)
         PetCareStatusChecks.run(context: &context)
