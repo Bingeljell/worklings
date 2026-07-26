@@ -6,10 +6,9 @@ enum ToolConnectorChecks {
         checkConnectCreatesFreshConfigWithoutBackup(context: &context)
         checkConnectBacksUpAndMergesExisting(context: &context)
         checkConnectLeavesUnparseableConfigUntouched(context: &context)
+        checkConnectRefusesMissingAdapter(context: &context)
         checkDisconnectRemovesOurs(context: &context)
     }
-
-    private static let adapter = "/Applications/Worklings.app/Contents/Resources/adapters/claude-code-hook"
 
     private static func tempDir() -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -18,7 +17,16 @@ enum ToolConnectorChecks {
         return url
     }
 
-    private static func connector(_ configURL: URL) -> ToolConnector {
+    /// Writes a real, executable adapter stub so the connector's
+    /// "adapter must exist and be runnable" guard is satisfied.
+    private static func makeAdapter(in dir: URL) -> String {
+        let url = dir.appendingPathComponent("claude-code-hook")
+        try? "#!/bin/sh\nexit 0\n".write(to: url, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
+    }
+
+    private static func connector(_ configURL: URL, adapter: String) -> ToolConnector {
         ToolConnector(configURL: configURL, adapterPath: adapter, mappings: HookConfigMerger.claudeCodeMappings)
     }
 
@@ -31,7 +39,7 @@ enum ToolConnectorChecks {
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let config = dir.appendingPathComponent("settings.json")
-        let c = connector(config)
+        let c = connector(config, adapter: makeAdapter(in: dir))
 
         do {
             let backup = try c.connect()
@@ -49,9 +57,10 @@ enum ToolConnectorChecks {
         let config = dir.appendingPathComponent("settings.json")
         let original = Data(#"{"model":"opus"}"#.utf8)
         try? original.write(to: config)
+        let c = connector(config, adapter: makeAdapter(in: dir))
 
         do {
-            let backup = try connector(config).connect()
+            let backup = try c.connect()
             context.expect(backup != nil, "connecting an existing config makes a backup")
             if let backup {
                 context.expectEqual(
@@ -60,7 +69,7 @@ enum ToolConnectorChecks {
                     "the backup holds the original bytes verbatim"
                 )
             }
-            context.expect(connector(config).isConnected(), "the live config now carries our hooks")
+            context.expect(c.isConnected(), "the live config now carries our hooks")
             let root = (try? JSONSerialization.jsonObject(with: try Data(contentsOf: config))) as? [String: Any]
             context.expectEqual(root?["model"] as? String, "opus", "the merged config still has the user's keys")
         } catch {
@@ -74,9 +83,10 @@ enum ToolConnectorChecks {
         let config = dir.appendingPathComponent("settings.json")
         let garbage = Data("not json { oops".utf8)
         try? garbage.write(to: config)
+        let c = connector(config, adapter: makeAdapter(in: dir))
 
         context.expectThrows("connecting refuses to write over an unparseable config") {
-            _ = try connector(config).connect()
+            _ = try c.connect()
         }
         context.expectEqual(
             try? Data(contentsOf: config),
@@ -89,11 +99,31 @@ enum ToolConnectorChecks {
         )
     }
 
+    private static func checkConnectRefusesMissingAdapter(context: inout CheckContext) {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let config = dir.appendingPathComponent("settings.json")
+        let original = Data(#"{"model":"opus"}"#.utf8)
+        try? original.write(to: config)
+        // Point at an adapter path that does not exist.
+        let c = connector(config, adapter: dir.appendingPathComponent("missing-hook").path)
+
+        context.expectThrows("refuses to connect when the adapter script is missing") {
+            _ = try c.connect()
+        }
+        context.expectEqual(
+            try? Data(contentsOf: config),
+            original,
+            "the config is untouched when the adapter is unavailable"
+        )
+        context.expect(backups(in: dir).isEmpty, "no backup is written when the adapter is unavailable")
+    }
+
     private static func checkDisconnectRemovesOurs(context: inout CheckContext) {
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let config = dir.appendingPathComponent("settings.json")
-        let c = connector(config)
+        let c = connector(config, adapter: makeAdapter(in: dir))
 
         do {
             _ = try c.connect()

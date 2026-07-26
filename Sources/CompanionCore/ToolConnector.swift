@@ -11,6 +11,14 @@ public struct ToolConnector {
     public let adapterPath: String
     public let mappings: [HookConfigMerger.Mapping]
 
+    public enum ConnectorError: Error, Equatable {
+        /// The adapter script we would wire the tool to is missing or not
+        /// executable. Refusing to write means a tool is never pointed at a
+        /// command that fails to launch — which for Codex (exit 2 blocks a turn)
+        /// could stall the user's session.
+        case adapterUnavailable(String)
+    }
+
     public init(configURL: URL, adapterPath: String, mappings: [HookConfigMerger.Mapping]) {
         self.configURL = configURL
         self.adapterPath = adapterPath
@@ -27,6 +35,11 @@ public struct ToolConnector {
     /// is present but not valid JSON.
     @discardableResult
     public func connect() throws -> URL? {
+        // Never wire a tool to a command that cannot run: verify the adapter
+        // exists and is executable before touching the config.
+        guard FileManager.default.isExecutableFile(atPath: adapterPath) else {
+            throw ConnectorError.adapterUnavailable(adapterPath)
+        }
         let existing = (try? Data(contentsOf: configURL)) ?? Data()
         // Merge first: if this throws, we return before writing or backing up,
         // so the file on disk is untouched.
