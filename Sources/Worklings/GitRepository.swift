@@ -92,6 +92,18 @@ enum GitRepository {
         return result.output
     }
 
+    /// The absolute path of the repository's working-tree root, canonicalized so
+    /// that a subdirectory, a `..`-laden path, or a symlink into the same repo
+    /// all collapse to one identity — the key we dedupe and watch by.
+    static func topLevel(atPath path: String) -> String? {
+        guard let result = run(["rev-parse", "--show-toplevel"], inDirectory: path),
+              result.status == 0, !result.output.isEmpty
+        else {
+            return nil
+        }
+        return URL(fileURLWithPath: result.output).resolvingSymlinksInPath().path
+    }
+
     /// The current HEAD commit SHA, or nil if there is none yet (an empty repo)
     /// or git could not be reached.
     static func head(atPath path: String) -> String? {

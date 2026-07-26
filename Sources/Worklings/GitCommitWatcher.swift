@@ -68,18 +68,21 @@ final class GitCommitWatcher {
     /// repository. A no-op if already connected.
     @discardableResult
     func connect(path: String) -> Bool {
-        guard GitRepository.isRepository(atPath: path) else {
+        // Canonicalize to the repo top-level, so connecting a subdirectory, a
+        // symlink, or a `..`-laden path can't register the same repository twice
+        // and double its rewards.
+        guard let root = GitRepository.topLevel(atPath: path) else {
             return false
         }
-        guard !registry.contains(path: path) else {
+        guard !registry.contains(path: root) else {
             return true
         }
         // Baseline starts nil and is set to the current HEAD by the off-main
         // resync below, so we never retro-credit history already behind the
         // repo, and the connecting click is not blocked on git.
-        registry.add(path: path, lastSeenSHA: nil)
+        registry.add(path: root, lastSeenSHA: nil)
         if isRunning {
-            resyncBaselineAndWatch(path: path)
+            resyncBaselineAndWatch(path: root)
         }
         return true
     }
