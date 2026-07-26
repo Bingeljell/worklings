@@ -124,7 +124,9 @@ enum GitRepository {
     /// fall outside the window and earn nothing, while a commit just made
     /// (date ≈ now) is inside it and counts.
     static func recentCommitCount(from old: String, to new: String, since: Date, atPath path: String) -> Int {
-        let sinceArgument = "--since=\(Self.iso8601.string(from: since))"
+        // git approxidate accepts an @<epoch> timestamp — unambiguous and free
+        // of timezone/formatter concerns (and no shared non-Sendable formatter).
+        let sinceArgument = "--since=@\(Int(since.timeIntervalSince1970))"
         guard let result = run(
             ["rev-list", "--count", sinceArgument, "\(old)..\(new)"],
             inDirectory: path
@@ -133,6 +135,4 @@ enum GitRepository {
         }
         return Int(result.output) ?? 0
     }
-
-    private static let iso8601 = ISO8601DateFormatter()
 }
