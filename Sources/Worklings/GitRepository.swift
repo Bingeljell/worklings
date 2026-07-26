@@ -16,8 +16,27 @@ enum GitRepository {
         let output: String
     }
 
+    /// A hung git — a stale network mount, a held index lock — must never wedge
+    /// the caller. If a call overruns this, we terminate it and return nil.
+    private static let timeout: TimeInterval = 5
+
+    /// Carries the process, its pipe, and the drained output across the
+    /// background reader so the dispatched closure captures one Sendable box
+    /// rather than the non-Sendable `Process`/`Pipe` directly.
+    private final class InvocationBox: @unchecked Sendable {
+        let process: Process
+        let outPipe: Pipe
+        var output = Data()
+        init(process: Process, outPipe: Pipe) {
+            self.process = process
+            self.outPipe = outPipe
+        }
+    }
+
     /// Runs `git -C <path> <arguments>`, capturing trimmed stdout. stderr is
-    /// discarded. Returns nil if the process could not be launched at all.
+    /// discarded. Returns nil if the process could not be launched, or if it
+    /// exceeded `timeout` (in which case it is terminated) — so a wedged git can
+    /// never block, whether this is called on the main thread or off it.
     private static func run(_ arguments: [String], inDirectory path: String) -> Invocation? {
         let process = Process()
         process.executableURL = executableURL
@@ -32,11 +51,23 @@ enum GitRepository {
             return nil
         }
 
-        // Outputs here are tiny (a SHA, a count), so reading to EOF before
-        // waiting cannot deadlock on a full pipe.
-        let data = outPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let output = String(decoding: data, as: UTF8.self)
+        // Drain stdout and await exit on a background thread; the caller waits
+        // with a timeout. Reading off-thread means a timeout-terminate is never
+        // blocked behind a stuck read. Outputs here are tiny (a SHA, a count).
+        let box = InvocationBox(process: process, outPipe: outPipe)
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            box.output = box.outPipe.fileHandleForReading.readDataToEndOfFile()
+            box.process.waitUntilExit()
+            done.signal()
+        }
+
+        if done.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            return nil
+        }
+
+        let output = String(decoding: box.output, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return Invocation(status: process.terminationStatus, output: output)
     }

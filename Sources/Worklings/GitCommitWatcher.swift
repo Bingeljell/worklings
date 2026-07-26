@@ -42,8 +42,7 @@ final class GitCommitWatcher {
         }
         isRunning = true
         for repo in registry.all() {
-            registry.updateLastSeenSHA(path: repo.path, sha: GitRepository.head(atPath: repo.path))
-            beginWatching(path: repo.path)
+            resyncBaselineAndWatch(path: repo.path)
         }
     }
 
@@ -70,9 +69,12 @@ final class GitCommitWatcher {
         guard !registry.contains(path: path) else {
             return true
         }
-        registry.add(path: path, lastSeenSHA: GitRepository.head(atPath: path))
+        // Baseline starts nil and is set to the current HEAD by the off-main
+        // resync below, so we never retro-credit history already behind the
+        // repo, and the connecting click is not blocked on git.
+        registry.add(path: path, lastSeenSHA: nil)
         if isRunning {
-            beginWatching(path: path)
+            resyncBaselineAndWatch(path: path)
         }
         return true
     }
@@ -85,12 +87,29 @@ final class GitCommitWatcher {
         registry.remove(path: path)
     }
 
-    private func beginWatching(path: String) {
-        guard sources[path] == nil else {
-            return
+    /// Resolves HEAD and the `.git` directory off the main actor, then applies
+    /// the baseline and installs the watch back on main. No git call ever runs
+    /// on the main thread here, so neither launch nor a connect click can be
+    /// blocked by a slow or wedged repository.
+    private func resyncBaselineAndWatch(path: String) {
+        Task { [weak self] in
+            let info = await Self.repoInfo(path: path)
+            guard let self, self.isRunning else {
+                return
+            }
+            self.registry.updateLastSeenSHA(path: path, sha: info.head)
+            if let gitDirectory = info.gitDirectory {
+                self.installWatch(path: path, gitDirectory: gitDirectory)
+            }
         }
-        guard let gitDirectory = GitRepository.gitDirectoryPath(atPath: path) else {
-            NSLog("Worklings could not resolve the .git directory for %@.", path)
+    }
+
+    private nonisolated static func repoInfo(path: String) async -> (head: String?, gitDirectory: String?) {
+        (GitRepository.head(atPath: path), GitRepository.gitDirectoryPath(atPath: path))
+    }
+
+    private func installWatch(path: String, gitDirectory: String) {
+        guard sources[path] == nil else {
             return
         }
 
