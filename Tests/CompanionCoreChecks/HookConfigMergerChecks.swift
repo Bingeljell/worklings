@@ -15,6 +15,8 @@ enum HookConfigMergerChecks {
         checkRefusesWrongShapedEvent(context: &context)
         checkPreservesSiblingHookInSharedEntry(context: &context)
         checkIgnoresSimilarlyNamedUserScript(context: &context)
+        checkExecFormNeedsNoQuoting(context: &context)
+        checkShellFormQuotesPath(context: &context)
     }
 
     private static let adapter = "/Applications/Worklings.app/Contents/Resources/adapters/claude-code-hook"
@@ -32,27 +34,25 @@ enum HookConfigMergerChecks {
         }
     }
 
-    private static func connect(_ json: String) -> Data {
+    private static func connect(_ json: String, style: HookConfigMerger.CommandStyle = .execForm) -> Data {
         (try? HookConfigMerger.connected(
             configJSON: Data(json.utf8),
             adapterPath: adapter,
-            mappings: HookConfigMerger.claudeCodeMappings
+            mappings: HookConfigMerger.claudeCodeMappings,
+            style: style
         )) ?? Data()
     }
 
     private static func checkMergesIntoEmptyConfig(context: inout CheckContext) {
-        let out = (try? HookConfigMerger.connected(
-            configJSON: Data(),
-            adapterPath: adapter,
-            mappings: HookConfigMerger.claudeCodeMappings
-        )) ?? Data()
+        let out = connect("", style: .execForm)
 
+        // Exec form: the command is the adapter path itself; the kind is an arg.
         context.expect(
-            commands(out, event: "Stop").contains("\(adapter) taskCompleted"),
-            "connecting an empty config writes our Stop -> taskCompleted hook"
+            commands(out, event: "Stop").contains(adapter),
+            "connecting an empty config writes our Stop hook"
         )
         context.expect(
-            commands(out, event: "SessionStart").contains("\(adapter) workStarted"),
+            commands(out, event: "SessionStart").contains(adapter),
             "connecting an empty config writes every mapped event"
         )
         context.expect(
@@ -77,7 +77,7 @@ enum HookConfigMergerChecks {
             "a pre-existing unrelated hook (rtk PreToolUse) survives connecting"
         )
         context.expect(
-            commands(out, event: "SessionStart").contains("\(adapter) workStarted"),
+            commands(out, event: "SessionStart").contains(adapter),
             "our hooks are added alongside the preserved ones"
         )
     }
@@ -87,7 +87,7 @@ enum HookConfigMergerChecks {
         let stop = commands(out, event: "Stop")
 
         context.expect(stop.contains("/user/my-stop-hook"), "a user's own hook under a mapped event is preserved")
-        context.expect(stop.contains("\(adapter) taskCompleted"), "our hook is appended under the same event")
+        context.expect(stop.contains(adapter), "our hook is appended under the same event")
         context.expectEqual(stop.count, 2, "the user's entry and ours coexist, neither dropped")
     }
 
@@ -96,7 +96,8 @@ enum HookConfigMergerChecks {
         let twice = (try? HookConfigMerger.connected(
             configJSON: once,
             adapterPath: adapter,
-            mappings: HookConfigMerger.claudeCodeMappings
+            mappings: HookConfigMerger.claudeCodeMappings,
+            style: .execForm
         )) ?? Data()
 
         let ours = commands(twice, event: "Stop").filter { $0.contains("claude-code-hook") }
@@ -136,7 +137,8 @@ enum HookConfigMergerChecks {
             _ = try HookConfigMerger.connected(
                 configJSON: Data("not json { oops".utf8),
                 adapterPath: adapter,
-                mappings: HookConfigMerger.claudeCodeMappings
+                mappings: HookConfigMerger.claudeCodeMappings,
+                style: .execForm
             )
         }
     }
@@ -146,7 +148,8 @@ enum HookConfigMergerChecks {
             _ = try HookConfigMerger.connected(
                 configJSON: Data(#"{"hooks":"oops"}"#.utf8),
                 adapterPath: adapter,
-                mappings: HookConfigMerger.claudeCodeMappings
+                mappings: HookConfigMerger.claudeCodeMappings,
+                style: .execForm
             )
         }
     }
@@ -156,7 +159,8 @@ enum HookConfigMergerChecks {
             _ = try HookConfigMerger.connected(
                 configJSON: Data(#"{"hooks":{"Stop":"oops"}}"#.utf8),
                 adapterPath: adapter,
-                mappings: HookConfigMerger.claudeCodeMappings
+                mappings: HookConfigMerger.claudeCodeMappings,
+                style: .execForm
             )
         }
     }
@@ -186,6 +190,54 @@ enum HookConfigMergerChecks {
         context.expect(
             commands(disconnected, event: "Stop").contains("/usr/local/bin/my-claude-code-hook-wrapper x"),
             "disconnect leaves a similarly-named user script untouched"
+        )
+    }
+
+    private static func firstHook(_ data: Data, event: String) -> [String: Any]? {
+        let entries = hooks(data)[event] as? [[String: Any]] ?? []
+        return (entries.last?["hooks"] as? [[String: Any]])?.last
+    }
+
+    private static func checkExecFormNeedsNoQuoting(context: inout CheckContext) {
+        let spaced = "/tmp/My Tools/claude-code-hook"
+        let out = (try? HookConfigMerger.connected(
+            configJSON: Data(),
+            adapterPath: spaced,
+            mappings: HookConfigMerger.claudeCodeMappings,
+            style: .execForm
+        )) ?? Data()
+        let hook = firstHook(out, event: "Stop")
+
+        context.expectEqual(hook?["command"] as? String, spaced, "exec form writes the path verbatim — no quoting")
+        context.expectEqual((hook?["args"] as? [String])?.first, "taskCompleted", "exec form passes the kind as a separate arg")
+        context.expect(
+            HookConfigMerger.isConnected(configJSON: out, adapterPath: spaced),
+            "exec-form hooks (with args) are recognized as ours"
+        )
+    }
+
+    private static func checkShellFormQuotesPath(context: inout CheckContext) {
+        let spaced = "/tmp/My Tools/codex-hook"
+        let out = (try? HookConfigMerger.connected(
+            configJSON: Data(),
+            adapterPath: spaced,
+            mappings: HookConfigMerger.codexMappings,
+            style: .shellForm
+        )) ?? Data()
+
+        context.expectEqual(
+            firstHook(out, event: "Stop")?["command"] as? String,
+            "'/tmp/My Tools/codex-hook' taskCompleted",
+            "shell form single-quotes the path so a space cannot break it"
+        )
+        context.expect(
+            HookConfigMerger.isConnected(configJSON: out, adapterPath: spaced),
+            "shell-form (single-quoted) hooks are recognized as ours"
+        )
+        let disconnected = (try? HookConfigMerger.disconnected(configJSON: out, adapterPath: spaced)) ?? Data()
+        context.expect(
+            !HookConfigMerger.isConnected(configJSON: disconnected, adapterPath: spaced),
+            "shell-form hooks are cleanly removed (matching parses the quoted path)"
         )
     }
 }

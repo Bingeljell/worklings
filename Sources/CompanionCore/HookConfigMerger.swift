@@ -24,6 +24,19 @@ public enum HookConfigMerger {
         }
     }
 
+    /// How the hook command is written, so a path with a space or a shell
+    /// metacharacter can never break or be interpreted when the hook runs.
+    public enum CommandStyle: Sendable, Equatable {
+        /// `{"command": <path>, "args": [<kind>]}` — the tool spawns the
+        /// executable directly with no shell, so the path is passed verbatim and
+        /// needs no quoting. Claude Code supports this and it is the safest form.
+        case execForm
+        /// `{"command": "'<path>' <kind>"}` — the tool runs the string through a
+        /// shell, so the path is single-quoted to survive spaces and metachars.
+        /// Used for Codex, which documents only the shell form.
+        case shellForm
+    }
+
     public enum MergeError: Error, Equatable {
         /// The config is present but not a JSON object — refuse to overwrite it.
         case unparseableConfig
@@ -35,7 +48,8 @@ public enum HookConfigMerger {
     public static func connected(
         configJSON: Data,
         adapterPath: String,
-        mappings: [Mapping]
+        mappings: [Mapping],
+        style: CommandStyle
     ) throws -> Data {
         var root = try object(from: configJSON)
         var hooks = try hooksObject(from: root)
@@ -45,7 +59,7 @@ public enum HookConfigMerger {
             // Strip our own prior hooks (a sibling hook in a shared entry is
             // preserved) so re-connecting is idempotent, then append ours.
             entries = strippingOurHooks(from: entries, adapterPath: adapterPath)
-            entries.append(ourEntry(adapterPath: adapterPath, kind: mapping.kind))
+            entries.append(ourEntry(adapterPath: adapterPath, kind: mapping.kind, style: style))
             hooks[mapping.event] = entries
         }
 
@@ -120,12 +134,22 @@ public enum HookConfigMerger {
 
     // MARK: - Building our entry
 
-    private static func ourEntry(adapterPath: String, kind: String) -> [String: Any] {
-        ["hooks": [["type": "command", "command": ourCommand(adapterPath: adapterPath, kind: kind)]]]
+    private static func ourEntry(adapterPath: String, kind: String, style: CommandStyle) -> [String: Any] {
+        let hook: [String: Any]
+        switch style {
+        case .execForm:
+            // No shell: the path is the whole command, the kind a separate arg.
+            hook = ["type": "command", "command": adapterPath, "args": [kind]]
+        case .shellForm:
+            hook = ["type": "command", "command": "\(singleQuoted(adapterPath)) \(kind)"]
+        }
+        return ["hooks": [hook]]
     }
 
-    private static func ourCommand(adapterPath: String, kind: String) -> String {
-        "\(adapterPath) \(kind)"
+    /// POSIX single-quoting: everything inside is literal; an embedded quote is
+    /// closed, escaped, and reopened. Neutralizes spaces and metacharacters.
+    private static func singleQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     // MARK: - Reading structure (refuse, never erase)
@@ -169,10 +193,18 @@ public enum HookConfigMerger {
     }
 
     private static func hookIsOurs(_ hook: [String: Any], adapterPath: String) -> Bool {
-        guard let command = hook["command"] as? String,
-              let executable = executablePath(ofCommand: command) else {
+        guard let command = hook["command"] as? String else {
             return false
         }
+        // Exec form: `command` is the executable itself (args are separate).
+        // Shell form: the executable is the first, possibly single-quoted, token.
+        let executable: String?
+        if hook["args"] != nil {
+            executable = command
+        } else {
+            executable = executablePath(ofCommand: command)
+        }
+        guard let executable else { return false }
         // Match by exact file name of the invoked executable — so a moved bundle
         // path still cleans up, but a differently-named user script that merely
         // contains our name as a substring is never claimed.

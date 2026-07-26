@@ -729,7 +729,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             configURL: FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".claude/settings.json"),
             adapterPath: AdapterLocator.path(for: "claude-code-hook"),
-            mappings: HookConfigMerger.claudeCodeMappings
+            mappings: HookConfigMerger.claudeCodeMappings,
+            // Exec form: no shell, so a path with a space or metacharacter is
+            // passed to the executable verbatim.
+            style: .execForm
         )
     }
 
@@ -738,7 +741,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             configURL: FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".codex/hooks.json"),
             adapterPath: AdapterLocator.path(for: "codex-hook"),
-            mappings: HookConfigMerger.codexMappings
+            mappings: HookConfigMerger.codexMappings,
+            // Codex documents only the shell form, so the path is single-quoted.
+            style: .shellForm
         )
     }
 

@@ -27,7 +27,12 @@ enum ToolConnectorChecks {
     }
 
     private static func connector(_ configURL: URL, adapter: String) -> ToolConnector {
-        ToolConnector(configURL: configURL, adapterPath: adapter, mappings: HookConfigMerger.claudeCodeMappings)
+        ToolConnector(
+            configURL: configURL,
+            adapterPath: adapter,
+            mappings: HookConfigMerger.claudeCodeMappings,
+            style: .execForm
+        )
     }
 
     private static func backups(in dir: URL) -> [URL] {

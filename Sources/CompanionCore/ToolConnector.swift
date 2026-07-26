@@ -10,6 +10,7 @@ public struct ToolConnector {
     public let configURL: URL
     public let adapterPath: String
     public let mappings: [HookConfigMerger.Mapping]
+    public let style: HookConfigMerger.CommandStyle
 
     public enum ConnectorError: Error, Equatable {
         /// The adapter script we would wire the tool to is missing or not
@@ -19,10 +20,16 @@ public struct ToolConnector {
         case adapterUnavailable(String)
     }
 
-    public init(configURL: URL, adapterPath: String, mappings: [HookConfigMerger.Mapping]) {
+    public init(
+        configURL: URL,
+        adapterPath: String,
+        mappings: [HookConfigMerger.Mapping],
+        style: HookConfigMerger.CommandStyle
+    ) {
         self.configURL = configURL
         self.adapterPath = adapterPath
         self.mappings = mappings
+        self.style = style
     }
 
     public func isConnected() -> Bool {
@@ -46,7 +53,8 @@ public struct ToolConnector {
         let merged = try HookConfigMerger.connected(
             configJSON: existing,
             adapterPath: adapterPath,
-            mappings: mappings
+            mappings: mappings,
+            style: style
         )
         let backup = try backUpExisting()
         try write(merged)
