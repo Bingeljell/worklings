@@ -158,7 +158,16 @@ final class ActivityInboxMonitor {
                 continue
             }
 
-            if let data = try? Data(contentsOf: fileURL) {
+            // Check the file is a regular file within the size limit BEFORE
+            // reading it, so an oversized or hostile file — or a symlink/fifo/
+            // device masquerading as one — can never be loaded into memory. It
+            // is still deleted below, so nothing accumulates.
+            let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            let isRegularFile = resourceValues?.isRegularFile ?? false
+            let fileSize = resourceValues?.fileSize ?? .max
+
+            if isRegularFile, fileSize <= ActivityInbox.maxPayloadBytes,
+               let data = try? Data(contentsOf: fileURL) {
                 switch ActivityInbox.decode(data, receivedAt: Date()) {
                 case .success(let event):
                     events.append(event)
@@ -169,6 +178,11 @@ final class ActivityInboxMonitor {
                         String(describing: rejection)
                     )
                 }
+            } else {
+                NSLog(
+                    "Worklings discarded inbox file %@: not a regular file within the size limit.",
+                    fileName
+                )
             }
 
             do {
