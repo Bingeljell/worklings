@@ -14,7 +14,7 @@ Both are self-locating: each finds `scripts/emit-activity-event` beside it, so i
 ## Prerequisites
 
 1. The Worklings app is running.
-2. **"Accept Work Tool Events"** is enabled in the paw menu (off by default). Without it, dropped events are ignored, not queued indefinitely — the monitor only drains while enabled.
+2. **"Accept Work Tool Events"** is enabled in the paw menu (off by default). While it is off, the monitor still drains the spool and deletes what it finds — it just doesn't deliver anything to the pet — so events written by a configured adapter are discarded rather than accumulating on disk or replaying when you re-enable.
 
 Everything below is the **interim/developer path** — you edit your own tool configs by hand. The committed direction is that the **app writes this wiring itself** from an explicit in-app action (with a backup and a clean disconnect), so a user never edits a config file; the manual snippets here are what that writer will produce. See [follow-ups](#follow-ups) for the connector and [Privacy and permissions](architecture.md#privacy-and-permissions) for why an explicit, reversible config-writing convenience fits the principle.
 

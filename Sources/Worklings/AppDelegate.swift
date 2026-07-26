@@ -65,11 +65,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.presenceMonitor = presenceMonitor
         presenceMonitor.start()
 
-        let activityInboxMonitor = ActivityInboxMonitor(session: petSession)
+        // Always watch the inbox so files never accumulate; delivery is gated
+        // by the toggle. While disabled, the monitor drains and discards.
+        let activityInboxMonitor = ActivityInboxMonitor(
+            session: petSession,
+            isEnabled: UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
+        )
         self.activityInboxMonitor = activityInboxMonitor
-        if UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) {
-            activityInboxMonitor.start()
-        }
+        activityInboxMonitor.start()
 
         // Connecting a repository is itself the opt-in, so the git watcher runs
         // whenever there are connected repos — no separate global toggle.
@@ -640,11 +643,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let shouldEnable = !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
         UserDefaults.standard.set(shouldEnable, forKey: Self.activityInboxDefaultsKey)
 
-        if shouldEnable {
-            activityInboxMonitor.start()
-        } else {
-            activityInboxMonitor.stop()
-        }
+        activityInboxMonitor.setEnabled(shouldEnable)
         updateActivityInboxMenuItem()
     }
 
@@ -787,7 +786,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         UserDefaults.standard.set(true, forKey: Self.activityInboxDefaultsKey)
-        activityInboxMonitor.start()
+        activityInboxMonitor.setEnabled(true)
     }
 
     @objc

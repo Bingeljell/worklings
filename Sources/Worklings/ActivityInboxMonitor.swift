@@ -22,10 +22,28 @@ final class ActivityInboxMonitor {
     /// arrive mid-drain fold into a single follow-up pass.
     private var isDraining = false
     private var needsAnotherDrain = false
+    /// Whether decoded events are delivered to the pet. The monitor watches and
+    /// drains regardless (so files never accumulate), but while disabled it
+    /// deletes what it reads without delivering — so toggling off means events
+    /// are ignored, not queued, and re-enabling never replays a backlog.
+    private var isEnabled: Bool
 
-    init(session: PetSession, directoryURL: URL = ActivityInboxMonitor.defaultDirectoryURL()) {
+    init(
+        session: PetSession,
+        directoryURL: URL = ActivityInboxMonitor.defaultDirectoryURL(),
+        isEnabled: Bool = false
+    ) {
         self.session = session
         self.directoryURL = directoryURL
+        self.isEnabled = isEnabled
+    }
+
+    /// Turns delivery on or off. The watch keeps running either way; a fresh
+    /// drain runs so anything already waiting is delivered (if enabling) or
+    /// cleared (if disabling) right away.
+    func setEnabled(_ enabled: Bool) {
+        isEnabled = enabled
+        scheduleDrain()
     }
 
     var inboxPath: String {
@@ -94,8 +112,14 @@ final class ActivityInboxMonitor {
                 return
             }
             self.undeletableFileNames.formUnion(outcome.undeletableFileNames)
-            for event in ActivityInbox.ordered(outcome.events) {
-                self.session.receive(event)
+            // Files are always drained and deleted (above), so they never
+            // accumulate; but events only reach the pet while enabled. While
+            // disabled, this is a drain-and-discard — nothing is queued and
+            // nothing replays when re-enabled.
+            if self.isEnabled {
+                for event in ActivityInbox.ordered(outcome.events) {
+                    self.session.receive(event)
+                }
             }
 
             self.isDraining = false
