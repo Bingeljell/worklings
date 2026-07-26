@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+# Codex activity adapter (hooks).
+#
+# Wire this to Codex's [hooks] lifecycle (see docs/adapters.md) so each hook
+# event drops one content-free event into the Worklings inbox. Codex passes the
+# event JSON on stdin; this adapter ignores it entirely and emits only the fixed
+# kind named on the command line — no prompt, code, file path, or transcript
+# ever leaves the tool. That is the privacy contract: the adapter cannot forward
+# content because it never reads any. (Same shape as claude-code-hook.)
+#
+# Usage (from a hooks.json / config.toml [hooks] command):
+#   /abs/path/scripts/adapters/codex-hook <kind>
+# where <kind> is the inbox kind the Codex hook is mapped to, e.g.
+#   SessionStart -> workStarted, Stop -> taskCompleted, SessionEnd -> workEnded.
+#
+# Codex treats a hook exit code of 2 as "block the turn/tool," so this adapter
+# always exits 0: a missing inbox, a rejected kind, or a misconfiguration does
+# nothing rather than interfering with the agent. `set -e` is deliberately off
+# for the same reason.
+
+set -uo pipefail
+
+kind="${1:-}"
+
+# Locate the canonical emitter beside this script, so the adapter works no
+# matter what directory Codex invokes the hook from (the hook's cwd is the
+# user's project, not this repo).
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+emitter="$script_dir/../emit-activity-event"
+
+# Drain and discard stdin so Codex never blocks on a full pipe; the JSON
+# payload is deliberately not parsed.
+cat >/dev/null 2>&1 || true
+
+if [ -n "$kind" ]; then
+  # The emitter validates the kind and performs the atomic write-then-rename.
+  "$emitter" "$kind" codex >/dev/null 2>&1 || true
+else
+  printf 'codex-hook: missing <kind> argument; emitting nothing\n' >&2
+fi
+
+exit 0

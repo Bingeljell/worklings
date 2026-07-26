@@ -7,7 +7,7 @@ Two adapters ship today, both in `scripts/adapters/`:
 | Adapter | Tool | Source id | Mechanism |
 | --- | --- | --- | --- |
 | `claude-code-hook` | Claude Code | `claude-code` | settings.json lifecycle hooks |
-| `codex-notify` | Codex CLI | `codex` | `notify` program in `config.toml` |
+| `codex-hook` | Codex CLI | `codex` | `[hooks]` lifecycle in `hooks.json` / `config.toml` |
 
 Both are self-locating: each finds `scripts/emit-activity-event` beside it, so it works no matter what directory the tool invokes it from. Neither reads the tool's payload for content — see [Privacy](#privacy).
 
@@ -16,7 +16,7 @@ Both are self-locating: each finds `scripts/emit-activity-event` beside it, so i
 1. The Worklings app is running.
 2. **"Accept Work Tool Events"** is enabled in the paw menu (off by default). Without it, dropped events are ignored, not queued indefinitely — the monitor only drains while enabled.
 
-Everything below is opt-in: you edit your own tool configs by hand. Nothing in this repo modifies files in your home directory for you *today* — that is a deliberate choice for this alpha, not a permanent rule. A friendlier one-tap connector that writes these configs for you (with a backup and a clean disconnect) is a fair future trade-off; it is deferred only until there are testers to warrant it. See [Privacy and permissions](architecture.md#privacy-and-permissions) for the principle.
+Everything below is the **interim/developer path** — you edit your own tool configs by hand. The committed direction is that the **app writes this wiring itself** from an explicit in-app action (with a backup and a clean disconnect), so a user never edits a config file; the manual snippets here are what that writer will produce. See [follow-ups](#follow-ups) for the connector and [Privacy and permissions](architecture.md#privacy-and-permissions) for why an explicit, reversible config-writing convenience fits the principle.
 
 ## Claude Code
 
@@ -57,26 +57,45 @@ Add to `~/.claude/settings.json`, replacing `ABS` with the absolute path to this
 
 ## Codex
 
-Codex's documented lifecycle signal is its [`notify` program](https://learn.chatgpt.com/docs/config-file/config-advanced), which currently emits **only** `agent-turn-complete`. So the Codex adapter maps that one event to `taskCompleted`; the other kinds have no dependable Codex signal yet.
+Codex exposes a full lifecycle through its [`[hooks]` system](https://learn.chatgpt.com/docs/hooks) — the same shape as Claude Code, and it delivers the event JSON on **stdin**, which `codex-hook` drains and ignores. We map three:
 
-Add to `~/.codex/config.toml`, replacing `ABS`:
+| Codex hook | Inbox kind | Pet effect |
+| --- | --- | --- |
+| `SessionStart` | `workStarted` | starts a work block |
+| `Stop` | the agent finishes a turn | `taskCompleted` |
+| `SessionEnd` | `workEnded` | ends the block, grants focus XP |
+
+Codex has no documented notification/"needs input" event, so `awaitingInput` is left unmapped.
+
+Add to `~/.codex/config.toml` (or `~/.codex/hooks.json`), replacing `ABS` with the absolute path to this repo:
 
 ```toml
-notify = ["ABS/scripts/adapters/codex-notify"]
+[[hooks.SessionStart]]
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "ABS/scripts/adapters/codex-hook workStarted"
+
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "ABS/scripts/adapters/codex-hook taskCompleted"
+
+[[hooks.SessionEnd]]
+[[hooks.SessionEnd.hooks]]
+type = "command"
+command = "ABS/scripts/adapters/codex-hook workEnded"
 ```
 
-Codex appends the event JSON as the final argument; the adapter matches only the event `type` and ignores everything else.
+`[hooks]` is TOML array-of-tables, so these **append** cleanly alongside anything already in your Codex config — including an existing `notify` program (e.g. a Computer Use client). Hooks and `notify` are independent systems, so there is no single-slot collision to work around. Codex treats a hook exit code of `2` as "block the turn," so `codex-hook` always exits `0` and can never disrupt the agent.
 
-### Why not more Codex events?
-
-Codex has a newer `[hooks]` system (`PreToolUse`, etc.), but its session-lifecycle events aren't exhaustively documented, and building on them risks silent breakage as Codex changes. Wiring `[hooks]` to approximate `workStarted`/`awaitingInput` is deliberately **deferred** until those signals are stable and documented. See [follow-ups](#follow-ups).
+> The manual snippet above is the interim/developer path. The intended end state is that the **app writes this wiring itself** (with a backup and a clean disconnect) so a user never edits a config file — see [follow-ups](#follow-ups).
 
 ## Privacy
 
 The event contract has no field for content, so the privacy promise is structural, and the adapters reinforce it:
 
 - **`claude-code-hook`** drains and discards the hook's stdin without parsing it, then emits only the fixed kind named on its command line.
-- **`codex-notify`** pattern-matches the event `type` only. The notify payload also carries `last-assistant-message` and `input-messages` (real content); the adapter never reads or forwards them.
+- **`codex-hook`** does the same: Codex delivers the event JSON (which carries `last_assistant_message`, `transcript_path`, `cwd` — all real content) on stdin, and the adapter drains and discards it without parsing, emitting only the fixed kind.
 
 An adapter physically cannot hand the pet a prompt, a file path, or a diff — only *what happened* (a kind), *from which tool* (a source id), and *when* (a timestamp). Reserved source ids (`system`, `manual`, `simulated`) are rejected at the boundary, so an adapter cannot impersonate an internal or self-reported signal.
 
@@ -86,7 +105,7 @@ With the app running and "Accept Work Tool Events" enabled:
 
 - **Claude Code:** start a session — the pet should react (`workStarted`). Watch the inbox drain live if you like:
   `ls ~/Library/Application\ Support/Worklings/inbox`
-- **Codex:** finish a turn — the pet should celebrate (`taskCompleted`).
+- **Codex:** start a session (`workStarted`) or finish a turn — the pet should celebrate (`taskCompleted`).
 
 If the file appears then vanishes but the pet doesn't react, the event was read and rejected; the reason is logged (filter Console.app for "Worklings discarded inbox file").
 
@@ -94,12 +113,12 @@ You can always exercise an adapter by hand without the tool:
 
 ```bash
 scripts/adapters/claude-code-hook taskCompleted </dev/null
-scripts/adapters/codex-notify '{"type":"agent-turn-complete"}'
+scripts/adapters/codex-hook taskCompleted </dev/null
 ```
 
 ## Follow-ups
 
-- **Distribution.** These adapters live in the repo; an end user who installed the DMG has no copy. Shipping the adapters with the app (or an installer) is out of scope for this pass — for now the source id and config snippets assume a local checkout.
-- **Codex `[hooks]`.** Revisit for `workStarted`/`awaitingInput` once Codex documents stable lifecycle events.
-- **`taskFailed`.** Neither tool signals failure cleanly today (Claude Code's `StopFailure` is version-dependent; Codex has none). Left thin on purpose.
-- **Local git adapter.** A commit → `milestone` adapter is a natural third, per the [progression plan](progression.md#planned-sources).
+- **In-app connector — the committed direction.** The manual config snippets are the interim. The goal is that the app **bundles these adapters inside its own app bundle** and **writes the tool configs itself** from an explicit in-app action ("Connect Claude Code", "Connect Codex") — backing up the existing file and offering a clean disconnect that restores it. This retires both the copy-paste fragility and the "a DMG user has no repo checkout" problem in one move, and it fits the reframed [privacy principle](architecture.md#privacy-and-permissions): a config-writing convenience is fine when it is explicit, disclosed, backed up, and reversible. Because Codex `[hooks]` and Claude Code `settings.json` are both **append/merge-friendly**, the writer can add its block without clobbering the user's existing config.
+- **`taskFailed`.** Signalled by Claude Code's `StopFailure` hook (map it to `taskFailed`); Codex has no clean failure event yet. Left thin on purpose.
+- **`awaitingInput` for Codex.** No documented Codex notification event today; revisit if one appears.
+- **Local git.** Shipped as an **in-app source** (not an adapter — the app watches connected repos directly), see the [progression plan](progression.md#planned-sources).
