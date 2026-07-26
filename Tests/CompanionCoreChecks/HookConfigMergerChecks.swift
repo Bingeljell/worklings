@@ -11,6 +11,10 @@ enum HookConfigMergerChecks {
         checkDisconnectRemovesOnlyOurs(context: &context)
         checkDisconnectRestoresPreConnectShape(context: &context)
         checkRefusesToOverwriteUnparseableConfig(context: &context)
+        checkRefusesNonObjectHooks(context: &context)
+        checkRefusesWrongShapedEvent(context: &context)
+        checkPreservesSiblingHookInSharedEntry(context: &context)
+        checkIgnoresSimilarlyNamedUserScript(context: &context)
     }
 
     private static let adapter = "/Applications/Worklings.app/Contents/Resources/adapters/claude-code-hook"
@@ -135,5 +139,53 @@ enum HookConfigMergerChecks {
                 mappings: HookConfigMerger.claudeCodeMappings
             )
         }
+    }
+
+    private static func checkRefusesNonObjectHooks(context: inout CheckContext) {
+        context.expectThrows("a non-object \"hooks\" value is refused, not erased") {
+            _ = try HookConfigMerger.connected(
+                configJSON: Data(#"{"hooks":"oops"}"#.utf8),
+                adapterPath: adapter,
+                mappings: HookConfigMerger.claudeCodeMappings
+            )
+        }
+    }
+
+    private static func checkRefusesWrongShapedEvent(context: inout CheckContext) {
+        context.expectThrows("a mapped event with an unexpected value is refused, not erased") {
+            _ = try HookConfigMerger.connected(
+                configJSON: Data(#"{"hooks":{"Stop":"oops"}}"#.utf8),
+                adapterPath: adapter,
+                mappings: HookConfigMerger.claudeCodeMappings
+            )
+        }
+    }
+
+    private static func checkPreservesSiblingHookInSharedEntry(context: inout CheckContext) {
+        // Our command and a user's command share one entry's hooks array.
+        let input = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\#(adapter) taskCompleted"},{"type":"command","command":"/user/sibling"}]}]}}"#
+        let disconnected = (try? HookConfigMerger.disconnected(configJSON: Data(input.utf8), adapterPath: adapter)) ?? Data()
+        let stop = commands(disconnected, event: "Stop")
+
+        context.expect(stop.contains("/user/sibling"), "a sibling hook sharing our entry survives disconnect")
+        context.expect(!stop.contains(where: { $0.contains("claude-code-hook") }), "our hook is removed from the shared entry")
+        context.expect(
+            !HookConfigMerger.isConnected(configJSON: disconnected, adapterPath: adapter),
+            "nothing of ours remains after disconnect"
+        )
+    }
+
+    private static func checkIgnoresSimilarlyNamedUserScript(context: inout CheckContext) {
+        // A user script whose name merely contains ours as a substring.
+        let input = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/usr/local/bin/my-claude-code-hook-wrapper x"}]}]}}"#
+        context.expect(
+            !HookConfigMerger.isConnected(configJSON: Data(input.utf8), adapterPath: adapter),
+            "a similarly-named wrapper is not mistaken for our hook"
+        )
+        let disconnected = (try? HookConfigMerger.disconnected(configJSON: Data(input.utf8), adapterPath: adapter)) ?? Data()
+        context.expect(
+            commands(disconnected, event: "Stop").contains("/usr/local/bin/my-claude-code-hook-wrapper x"),
+            "disconnect leaves a similarly-named user script untouched"
+        )
     }
 }
