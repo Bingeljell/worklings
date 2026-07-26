@@ -135,12 +135,15 @@ enum GitRepository {
     /// checkout) advances HEAD but those commits carry old commit dates, so they
     /// fall outside the window and earn nothing, while a commit just made
     /// (date ≈ now) is inside it and counts.
-    static func recentCommitCount(from old: String, to new: String, since: Date, atPath path: String) -> Int {
+    /// `old` nil counts commits reachable from `new` itself (the repo was empty
+    /// when watching began, so its first commits have no baseline to range from).
+    static func recentCommitCount(from old: String?, to new: String, since: Date, atPath path: String) -> Int {
         // git approxidate accepts an @<epoch> timestamp — unambiguous and free
         // of timezone/formatter concerns (and no shared non-Sendable formatter).
         let sinceArgument = "--since=@\(Int(since.timeIntervalSince1970))"
+        let range = old.map { "\($0)..\(new)" } ?? new
         guard let result = run(
-            ["rev-list", "--count", sinceArgument, "\(old)..\(new)"],
+            ["rev-list", "--count", sinceArgument, range],
             inDirectory: path
         ), result.status == 0 else {
             return 0

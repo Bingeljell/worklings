@@ -14,7 +14,7 @@ enum ActivitySourceChecks {
         checkPresenceStaysPresent(context: &context)
         checkGitSourceId(context: &context)
         checkGitForwardCommitEmitsPerCommit(context: &context)
-        checkGitFreshConnectEmitsNothing(context: &context)
+        checkGitEmptyRepoFirstCommitCounts(context: &context)
         checkGitUnchangedHeadEmitsNothing(context: &context)
         checkGitHistoryRewriteEmitsNothing(context: &context)
         checkGitEmissionIsCappedPerCheck(context: &context)
@@ -136,13 +136,27 @@ enum ActivitySourceChecks {
         )
     }
 
-    private static func checkGitFreshConnectEmitsNothing(context: inout CheckContext) {
+    private static func checkGitEmptyRepoFirstCommitCounts(context: inout CheckContext) {
         context.expectEqual(
             GitCommitDelta.milestonesToEmit(
-                oldSHA: nil, newSHA: "bbb", oldIsAncestorOfNew: false, commitsAhead: 99
+                oldSHA: nil, newSHA: "bbb", oldIsAncestorOfNew: false, commitsAhead: 1
+            ),
+            1,
+            "the first commit in a repo that was empty when watching began counts"
+        )
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: nil, newSHA: "bbb", oldIsAncestorOfNew: false, commitsAhead: 0
             ),
             0,
-            "a freshly connected repo with history behind it grants nothing (no retro-credit)"
+            "an empty-baseline repo with no new commits yet emits nothing"
+        )
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: nil, newSHA: "bbb", oldIsAncestorOfNew: false, commitsAhead: 5_000
+            ),
+            10,
+            "even an empty-baseline first check is capped"
         )
     }
 

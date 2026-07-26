@@ -187,9 +187,9 @@ final class GitCommitWatcher {
             return (nil, 0)
         }
         let isAncestor = oldSHA.map { GitRepository.isAncestor($0, of: newSHA, atPath: path) } ?? false
-        let recent = oldSHA.map {
-            GitRepository.recentCommitCount(from: $0, to: newSHA, since: since, atPath: path)
-        } ?? 0
+        // `from: oldSHA` may be nil — an empty-at-connect repo whose first
+        // commit(s) count from the root; recentCommitCount handles that.
+        let recent = GitRepository.recentCommitCount(from: oldSHA, to: newSHA, since: since, atPath: path)
         let milestones = GitCommitDelta.milestonesToEmit(
             oldSHA: oldSHA,
             newSHA: newSHA,

@@ -42,13 +42,18 @@ public enum GitActivitySource {
 /// privacy is legible right here.
 public enum GitCommitDelta {
     /// - Parameters:
-    ///   - oldSHA: the previously observed HEAD, or nil if none is recorded yet
-    ///     (a freshly connected repo). A nil baseline emits nothing, so
-    ///     connecting a repo with history already behind it grants no XP.
+    ///   - oldSHA: the previously observed HEAD, or nil when the repo had **no
+    ///     commits** at the moment watching began. (The no-retro-credit rule for
+    ///     a repo *with* history is enforced upstream: the watcher silently sets
+    ///     the baseline to the current HEAD on connect and at launch, so this is
+    ///     only ever nil for a repo that started empty.) A nil baseline is not
+    ///     "grant nothing" — the repo's first commit was made while watching, so
+    ///     `commitsAhead` (counted from the root) is credited.
     ///   - newSHA: the current HEAD.
     ///   - oldIsAncestorOfNew: whether `old` is an ancestor of `new`. False for
     ///     an amend, reset, or rebase that rewrote history instead of adding to
-    ///     it — not forward progress, so it emits nothing.
+    ///     it — not forward progress, so it emits nothing. Ignored when `oldSHA`
+    ///     is nil (there is no baseline to descend from).
     ///   - commitsAhead: how many *recently committed* commits `new` is ahead of
     ///     `old` — the watcher passes a recency-filtered count so a `pull` or
     ///     checkout that fast-forwards over old history earns nothing, only
@@ -69,9 +74,14 @@ public enum GitCommitDelta {
         commitsAhead: Int,
         maxPerCheck: Int = 10
     ) -> Int {
-        guard let oldSHA else { return 0 }
-        guard newSHA != oldSHA else { return 0 }
-        guard oldIsAncestorOfNew else { return 0 }
+        if let oldSHA {
+            // Known baseline: only forward progress counts.
+            guard newSHA != oldSHA else { return 0 }
+            guard oldIsAncestorOfNew else { return 0 }
+        }
+        // Forward progress from a baseline, or the first commit(s) in a repo
+        // that was empty when watching began (nil baseline). Either way, credit
+        // the recent commits, capped so a burst can't flood the main actor.
         return min(max(0, commitsAhead), max(0, maxPerCheck))
     }
 }
