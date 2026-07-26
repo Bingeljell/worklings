@@ -18,9 +18,14 @@ public enum HookConfigMerger {
     public struct Mapping: Sendable, Equatable {
         public let event: String
         public let kind: String
-        public init(event: String, kind: String) {
+        /// Optional matcher restricting which sub-events fire the hook (e.g.
+        /// Claude's Notification fires for many types, only some of which mean
+        /// "awaiting the user"). Nil fires on every occurrence of the event.
+        public let matcher: String?
+        public init(event: String, kind: String, matcher: String? = nil) {
             self.event = event
             self.kind = kind
+            self.matcher = matcher
         }
     }
 
@@ -59,7 +64,7 @@ public enum HookConfigMerger {
             // Strip our own prior hooks (a sibling hook in a shared entry is
             // preserved) so re-connecting is idempotent, then append ours.
             entries = strippingOurHooks(from: entries, adapterPath: adapterPath)
-            entries.append(ourEntry(adapterPath: adapterPath, kind: mapping.kind, style: style))
+            entries.append(ourEntry(adapterPath: adapterPath, mapping: mapping, style: style))
             hooks[mapping.event] = entries
         }
 
@@ -117,11 +122,17 @@ public enum HookConfigMerger {
 
     // MARK: - Convenience mappings
 
-    /// Claude Code's full lifecycle. `Notification` carries no content we read.
+    /// Claude Code's full lifecycle. `Notification` carries no content we read,
+    /// and is matched to only the types that actually mean the user is being
+    /// awaited — not auth/elicitation-result notifications.
     public static let claudeCodeMappings: [Mapping] = [
         Mapping(event: "SessionStart", kind: "workStarted"),
         Mapping(event: "Stop", kind: "taskCompleted"),
-        Mapping(event: "Notification", kind: "awaitingInput"),
+        Mapping(
+            event: "Notification",
+            kind: "awaitingInput",
+            matcher: "permission_prompt|idle_prompt|elicitation_dialog|agent_needs_input"
+        ),
         Mapping(event: "SessionEnd", kind: "workEnded")
     ]
 
@@ -134,16 +145,20 @@ public enum HookConfigMerger {
 
     // MARK: - Building our entry
 
-    private static func ourEntry(adapterPath: String, kind: String, style: CommandStyle) -> [String: Any] {
+    private static func ourEntry(adapterPath: String, mapping: Mapping, style: CommandStyle) -> [String: Any] {
         let hook: [String: Any]
         switch style {
         case .execForm:
             // No shell: the path is the whole command, the kind a separate arg.
-            hook = ["type": "command", "command": adapterPath, "args": [kind]]
+            hook = ["type": "command", "command": adapterPath, "args": [mapping.kind]]
         case .shellForm:
-            hook = ["type": "command", "command": "\(singleQuoted(adapterPath)) \(kind)"]
+            hook = ["type": "command", "command": "\(singleQuoted(adapterPath)) \(mapping.kind)"]
         }
-        return ["hooks": [hook]]
+        var entry: [String: Any] = ["hooks": [hook]]
+        if let matcher = mapping.matcher {
+            entry["matcher"] = matcher
+        }
+        return entry
     }
 
     /// POSIX single-quoting: everything inside is literal; an embedded quote is

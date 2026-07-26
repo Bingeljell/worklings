@@ -17,6 +17,7 @@ enum HookConfigMergerChecks {
         checkIgnoresSimilarlyNamedUserScript(context: &context)
         checkExecFormNeedsNoQuoting(context: &context)
         checkShellFormQuotesPath(context: &context)
+        checkNotificationHookIsMatched(context: &context)
     }
 
     private static let adapter = "/Applications/Worklings.app/Contents/Resources/adapters/claude-code-hook"
@@ -190,6 +191,26 @@ enum HookConfigMergerChecks {
         context.expect(
             commands(disconnected, event: "Stop").contains("/usr/local/bin/my-claude-code-hook-wrapper x"),
             "disconnect leaves a similarly-named user script untouched"
+        )
+    }
+
+    private static func checkNotificationHookIsMatched(context: inout CheckContext) {
+        let out = connect("", style: .execForm)
+        let notification = (hooks(out)["Notification"] as? [[String: Any]])?.first
+        let matcher = notification?["matcher"] as? String
+
+        context.expect(
+            matcher?.contains("permission_prompt") == true,
+            "the Notification hook is restricted to await-relevant notification types"
+        )
+        context.expect(
+            matcher?.contains("auth_success") != true,
+            "the Notification hook is not wired for auth/elicitation-result notifications"
+        )
+        let sessionStart = (hooks(out)["SessionStart"] as? [[String: Any]])?.first
+        context.expect(
+            sessionStart?["matcher"] == nil,
+            "an event we want to fire on every occurrence carries no matcher"
         )
     }
 
