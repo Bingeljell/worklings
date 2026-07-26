@@ -66,7 +66,7 @@ Ordered roughly by implementation cost:
 1. **Daily wake.** The app itself is a source: the first launch or interaction of each calendar day emits `dailyWake`. This is the login-reward hook and requires no permissions or integrations.
 2. **Simulated source.** A debug-only control that emits arbitrary events, used to tune pet reactions and XP rules before any real adapter exists, and to keep behavioral checks deterministic.
 3. **Presence.** System input idle time (no content, no per-app visibility) drives `userIdle` and `userReturned`, and bounds work blocks.
-4. **Local git.** FSEvents watching of explicitly connected repositories emits `milestone` on commit. Opt-in per repository.
+4. **Local git.** *(Implemented.)* An **in-app source, not an external adapter** — git has no lifecycle hooks to ride, so the running app is the watcher. It watches the `.git` directory of repositories you connect from the paw menu (**Connected Repos → Connect a Repo…**) and emits `milestone` per new commit. Opt-in per repository; the connected list is visible and each entry is one click to disconnect. Detection is by HEAD **commit-SHA movement** with an ancestor check (`GitCommitDelta`), so a message, diff, or path is never read; an amend, reset, or rebase that rewrites rather than advances history emits nothing, and commits made while the app was closed are not retro-credited (the baseline is synced silently on connect and launch). Successive commits the same day earn geometrically less XP — see `milestoneDecayFactor` in the Tuning reference.
 5. **GitHub connect.** See below.
 6. **Agent adapters.** Claude Code and Codex ship in `scripts/adapters/` (see [Activity adapters](adapters.md)). Claude Code's hooks map a full lifecycle (`workStarted`/`taskCompleted`/`awaitingInput`/`workEnded`); Codex's `notify` program currently exposes only `agent-turn-complete`, so it maps `taskCompleted` alone until more of its lifecycle is documented.
 
@@ -91,11 +91,11 @@ XP is earned from normalized events and from care quality, so progression is pro
 | Care actions | A trickle, so tending the pet always means something. |
 | `workLogged` | A small amount alongside its fixed Happiness gain, reusing the same cooldown and cap. |
 | `taskCompleted` | Agent and build completions. Formula defined now; dormant until a real adapter fires it (only the debug simulated source can today). |
-| `milestone` | Commits small, merged PRs largest. Formula defined now; dormant for the same reason. |
+| `milestone` | Commits small, merged PRs largest. Emitted by the local-git source (one per commit, with within-day diminishing returns); the debug simulated source also fires it. |
 
 **Condition multiplier.** XP accrual scales with current wellbeing — the average of Fullness, Energy, Happiness, and Trust, floored so neglect slows accrual without ever fully halting it. This is the primary coupling between the two layers. The care card surfaces it as one plain line under the XP bar ("Learning at N% …", `PetPresentation.learningRateLabel`) so the multiplier is legible rather than reverse-engineered from shrunken grants. **Later:** a proper wellbeing score with its own visual treatment (not a bar) is deferred — the single line is the alpha stand-in.
 
-**Caps and diminishing returns.** Every source has its own daily cap, and an overall daily cap holds across all sources combined — the actual fairness mechanism (see below). Both reset lazily by comparing a stored date to "now," the same pattern Log Work already established, so there is no day-rollover code path to get wrong. Exact values are alpha tuning; see the Tuning reference below.
+**Caps and diminishing returns.** Every source has its own daily cap, and an overall daily cap holds across all sources combined — the actual fairness mechanism (see below). On top of the caps, a source may also apply **per-event geometric decay** within a day: the Nth grant is worth `base × factor^(N-1)`, applied before the condition multiplier and the cap. Only `milestone` decays today (so a batch of commits tapers instead of piling linearly toward the cap); every other source is flat, tracked by a per-source daily count (`PetState.dailyEventCount`) alongside the XP ledger. All of this bookkeeping resets lazily by comparing a stored date to "now," the same pattern Log Work established, so there is no day-rollover code path to get wrong. Exact values are alpha tuning; see the Tuning reference below.
 
 **Curve.** Level is derived from cumulative XP via a quadratic formula, not a stored value or a hand-authored table — level and XP can never disagree with each other, and the formula has no upper bound, so raising a level cap later never requires migrating anything.
 
@@ -161,7 +161,7 @@ Same posture as [Pet Brain's tuning reference](pet_brain.md#tuning-reference): e
 | Focus Session XP per minute / minimum qualifying duration / daily cap | 2 / 10 min / 200 | `focusSessionXPPerMinute` / `focusSessionMinimumMinutes` / `focusSessionDailyCap` |
 | Care action XP / daily cap | 3 / 60 | `careActionXP` / `careActionDailyCap` |
 | `taskCompleted` XP / daily cap | 15 / 150 | `taskCompletedXP` / `taskCompletedDailyCap` |
-| `milestone` XP / daily cap | 40 / 200 | `milestoneXP` / `milestoneDailyCap` |
+| `milestone` XP / daily cap / per-commit decay | 40 / 200 / 0.7 | `milestoneXP` / `milestoneDailyCap` / `milestoneDecayFactor` |
 | `workLogged` XP / daily cap | 5 / 30 | `workLoggedXP` / `workLoggedDailyCap` |
 | Overall daily XP cap (across every source combined) | 500 | `overallDailyCap` |
 | Signature stat gain per level / every other stat | 3 / 1 | `signatureStatGainPerLevel` / `otherStatGainPerLevel` |
@@ -174,6 +174,6 @@ Same posture as [Pet Brain's tuning reference](pet_brain.md#tuning-reference): e
 1. Event vocabulary, activity context, and the simulated source in `CompanionCore`, with behavioral checks. **Done.**
 2. `dailyWake`, presence, Log Work, Focus Session, and pet renaming — the cheapest real stimuli and companion-identity basics. **Done.**
 3. XP, levels, class, and class-weighted stat growth on the event stream, as an additive save-schema revision. **Done.**
-4. GitHub connect and the first agent adapter, once reactions feel right on real input.
+4. The first real activity sources on top of the event stream: the Claude Code and Codex agent adapters (see [adapters](adapters.md)) and the in-app local-git source. **Done.** GitHub connect remains, once reactions feel right on real input.
 5. Dungeons/PVE: level-gated text encounters against the stat sheet, reusing existing mood/reaction sprite states.
 6. Abilities and their own points currency, gear as an effective-stats computation layer, and multiplayer-normalized PVP, far later, on top of the sheet this document defines.
