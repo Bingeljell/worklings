@@ -49,9 +49,13 @@ public enum GitCommitDelta {
     ///   - oldIsAncestorOfNew: whether `old` is an ancestor of `new`. False for
     ///     an amend, reset, or rebase that rewrote history instead of adding to
     ///     it — not forward progress, so it emits nothing.
-    ///   - commitsAhead: how many commits `new` is ahead of `old`
-    ///     (`git rev-list --count old..new`) — one per genuine new commit, so a
-    ///     batch landed at once is credited per commit.
+    ///   - commitsAhead: how many *recently committed* commits `new` is ahead of
+    ///     `old` — the watcher passes a recency-filtered count so a `pull` or
+    ///     checkout that fast-forwards over old history earns nothing, only
+    ///     commits actually made while watching do.
+    ///   - maxPerCheck: an upper bound on the result, so a single HEAD movement
+    ///     can never emit an unbounded burst of events (which would flood the
+    ///     main actor). Defaults to a small cap.
     /// - Returns: how many `milestone` events to emit (never negative).
     ///
     /// Note: this answers "what does this HEAD movement represent," not "should
@@ -62,12 +66,13 @@ public enum GitCommitDelta {
         oldSHA: String?,
         newSHA: String,
         oldIsAncestorOfNew: Bool,
-        commitsAhead: Int
+        commitsAhead: Int,
+        maxPerCheck: Int = 10
     ) -> Int {
         guard let oldSHA else { return 0 }
         guard newSHA != oldSHA else { return 0 }
         guard oldIsAncestorOfNew else { return 0 }
-        return max(0, commitsAhead)
+        return min(max(0, commitsAhead), max(0, maxPerCheck))
     }
 }
 

@@ -17,6 +17,7 @@ enum ActivitySourceChecks {
         checkGitFreshConnectEmitsNothing(context: &context)
         checkGitUnchangedHeadEmitsNothing(context: &context)
         checkGitHistoryRewriteEmitsNothing(context: &context)
+        checkGitEmissionIsCappedPerCheck(context: &context)
         checkEmoteThrottleAllowsFirstReaction(context: &context)
         checkEmoteThrottleSuppressesWithinWindow(context: &context)
         checkEmoteThrottleAllowsAfterWindow(context: &context)
@@ -162,6 +163,16 @@ enum ActivitySourceChecks {
             ),
             0,
             "an amend/reset/rebase that rewrites rather than advances history emits nothing"
+        )
+    }
+
+    private static func checkGitEmissionIsCappedPerCheck(context: inout CheckContext) {
+        context.expectEqual(
+            GitCommitDelta.milestonesToEmit(
+                oldSHA: "aaa", newSHA: "bbb", oldIsAncestorOfNew: true, commitsAhead: 5_000, maxPerCheck: 10
+            ),
+            10,
+            "a huge forward jump is capped so it cannot flood the main actor with events"
         )
     }
 

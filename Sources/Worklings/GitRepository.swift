@@ -115,14 +115,24 @@ enum GitRepository {
         return result.status == 0
     }
 
-    /// How many commits `new` is ahead of `old` (`git rev-list --count old..new`).
-    static func commitsAhead(from old: String, to new: String, atPath path: String) -> Int {
+    /// How many commits `new` is ahead of `old` that were **committed at or
+    /// after `since`** (`git rev-list --count --since=<since> old..new`).
+    ///
+    /// The recency filter is what makes "only commits made while watching"
+    /// achievable: fast-forwarding over old history (a `pull`, a branch
+    /// checkout) advances HEAD but those commits carry old commit dates, so they
+    /// fall outside the window and earn nothing, while a commit just made
+    /// (date ≈ now) is inside it and counts.
+    static func recentCommitCount(from old: String, to new: String, since: Date, atPath path: String) -> Int {
+        let sinceArgument = "--since=\(Self.iso8601.string(from: since))"
         guard let result = run(
-            ["rev-list", "--count", "\(old)..\(new)"],
+            ["rev-list", "--count", sinceArgument, "\(old)..\(new)"],
             inDirectory: path
         ), result.status == 0 else {
             return 0
         }
         return Int(result.output) ?? 0
     }
+
+    private static let iso8601 = ISO8601DateFormatter()
 }

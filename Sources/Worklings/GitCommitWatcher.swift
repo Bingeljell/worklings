@@ -20,6 +20,11 @@ final class GitCommitWatcher {
     private let registry: ConnectedRepoRegistry
     private var sources: [String: DispatchSourceFileSystemObject] = [:]
     private var pendingChecks: [String: Task<Void, Never>] = [:]
+    /// When each repo's baseline was last established, used as the `--since`
+    /// boundary so only commits made after that moment (i.e. while watching)
+    /// are counted. In-memory: at launch the baseline resyncs to the current
+    /// HEAD and this resets to now, so a relaunch never retro-counts.
+    private var lastCheckedAt: [String: Date] = [:]
     private var isRunning = false
 
     private static let debounce: Duration = .milliseconds(600)
@@ -84,6 +89,7 @@ final class GitCommitWatcher {
         sources[path] = nil
         pendingChecks[path]?.cancel()
         pendingChecks[path] = nil
+        lastCheckedAt[path] = nil
         registry.remove(path: path)
     }
 
@@ -98,6 +104,7 @@ final class GitCommitWatcher {
                 return
             }
             self.registry.updateLastSeenSHA(path: path, sha: info.head)
+            self.lastCheckedAt[path] = Date()
             if let gitDirectory = info.gitDirectory {
                 self.installWatch(path: path, gitDirectory: gitDirectory)
             }
@@ -137,6 +144,7 @@ final class GitCommitWatcher {
     /// Coalesces a burst of `.git` writes into one debounced check per repo.
     private func scheduleCheck(path: String) {
         let oldSHA = registry.lastSeenSHA(path: path)
+        let since = lastCheckedAt[path] ?? Date.distantPast
         pendingChecks[path]?.cancel()
         pendingChecks[path] = Task { [weak self] in
             try? await Task.sleep(for: Self.debounce)
@@ -144,12 +152,15 @@ final class GitCommitWatcher {
                 return
             }
 
-            let outcome = await Self.evaluate(path: path, oldSHA: oldSHA)
+            let outcome = await Self.evaluate(path: path, oldSHA: oldSHA, since: since)
 
             guard !Task.isCancelled, let self else {
                 return
             }
             self.registry.updateLastSeenSHA(path: path, sha: outcome.newSHA)
+            if outcome.newSHA != nil {
+                self.lastCheckedAt[path] = Date()
+            }
             guard outcome.milestones > 0 else {
                 return
             }
@@ -166,18 +177,21 @@ final class GitCommitWatcher {
     /// `GitCommitDelta`; this only gathers the facts it needs.
     private nonisolated static func evaluate(
         path: String,
-        oldSHA: String?
+        oldSHA: String?,
+        since: Date
     ) async -> (newSHA: String?, milestones: Int) {
         guard let newSHA = GitRepository.head(atPath: path) else {
             return (nil, 0)
         }
         let isAncestor = oldSHA.map { GitRepository.isAncestor($0, of: newSHA, atPath: path) } ?? false
-        let ahead = oldSHA.map { GitRepository.commitsAhead(from: $0, to: newSHA, atPath: path) } ?? 0
+        let recent = oldSHA.map {
+            GitRepository.recentCommitCount(from: $0, to: newSHA, since: since, atPath: path)
+        } ?? 0
         let milestones = GitCommitDelta.milestonesToEmit(
             oldSHA: oldSHA,
             newSHA: newSHA,
             oldIsAncestorOfNew: isAncestor,
-            commitsAhead: ahead
+            commitsAhead: recent
         )
         return (newSHA, milestones)
     }
