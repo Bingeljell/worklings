@@ -16,7 +16,7 @@ Both are self-locating: each finds `scripts/emit-activity-event` beside it, so i
 1. The Worklings app is running.
 2. **"Accept Work Tool Events"** is enabled in the paw menu (off by default). While it is off, the monitor still drains the spool and deletes what it finds — it just doesn't deliver anything to the pet — so events written by a configured adapter are discarded rather than accumulating on disk or replaying when you re-enable.
 
-Everything below is the **interim/developer path** — you edit your own tool configs by hand. The committed direction is that the **app writes this wiring itself** from an explicit in-app action (with a backup and a clean disconnect), so a user never edits a config file; the manual snippets here are what that writer will produce. See [follow-ups](#follow-ups) for the connector and [Privacy and permissions](architecture.md#privacy-and-permissions) for why an explicit, reversible config-writing convenience fits the principle.
+Everything below is the **manual/developer path** — you can wire your own tool configs by hand. In the app, **Connect Claude Code** / **Connect Codex** in the paw menu writes this same wiring for you (parsing the existing config, backing it up, merging without disturbing your other keys or hooks, and offering a clean disconnect), so a user need never edit a config file; the manual snippets below are exactly what it writes. See [Privacy and permissions](architecture.md#privacy-and-permissions) for why an explicit, reversible config-writing convenience fits the principle.
 
 ## Claude Code
 
@@ -42,7 +42,7 @@ Add to `~/.claude/settings.json`, replacing `ABS` with the absolute path to this
       { "hooks": [ { "type": "command", "command": "ABS/scripts/adapters/claude-code-hook taskCompleted" } ] }
     ],
     "Notification": [
-      { "hooks": [ { "type": "command", "command": "ABS/scripts/adapters/claude-code-hook awaitingInput" } ] }
+      { "matcher": "permission_prompt|idle_prompt|elicitation_dialog|agent_needs_input", "hooks": [ { "type": "command", "command": "ABS/scripts/adapters/claude-code-hook awaitingInput" } ] }
     ],
     "SessionEnd": [
       { "hooks": [ { "type": "command", "command": "ABS/scripts/adapters/claude-code-hook workEnded" } ] }
@@ -62,7 +62,7 @@ Codex exposes a full lifecycle through its [`[hooks]` system](https://learn.chat
 | Codex hook | Inbox kind | Pet effect |
 | --- | --- | --- |
 | `SessionStart` | `workStarted` | starts a work block |
-| `Stop` | the agent finishes a turn | `taskCompleted` |
+| `Stop` | `taskCompleted` | celebrates a finished turn, grants XP |
 | `SessionEnd` | `workEnded` | ends the block, grants focus XP |
 
 Codex has no documented notification/"needs input" event, so `awaitingInput` is left unmapped.

@@ -22,7 +22,7 @@ The simulation works without an activity source. UI surfaces call the same sessi
 Activity source -> normalized event -> activity context -> Pet Brain intent -> presentation
 ```
 
-The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is the first source, and the [activity inbox](#the-activity-inbox) is the doorway external adapters use; the adapters themselves remain planned.
+The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is one source, and the [activity inbox](#the-activity-inbox) is the doorway external adapters use; the Claude Code and Codex hook adapters, the in-app connector that wires them, and the in-app local-git commit watcher are implemented.
 
 Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract. The event vocabulary, sources, and the progression systems built on top of it are defined in the [progression design](progression.md).
 
@@ -111,7 +111,7 @@ The boundary is deliberately a file drop rather than a socket or local server: a
 
 Validation lives in `CompanionCore.ActivityInbox` as pure, checked functions: unknown or app-owned kinds (`dailyWake`, presence, `workLogged`) are rejected, reserved source ids (`system`, `manual`, `simulated`) cannot be impersonated, malformed or oversize payloads are discarded, and timestamps older than the activity-context expiry window are dropped so a backlog written while the app was closed never replays onto the pet. `ActivityInboxMonitor` in the app target watches the directory, feeds valid events into the same `PetSession.receive` path every internal source uses, and deletes each file it inspects. The contract has no fields for content, so the privacy boundary is structural: an adapter physically cannot hand the pet prompts, code, or file paths.
 
-The inbox is off by default and toggled by the "Accept Work Tool Events" menu item, independent of every other control. Adapters use documented lifecycle signals rather than UI scraping or unstable transcript parsing, and emit into this inbox under their own source id. The first two — Claude Code (settings.json hooks) and Codex (`notify` program) — ship in `scripts/adapters/`; see [Activity adapters](adapters.md).
+The inbox is off by default and toggled by the "Accept Work Tool Events" menu item, independent of every other control. Adapters use documented lifecycle signals rather than UI scraping or unstable transcript parsing, and emit into this inbox under their own source id. The first two — Claude Code (settings.json hooks) and Codex (`[hooks]`) — ship in `scripts/adapters/`, and an in-app connector writes their configs so a user need not edit them by hand; a local-git source additionally watches connected repositories in-app. See [Activity adapters](adapters.md).
 
 ## Privacy and permissions
 
@@ -147,7 +147,7 @@ The first Worklings-branded public artifact is the `v0.1.0-alpha.2` GitHub prere
 | Safe idle roaming within one display | Complete |
 | Provider-neutral event pipeline with a simulated source | Complete |
 | Activity inbox boundary for external adapters | Complete |
-| Codex adapter | Planned |
+| Claude Code and Codex adapters, in-app connector, local-git source | Complete |
 | Wildkin, Elemental, and Relicborn runtime selection | Complete |
 | Adoption and initial creature setup | Planned |
 | Developer ID signing and notarization | Deferred |
