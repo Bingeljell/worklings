@@ -71,6 +71,30 @@ public enum GitCommitDelta {
     }
 }
 
+/// Rate-limits the pet's *expressive* reaction so many events landing close
+/// together — a batch of commits, an agent finishing turn after turn, several
+/// sources firing at once — produce one emote, not a robotic stutter. Purely a
+/// presentation concern: XP and needs still accrue per event upstream; only the
+/// reaction is gated. Pure and deterministic so the window is checkable without
+/// a real clock; the caller owns remembering `lastEmoteAt`.
+public enum EmoteThrottle {
+    public static let defaultMinimumInterval: TimeInterval = 5
+
+    /// Whether a new reaction should be shown now, given when the pet last
+    /// emoted. Always true if it has not emoted yet (or the interval is
+    /// non-positive), so throttling never swallows the very first reaction.
+    public static func shouldEmote(
+        lastEmoteAt: Date?,
+        now: Date,
+        minimumInterval: TimeInterval = EmoteThrottle.defaultMinimumInterval
+    ) -> Bool {
+        guard minimumInterval > 0, let lastEmoteAt else {
+            return true
+        }
+        return now.timeIntervalSince(lastEmoteAt) >= minimumInterval
+    }
+}
+
 /// Decides whether the first interaction of a new calendar day has happened,
 /// independent of how many times the app has launched that day. The caller
 /// owns persisting `lastWakeAt`; this function only makes the determination.

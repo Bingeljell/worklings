@@ -17,6 +17,10 @@ enum ActivitySourceChecks {
         checkGitFreshConnectEmitsNothing(context: &context)
         checkGitUnchangedHeadEmitsNothing(context: &context)
         checkGitHistoryRewriteEmitsNothing(context: &context)
+        checkEmoteThrottleAllowsFirstReaction(context: &context)
+        checkEmoteThrottleSuppressesWithinWindow(context: &context)
+        checkEmoteThrottleAllowsAfterWindow(context: &context)
+        checkEmoteThrottleDisabledByNonPositiveInterval(context: &context)
     }
 
     private static var utcCalendar: Calendar {
@@ -158,6 +162,41 @@ enum ActivitySourceChecks {
             ),
             0,
             "an amend/reset/rebase that rewrites rather than advances history emits nothing"
+        )
+    }
+
+    private static func checkEmoteThrottleAllowsFirstReaction(context: inout CheckContext) {
+        let now = Date(timeIntervalSinceReferenceDate: 1_000)
+        context.expect(
+            EmoteThrottle.shouldEmote(lastEmoteAt: nil, now: now, minimumInterval: 5),
+            "a pet that has not emoted yet always shows its first reaction"
+        )
+    }
+
+    private static func checkEmoteThrottleSuppressesWithinWindow(context: inout CheckContext) {
+        let last = Date(timeIntervalSinceReferenceDate: 1_000)
+        let soon = last.addingTimeInterval(2)
+        context.expect(
+            !EmoteThrottle.shouldEmote(lastEmoteAt: last, now: soon, minimumInterval: 5),
+            "a second reaction inside the window is suppressed so a burst emotes once"
+        )
+    }
+
+    private static func checkEmoteThrottleAllowsAfterWindow(context: inout CheckContext) {
+        let last = Date(timeIntervalSinceReferenceDate: 1_000)
+        let later = last.addingTimeInterval(6)
+        context.expect(
+            EmoteThrottle.shouldEmote(lastEmoteAt: last, now: later, minimumInterval: 5),
+            "a reaction past the window is shown again"
+        )
+    }
+
+    private static func checkEmoteThrottleDisabledByNonPositiveInterval(context: inout CheckContext) {
+        let last = Date(timeIntervalSinceReferenceDate: 1_000)
+        let soon = last.addingTimeInterval(1)
+        context.expect(
+            EmoteThrottle.shouldEmote(lastEmoteAt: last, now: soon, minimumInterval: 0),
+            "a non-positive interval disables throttling entirely"
         )
     }
 }
