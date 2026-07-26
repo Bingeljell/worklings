@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var activityInboxMenuItem: NSMenuItem?
     private var connectedReposMenuItem: NSMenuItem?
     private var connectedReposMenu: NSMenu?
+    private var connectClaudeCodeMenuItem: NSMenuItem?
+    private var connectCodexMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
     private var classMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
@@ -195,6 +197,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         connectedReposMenuItem = connectedReposItem
         connectedReposMenu = connectedReposSubmenu
 
+        let connectClaudeItem = NSMenuItem(
+            title: "Connect Claude Code",
+            action: #selector(toggleClaudeCodeConnection),
+            keyEquivalent: ""
+        )
+        connectClaudeItem.target = self
+        connectClaudeItem.toolTip = "Wire Claude Code's lifecycle hooks to Worklings by editing ~/.claude/settings.json. Your existing settings and hooks are preserved and backed up first; disconnecting removes only Worklings' entries."
+        menu.addItem(connectClaudeItem)
+        connectClaudeCodeMenuItem = connectClaudeItem
+
+        let connectCodexItem = NSMenuItem(
+            title: "Connect Codex",
+            action: #selector(toggleCodexConnection),
+            keyEquivalent: ""
+        )
+        connectCodexItem.target = self
+        connectCodexItem.toolTip = "Wire Codex's [hooks] to Worklings via a dedicated ~/.codex/hooks.json — your config.toml is never touched. Disconnecting removes only Worklings' entries."
+        menu.addItem(connectCodexItem)
+        connectCodexMenuItem = connectCodexItem
+
         let visibilityItem = NSMenuItem(
             title: "Tuck Away Companion",
             action: #selector(toggleCompanionVisibility),
@@ -259,6 +281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateRoamingMenuItem()
         updateActivityInboxMenuItem()
         updateConnectedReposMenu()
+        updateToolConnectionItems()
 
         syncCheckmarks(familyMenuItems, selectedRawValue: state.family.rawValue)
         syncCheckmarks(classMenuItems, selectedRawValue: state.petClass.rawValue)
@@ -700,6 +723,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         gitCommitWatcher?.disconnect(path: path)
+    }
+
+    private func claudeCodeConnector() -> ToolConnector {
+        ToolConnector(
+            configURL: FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".claude/settings.json"),
+            adapterPath: AdapterLocator.path(for: "claude-code-hook"),
+            mappings: HookConfigMerger.claudeCodeMappings
+        )
+    }
+
+    private func codexConnector() -> ToolConnector {
+        ToolConnector(
+            configURL: FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".codex/hooks.json"),
+            adapterPath: AdapterLocator.path(for: "codex-hook"),
+            mappings: HookConfigMerger.codexMappings
+        )
+    }
+
+    private func updateToolConnectionItems() {
+        connectClaudeCodeMenuItem?.state = claudeCodeConnector().isConnected() ? .on : .off
+        connectCodexMenuItem?.state = codexConnector().isConnected() ? .on : .off
+    }
+
+    @objc
+    private func toggleClaudeCodeConnection() {
+        toggleConnection(claudeCodeConnector(), named: "Claude Code")
+    }
+
+    @objc
+    private func toggleCodexConnection() {
+        toggleConnection(codexConnector(), named: "Codex")
+    }
+
+    /// Connects or disconnects a tool by writing its config. On failure the
+    /// connector has already left the file untouched, so we only surface the
+    /// reason. Connecting also enables the inbox, since a wired tool whose
+    /// events are dropped would look broken.
+    private func toggleConnection(_ connector: ToolConnector, named name: String) {
+        do {
+            if connector.isConnected() {
+                _ = try connector.disconnect()
+            } else {
+                _ = try connector.connect()
+                ensureActivityInboxEnabled()
+            }
+        } catch {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Couldn’t update \(name)"
+            alert.informativeText = "Worklings left your config file untouched.\n\n\(error)"
+            alert.runModal()
+        }
+    }
+
+    private func ensureActivityInboxEnabled() {
+        guard let activityInboxMonitor else {
+            return
+        }
+        guard !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) else {
+            return
+        }
+        UserDefaults.standard.set(true, forKey: Self.activityInboxDefaultsKey)
+        activityInboxMonitor.start()
     }
 
     @objc
