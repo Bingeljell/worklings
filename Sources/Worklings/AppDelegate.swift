@@ -765,20 +765,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc
     private func toggleCodexConnection() {
-        toggleConnection(codexConnector(), named: "Codex")
+        // Codex will not run newly added hooks until they are reviewed and
+        // trusted, so writing the file is not the whole story — tell the user.
+        toggleConnection(
+            codexConnector(),
+            named: "Codex",
+            postConnectNote: "Codex won’t run new hooks until you approve them. In Codex, run /hooks and trust the Worklings hooks to activate them."
+        )
     }
 
     /// Connects or disconnects a tool by writing its config. On failure the
     /// connector has already left the file untouched, so we only surface the
     /// reason. Connecting also enables the inbox, since a wired tool whose
-    /// events are dropped would look broken.
-    private func toggleConnection(_ connector: ToolConnector, named name: String) {
+    /// events are dropped would look broken. `postConnectNote`, if given, is
+    /// shown after a successful connect (e.g. a required approval step).
+    private func toggleConnection(_ connector: ToolConnector, named name: String, postConnectNote: String? = nil) {
         do {
             if connector.isConnected() {
                 _ = try connector.disconnect()
             } else {
                 _ = try connector.connect()
                 ensureActivityInboxEnabled()
+                if let postConnectNote {
+                    NSApp.activate(ignoringOtherApps: true)
+                    let alert = NSAlert()
+                    alert.messageText = "Connected \(name)"
+                    alert.informativeText = postConnectNote
+                    alert.runModal()
+                }
             }
         } catch {
             NSApp.activate(ignoringOtherApps: true)
