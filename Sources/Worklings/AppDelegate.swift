@@ -4,13 +4,20 @@ import CompanionCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let roamingDefaultsKey = "idleRoamingEnabled"
-    private static let activityInboxDefaultsKey = "activityInboxEnabled"
+    /// Set once the user has acknowledged the tool-connection consent dialog for a
+    /// given tool, so it is shown on that tool's first connect and never again.
+    /// Remembered per tool: each tool edits a different file, so its "exact file
+    /// being changed" disclosure must be shown the first time you connect *it*.
+    private static func toolConsentAcknowledgedKey(_ toolKey: String) -> String {
+        "toolConnectionConsentAcknowledged.\(toolKey)"
+    }
 
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
     private var activityInboxMonitor: ActivityInboxMonitor?
     private var gitCommitWatcher: GitCommitWatcher?
+    // note: no activity-inbox menu item — connecting a tool is the opt-in
     private var statusItem: NSStatusItem?
     private var visibilityMenuItem: NSMenuItem?
     private var petHeaderMenuItem: NSMenuItem?
@@ -23,11 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var focusSessionMenuItem: NSMenuItem?
     private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
-    private var activityInboxMenuItem: NSMenuItem?
     private var connectedReposMenuItem: NSMenuItem?
     private var connectedReposMenu: NSMenu?
     private var connectClaudeCodeMenuItem: NSMenuItem?
     private var connectCodexMenuItem: NSMenuItem?
+    private var disconnectAllToolsMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
     private var classMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
@@ -65,12 +72,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.presenceMonitor = presenceMonitor
         presenceMonitor.start()
 
-        // Always watch the inbox so files never accumulate; delivery is gated
-        // by the toggle. While disabled, the monitor drains and discards.
-        let activityInboxMonitor = ActivityInboxMonitor(
-            session: petSession,
-            isEnabled: UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
-        )
+        // Watch the inbox so files never accumulate. Connecting a tool is itself
+        // the opt-in (the same way connecting a repo is), so there is no separate
+        // global toggle — any event that arrives is delivered.
+        let activityInboxMonitor = ActivityInboxMonitor(session: petSession)
         self.activityInboxMonitor = activityInboxMonitor
         activityInboxMonitor.start()
 
@@ -182,16 +187,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(roamingItem)
         roamingMenuItem = roamingItem
 
-        let activityInboxItem = NSMenuItem(
-            title: "Accept Work Tool Events",
-            action: #selector(toggleActivityInbox),
-            keyEquivalent: ""
-        )
-        activityInboxItem.target = self
-        activityInboxItem.toolTip = "Lets connected tools drop activity events into a local inbox folder. Off by default; nothing is read but event kind, source, and time."
-        menu.addItem(activityInboxItem)
-        activityInboxMenuItem = activityInboxItem
-
         let connectedReposItem = NSMenuItem(title: "Connected Repos", action: nil, keyEquivalent: "")
         let connectedReposSubmenu = NSMenu()
         connectedReposItem.submenu = connectedReposSubmenu
@@ -219,6 +214,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         connectCodexItem.toolTip = "Wire Codex's [hooks] to Worklings via a dedicated ~/.codex/hooks.json — your config.toml is never touched. Disconnecting removes only Worklings' entries."
         menu.addItem(connectCodexItem)
         connectCodexMenuItem = connectCodexItem
+
+        let disconnectAllItem = NSMenuItem(
+            title: "Disconnect All Tools",
+            action: #selector(disconnectAllTools),
+            keyEquivalent: ""
+        )
+        disconnectAllItem.target = self
+        disconnectAllItem.toolTip = "Remove every Worklings hook from Claude Code and Codex in one step (each config is backed up first). Use this before moving or deleting Worklings so no stale hooks are left behind."
+        menu.addItem(disconnectAllItem)
+        disconnectAllToolsMenuItem = disconnectAllItem
 
         let visibilityItem = NSMenuItem(
             title: "Tuck Away Companion",
@@ -282,7 +287,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #endif
 
         updateRoamingMenuItem()
-        updateActivityInboxMenuItem()
         updateConnectedReposMenu()
         updateToolConnectionItems()
 
@@ -634,24 +638,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             : "Roaming pauses while macOS Reduce Motion is enabled."
     }
 
-    @objc
-    private func toggleActivityInbox() {
-        guard let activityInboxMonitor else {
-            return
-        }
-
-        let shouldEnable = !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
-        UserDefaults.standard.set(shouldEnable, forKey: Self.activityInboxDefaultsKey)
-
-        activityInboxMonitor.setEnabled(shouldEnable)
-        updateActivityInboxMenuItem()
-    }
-
-    private func updateActivityInboxMenuItem() {
-        let isEnabled = UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
-        activityInboxMenuItem?.state = isEnabled ? .on : .off
-    }
-
     /// Rebuilds the connected-repos submenu from the registry each time the menu
     /// opens: a "Connect a Repo…" item, then one disconnect item per repo.
     private func updateConnectedReposMenu() {
@@ -754,13 +740,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateToolConnectionItems() {
-        connectClaudeCodeMenuItem?.state = claudeCodeConnector().isConnected() ? .on : .off
-        connectCodexMenuItem?.state = codexConnector().isConnected() ? .on : .off
+        updateToolItem(connectClaudeCodeMenuItem, connector: claudeCodeConnector(), named: "Claude Code")
+        updateToolItem(connectCodexMenuItem, connector: codexConnector(), named: "Codex")
+        // "Disconnect All Tools" stays always-clickable; when nothing is wired it
+        // reports "Nothing to disconnect" rather than being greyed out.
+    }
+
+    /// Reflects a tool's connection state in its menu item and returns it. A
+    /// live connection shows a checkmark; a stale one (the adapter the hook
+    /// points at is gone — the app was moved or deleted) is surfaced as an
+    /// explicit "Reconnect … — adapter moved" so a single click repoints it.
+    @discardableResult
+    private func updateToolItem(_ item: NSMenuItem?, connector: ToolConnector, named name: String) -> ToolConnector.ConnectionState {
+        let state = connector.connectionState()
+        switch state {
+        case .notConnected:
+            item?.title = "Connect \(name)"
+            item?.state = .off
+        case .live:
+            item?.title = "Connect \(name)"
+            item?.state = .on
+        case .stale:
+            item?.title = "Reconnect \(name) — adapter moved"
+            item?.state = .off
+        case .unknown:
+            item?.title = "Connect \(name) — can’t read config"
+            item?.state = .off
+        }
+        return state
     }
 
     @objc
     private func toggleClaudeCodeConnection() {
-        toggleConnection(claudeCodeConnector(), named: "Claude Code")
+        toggleConnection(claudeCodeConnector(), named: "Claude Code", consentKey: "claude-code")
     }
 
     @objc
@@ -770,22 +782,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggleConnection(
             codexConnector(),
             named: "Codex",
+            consentKey: "codex",
             postConnectNote: "Codex won’t run new hooks until you approve them. In Codex, run /hooks and trust the Worklings hooks to activate them."
         )
     }
 
     /// Connects or disconnects a tool by writing its config. On failure the
     /// connector has already left the file untouched, so we only surface the
-    /// reason. Connecting also enables the inbox, since a wired tool whose
-    /// events are dropped would look broken. `postConnectNote`, if given, is
-    /// shown after a successful connect (e.g. a required approval step).
-    private func toggleConnection(_ connector: ToolConnector, named name: String, postConnectNote: String? = nil) {
+    /// reason. The first connect of any tool shows a one-time informed-consent
+    /// dialog the user can decline. `postConnectNote`, if given, is shown after a
+    /// successful connect (e.g. a required approval step).
+    private func toggleConnection(_ connector: ToolConnector, named name: String, consentKey: String, postConnectNote: String? = nil) {
         do {
-            if connector.isConnected() {
+            switch connector.connectionState() {
+            case .live:
                 _ = try connector.disconnect()
-            } else {
+            case .unknown:
+                // We can't read or parse the config, so we can't safely say
+                // whether our hooks are there — don't write anything, just
+                // explain. (Writing would fail closed anyway.)
+                NSApp.activate(ignoringOtherApps: true)
+                let alert = NSAlert()
+                alert.messageText = "Can’t read \(name)’s config"
+                alert.informativeText = "Worklings couldn’t read or parse:\n\(connector.configURL.path)\n\nSo it can’t tell whether its hooks are there. Fix or remove that file, then try again."
+                alert.runModal()
+            case .notConnected, .stale:
+                // Informed consent before this tool's first write; if the user
+                // declines, nothing is written.
+                guard confirmToolConnectionConsent(toolName: name, configPath: connector.configURL.path, consentKey: consentKey) else {
+                    return
+                }
+                // A stale hook (adapter moved/deleted) is repaired the same way
+                // it is first written: connect() strips our old entries and
+                // writes fresh ones pointing at the current adapter.
                 _ = try connector.connect()
-                ensureActivityInboxEnabled()
                 if let postConnectNote {
                     NSApp.activate(ignoringOtherApps: true)
                     let alert = NSAlert()
@@ -803,15 +833,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func ensureActivityInboxEnabled() {
-        guard let activityInboxMonitor else {
-            return
+    /// Removes every Worklings hook from both tools in one step — the clean
+    /// pre-uninstall path. Each tool's config is backed up first, and a stale
+    /// entry (from a moved/old adapter) is removed too, since disconnect matches
+    /// our hooks by file name regardless of whether the path still resolves.
+    @objc
+    private func disconnectAllTools() {
+        let tools: [(name: String, connector: ToolConnector)] = [
+            ("Claude Code", claudeCodeConnector()),
+            ("Codex", codexConnector())
+        ]
+
+        var removed: [String] = []
+        var failures: [String] = []
+        for tool in tools {
+            switch tool.connector.connectionState() {
+            case .notConnected:
+                continue // nothing of ours to remove
+            case .unknown:
+                // Its config couldn't be read/parsed — we can't confirm it is
+                // clean, so report it as a cleanup failure rather than a silent
+                // "nothing found."
+                failures.append("\(tool.name): its config couldn’t be read or parsed, so Worklings couldn’t check for or remove its hooks (\(tool.connector.configURL.path)).")
+            case .live, .stale:
+                do {
+                    _ = try tool.connector.disconnect()
+                    removed.append(tool.name)
+                } catch {
+                    failures.append("\(tool.name): \(error)")
+                }
+            }
         }
-        guard !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) else {
-            return
+
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        if !failures.isEmpty {
+            alert.messageText = "Some tools couldn’t be updated"
+            alert.informativeText = (removed.isEmpty
+                ? "Worklings left the config files untouched.\n\n"
+                : "Disconnected \(removed.joined(separator: " and ")). The rest were left untouched:\n\n")
+                + failures.joined(separator: "\n")
+        } else if removed.isEmpty {
+            alert.messageText = "Nothing to disconnect"
+            alert.informativeText = "No Worklings hooks were found in Claude Code or Codex."
+        } else {
+            alert.messageText = "Disconnected \(removed.joined(separator: " and "))"
+            alert.informativeText = "Worklings' hooks were removed. Each config was backed up first."
         }
-        UserDefaults.standard.set(true, forKey: Self.activityInboxDefaultsKey)
-        activityInboxMonitor.setEnabled(true)
+        alert.runModal()
+        updateToolConnectionItems()
+    }
+
+    /// Shows the informed-consent dialog before a tool's first connection and
+    /// records the acknowledgement so it never appears again *for that tool*.
+    /// Because each tool edits a different file, the disclosure is remembered per
+    /// tool — connecting Codex after Claude still shows Codex's file. Returns true
+    /// if the connection may proceed (already acknowledged, or the user chose
+    /// Connect); false if the user cancelled.
+    private func confirmToolConnectionConsent(toolName: String, configPath: String, consentKey: String) -> Bool {
+        let defaultsKey = Self.toolConsentAcknowledgedKey(consentKey)
+        if UserDefaults.standard.bool(forKey: defaultsKey) {
+            return true
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Connect \(toolName) to Worklings?"
+        alert.informativeText = """
+            Worklings will add its hooks to this file (backing it up first, and \
+            preserving your existing settings and hooks):
+            \(configPath)
+
+            After that, \(toolName) tells Worklings only what happened — an activity \
+            kind (like “task completed”), which tool it came from, and when. Never a \
+            prompt, a diff, a file path, or any content. Everything stays on this Mac; \
+            nothing is ever sent anywhere.
+
+            You can undo this anytime: click the tool again to disconnect, or use \
+            “Disconnect All Tools.” Do that before you delete Worklings so no hooks \
+            are left behind.
+            """
+        alert.addButton(withTitle: "Connect")
+        alert.addButton(withTitle: "Cancel")
+        let proceed = alert.runModal() == .alertFirstButtonReturn
+        if proceed {
+            UserDefaults.standard.set(true, forKey: defaultsKey)
+        }
+        return proceed
     }
 
     @objc

@@ -16,11 +16,19 @@ The names are deliberately Worklings-namespaced (`worklings-…-activity-hook`).
 ## Prerequisites
 
 1. The Worklings app is running.
-2. **"Accept Work Tool Events"** is enabled in the paw menu (off by default). While it is off, the monitor still drains the spool and deletes what it finds — it just doesn't deliver anything to the pet — so events written by a configured adapter are discarded rather than accumulating on disk or replaying when you re-enable.
+2. The tool is connected — via **Connect Claude Code** / **Connect Codex** in the paw menu, or the manual wiring below. Connecting is itself the opt-in; there is no separate global switch. The inbox monitor always drains the spool so files never accumulate, and delivers every event it finds to the pet.
 
 Everything below is the **manual/developer path** — you can wire your own tool configs by hand. In the app, **Connect Claude Code** / **Connect Codex** in the paw menu writes equivalent wiring for you (parsing the existing config, backing it up, merging without disturbing your other keys or hooks, and offering a clean disconnect), so a user need never edit a config file. See [Privacy and permissions](architecture.md#privacy-and-permissions) for why an explicit, reversible config-writing convenience fits the principle.
 
-The app's wiring differs from these hand-written snippets in two safe ways: it points at the adapters **bundled inside the app** (`Worklings.app/Contents/Resources/adapters/…`) rather than a repo checkout, and it writes each path in a shell-safe form — Claude Code as a separate `command` + `args` (no shell, so spaces and metacharacters in the path are never interpreted), Codex as a single-quoted shell command. The snippets below use those same safe forms so they hold up when `ABS` contains a space.
+The app's wiring differs from the hand-written snippets below in three safe ways:
+
+1. It points at the adapters **bundled inside the app** (`Worklings.app/Contents/Resources/adapters/…`) rather than a repo checkout.
+2. It keeps the path **shell-safe** — Claude Code via `/bin/sh -c` with the path as a quoted positional argument, Codex via a single-quoted shell command — so a space or metacharacter in the path is never interpreted.
+3. It **guards** the command with an `[ -x <adapter> ]` existence test, so if the app is deleted the hook degrades to a silent no-op instead of erroring (see [Disconnecting and removing Worklings](#disconnecting-and-removing-worklings)). The exact form the app writes:
+   - Claude Code: `{"command": "/bin/sh", "args": ["-c", "if [ -x \"$1\" ]; then exec \"$1\" \"$2\"; fi", "sh", "<adapter>", "<kind>"]}`
+   - Codex: `if [ -x '<adapter>' ]; then '<adapter>' <kind>; else printf '{}'; fi`
+
+The snippets below are the **minimal developer form** for a repo checkout (no guard needed — you're not going to delete your checkout the way a user deletes an app). They still single-quote / arg-separate the path so they hold up when `ABS` contains a space.
 
 ## Claude Code
 
@@ -90,7 +98,7 @@ type = "command"
 command = "'ABS/scripts/adapters/worklings-codex-activity-hook' workEnded"
 ```
 
-`[hooks]` is TOML array-of-tables, so these **append** cleanly alongside anything already in your Codex config — including an existing `notify` program (e.g. a Computer Use client). Hooks and `notify` are independent systems, so there is no single-slot collision to work around. Codex treats a hook exit code of `2` as "block the turn," so `worklings-codex-activity-hook` always exits `0` and can never disrupt the agent.
+`[hooks]` is TOML array-of-tables, so these **append** cleanly alongside anything already in your Codex config — including an existing `notify` program (e.g. a Computer Use client). Hooks and `notify` are independent systems, so there is no single-slot collision to work around. Codex treats a hook exit code of `2` as "block the turn," so `worklings-codex-activity-hook` always exits `0` and can never disrupt the agent. It also prints `{}` on stdout: Codex's `Stop` hook expects JSON on a `0` exit (empty output is invalid there), and an empty JSON object is a valid, content-free success payload for every event.
 
 > The manual snippet above is the developer path. In a normal install, **Connect Codex** in the paw menu writes this wiring for you — pointing at the bundled adapter, backing up your existing config, and offering a clean disconnect — so you never edit a config file.
 
@@ -105,7 +113,7 @@ An adapter physically cannot hand the pet a prompt, a file path, or a diff — o
 
 ## Verifying a connection
 
-With the app running and "Accept Work Tool Events" enabled:
+With the app running and the tool connected:
 
 - **Claude Code:** start a session — the pet should react (`workStarted`). Watch the inbox drain live if you like:
   `ls ~/Library/Application\ Support/Worklings/inbox`
@@ -119,6 +127,33 @@ You can always exercise an adapter by hand without the tool:
 scripts/adapters/worklings-claude-code-activity-hook taskCompleted </dev/null
 scripts/adapters/worklings-codex-activity-hook taskCompleted </dev/null
 ```
+
+## Disconnecting and removing Worklings
+
+The paw menu owns its wiring in both directions. Each **Connect** item toggles: a
+connected tool shows a checkmark and clicking it disconnects. **Disconnect All
+Tools** removes every Worklings hook from both Claude Code and Codex in one step
+(each config is backed up first) — use it before you move or delete the app so no
+stale hooks are left behind.
+
+Because a hook command points inside `Worklings.app`, **moving** the app makes the
+menu show *"Reconnect … — adapter moved"*: the wiring is still recognized as ours
+(ownership is the adapter file name, not its path), but it points at a location
+that no longer exists, so one click repoints it at the app's new spot.
+
+If the app is **dragged to the Trash without disconnecting first**, its hooks stay
+in the tool configs pointing at a file that is gone — but they are now **harmless**.
+The command Worklings writes is guarded with an `[ -x <adapter> ]` existence test,
+so once the adapter is missing the hook does nothing: it exits `0` (Codex still
+prints a valid `{}`), with no `127` and no launch failure. The leftover is inert
+config text, like the preferences any app leaves behind — it just no longer does
+anything. This is the same convention dotfile tools use (e.g. `nvm`'s
+`[ -s "$NVM_DIR/nvm.sh" ] && …` line).
+
+Even so, the tidy path is to run **Disconnect All Tools** *before* removing the app,
+so the entries don't linger. To remove lingering entries later, reinstall and use
+Disconnect All Tools, or delete the `worklings-…-activity-hook` lines from
+`~/.claude/settings.json` / `~/.codex/hooks.json` by hand.
 
 ## Follow-ups
 

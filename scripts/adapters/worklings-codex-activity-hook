@@ -40,4 +40,11 @@ else
   printf 'worklings-codex-activity-hook: missing <kind> argument; emitting nothing\n' >&2
 fi
 
+# Codex's Stop (and SubagentStop) hook rejects empty stdout on a 0 exit — it
+# expects JSON — while the other events accept no output but tolerate it. Print
+# an empty JSON object so every Codex hook returns a valid, content-free success
+# payload and never trips a hook-output warning. `{}` carries nothing, so the
+# privacy contract is unchanged.
+printf '{}\n'
+
 exit 0

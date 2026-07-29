@@ -8,6 +8,8 @@ enum ToolConnectorChecks {
         checkConnectLeavesUnparseableConfigUntouched(context: &context)
         checkConnectRefusesMissingAdapter(context: &context)
         checkConnectFailsClosedOnUnreadableConfig(context: &context)
+        checkConnectionStateLiveThenStale(context: &context)
+        checkConnectionStateUnknownForUnreadableOrMalformed(context: &context)
         checkDisconnectRemovesOurs(context: &context)
     }
 
@@ -146,6 +148,55 @@ enum ToolConnectorChecks {
             !c.isConnected(),
             "an unreadable config reports as not connected rather than crashing"
         )
+    }
+
+    private static func checkConnectionStateLiveThenStale(context: inout CheckContext) {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let config = dir.appendingPathComponent("settings.json")
+        let adapter = makeAdapter(in: dir)
+        let c = connector(config, adapter: adapter)
+
+        context.expect(c.connectionState() == .notConnected, "no config yet reads as not connected")
+
+        do {
+            _ = try c.connect()
+            context.expect(c.connectionState() == .live, "a fresh connect pointing at a real adapter is live")
+
+            // Simulate the app being moved or deleted: the adapter the hooks
+            // point at is gone, but the hooks (matched by file name) are still ours.
+            try FileManager.default.removeItem(atPath: adapter)
+            context.expect(c.connectionState() == .stale, "our hooks pointing at a missing adapter read as stale")
+            context.expect(c.isConnected(), "a stale connection still counts as connected (ours)")
+
+            _ = try c.disconnect()
+            context.expect(c.connectionState() == .notConnected, "disconnect clears the stale hooks")
+        } catch {
+            context.expect(false, "connect/disconnect round trip should succeed: \(error)")
+        }
+    }
+
+    private static func checkConnectionStateUnknownForUnreadableOrMalformed(context: inout CheckContext) {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let adapter = makeAdapter(in: dir)
+
+        // Present but not valid JSON: our hooks might be in there, we just can't
+        // tell — must be unknown, never a false "not connected".
+        let malformed = dir.appendingPathComponent("settings.json")
+        try? Data("not json { oops".utf8).write(to: malformed)
+        context.expect(
+            connector(malformed, adapter: adapter).connectionState() == .unknown,
+            "a malformed config reads as unknown, not notConnected"
+        )
+
+        // Present but unreadable (a directory stands in for a permission/I-O
+        // read failure).
+        let unreadable = dir.appendingPathComponent("hooks.json")
+        try? FileManager.default.createDirectory(at: unreadable, withIntermediateDirectories: true)
+        let u = connector(unreadable, adapter: adapter)
+        context.expect(u.connectionState() == .unknown, "an unreadable config reads as unknown")
+        context.expect(!u.isConnected(), "unknown does not count as connected")
     }
 
     private static func checkDisconnectRemovesOurs(context: inout CheckContext) {
