@@ -16,7 +16,7 @@ The names are deliberately Worklings-namespaced (`worklings-…-activity-hook`).
 ## Prerequisites
 
 1. The Worklings app is running.
-2. **"Accept Work Tool Events"** is enabled in the paw menu (off by default). While it is off, the monitor still drains the spool and deletes what it finds — it just doesn't deliver anything to the pet — so events written by a configured adapter are discarded rather than accumulating on disk or replaying when you re-enable.
+2. The tool is connected — via **Connect Claude Code** / **Connect Codex** in the paw menu, or the manual wiring below. Connecting is itself the opt-in; there is no separate global switch. The inbox monitor always drains the spool so files never accumulate, and delivers every event it finds to the pet.
 
 Everything below is the **manual/developer path** — you can wire your own tool configs by hand. In the app, **Connect Claude Code** / **Connect Codex** in the paw menu writes equivalent wiring for you (parsing the existing config, backing it up, merging without disturbing your other keys or hooks, and offering a clean disconnect), so a user need never edit a config file. See [Privacy and permissions](architecture.md#privacy-and-permissions) for why an explicit, reversible config-writing convenience fits the principle.
 
@@ -105,7 +105,7 @@ An adapter physically cannot hand the pet a prompt, a file path, or a diff — o
 
 ## Verifying a connection
 
-With the app running and "Accept Work Tool Events" enabled:
+With the app running and the tool connected:
 
 - **Claude Code:** start a session — the pet should react (`workStarted`). Watch the inbox drain live if you like:
   `ls ~/Library/Application\ Support/Worklings/inbox`

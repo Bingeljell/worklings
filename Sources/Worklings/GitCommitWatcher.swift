@@ -7,8 +7,8 @@ import Foundation
 /// Mirrors `ActivityInboxMonitor`'s discipline: FSEvents fire on the main
 /// queue, the (brief) git work runs off the main actor, and only commit
 /// identifiers and ancestry are ever read — never a message or diff (see
-/// `GitCommitDelta`). Connecting a repository is itself the opt-in, so this is
-/// independent of the "Accept Work Tool Events" inbox toggle.
+/// `GitCommitDelta`). Connecting a repository is itself the opt-in — the same
+/// model the tool inbox now uses: connect to opt in, with no separate toggle.
 ///
 /// No retro-credit: on connect and on start, the current HEAD is recorded as a
 /// silent baseline, so only commits made while the app is watching count. A

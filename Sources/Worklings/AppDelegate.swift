@@ -4,13 +4,16 @@ import CompanionCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let roamingDefaultsKey = "idleRoamingEnabled"
-    private static let activityInboxDefaultsKey = "activityInboxEnabled"
+    /// Set once the user has acknowledged the one-time tool-connection consent
+    /// dialog, so it is shown on the first connect of any tool and never again.
+    private static let toolConsentAcknowledgedKey = "toolConnectionConsentAcknowledged"
 
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
     private var activityInboxMonitor: ActivityInboxMonitor?
     private var gitCommitWatcher: GitCommitWatcher?
+    // note: no activity-inbox menu item — connecting a tool is the opt-in
     private var statusItem: NSStatusItem?
     private var visibilityMenuItem: NSMenuItem?
     private var petHeaderMenuItem: NSMenuItem?
@@ -23,7 +26,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var focusSessionMenuItem: NSMenuItem?
     private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
-    private var activityInboxMenuItem: NSMenuItem?
     private var connectedReposMenuItem: NSMenuItem?
     private var connectedReposMenu: NSMenu?
     private var connectClaudeCodeMenuItem: NSMenuItem?
@@ -66,12 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.presenceMonitor = presenceMonitor
         presenceMonitor.start()
 
-        // Always watch the inbox so files never accumulate; delivery is gated
-        // by the toggle. While disabled, the monitor drains and discards.
-        let activityInboxMonitor = ActivityInboxMonitor(
-            session: petSession,
-            isEnabled: UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
-        )
+        // Watch the inbox so files never accumulate. Connecting a tool is itself
+        // the opt-in (the same way connecting a repo is), so there is no separate
+        // global toggle — any event that arrives is delivered.
+        let activityInboxMonitor = ActivityInboxMonitor(session: petSession)
         self.activityInboxMonitor = activityInboxMonitor
         activityInboxMonitor.start()
 
@@ -183,16 +183,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(roamingItem)
         roamingMenuItem = roamingItem
 
-        let activityInboxItem = NSMenuItem(
-            title: "Accept Work Tool Events",
-            action: #selector(toggleActivityInbox),
-            keyEquivalent: ""
-        )
-        activityInboxItem.target = self
-        activityInboxItem.toolTip = "Lets connected tools drop activity events into a local inbox folder. Off by default; nothing is read but event kind, source, and time."
-        menu.addItem(activityInboxItem)
-        activityInboxMenuItem = activityInboxItem
-
         let connectedReposItem = NSMenuItem(title: "Connected Repos", action: nil, keyEquivalent: "")
         let connectedReposSubmenu = NSMenu()
         connectedReposItem.submenu = connectedReposSubmenu
@@ -293,7 +283,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #endif
 
         updateRoamingMenuItem()
-        updateActivityInboxMenuItem()
         updateConnectedReposMenu()
         updateToolConnectionItems()
 
@@ -645,24 +634,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             : "Roaming pauses while macOS Reduce Motion is enabled."
     }
 
-    @objc
-    private func toggleActivityInbox() {
-        guard let activityInboxMonitor else {
-            return
-        }
-
-        let shouldEnable = !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
-        UserDefaults.standard.set(shouldEnable, forKey: Self.activityInboxDefaultsKey)
-
-        activityInboxMonitor.setEnabled(shouldEnable)
-        updateActivityInboxMenuItem()
-    }
-
-    private func updateActivityInboxMenuItem() {
-        let isEnabled = UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
-        activityInboxMenuItem?.state = isEnabled ? .on : .off
-    }
-
     /// Rebuilds the connected-repos submenu from the registry each time the menu
     /// opens: a "Connect a Repo…" item, then one disconnect item per repo.
     private func updateConnectedReposMenu() {
@@ -810,20 +781,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Connects or disconnects a tool by writing its config. On failure the
     /// connector has already left the file untouched, so we only surface the
-    /// reason. Connecting also enables the inbox, since a wired tool whose
-    /// events are dropped would look broken. `postConnectNote`, if given, is
-    /// shown after a successful connect (e.g. a required approval step).
+    /// reason. The first connect of any tool shows a one-time informed-consent
+    /// dialog the user can decline. `postConnectNote`, if given, is shown after a
+    /// successful connect (e.g. a required approval step).
     private func toggleConnection(_ connector: ToolConnector, named name: String, postConnectNote: String? = nil) {
         do {
             switch connector.connectionState() {
             case .live:
                 _ = try connector.disconnect()
             case .notConnected, .stale:
+                // Informed consent before the first write of any tool; if the
+                // user declines, nothing is written.
+                guard confirmToolConnectionConsent(toolName: name, configPath: connector.configURL.path) else {
+                    return
+                }
                 // A stale hook (adapter moved/deleted) is repaired the same way
                 // it is first written: connect() strips our old entries and
                 // writes fresh ones pointing at the current adapter.
                 _ = try connector.connect()
-                ensureActivityInboxEnabled()
                 if let postConnectNote {
                     NSApp.activate(ignoringOtherApps: true)
                     let alert = NSAlert()
@@ -882,15 +857,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateToolConnectionItems()
     }
 
-    private func ensureActivityInboxEnabled() {
-        guard let activityInboxMonitor else {
-            return
+    /// Shows the one-time, informed-consent dialog before the first tool
+    /// connection of any kind, and records the acknowledgement so it never
+    /// appears again. Returns true if the connection may proceed (already
+    /// acknowledged, or the user chose Connect); false if the user cancelled.
+    private func confirmToolConnectionConsent(toolName: String, configPath: String) -> Bool {
+        if UserDefaults.standard.bool(forKey: Self.toolConsentAcknowledgedKey) {
+            return true
         }
-        guard !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) else {
-            return
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Connect \(toolName) to Worklings?"
+        alert.informativeText = """
+            Worklings will add its hooks to this file (backing it up first, and \
+            preserving your existing settings and hooks):
+            \(configPath)
+
+            After that, \(toolName) tells Worklings only what happened — an activity \
+            kind (like “task completed”), which tool it came from, and when. Never a \
+            prompt, a diff, a file path, or any content. Everything stays on this Mac; \
+            nothing is ever sent anywhere.
+
+            You can undo this anytime: click the tool again to disconnect, or use \
+            “Disconnect All Tools.”
+            """
+        alert.addButton(withTitle: "Connect")
+        alert.addButton(withTitle: "Cancel")
+        let proceed = alert.runModal() == .alertFirstButtonReturn
+        if proceed {
+            UserDefaults.standard.set(true, forKey: Self.toolConsentAcknowledgedKey)
         }
-        UserDefaults.standard.set(true, forKey: Self.activityInboxDefaultsKey)
-        activityInboxMonitor.setEnabled(true)
+        return proceed
     }
 
     @objc

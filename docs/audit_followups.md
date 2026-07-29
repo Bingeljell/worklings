@@ -1,10 +1,14 @@
 # Audit follow-ups (connector / adapters)
 
-Deferred findings from the activity-adapters audits, captured for a future set of
-commits. These were **not** blockers for `v0.1.0-alpha.5` — the three prior audit
-rounds fixed everything that could hang the app, brick a config, or wreck a
-git/Codex/Claude session. What remains is uninstall-safety, edit-race safety,
-informed consent, and polish. Ordered by priority.
+Deferred findings from the activity-adapters audits, captured after `v0.1.0-alpha.5`
+(they were **not** release blockers — the three prior audit rounds fixed everything
+that could hang the app, brick a config, or wreck a git/Codex/Claude session).
+
+**Status (2026-07-29): all resolved.** Items 2–5 are done (uninstall-safety /
+live-vs-stale hooks, edit-race, informed consent + dropping the Accept Work Tool
+Events toggle, Codex `{}` output). Item 1 (hook naming) is **blocked** — no tool
+documents a hook name field — and is recorded rather than implemented. Kept as a
+record of what was decided and why.
 
 Guiding bar (unchanged): never hang the app, brick a system, or wreck a
 git/Codex/Claude session.
@@ -74,19 +78,23 @@ microseconds, which is what the requirement asks.
 
 ---
 
-## 4. [P2] Consent is explicit, but not yet fully informed
+## 4. [P2] Consent is explicit, but not yet fully informed — DONE (2026-07-29)
 
-**Problem:** Clicking **Connect** immediately edits the external tool's config and
-silently enables event acceptance. The action is explicit, but the user isn't
-told what's about to happen.
+**Problem:** Clicking **Connect** immediately edited the external tool's config and
+silently enabled event acceptance. Explicit, but the user wasn't told what happens.
 
-**Direction:** A first-time confirmation that plainly states:
-- exactly which file will change (full path),
-- exactly what Worklings receives (a content-free kind + source + timestamp — no
-  prompt, diff, or path), and that everything stays local,
-- how to disconnect / undo (and that a backup is made).
-Decide whether "Connect" should also be what flips on **Accept Work Tool Events**,
-or whether that stays a separate, visible toggle.
+**Done:** A one-time, global informed-consent dialog appears before the first tool
+connection of any kind (`toolConnectionConsentAcknowledged`), with **Connect** /
+**Cancel** — declining writes nothing. It states which file changes (full path,
+backed up, existing settings preserved), what Worklings receives (an activity kind
++ source + time, never a prompt/diff/path/content), that everything stays local,
+and how to disconnect.
+
+The **"Accept Work Tool Events" toggle was dropped entirely** (it was testing
+scaffolding). Connecting a tool is now the opt-in — exactly how connecting a repo
+already works — so there is no separate global switch to reason about; the inbox
+monitor always drains and delivers. This removed the "silently enables event
+acceptance" gap at the root rather than papering over it.
 
 ---
 
