@@ -909,7 +909,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             nothing is ever sent anywhere.
 
             You can undo this anytime: click the tool again to disconnect, or use \
-            “Disconnect All Tools.”
+            “Disconnect All Tools.” Do that before you delete Worklings so no hooks \
+            are left behind.
             """
         alert.addButton(withTitle: "Connect")
         alert.addButton(withTitle: "Cancel")

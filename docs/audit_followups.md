@@ -4,13 +4,13 @@ Deferred findings from the activity-adapters audits, captured after `v0.1.0-alph
 (they were **not** release blockers — the three prior audit rounds fixed everything
 that could hang the app, brick a config, or wreck a git/Codex/Claude session).
 
-**Status (2026-07-29, after a second review):** most resolved; **one open**. Done:
-edit-race incl. the backup-window refinement (#3), live-vs-stale hooks + Disconnect
-All + the `.unknown` state (#2), informed consent now per-tool + dropping the Accept
-Work Tool Events toggle (#4), Codex `{}` output (#5). **Open:** the drag-to-Trash
-sub-point of #2 — a deleted-app hook is *not* silent (it errors 127 / logs a launch
-failure), and the real fix (guarding the command) is a wire-format decision pending
-Nikhil's call. **Blocked:** item 1 (hook naming) — no tool documents a name field.
+**Status (2026-07-29, after a second review — now all addressed):** edit-race incl.
+the backup-window refinement (#3); live-vs-stale hooks + Disconnect All + the
+`.unknown` state (#2); informed consent now per-tool + dropping the Accept Work Tool
+Events toggle (#4); Codex `{}` output (#5); and the drag-to-Trash sub-point of #2 —
+the written command is now **guarded** so a deleted-app hook is a silent no-op.
+**Blocked (recorded, not doable):** item 1 (hook naming) — no tool documents a name
+field.
 
 Guiding bar (unchanged): never hang the app, brick a system, or wreck a
 git/Codex/Claude session.
@@ -59,24 +59,26 @@ Worklings still reported that hook as **connected** purely from its file name.
   to `.notConnected`, so Disconnect All could skip a tool and report "nothing found"
   when it simply could not inspect the file. `.unknown` is now surfaced as an
   explicit cleanup failure (and in the menu as "… — can't read config").
-- **Drag-to-Trash — STILL OPEN (correction, 2026-07-29).** An earlier note here
-  claimed leftover hooks were "inert (Codex only exits 0)". **That was wrong:** when
-  the app is deleted the command file is gone, so the tool that tries to run it
-  errors every time the hook fires — Codex's shell form exits `127` ("No such file
-  or directory"), and Claude logs a non-blocking launch failure (reproduced). Neither
-  bricks the tool, but the errors persist, so the "just uninstall and nothing is
-  affected" guarantee is **not** met by Disconnect All + docs alone.
+- **Drag-to-Trash — DONE (guarded command, 2026-07-29).** *(An earlier note here
+  wrongly claimed leftover hooks were already inert; in fact a deleted-app hook
+  errored — Codex `127`, Claude a non-blocking launch failure. That is now actually
+  fixed.)* The written command is **guarded** with an `[ -x <adapter> ]` test, so a
+  missing adapter is a silent, valid no-op:
+  - Codex: `if [ -x '<adapter>' ]; then '<adapter>' <kind>; else printf '{}'; fi`
+  - Claude: `/bin/sh -c 'if [ -x "$1" ]; then exec "$1" "$2"; fi' sh <adapter> <kind>`
+    (path passed as a quoted positional arg, so path-safety is kept even though
+    Claude moves off pure exec form).
 
-  Real fix (design decision, not yet done): **guard the written command** so a
-  missing adapter degrades to a silent, valid no-op —
-  `if [ -x '<adapter>' ]; then '<adapter>' <kind>; else printf '{}\n'; fi` for Codex,
-  and a `sh -c` guard passing the path as a quoted positional arg for Claude (which
-  keeps path-safety but moves Claude off exec form). This touches the hook wire
-  format, so ownership/liveness matching must extract the adapter path from the
-  guarded command (match by the distinctive `worklings-…-activity-hook` basename as a
-  path component), and the command-string tests + doc snippets update with it.
-  Alternatives: an out-of-bundle launcher shim that survives deletion, or accept the
-  limitation and only harden the docs. **Pending Nikhil's call on approach.**
+  Ownership/liveness matching was reworked to find the adapter path anywhere it can
+  appear (the `command`, a single-quoted shell word, or an `args` element), keyed on
+  the distinctive `worklings-…-activity-hook` basename — so old and guarded forms are
+  both recognized and cleaned up. Two checks **run the generated commands with a
+  missing adapter** and assert exit 0 / `{}` (the reviewer's 127 reproduction, now a
+  regression test). This is the dotfile-tool convention (`nvm`'s `[ -s … ] &&` line):
+  guard the injected line rather than rely on catching uninstall — which macOS gives
+  no reliable hook for anyway (no drag-to-Trash event; a running app can't even be
+  trashed). The consent dialog also now names "Disconnect All Tools before you delete
+  Worklings," and onboarding will reiterate it ([[onboarding-experience]]).
 
 ---
 

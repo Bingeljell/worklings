@@ -20,7 +20,15 @@ The names are deliberately Worklings-namespaced (`worklings-…-activity-hook`).
 
 Everything below is the **manual/developer path** — you can wire your own tool configs by hand. In the app, **Connect Claude Code** / **Connect Codex** in the paw menu writes equivalent wiring for you (parsing the existing config, backing it up, merging without disturbing your other keys or hooks, and offering a clean disconnect), so a user need never edit a config file. See [Privacy and permissions](architecture.md#privacy-and-permissions) for why an explicit, reversible config-writing convenience fits the principle.
 
-The app's wiring differs from these hand-written snippets in two safe ways: it points at the adapters **bundled inside the app** (`Worklings.app/Contents/Resources/adapters/…`) rather than a repo checkout, and it writes each path in a shell-safe form — Claude Code as a separate `command` + `args` (no shell, so spaces and metacharacters in the path are never interpreted), Codex as a single-quoted shell command. The snippets below use those same safe forms so they hold up when `ABS` contains a space.
+The app's wiring differs from the hand-written snippets below in three safe ways:
+
+1. It points at the adapters **bundled inside the app** (`Worklings.app/Contents/Resources/adapters/…`) rather than a repo checkout.
+2. It keeps the path **shell-safe** — Claude Code via `/bin/sh -c` with the path as a quoted positional argument, Codex via a single-quoted shell command — so a space or metacharacter in the path is never interpreted.
+3. It **guards** the command with an `[ -x <adapter> ]` existence test, so if the app is deleted the hook degrades to a silent no-op instead of erroring (see [Disconnecting and removing Worklings](#disconnecting-and-removing-worklings)). The exact form the app writes:
+   - Claude Code: `{"command": "/bin/sh", "args": ["-c", "if [ -x \"$1\" ]; then exec \"$1\" \"$2\"; fi", "sh", "<adapter>", "<kind>"]}`
+   - Codex: `if [ -x '<adapter>' ]; then '<adapter>' <kind>; else printf '{}'; fi`
+
+The snippets below are the **minimal developer form** for a repo checkout (no guard needed — you're not going to delete your checkout the way a user deletes an app). They still single-quote / arg-separate the path so they hold up when `ABS` contains a space.
 
 ## Claude Code
 
@@ -134,18 +142,18 @@ menu show *"Reconnect … — adapter moved"*: the wiring is still recognized as
 that no longer exists, so one click repoints it at the app's new spot.
 
 If the app is **dragged to the Trash without disconnecting first**, its hooks stay
-in the tool configs pointing at a file that is gone. This is **not** silent: the
-command no longer exists, so the tool that tries to run it reports an error each
-time the hook fires — Codex's shell command exits `127` ("No such file or
-directory"), and Claude Code logs a non-blocking launch failure. Neither bricks the
-tool, but the errors persist until the entries are removed, so the tidy path is to
-run **Disconnect All Tools** *before* removing the app. To clean up afterwards,
-reinstall and use Disconnect All Tools, or remove the `worklings-…-activity-hook`
-entries from `~/.claude/settings.json` / `~/.codex/hooks.json` by hand.
+in the tool configs pointing at a file that is gone — but they are now **harmless**.
+The command Worklings writes is guarded with an `[ -x <adapter> ]` existence test,
+so once the adapter is missing the hook does nothing: it exits `0` (Codex still
+prints a valid `{}`), with no `127` and no launch failure. The leftover is inert
+config text, like the preferences any app leaves behind — it just no longer does
+anything. This is the same convention dotfile tools use (e.g. `nvm`'s
+`[ -s "$NVM_DIR/nvm.sh" ] && …` line).
 
-> A future change could make a deleted-app hook degrade to a silent no-op by
-> guarding the written command (`[ -x <adapter> ] && … `); see
-> `audit_followups.md`. Until then, disconnect before uninstalling.
+Even so, the tidy path is to run **Disconnect All Tools** *before* removing the app,
+so the entries don't linger. To remove lingering entries later, reinstall and use
+Disconnect All Tools, or delete the `worklings-…-activity-hook` lines from
+`~/.claude/settings.json` / `~/.codex/hooks.json` by hand.
 
 ## Follow-ups
 

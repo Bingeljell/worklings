@@ -32,16 +32,20 @@ public enum HookConfigMerger {
         }
     }
 
-    /// How the hook command is written, so a path with a space or a shell
-    /// metacharacter can never break or be interpreted when the hook runs.
+    /// How the hook command is written. Both forms *guard* the adapter with a
+    /// `[ -x … ]` existence test, so if the app is deleted (the adapter is gone)
+    /// the hook degrades to a silent no-op instead of a launch error — the same
+    /// convention dotfile tools use for lines they inject into files they don't
+    /// own. Both keep the path shell-safe (a space or metacharacter can never
+    /// break or be interpreted).
     public enum CommandStyle: Sendable, Equatable {
-        /// `{"command": <path>, "args": [<kind>]}` — the tool spawns the
-        /// executable directly with no shell, so the path is passed verbatim and
-        /// needs no quoting. Claude Code supports this and it is the safest form.
+        /// For a tool that accepts an argv array (Claude Code). We spawn
+        /// `/bin/sh -c '<guard>' sh <path> <kind>` and pass the adapter path as a
+        /// quoted positional argument (`$1`), so the shell never re-parses it.
         case execForm
-        /// `{"command": "'<path>' <kind>"}` — the tool runs the string through a
-        /// shell, so the path is single-quoted to survive spaces and metachars.
-        /// Used for Codex, which documents only the shell form.
+        /// For a tool that accepts only a shell string (Codex). The guard is
+        /// written inline and the path single-quoted; a missing adapter prints an
+        /// empty JSON object (a valid Stop payload) rather than failing.
         case shellForm
     }
 
@@ -148,14 +152,32 @@ public enum HookConfigMerger {
 
     // MARK: - Building our entry
 
+    /// The guard script for the argv form: run the adapter only if it still
+    /// exists and is executable, passing the kind through. The path and kind are
+    /// positional arguments (`$1`, `$2`), never spliced into the script text, so
+    /// the shell cannot re-parse or word-split them.
+    private static let argvGuardScript = "if [ -x \"$1\" ]; then exec \"$1\" \"$2\"; fi"
+
     private static func ourEntry(adapterPath: String, mapping: Mapping, style: CommandStyle) -> [String: Any] {
         let hook: [String: Any]
         switch style {
         case .execForm:
-            // No shell: the path is the whole command, the kind a separate arg.
-            hook = ["type": "command", "command": adapterPath, "args": [mapping.kind]]
+            // /bin/sh runs the guard; the path and kind are positional args, so a
+            // deleted adapter is a silent no-op and the path needs no quoting.
+            hook = [
+                "type": "command",
+                "command": "/bin/sh",
+                "args": ["-c", Self.argvGuardScript, "sh", adapterPath, mapping.kind]
+            ]
         case .shellForm:
-            hook = ["type": "command", "command": "\(singleQuoted(adapterPath)) \(mapping.kind)"]
+            // Inline guard in a single shell string: run the (single-quoted) path
+            // if it exists, else print an empty JSON object so a deleted adapter
+            // still returns a valid, content-free success instead of erroring.
+            let quoted = singleQuoted(adapterPath)
+            hook = [
+                "type": "command",
+                "command": "if [ -x \(quoted) ]; then \(quoted) \(mapping.kind); else printf '{}'; fi"
+            ]
         }
         var entry: [String: Any] = ["hooks": [hook]]
         if let matcher = mapping.matcher {
@@ -220,14 +242,16 @@ public enum HookConfigMerger {
               let hooks = root["hooks"] as? [String: Any] else {
             return []
         }
+        let target = (adapterPath as NSString).lastPathComponent
         var paths: [String] = []
         for value in hooks.values {
             guard let entries = value as? [[String: Any]] else { continue }
             for entry in entries {
                 guard let hookList = entry["hooks"] as? [[String: Any]] else { continue }
-                for hook in hookList where hookIsOurs(hook, adapterPath: adapterPath) {
-                    if let executable = executable(ofHook: hook) {
-                        paths.append(executable)
+                for hook in hookList {
+                    for candidate in adapterCandidatePaths(in: hook)
+                    where (candidate as NSString).lastPathComponent == target {
+                        paths.append(candidate)
                     }
                 }
             }
@@ -235,78 +259,81 @@ public enum HookConfigMerger {
         return paths
     }
 
-    /// The invoked executable of a command hook. Exec form: `command` is the
-    /// executable itself (args are separate). Shell form: the executable is the
-    /// first, possibly single-quoted, token of the command string.
-    private static func executable(ofHook hook: [String: Any]) -> String? {
-        guard let command = hook["command"] as? String else {
-            return nil
-        }
-        if hook["args"] != nil {
-            return command
-        }
-        return executablePath(ofCommand: command)
-    }
-
     private static func hookIsOurs(_ hook: [String: Any], adapterPath: String) -> Bool {
-        guard let executable = executable(ofHook: hook) else { return false }
-        // Match by exact file name of the invoked executable — so a moved or
-        // reinstalled app bundle (whose absolute path changed) still recognizes
-        // and cleans up its own hooks. The adapter names are Worklings-namespaced
-        // (`worklings-…-activity-hook`), so an exact file-name match is a reliable
-        // ownership signal: a differently-named user script — whether it merely
-        // contains our name as a substring or reuses a generic stem like
-        // `codex-hook` — is never claimed.
-        return (executable as NSString).lastPathComponent == (adapterPath as NSString).lastPathComponent
+        let target = (adapterPath as NSString).lastPathComponent
+        // Ownership is by the adapter's distinctive file name, found anywhere a
+        // hook could name it: the `command` itself (an old exec-form config), a
+        // single-quoted word inside the command string (the guarded shell form,
+        // and the old shell form), or an element of `args` (the guarded argv
+        // form). A moved/reinstalled bundle keeps the file name, so it is still
+        // recognized; the name is Worklings-namespaced (`worklings-…-activity-hook`),
+        // so a differently-named user script — even one reusing a generic stem
+        // like `codex-hook` — is never claimed.
+        return adapterCandidatePaths(in: hook).contains {
+            ($0 as NSString).lastPathComponent == target
+        }
     }
 
-    /// The executable (first shell word) of a hook command. Reverses the POSIX
-    /// quoting `singleQuoted` applies, so a path containing a space *or* an
-    /// apostrophe round-trips: an embedded quote is written as `'\''` (close,
-    /// backslash-escaped quote, reopen), and this walks single-quoted spans and
-    /// backslash escapes to recover the literal path. A plain unquoted command
-    /// (a hand-written config) reduces to its first whitespace-delimited token.
-    private static func executablePath(ofCommand command: String) -> String? {
-        var result = ""
-        var sawToken = false
+    /// Every string in a hook that could be the adapter path: the whole command,
+    /// each shell word of the command (recovering a single-quoted path), and each
+    /// `args` element. Ownership and liveness both scan these for our file name.
+    private static func adapterCandidatePaths(in hook: [String: Any]) -> [String] {
+        var candidates: [String] = []
+        if let command = hook["command"] as? String {
+            candidates.append(command)                        // old exec form: command is the path
+            candidates.append(contentsOf: shellWords(command)) // shell forms: path is a quoted word
+        }
+        if let args = hook["args"] as? [String] {
+            candidates.append(contentsOf: args)               // guarded argv form: path is an arg
+        }
+        return candidates
+    }
+
+    /// Splits a shell command string into words, honoring single quotes, double
+    /// quotes, and backslash escapes — enough to recover a single-quoted path
+    /// (including one whose value contains an apostrophe, written `'\''`).
+    private static func shellWords(_ command: String) -> [String] {
+        var words: [String] = []
+        var current = ""
+        var hasWord = false
         var index = command.startIndex
         let end = command.endIndex
 
-        // Skip leading whitespace before the first token.
-        while index < end, command[index] == " " || command[index] == "\t" {
-            index = command.index(after: index)
-        }
+        func take() { index = command.index(after: index) }
 
-        loop: while index < end {
+        while index < end {
             let character = command[index]
             switch character {
-            case " ", "\t":
-                break loop // top-level whitespace ends the first word
+            case " ", "\t", "\n":
+                if hasWord { words.append(current); current = ""; hasWord = false }
+                take()
             case "'":
-                // A single-quoted span: everything up to the next quote is literal.
-                sawToken = true
-                index = command.index(after: index)
-                while index < end, command[index] != "'" {
-                    result.append(command[index])
-                    index = command.index(after: index)
+                hasWord = true
+                take()
+                while index < end, command[index] != "'" { current.append(command[index]); take() }
+                if index < end { take() } // closing quote
+            case "\"":
+                hasWord = true
+                take()
+                while index < end, command[index] != "\"" {
+                    if command[index] == "\\", command.index(after: index) < end {
+                        take(); current.append(command[index]); take(); continue
+                    }
+                    current.append(command[index]); take()
                 }
-                guard index < end else { return nil } // unterminated quote
-                index = command.index(after: index) // consume the closing quote
+                if index < end { take() } // closing quote
             case "\\":
-                // A backslash escapes the next character — this is how an embedded
-                // quote survives between single-quoted spans (the `\'` in `'\''`).
-                sawToken = true
-                index = command.index(after: index)
-                guard index < end else { return nil }
-                result.append(command[index])
-                index = command.index(after: index)
+                hasWord = true
+                take()
+                if index < end { current.append(command[index]); take() }
             default:
-                sawToken = true
-                result.append(character)
-                index = command.index(after: index)
+                hasWord = true
+                current.append(character)
+                take()
             }
         }
-        return sawToken ? result : nil
+        if hasWord { words.append(current) }
+        return words
     }
 
     // MARK: - JSON
