@@ -4,11 +4,13 @@ Deferred findings from the activity-adapters audits, captured after `v0.1.0-alph
 (they were **not** release blockers — the three prior audit rounds fixed everything
 that could hang the app, brick a config, or wreck a git/Codex/Claude session).
 
-**Status (2026-07-29): all resolved.** Items 2–5 are done (uninstall-safety /
-live-vs-stale hooks, edit-race, informed consent + dropping the Accept Work Tool
-Events toggle, Codex `{}` output). Item 1 (hook naming) is **blocked** — no tool
-documents a hook name field — and is recorded rather than implemented. Kept as a
-record of what was decided and why.
+**Status (2026-07-29, after a second review):** most resolved; **one open**. Done:
+edit-race incl. the backup-window refinement (#3), live-vs-stale hooks + Disconnect
+All + the `.unknown` state (#2), informed consent now per-tool + dropping the Accept
+Work Tool Events toggle (#4), Codex `{}` output (#5). **Open:** the drag-to-Trash
+sub-point of #2 — a deleted-app hook is *not* silent (it errors 127 / logs a launch
+failure), and the real fix (guarding the command) is a wire-format decision pending
+Nikhil's call. **Blocked:** item 1 (hook naming) — no tool documents a name field.
 
 Guiding bar (unchanged): never hang the app, brick a system, or wreck a
 git/Codex/Claude session.
@@ -57,11 +59,24 @@ Worklings still reported that hook as **connected** purely from its file name.
   to `.notConnected`, so Disconnect All could skip a tool and report "nothing found"
   when it simply could not inspect the file. `.unknown` is now surfaced as an
   explicit cleanup failure (and in the menu as "… — can't read config").
-- **Drag-to-Trash:** the residual case (app fully deleted, so no code can run to
-  self-heal) is documented in `adapters.md`: leftover hooks are inert (content-free
-  adapter; Claude logs a non-blocking error, Codex only exits 0), and the tidy path
-  is Disconnect All Tools first, or manual removal / reinstall-and-disconnect after.
-  *Not auto-solvable* without a separate installer/uninstaller — left as documented.
+- **Drag-to-Trash — STILL OPEN (correction, 2026-07-29).** An earlier note here
+  claimed leftover hooks were "inert (Codex only exits 0)". **That was wrong:** when
+  the app is deleted the command file is gone, so the tool that tries to run it
+  errors every time the hook fires — Codex's shell form exits `127` ("No such file
+  or directory"), and Claude logs a non-blocking launch failure (reproduced). Neither
+  bricks the tool, but the errors persist, so the "just uninstall and nothing is
+  affected" guarantee is **not** met by Disconnect All + docs alone.
+
+  Real fix (design decision, not yet done): **guard the written command** so a
+  missing adapter degrades to a silent, valid no-op —
+  `if [ -x '<adapter>' ]; then '<adapter>' <kind>; else printf '{}\n'; fi` for Codex,
+  and a `sh -c` guard passing the path as a quoted positional arg for Claude (which
+  keeps path-safety but moves Claude off exec form). This touches the hook wire
+  format, so ownership/liveness matching must extract the adapter path from the
+  guarded command (match by the distinctive `worklings-…-activity-hook` basename as a
+  path component), and the command-string tests + doc snippets update with it.
+  Alternatives: an out-of-bundle launcher shim that survives deletion, or accept the
+  limitation and only harden the docs. **Pending Nikhil's call on approach.**
 
 ---
 

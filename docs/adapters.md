@@ -134,12 +134,18 @@ menu show *"Reconnect … — adapter moved"*: the wiring is still recognized as
 that no longer exists, so one click repoints it at the app's new spot.
 
 If the app is **dragged to the Trash without disconnecting first**, its hooks stay
-in the tool configs pointing at a file that is gone. They are inert — the adapter
-is content-free and each tool tolerates a missing command (Claude logs a
-non-blocking error; Codex only ever exits 0) — but the tidy path is to run
-**Disconnect All Tools** first. To clean up afterwards, reinstall and use Disconnect
-All Tools, or remove the `worklings-…-activity-hook` entries from
-`~/.claude/settings.json` / `~/.codex/hooks.json` by hand.
+in the tool configs pointing at a file that is gone. This is **not** silent: the
+command no longer exists, so the tool that tries to run it reports an error each
+time the hook fires — Codex's shell command exits `127` ("No such file or
+directory"), and Claude Code logs a non-blocking launch failure. Neither bricks the
+tool, but the errors persist until the entries are removed, so the tidy path is to
+run **Disconnect All Tools** *before* removing the app. To clean up afterwards,
+reinstall and use Disconnect All Tools, or remove the `worklings-…-activity-hook`
+entries from `~/.claude/settings.json` / `~/.codex/hooks.json` by hand.
+
+> A future change could make a deleted-app hook degrade to a silent no-op by
+> guarding the written command (`[ -x <adapter> ] && … `); see
+> `audit_followups.md`. Until then, disconnect before uninstalling.
 
 ## Follow-ups
 
