@@ -4,9 +4,13 @@ import CompanionCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let roamingDefaultsKey = "idleRoamingEnabled"
-    /// Set once the user has acknowledged the one-time tool-connection consent
-    /// dialog, so it is shown on the first connect of any tool and never again.
-    private static let toolConsentAcknowledgedKey = "toolConnectionConsentAcknowledged"
+    /// Set once the user has acknowledged the tool-connection consent dialog for a
+    /// given tool, so it is shown on that tool's first connect and never again.
+    /// Remembered per tool: each tool edits a different file, so its "exact file
+    /// being changed" disclosure must be shown the first time you connect *it*.
+    private static func toolConsentAcknowledgedKey(_ toolKey: String) -> String {
+        "toolConnectionConsentAcknowledged.\(toolKey)"
+    }
 
     private var companionController: CompanionPanelController?
     private var petSession: PetSession?
@@ -768,7 +772,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc
     private func toggleClaudeCodeConnection() {
-        toggleConnection(claudeCodeConnector(), named: "Claude Code")
+        toggleConnection(claudeCodeConnector(), named: "Claude Code", consentKey: "claude-code")
     }
 
     @objc
@@ -778,6 +782,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggleConnection(
             codexConnector(),
             named: "Codex",
+            consentKey: "codex",
             postConnectNote: "Codex won’t run new hooks until you approve them. In Codex, run /hooks and trust the Worklings hooks to activate them."
         )
     }
@@ -787,7 +792,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// reason. The first connect of any tool shows a one-time informed-consent
     /// dialog the user can decline. `postConnectNote`, if given, is shown after a
     /// successful connect (e.g. a required approval step).
-    private func toggleConnection(_ connector: ToolConnector, named name: String, postConnectNote: String? = nil) {
+    private func toggleConnection(_ connector: ToolConnector, named name: String, consentKey: String, postConnectNote: String? = nil) {
         do {
             switch connector.connectionState() {
             case .live:
@@ -802,9 +807,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 alert.informativeText = "Worklings couldn’t read or parse:\n\(connector.configURL.path)\n\nSo it can’t tell whether its hooks are there. Fix or remove that file, then try again."
                 alert.runModal()
             case .notConnected, .stale:
-                // Informed consent before the first write of any tool; if the
-                // user declines, nothing is written.
-                guard confirmToolConnectionConsent(toolName: name, configPath: connector.configURL.path) else {
+                // Informed consent before this tool's first write; if the user
+                // declines, nothing is written.
+                guard confirmToolConnectionConsent(toolName: name, configPath: connector.configURL.path, consentKey: consentKey) else {
                     return
                 }
                 // A stale hook (adapter moved/deleted) is repaired the same way
@@ -879,12 +884,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateToolConnectionItems()
     }
 
-    /// Shows the one-time, informed-consent dialog before the first tool
-    /// connection of any kind, and records the acknowledgement so it never
-    /// appears again. Returns true if the connection may proceed (already
-    /// acknowledged, or the user chose Connect); false if the user cancelled.
-    private func confirmToolConnectionConsent(toolName: String, configPath: String) -> Bool {
-        if UserDefaults.standard.bool(forKey: Self.toolConsentAcknowledgedKey) {
+    /// Shows the informed-consent dialog before a tool's first connection and
+    /// records the acknowledgement so it never appears again *for that tool*.
+    /// Because each tool edits a different file, the disclosure is remembered per
+    /// tool — connecting Codex after Claude still shows Codex's file. Returns true
+    /// if the connection may proceed (already acknowledged, or the user chose
+    /// Connect); false if the user cancelled.
+    private func confirmToolConnectionConsent(toolName: String, configPath: String, consentKey: String) -> Bool {
+        let defaultsKey = Self.toolConsentAcknowledgedKey(consentKey)
+        if UserDefaults.standard.bool(forKey: defaultsKey) {
             return true
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -907,7 +915,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.addButton(withTitle: "Cancel")
         let proceed = alert.runModal() == .alertFirstButtonReturn
         if proceed {
-            UserDefaults.standard.set(true, forKey: Self.toolConsentAcknowledgedKey)
+            UserDefaults.standard.set(true, forKey: defaultsKey)
         }
         return proceed
     }

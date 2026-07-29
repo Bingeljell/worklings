@@ -93,12 +93,16 @@ the tools don't coordinate on).
 **Problem:** Clicking **Connect** immediately edited the external tool's config and
 silently enabled event acceptance. Explicit, but the user wasn't told what happens.
 
-**Done:** A one-time, global informed-consent dialog appears before the first tool
-connection of any kind (`toolConnectionConsentAcknowledged`), with **Connect** /
-**Cancel** — declining writes nothing. It states which file changes (full path,
-backed up, existing settings preserved), what Worklings receives (an activity kind
-+ source + time, never a prompt/diff/path/content), that everything stays local,
-and how to disconnect.
+**Done:** An informed-consent dialog appears before a tool's first connection, with
+**Connect** / **Cancel** — declining writes nothing. It states which file changes
+(full path, backed up, existing settings preserved), what Worklings receives (an
+activity kind + source + time, never a prompt/diff/path/content), that everything
+stays local, and how to disconnect.
+
+*Second-review refinement (2026-07-29):* the acknowledgement is remembered **per
+tool** (`toolConnectionConsentAcknowledged.<tool>`), not globally. Because each tool
+edits a different file, approving Claude no longer suppresses Codex's own
+"exact file being changed" disclosure — connecting Codex later still shows it once.
 
 The **"Accept Work Tool Events" toggle was dropped entirely** (it was testing
 scaffolding). Connecting a tool is now the opt-in — exactly how connecting a repo
