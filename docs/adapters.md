@@ -90,7 +90,7 @@ type = "command"
 command = "'ABS/scripts/adapters/worklings-codex-activity-hook' workEnded"
 ```
 
-`[hooks]` is TOML array-of-tables, so these **append** cleanly alongside anything already in your Codex config — including an existing `notify` program (e.g. a Computer Use client). Hooks and `notify` are independent systems, so there is no single-slot collision to work around. Codex treats a hook exit code of `2` as "block the turn," so `worklings-codex-activity-hook` always exits `0` and can never disrupt the agent.
+`[hooks]` is TOML array-of-tables, so these **append** cleanly alongside anything already in your Codex config — including an existing `notify` program (e.g. a Computer Use client). Hooks and `notify` are independent systems, so there is no single-slot collision to work around. Codex treats a hook exit code of `2` as "block the turn," so `worklings-codex-activity-hook` always exits `0` and can never disrupt the agent. It also prints `{}` on stdout: Codex's `Stop` hook expects JSON on a `0` exit (empty output is invalid there), and an empty JSON object is a valid, content-free success payload for every event.
 
 > The manual snippet above is the developer path. In a normal install, **Connect Codex** in the paw menu writes this wiring for you — pointing at the bundled adapter, backing up your existing config, and offering a clean disconnect — so you never edit a config file.
 
