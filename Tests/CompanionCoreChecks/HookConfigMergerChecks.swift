@@ -17,6 +17,7 @@ enum HookConfigMergerChecks {
         checkIgnoresSimilarlyNamedUserScript(context: &context)
         checkRecognizesRelocatedBundle(context: &context)
         checkDoesNotClaimForeignOrGenericName(context: &context)
+        checkOurHookExecutablePathsReportsOnlyOurs(context: &context)
         checkExecFormNeedsNoQuoting(context: &context)
         checkShellFormQuotesPath(context: &context)
         checkShellFormRoundTripsApostrophePath(context: &context)
@@ -273,6 +274,23 @@ enum HookConfigMergerChecks {
                 "disconnect leaves a foreign/generic-named hook (\(command)) untouched"
             )
         }
+    }
+
+    private static func checkOurHookExecutablePathsReportsOnlyOurs(context: inout CheckContext) {
+        // Powers the live-vs-stale distinction: report the executable path of
+        // every hook of ours, and nothing of anyone else's.
+        let out = connect(#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/user/other-hook"}]}]}}"#)
+        let paths = HookConfigMerger.ourHookExecutablePaths(configJSON: out, adapterPath: adapter)
+
+        context.expect(!paths.isEmpty, "our hook paths are reported after connecting")
+        context.expect(paths.allSatisfy { $0 == adapter }, "every reported path is our adapter, not the user's hook")
+        context.expectEqual(paths.count, 4, "one path per mapped Claude event (SessionStart/Stop/Notification/SessionEnd)")
+
+        let foreignOnly = Data(#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/user/other-hook"}]}]}}"#.utf8)
+        context.expect(
+            HookConfigMerger.ourHookExecutablePaths(configJSON: foreignOnly, adapterPath: adapter).isEmpty,
+            "a config with none of our hooks reports no paths"
+        )
     }
 
     private static func checkNotificationHookIsMatched(context: inout CheckContext) {

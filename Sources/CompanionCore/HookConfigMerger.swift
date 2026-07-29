@@ -210,19 +210,46 @@ public enum HookConfigMerger {
         return result
     }
 
-    private static func hookIsOurs(_ hook: [String: Any], adapterPath: String) -> Bool {
+    /// Every executable path our command hooks point at, across the whole
+    /// config. Empty when none are ours. Lets a caller tell "connected and
+    /// pointing at a live adapter" from "connected but the adapter path is dead"
+    /// (the app was moved or deleted) — ownership (the file name) and liveness
+    /// (does that path still exist) are deliberately separate questions.
+    public static func ourHookExecutablePaths(configJSON: Data, adapterPath: String) -> [String] {
+        guard let root = try? object(from: configJSON),
+              let hooks = root["hooks"] as? [String: Any] else {
+            return []
+        }
+        var paths: [String] = []
+        for value in hooks.values {
+            guard let entries = value as? [[String: Any]] else { continue }
+            for entry in entries {
+                guard let hookList = entry["hooks"] as? [[String: Any]] else { continue }
+                for hook in hookList where hookIsOurs(hook, adapterPath: adapterPath) {
+                    if let executable = executable(ofHook: hook) {
+                        paths.append(executable)
+                    }
+                }
+            }
+        }
+        return paths
+    }
+
+    /// The invoked executable of a command hook. Exec form: `command` is the
+    /// executable itself (args are separate). Shell form: the executable is the
+    /// first, possibly single-quoted, token of the command string.
+    private static func executable(ofHook hook: [String: Any]) -> String? {
         guard let command = hook["command"] as? String else {
-            return false
+            return nil
         }
-        // Exec form: `command` is the executable itself (args are separate).
-        // Shell form: the executable is the first, possibly single-quoted, token.
-        let executable: String?
         if hook["args"] != nil {
-            executable = command
-        } else {
-            executable = executablePath(ofCommand: command)
+            return command
         }
-        guard let executable else { return false }
+        return executablePath(ofCommand: command)
+    }
+
+    private static func hookIsOurs(_ hook: [String: Any], adapterPath: String) -> Bool {
+        guard let executable = executable(ofHook: hook) else { return false }
         // Match by exact file name of the invoked executable — so a moved or
         // reinstalled app bundle (whose absolute path changed) still recognizes
         // and cleans up its own hooks. The adapter names are Worklings-namespaced

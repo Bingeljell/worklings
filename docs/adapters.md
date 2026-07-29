@@ -120,6 +120,27 @@ scripts/adapters/worklings-claude-code-activity-hook taskCompleted </dev/null
 scripts/adapters/worklings-codex-activity-hook taskCompleted </dev/null
 ```
 
+## Disconnecting and removing Worklings
+
+The paw menu owns its wiring in both directions. Each **Connect** item toggles: a
+connected tool shows a checkmark and clicking it disconnects. **Disconnect All
+Tools** removes every Worklings hook from both Claude Code and Codex in one step
+(each config is backed up first) — use it before you move or delete the app so no
+stale hooks are left behind.
+
+Because a hook command points inside `Worklings.app`, **moving** the app makes the
+menu show *"Reconnect … — adapter moved"*: the wiring is still recognized as ours
+(ownership is the adapter file name, not its path), but it points at a location
+that no longer exists, so one click repoints it at the app's new spot.
+
+If the app is **dragged to the Trash without disconnecting first**, its hooks stay
+in the tool configs pointing at a file that is gone. They are inert — the adapter
+is content-free and each tool tolerates a missing command (Claude logs a
+non-blocking error; Codex only ever exits 0) — but the tidy path is to run
+**Disconnect All Tools** first. To clean up afterwards, reinstall and use Disconnect
+All Tools, or remove the `worklings-…-activity-hook` entries from
+`~/.claude/settings.json` / `~/.codex/hooks.json` by hand.
+
 ## Follow-ups
 
 - **In-app connector — shipped.** The app now **bundles these adapters inside its own app bundle** (`Contents/Resources/adapters/`) and **writes the tool configs itself** from an explicit in-app action ("Connect Claude Code", "Connect Codex") — backing up the existing file, merging without clobbering the user's other keys or hooks, and offering a clean disconnect that removes only its own hooks. This retired both the copy-paste fragility and the "a DMG user has no repo checkout" problem, and it fits the reframed [privacy principle](architecture.md#privacy-and-permissions): a config-writing convenience is fine when it is explicit, disclosed, backed up, and reversible. The manual snippets above remain for hand-wiring a repo checkout.

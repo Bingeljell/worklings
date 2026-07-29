@@ -44,11 +44,33 @@ public struct ToolConnector {
         self.style = style
     }
 
+    /// Whether this tool carries our hooks at all, live or stale.
+    public enum ConnectionState: Equatable {
+        /// No hooks of ours are present.
+        case notConnected
+        /// Our hooks are present and point at an adapter that exists and is
+        /// executable — the normal connected state.
+        case live
+        /// Our hooks are present but the adapter they point at is gone (the app
+        /// was moved or deleted). The wiring is "ours" but no longer runnable;
+        /// re-connecting repoints it at the current adapter.
+        case stale
+    }
+
     public func isConnected() -> Bool {
-        // Best-effort query: an unreadable config (throws) or a missing one (nil)
-        // both count as "not connected" — we cannot confirm our hooks are there.
-        guard let data = (try? readExistingConfig()) ?? nil else { return false }
-        return HookConfigMerger.isConnected(configJSON: data, adapterPath: adapterPath)
+        connectionState() != .notConnected
+    }
+
+    /// Distinguishes *"is this hook ours?"* (ownership, by the adapter file name,
+    /// which survives an app relocation) from *"does it point at the currently
+    /// installed adapter?"* (liveness). A best-effort query: an unreadable or
+    /// missing config counts as `.notConnected`.
+    public func connectionState() -> ConnectionState {
+        guard let data = (try? readExistingConfig()) ?? nil else { return .notConnected }
+        let paths = HookConfigMerger.ourHookExecutablePaths(configJSON: data, adapterPath: adapterPath)
+        guard !paths.isEmpty else { return .notConnected }
+        let anyLive = paths.contains { FileManager.default.isExecutableFile(atPath: $0) }
+        return anyLive ? .live : .stale
     }
 
     /// Merges our hooks in. Returns the backup URL if one was made. Throws

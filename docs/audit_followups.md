@@ -31,33 +31,28 @@ identity for ownership stays the adapter file name (see item 2), not a label.
 
 ---
 
-## 2. [P1] Moving or deleting Worklings leaves broken hooks behind
+## 2. [P1] Moving or deleting Worklings leaves broken hooks behind — DONE (2026-07-29)
 
-**Problem:** Our hook command points *inside* `Worklings.app`. If the user moves
-the app or drags it to the Trash, Codex and Claude keep a command pointing at a
-file that no longer exists. Worse, Worklings still reports that hook as
-**connected** purely from its file name, even when the saved path is dead. This
-contradicts the clean-uninstall / no-impact promise.
+**Problem:** Our hook command points *inside* `Worklings.app`. Moving or trashing
+the app left Codex and Claude with a command pointing at a missing file, and
+Worklings still reported that hook as **connected** purely from its file name.
 
-**Direction:**
-- **Separate two distinct questions** that are currently conflated in
-  `HookConfigMerger.hookIsOurs`:
-  1. *"Is this hook ours?"* — ownership, matched by the Worklings-namespaced file
-     name (this is what must survive an app **relocation**, so we can still find
-     and clean up our own hooks).
-  2. *"Does this hook point at the currently installed adapter?"* — liveness,
-     i.e. does the command's path actually exist and is it executable.
-  `isConnected` today answers (1) and calls it "connected"; it should distinguish
-  "ours but dead" from "ours and live," and the UI should reflect that.
-- **Design an explicit uninstall / disconnect-all experience.** A user removing
-  Worklings should have a clear way to remove every hook Worklings ever wrote,
-  across both tools, before/independently of deleting the app.
-- **Drag-to-Trash needs a deliberate harmless-stale-hook strategy.** We can't run
-  code when the app is trashed, so a leftover hook must be *inert* by
-  construction: the adapter is content-free and the tools tolerate a missing
-  command (Claude logs, Codex is exit-0-only) — verify a missing adapter path
-  actually degrades harmlessly in both tools, and document it. Consider whether
-  the emitter/adapter should no-op cleanly (never non-zero) when the app is gone.
+**Done:**
+- **Ownership and liveness are now separate.** `HookConfigMerger.ourHookExecutablePaths`
+  reports the path of every hook of ours; `ToolConnector.connectionState()` returns
+  `.notConnected` / `.live` / `.stale` — *ours and the path resolves* vs *ours but
+  the adapter is gone*. The paw menu shows a live connection with a checkmark and a
+  stale one as **"Reconnect … — adapter moved"**, so one click repoints it at the
+  current adapter (ownership still matched by the namespaced file name, so a moved
+  bundle is still recognized).
+- **Explicit disconnect-all.** A **Disconnect All Tools** paw-menu item removes every
+  Worklings hook from both tools in one step (each config backed up first), incl.
+  stale entries. The clean pre-uninstall path. Documented in `adapters.md`.
+- **Drag-to-Trash:** the residual case (app fully deleted, so no code can run to
+  self-heal) is documented in `adapters.md`: leftover hooks are inert (content-free
+  adapter; Claude logs a non-blocking error, Codex only exits 0), and the tidy path
+  is Disconnect All Tools first, or manual removal / reinstall-and-disconnect after.
+  *Not auto-solvable* without a separate installer/uninstaller — left as documented.
 
 ---
 

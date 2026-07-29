@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var connectedReposMenu: NSMenu?
     private var connectClaudeCodeMenuItem: NSMenuItem?
     private var connectCodexMenuItem: NSMenuItem?
+    private var disconnectAllToolsMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
     private var classMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
@@ -219,6 +220,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         connectCodexItem.toolTip = "Wire Codex's [hooks] to Worklings via a dedicated ~/.codex/hooks.json — your config.toml is never touched. Disconnecting removes only Worklings' entries."
         menu.addItem(connectCodexItem)
         connectCodexMenuItem = connectCodexItem
+
+        let disconnectAllItem = NSMenuItem(
+            title: "Disconnect All Tools",
+            action: #selector(disconnectAllTools),
+            keyEquivalent: ""
+        )
+        disconnectAllItem.target = self
+        disconnectAllItem.toolTip = "Remove every Worklings hook from Claude Code and Codex in one step (each config is backed up first). Use this before moving or deleting Worklings so no stale hooks are left behind."
+        menu.addItem(disconnectAllItem)
+        disconnectAllToolsMenuItem = disconnectAllItem
 
         let visibilityItem = NSMenuItem(
             title: "Tuck Away Companion",
@@ -754,8 +765,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateToolConnectionItems() {
-        connectClaudeCodeMenuItem?.state = claudeCodeConnector().isConnected() ? .on : .off
-        connectCodexMenuItem?.state = codexConnector().isConnected() ? .on : .off
+        updateToolItem(connectClaudeCodeMenuItem, connector: claudeCodeConnector(), named: "Claude Code")
+        updateToolItem(connectCodexMenuItem, connector: codexConnector(), named: "Codex")
+        // "Disconnect All Tools" stays always-clickable; when nothing is wired it
+        // reports "Nothing to disconnect" rather than being greyed out.
+    }
+
+    /// Reflects a tool's connection state in its menu item and returns it. A
+    /// live connection shows a checkmark; a stale one (the adapter the hook
+    /// points at is gone — the app was moved or deleted) is surfaced as an
+    /// explicit "Reconnect … — adapter moved" so a single click repoints it.
+    @discardableResult
+    private func updateToolItem(_ item: NSMenuItem?, connector: ToolConnector, named name: String) -> ToolConnector.ConnectionState {
+        let state = connector.connectionState()
+        switch state {
+        case .notConnected:
+            item?.title = "Connect \(name)"
+            item?.state = .off
+        case .live:
+            item?.title = "Connect \(name)"
+            item?.state = .on
+        case .stale:
+            item?.title = "Reconnect \(name) — adapter moved"
+            item?.state = .off
+        }
+        return state
     }
 
     @objc
@@ -781,9 +815,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// shown after a successful connect (e.g. a required approval step).
     private func toggleConnection(_ connector: ToolConnector, named name: String, postConnectNote: String? = nil) {
         do {
-            if connector.isConnected() {
+            switch connector.connectionState() {
+            case .live:
                 _ = try connector.disconnect()
-            } else {
+            case .notConnected, .stale:
+                // A stale hook (adapter moved/deleted) is repaired the same way
+                // it is first written: connect() strips our old entries and
+                // writes fresh ones pointing at the current adapter.
                 _ = try connector.connect()
                 ensureActivityInboxEnabled()
                 if let postConnectNote {
@@ -801,6 +839,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             alert.informativeText = "Worklings left your config file untouched.\n\n\(error)"
             alert.runModal()
         }
+    }
+
+    /// Removes every Worklings hook from both tools in one step — the clean
+    /// pre-uninstall path. Each tool's config is backed up first, and a stale
+    /// entry (from a moved/old adapter) is removed too, since disconnect matches
+    /// our hooks by file name regardless of whether the path still resolves.
+    @objc
+    private func disconnectAllTools() {
+        let tools: [(name: String, connector: ToolConnector)] = [
+            ("Claude Code", claudeCodeConnector()),
+            ("Codex", codexConnector())
+        ]
+
+        var removed: [String] = []
+        var failures: [String] = []
+        for tool in tools where tool.connector.connectionState() != .notConnected {
+            do {
+                _ = try tool.connector.disconnect()
+                removed.append(tool.name)
+            } catch {
+                failures.append("\(tool.name): \(error)")
+            }
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        if !failures.isEmpty {
+            alert.messageText = "Some tools couldn’t be updated"
+            alert.informativeText = (removed.isEmpty
+                ? "Worklings left the config files untouched.\n\n"
+                : "Disconnected \(removed.joined(separator: " and ")). The rest were left untouched:\n\n")
+                + failures.joined(separator: "\n")
+        } else if removed.isEmpty {
+            alert.messageText = "Nothing to disconnect"
+            alert.informativeText = "No Worklings hooks were found in Claude Code or Codex."
+        } else {
+            alert.messageText = "Disconnected \(removed.joined(separator: " and "))"
+            alert.informativeText = "Worklings' hooks were removed. Each config was backed up first."
+        }
+        alert.runModal()
+        updateToolConnectionItems()
     }
 
     private func ensureActivityInboxEnabled() {
