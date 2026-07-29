@@ -15,6 +15,7 @@ enum PetPersistenceChecks {
 
         checkMissingFile(store: store, context: &context)
         checkRoundTrip(store: store, context: &context)
+        checkDailyEventCountRoundTrips(store: store, context: &context)
         checkDecodedNeedClamping(store: store, context: &context)
         checkLegacyDailyFieldsMigrate(store: store, context: &context)
         checkUnsupportedSchema(store: store, context: &context)
@@ -68,8 +69,45 @@ enum PetPersistenceChecks {
                 ["focusSession": 40],
                 "the legacy daily XP ledger migrates into the dailyXP tally"
             )
+            context.expectEqual(
+                state.dailyEventCount.current(on: onDay, default: [:]),
+                [:],
+                "a save predating the per-source count decodes with an empty count"
+            )
         } catch {
             context.expect(false, "legacy save should migrate safely: \(error)")
+        }
+    }
+
+    /// The per-source daily count (which drives diminishing returns) is a
+    /// stored field like dailyXP, so it must survive a save/load round trip.
+    private static func checkDailyEventCountRoundTrips(
+        store: PetStateFileStore,
+        context: inout CheckContext
+    ) {
+        let day = Date(timeIntervalSinceReferenceDate: 12_000)
+        let state = PetState(
+            name: "Pixel",
+            needs: PetNeeds(hunger: 10, energy: 80, happiness: 70, trust: 50),
+            preferences: PetPreferences(
+                favouriteFood: .berries,
+                favouritePlayActivity: .puzzle
+            ),
+            lastUpdatedAt: day,
+            dailyEventCount: DailyTally(date: day, value: ["milestone": 2])
+        )
+
+        do {
+            try store.save(state)
+            let loaded = try store.load()
+            context.expectEqual(loaded, state, "a state with a per-source count round trips intact")
+            context.expectEqual(
+                loaded?.dailyEventCount.current(on: day, default: [:]),
+                ["milestone": 2],
+                "the milestone count survives the round trip"
+            )
+        } catch {
+            context.expect(false, "per-source count round trip should succeed: \(error)")
         }
     }
 

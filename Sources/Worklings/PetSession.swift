@@ -16,6 +16,11 @@ final class PetSession: ObservableObject {
     private let persistenceEnabled: Bool
     private var tickTask: Task<Void, Never>?
     private var reactionTask: Task<Void, Never>?
+    /// When the pet last showed an activity-driven reaction, so a burst of
+    /// events emotes once rather than stuttering. Care actions the user takes
+    /// are deliberately exempt (see `perform`) — a tapped button should always
+    /// react.
+    private var lastActivityEmoteAt: Date?
 
     init(now: Date = Date(), rates: PetSimulationRates = PetSimulationRates()) {
         brain = PetBrain(rates: rates)
@@ -102,7 +107,12 @@ final class PetSession: ObservableObject {
             persist()
         }
 
-        if let eventReaction = response.reaction {
+        // XP and needs already applied above; the reaction is throttled
+        // separately so a burst of events (a batch of commits, turn-after-turn
+        // agent completions) emotes once instead of robotically.
+        if let eventReaction = response.reaction,
+           EmoteThrottle.shouldEmote(lastEmoteAt: lastActivityEmoteAt, now: now) {
+            lastActivityEmoteAt = now
             reaction = eventReaction
             scheduleReactionClear(eventReaction)
         }

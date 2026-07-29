@@ -124,6 +124,11 @@ public struct PetState: Codable, Equatable, Sendable {
     /// XP granted on its stored day, keyed by `XPSource.rawValue`. Same
     /// day-scoped semantics as `workLog`.
     public let dailyXP: DailyTally<[String: Double]>
+    /// How many grants each source made on its stored day, keyed by
+    /// `XPSource.rawValue`. Drives per-source diminishing returns (the Nth
+    /// milestone commit is worth less than the first). Same day-scoped
+    /// semantics as `dailyXP`; the two are updated together.
+    public let dailyEventCount: DailyTally<[String: Int]>
 
     public init(
         schemaVersion: Int = PetState.currentSchemaVersion,
@@ -137,7 +142,8 @@ public struct PetState: Codable, Equatable, Sendable {
         totalXP: Double = 0,
         petClass: PetClass = .wellspring,
         stats: PetStats = PetStats(),
-        dailyXP: DailyTally<[String: Double]> = DailyTally(value: [:])
+        dailyXP: DailyTally<[String: Double]> = DailyTally(value: [:]),
+        dailyEventCount: DailyTally<[String: Int]> = DailyTally(value: [:])
     ) {
         self.schemaVersion = schemaVersion
         self.name = name
@@ -151,11 +157,13 @@ public struct PetState: Codable, Equatable, Sendable {
         self.petClass = petClass
         self.stats = stats
         self.dailyXP = dailyXP
+        self.dailyEventCount = dailyEventCount
     }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, name, family, needs, preferences, lastUpdatedAt
         case lastWorkLogAt, workLog, totalXP, petClass, stats, dailyXP
+        case dailyEventCount
     }
 
     /// The pre-v2 flat daily fields, read only to fold a v1 save into the
@@ -182,6 +190,13 @@ public struct PetState: Codable, Equatable, Sendable {
                 date: try legacy.decodeIfPresent(Date.self, forKey: .dailyXPDate),
                 value: try legacy.decodeIfPresent([String: Double].self, forKey: .dailyXPBySource) ?? [:]
             )
+        // Introduced after dailyXP; a save without it simply starts the day's
+        // per-source counts empty, so no diminishing-returns history carries
+        // over a version bump. No legacy flat-field equivalent to fold.
+        let dailyEventCount = try container.decodeIfPresent(
+            DailyTally<[String: Int]>.self,
+            forKey: .dailyEventCount
+        ) ?? DailyTally(value: [:])
 
         self.init(
             schemaVersion: try container.decode(Int.self, forKey: .schemaVersion),
@@ -195,7 +210,8 @@ public struct PetState: Codable, Equatable, Sendable {
             totalXP: try container.decodeIfPresent(Double.self, forKey: .totalXP) ?? 0,
             petClass: try container.decodeIfPresent(PetClass.self, forKey: .petClass) ?? .wellspring,
             stats: try container.decodeIfPresent(PetStats.self, forKey: .stats) ?? PetStats(),
-            dailyXP: dailyXP
+            dailyXP: dailyXP,
+            dailyEventCount: dailyEventCount
         )
     }
 
@@ -243,7 +259,8 @@ public struct PetState: Codable, Equatable, Sendable {
             totalXP: totalXP,
             petClass: petClass ?? self.petClass,
             stats: stats,
-            dailyXP: dailyXP
+            dailyXP: dailyXP,
+            dailyEventCount: dailyEventCount
         )
     }
 

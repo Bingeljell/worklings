@@ -2,7 +2,7 @@
 
 ## Status
 
-The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, direct-download packaging toolchain, the normalized activity-event pipeline with a debug simulated source, and the opt-in activity inbox external adapters write into are implemented. Intent-driven movement and the first real adapter (Codex) remain planned.
+The macOS host, persistent Pet Brain, three-family runtime selection, care UI, safe opt-in idle roaming, legacy-save transition, behavioral checks, direct-download packaging toolchain, the normalized activity-event pipeline with a debug simulated source, and the opt-in activity inbox external adapters write into are implemented. Intent-driven movement remains planned; the first real activity sources have since shipped — the Claude Code and Codex hook adapters with an in-app connector that wires them, and the in-app local-git commit watcher.
 
 ## Implemented system
 
@@ -22,7 +22,7 @@ The simulation works without an activity source. UI surfaces call the same sessi
 Activity source -> normalized event -> activity context -> Pet Brain intent -> presentation
 ```
 
-The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is the first source, and the [activity inbox](#the-activity-inbox) is the doorway external adapters use; the adapters themselves remain planned.
+The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is one source, and the [activity inbox](#the-activity-inbox) is the doorway external adapters use; the Claude Code and Codex hook adapters, the in-app connector that wires them, and the in-app local-git commit watcher are implemented.
 
 Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract. The event vocabulary, sources, and the progression systems built on top of it are defined in the [progression design](progression.md).
 
@@ -111,11 +111,13 @@ The boundary is deliberately a file drop rather than a socket or local server: a
 
 Validation lives in `CompanionCore.ActivityInbox` as pure, checked functions: unknown or app-owned kinds (`dailyWake`, presence, `workLogged`) are rejected, reserved source ids (`system`, `manual`, `simulated`) cannot be impersonated, malformed or oversize payloads are discarded, and timestamps older than the activity-context expiry window are dropped so a backlog written while the app was closed never replays onto the pet. `ActivityInboxMonitor` in the app target watches the directory, feeds valid events into the same `PetSession.receive` path every internal source uses, and deletes each file it inspects. The contract has no fields for content, so the privacy boundary is structural: an adapter physically cannot hand the pet prompts, code, or file paths.
 
-The inbox is off by default and toggled by the "Accept Work Tool Events" menu item, independent of every other control. The first Codex adapter should use documented lifecycle signals rather than UI scraping or unstable transcript parsing, and emit into this inbox under its own source id.
+The inbox is off by default and toggled by the "Accept Work Tool Events" menu item, independent of every other control. Adapters use documented lifecycle signals rather than UI scraping or unstable transcript parsing, and emit into this inbox under their own source id. The first two — Claude Code (settings.json hooks) and Codex (`[hooks]`) — ship in `scripts/adapters/`, and an in-app connector writes their configs so a user need not edit them by hand; a local-git source additionally watches connected repositories in-app. See [Activity adapters](adapters.md).
 
 ## Privacy and permissions
 
 The current application processes state locally and requests no screen-recording, keystroke, or Accessibility permission. Future integrations must declare what they observe, why it is needed, and whether anything is retained. Sensitive capabilities must be independently opt-in.
+
+Privacy and safety here are values we weigh, not absolutes we refuse to trade against. There is no such thing as full privacy *and* full capability — every worthwhile feature sits somewhere on that curve. The bar is not "never touch anything sensitive"; it is that each trade-off is **evaluated deliberately, disclosed plainly, made opt-in, and kept reversible** — so a capability is worth its cost and the user is never surprised. A future convenience that edits a user's config on their behalf is not ruled out by principle; it must simply earn its place by that test (explicit action, backup, clean undo) rather than being silent.
 
 Activity is behavioral context, not a productivity score. A Workling's survival must not depend directly on how much the user works.
 
@@ -145,7 +147,7 @@ The first Worklings-branded public artifact is the `v0.1.0-alpha.2` GitHub prere
 | Safe idle roaming within one display | Complete |
 | Provider-neutral event pipeline with a simulated source | Complete |
 | Activity inbox boundary for external adapters | Complete |
-| Codex adapter | Planned |
+| Claude Code and Codex adapters, in-app connector, local-git source | Complete |
 | Wildkin, Elemental, and Relicborn runtime selection | Complete |
 | Adoption and initial creature setup | Planned |
 | Developer ID signing and notarization | Deferred |

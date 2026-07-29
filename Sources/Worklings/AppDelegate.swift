@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
     private var activityInboxMonitor: ActivityInboxMonitor?
+    private var gitCommitWatcher: GitCommitWatcher?
     private var statusItem: NSStatusItem?
     private var visibilityMenuItem: NSMenuItem?
     private var petHeaderMenuItem: NSMenuItem?
@@ -23,6 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var logWorkMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
     private var activityInboxMenuItem: NSMenuItem?
+    private var connectedReposMenuItem: NSMenuItem?
+    private var connectedReposMenu: NSMenu?
+    private var connectClaudeCodeMenuItem: NSMenuItem?
+    private var connectCodexMenuItem: NSMenuItem?
     private var familyMenuItems: [NSMenuItem] = []
     private var classMenuItems: [NSMenuItem] = []
     private var foodMenuItems: [NSMenuItem] = []
@@ -60,11 +65,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.presenceMonitor = presenceMonitor
         presenceMonitor.start()
 
-        let activityInboxMonitor = ActivityInboxMonitor(session: petSession)
+        // Always watch the inbox so files never accumulate; delivery is gated
+        // by the toggle. While disabled, the monitor drains and discards.
+        let activityInboxMonitor = ActivityInboxMonitor(
+            session: petSession,
+            isEnabled: UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
+        )
         self.activityInboxMonitor = activityInboxMonitor
-        if UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) {
-            activityInboxMonitor.start()
-        }
+        activityInboxMonitor.start()
+
+        // Connecting a repository is itself the opt-in, so the git watcher runs
+        // whenever there are connected repos — no separate global toggle.
+        let gitCommitWatcher = GitCommitWatcher(session: petSession)
+        self.gitCommitWatcher = gitCommitWatcher
+        gitCommitWatcher.start()
 
         configureStatusItem()
         companionController.setRoamingEnabled(
@@ -178,6 +192,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(activityInboxItem)
         activityInboxMenuItem = activityInboxItem
 
+        let connectedReposItem = NSMenuItem(title: "Connected Repos", action: nil, keyEquivalent: "")
+        let connectedReposSubmenu = NSMenu()
+        connectedReposItem.submenu = connectedReposSubmenu
+        connectedReposItem.toolTip = "Watch git repositories you choose; each commit cheers your Workling on. Only commit identifiers are read — never messages, diffs, or file paths."
+        menu.addItem(connectedReposItem)
+        connectedReposMenuItem = connectedReposItem
+        connectedReposMenu = connectedReposSubmenu
+
+        let connectClaudeItem = NSMenuItem(
+            title: "Connect Claude Code",
+            action: #selector(toggleClaudeCodeConnection),
+            keyEquivalent: ""
+        )
+        connectClaudeItem.target = self
+        connectClaudeItem.toolTip = "Wire Claude Code's lifecycle hooks to Worklings by editing ~/.claude/settings.json. Your existing settings and hooks are preserved and backed up first; disconnecting removes only Worklings' entries."
+        menu.addItem(connectClaudeItem)
+        connectClaudeCodeMenuItem = connectClaudeItem
+
+        let connectCodexItem = NSMenuItem(
+            title: "Connect Codex",
+            action: #selector(toggleCodexConnection),
+            keyEquivalent: ""
+        )
+        connectCodexItem.target = self
+        connectCodexItem.toolTip = "Wire Codex's [hooks] to Worklings via a dedicated ~/.codex/hooks.json — your config.toml is never touched. Disconnecting removes only Worklings' entries."
+        menu.addItem(connectCodexItem)
+        connectCodexMenuItem = connectCodexItem
+
         let visibilityItem = NSMenuItem(
             title: "Tuck Away Companion",
             action: #selector(toggleCompanionVisibility),
@@ -241,6 +283,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         updateRoamingMenuItem()
         updateActivityInboxMenuItem()
+        updateConnectedReposMenu()
+        updateToolConnectionItems()
 
         syncCheckmarks(familyMenuItems, selectedRawValue: state.family.rawValue)
         syncCheckmarks(classMenuItems, selectedRawValue: state.petClass.rawValue)
@@ -599,17 +643,175 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let shouldEnable = !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
         UserDefaults.standard.set(shouldEnable, forKey: Self.activityInboxDefaultsKey)
 
-        if shouldEnable {
-            activityInboxMonitor.start()
-        } else {
-            activityInboxMonitor.stop()
-        }
+        activityInboxMonitor.setEnabled(shouldEnable)
         updateActivityInboxMenuItem()
     }
 
     private func updateActivityInboxMenuItem() {
         let isEnabled = UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey)
         activityInboxMenuItem?.state = isEnabled ? .on : .off
+    }
+
+    /// Rebuilds the connected-repos submenu from the registry each time the menu
+    /// opens: a "Connect a Repo…" item, then one disconnect item per repo.
+    private func updateConnectedReposMenu() {
+        guard let submenu = connectedReposMenu else {
+            return
+        }
+        submenu.removeAllItems()
+
+        let connectItem = NSMenuItem(
+            title: "Connect a Repo…",
+            action: #selector(connectGitRepo),
+            keyEquivalent: ""
+        )
+        connectItem.target = self
+        submenu.addItem(connectItem)
+
+        let paths = gitCommitWatcher?.connectedRepoPaths() ?? []
+        if !paths.isEmpty {
+            submenu.addItem(.separator())
+            for path in paths {
+                let name = URL(fileURLWithPath: path).lastPathComponent
+                let item = NSMenuItem(
+                    title: "Disconnect \(name)",
+                    action: #selector(disconnectGitRepo(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = path
+                item.toolTip = path
+                submenu.addItem(item)
+            }
+        }
+
+        connectedReposMenuItem?.title = paths.isEmpty
+            ? "Connected Repos"
+            : "Connected Repos (\(paths.count))"
+    }
+
+    @objc
+    private func connectGitRepo() {
+        guard let gitCommitWatcher else {
+            return
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Connect"
+        panel.message = "Choose a git repository to watch. Each commit will cheer on your Workling."
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        // Resolve/connect off-main so a slow repo never freezes the click; the
+        // result comes back on the main actor for the alert.
+        Task { [weak self] in
+            let connected = await gitCommitWatcher.connect(path: url.path)
+            guard !connected, self != nil else {
+                return
+            }
+            let alert = NSAlert()
+            alert.messageText = "Not a git repository"
+            alert.informativeText = "“\(url.lastPathComponent)” doesn’t look like a git repository. Choose the folder that contains its .git directory."
+            alert.runModal()
+        }
+    }
+
+    @objc
+    private func disconnectGitRepo(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else {
+            return
+        }
+        gitCommitWatcher?.disconnect(path: path)
+    }
+
+    private func claudeCodeConnector() -> ToolConnector {
+        ToolConnector(
+            configURL: FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".claude/settings.json"),
+            adapterPath: AdapterLocator.path(for: "worklings-claude-code-activity-hook"),
+            mappings: HookConfigMerger.claudeCodeMappings,
+            // Exec form: no shell, so a path with a space or metacharacter is
+            // passed to the executable verbatim.
+            style: .execForm
+        )
+    }
+
+    private func codexConnector() -> ToolConnector {
+        ToolConnector(
+            configURL: FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".codex/hooks.json"),
+            adapterPath: AdapterLocator.path(for: "worklings-codex-activity-hook"),
+            mappings: HookConfigMerger.codexMappings,
+            // Codex documents only the shell form, so the path is single-quoted.
+            style: .shellForm
+        )
+    }
+
+    private func updateToolConnectionItems() {
+        connectClaudeCodeMenuItem?.state = claudeCodeConnector().isConnected() ? .on : .off
+        connectCodexMenuItem?.state = codexConnector().isConnected() ? .on : .off
+    }
+
+    @objc
+    private func toggleClaudeCodeConnection() {
+        toggleConnection(claudeCodeConnector(), named: "Claude Code")
+    }
+
+    @objc
+    private func toggleCodexConnection() {
+        // Codex will not run newly added hooks until they are reviewed and
+        // trusted, so writing the file is not the whole story — tell the user.
+        toggleConnection(
+            codexConnector(),
+            named: "Codex",
+            postConnectNote: "Codex won’t run new hooks until you approve them. In Codex, run /hooks and trust the Worklings hooks to activate them."
+        )
+    }
+
+    /// Connects or disconnects a tool by writing its config. On failure the
+    /// connector has already left the file untouched, so we only surface the
+    /// reason. Connecting also enables the inbox, since a wired tool whose
+    /// events are dropped would look broken. `postConnectNote`, if given, is
+    /// shown after a successful connect (e.g. a required approval step).
+    private func toggleConnection(_ connector: ToolConnector, named name: String, postConnectNote: String? = nil) {
+        do {
+            if connector.isConnected() {
+                _ = try connector.disconnect()
+            } else {
+                _ = try connector.connect()
+                ensureActivityInboxEnabled()
+                if let postConnectNote {
+                    NSApp.activate(ignoringOtherApps: true)
+                    let alert = NSAlert()
+                    alert.messageText = "Connected \(name)"
+                    alert.informativeText = postConnectNote
+                    alert.runModal()
+                }
+            }
+        } catch {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Couldn’t update \(name)"
+            alert.informativeText = "Worklings left your config file untouched.\n\n\(error)"
+            alert.runModal()
+        }
+    }
+
+    private func ensureActivityInboxEnabled() {
+        guard let activityInboxMonitor else {
+            return
+        }
+        guard !UserDefaults.standard.bool(forKey: Self.activityInboxDefaultsKey) else {
+            return
+        }
+        UserDefaults.standard.set(true, forKey: Self.activityInboxDefaultsKey)
+        activityInboxMonitor.setEnabled(true)
     }
 
     @objc

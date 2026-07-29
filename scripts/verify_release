@@ -136,6 +136,25 @@ for sprite_name in \
   fi
 done
 
+# The in-app connector wires Claude Code / Codex to these bundled scripts, and
+# each must be present *and* executable or a DMG install cannot connect a tool
+# (the connector refuses a non-executable adapter). Mirror build_app_bundle's
+# layout: Resources/adapters/<adapter> and Resources/emit-activity-event.
+for bundled_script in \
+  adapters/worklings-claude-code-activity-hook \
+  adapters/worklings-codex-activity-hook \
+  emit-activity-event; do
+  script_path="$mounted_app/Contents/Resources/$bundled_script"
+  if [ ! -f "$script_path" ]; then
+    printf 'Error: mounted app is missing bundled script: %s\n' "$bundled_script" >&2
+    exit 1
+  fi
+  if [ ! -x "$script_path" ]; then
+    printf 'Error: bundled script is not executable: %s\n' "$bundled_script" >&2
+    exit 1
+  fi
+done
+
 if [ ! -L "$applications_link" ] || [ "$(readlink "$applications_link")" != '/Applications' ]; then
   printf 'Error: mounted DMG does not contain the expected Applications shortcut\n' >&2
   exit 1
