@@ -734,7 +734,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ToolConnector(
             configURL: FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".claude/settings.json"),
-            adapterPath: AdapterLocator.path(for: "claude-code-hook"),
+            adapterPath: AdapterLocator.path(for: "worklings-claude-code-activity-hook"),
             mappings: HookConfigMerger.claudeCodeMappings,
             // Exec form: no shell, so a path with a space or metacharacter is
             // passed to the executable verbatim.
@@ -746,7 +746,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ToolConnector(
             configURL: FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".codex/hooks.json"),
-            adapterPath: AdapterLocator.path(for: "codex-hook"),
+            adapterPath: AdapterLocator.path(for: "worklings-codex-activity-hook"),
             mappings: HookConfigMerger.codexMappings,
             // Codex documents only the shell form, so the path is single-quoted.
             style: .shellForm

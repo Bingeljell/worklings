@@ -15,12 +15,15 @@ enum HookConfigMergerChecks {
         checkRefusesWrongShapedEvent(context: &context)
         checkPreservesSiblingHookInSharedEntry(context: &context)
         checkIgnoresSimilarlyNamedUserScript(context: &context)
+        checkRecognizesRelocatedBundle(context: &context)
+        checkDoesNotClaimForeignOrGenericName(context: &context)
         checkExecFormNeedsNoQuoting(context: &context)
         checkShellFormQuotesPath(context: &context)
+        checkShellFormRoundTripsApostrophePath(context: &context)
         checkNotificationHookIsMatched(context: &context)
     }
 
-    private static let adapter = "/Applications/Worklings.app/Contents/Resources/adapters/claude-code-hook"
+    private static let adapter = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
     private static let rtk = "/Users/x/.claude/hooks/rtk-rewrite.sh"
 
     private static func hooks(_ data: Data) -> [String: Any] {
@@ -101,7 +104,7 @@ enum HookConfigMergerChecks {
             style: .execForm
         )) ?? Data()
 
-        let ours = commands(twice, event: "Stop").filter { $0.contains("claude-code-hook") }
+        let ours = commands(twice, event: "Stop").filter { $0.contains("worklings-claude-code-activity-hook") }
         context.expectEqual(ours.count, 1, "connecting twice never duplicates our entries")
     }
 
@@ -173,7 +176,7 @@ enum HookConfigMergerChecks {
         let stop = commands(disconnected, event: "Stop")
 
         context.expect(stop.contains("/user/sibling"), "a sibling hook sharing our entry survives disconnect")
-        context.expect(!stop.contains(where: { $0.contains("claude-code-hook") }), "our hook is removed from the shared entry")
+        context.expect(!stop.contains(where: { $0.contains("worklings-claude-code-activity-hook") }), "our hook is removed from the shared entry")
         context.expect(
             !HookConfigMerger.isConnected(configJSON: disconnected, adapterPath: adapter),
             "nothing of ours remains after disconnect"
@@ -182,16 +185,94 @@ enum HookConfigMergerChecks {
 
     private static func checkIgnoresSimilarlyNamedUserScript(context: inout CheckContext) {
         // A user script whose name merely contains ours as a substring.
-        let input = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/usr/local/bin/my-claude-code-hook-wrapper x"}]}]}}"#
+        let input = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/usr/local/bin/my-worklings-claude-code-activity-hook-wrapper x"}]}]}}"#
         context.expect(
             !HookConfigMerger.isConnected(configJSON: Data(input.utf8), adapterPath: adapter),
             "a similarly-named wrapper is not mistaken for our hook"
         )
         let disconnected = (try? HookConfigMerger.disconnected(configJSON: Data(input.utf8), adapterPath: adapter)) ?? Data()
         context.expect(
-            commands(disconnected, event: "Stop").contains("/usr/local/bin/my-claude-code-hook-wrapper x"),
+            commands(disconnected, event: "Stop").contains("/usr/local/bin/my-worklings-claude-code-activity-hook-wrapper x"),
             "disconnect leaves a similarly-named user script untouched"
         )
+    }
+
+    private static func checkShellFormRoundTripsApostrophePath(context: inout CheckContext) {
+        // A path with an apostrophe is the case that used to break detection: the
+        // quoter emits `'\''` for the embedded quote, and matching must parse it
+        // back to the full literal path (not stop at the first inner quote).
+        let apostrophe = "/Applications/Nikhil's Apps/worklings-codex-activity-hook"
+        let out = (try? HookConfigMerger.connected(
+            configJSON: Data(),
+            adapterPath: apostrophe,
+            mappings: HookConfigMerger.codexMappings,
+            style: .shellForm
+        )) ?? Data()
+
+        context.expectEqual(
+            firstHook(out, event: "Stop")?["command"] as? String,
+            "'/Applications/Nikhil'\\''s Apps/worklings-codex-activity-hook' taskCompleted",
+            "shell form quotes an apostrophe path as '\\''"
+        )
+        context.expect(
+            HookConfigMerger.isConnected(configJSON: out, adapterPath: apostrophe),
+            "an apostrophe-path hook is recognized as ours (so it isn't reconnected twice)"
+        )
+        let disconnected = (try? HookConfigMerger.disconnected(configJSON: out, adapterPath: apostrophe)) ?? Data()
+        context.expect(
+            !HookConfigMerger.isConnected(configJSON: disconnected, adapterPath: apostrophe),
+            "an apostrophe-path hook is cleanly removed on disconnect"
+        )
+    }
+
+    private static func checkRecognizesRelocatedBundle(context: inout CheckContext) {
+        // The hook was written when Worklings lived in /Applications; the user
+        // later moved the app to ~/Applications, so the current adapter path has
+        // a different directory but the same namespaced file name. Filename-based
+        // ownership must still recognize and remove the previously-written hook —
+        // this is the property the namespaced name is designed to keep safe.
+        let written = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook"
+        let relocated = "\(NSHomeDirectory())/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook"
+        let input = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"'\#(written)' taskCompleted"}]}]}}"#
+
+        context.expect(
+            HookConfigMerger.isConnected(configJSON: Data(input.utf8), adapterPath: relocated),
+            "a hook written at the app's old location is still recognized after the bundle moves"
+        )
+        let disconnected = (try? HookConfigMerger.disconnected(configJSON: Data(input.utf8), adapterPath: relocated)) ?? Data()
+        context.expect(
+            !HookConfigMerger.isConnected(configJSON: disconnected, adapterPath: relocated),
+            "a relocated bundle can clean up the hook it wrote at its old path"
+        )
+        context.expect(
+            (hooks(disconnected)["Stop"]) == nil,
+            "the event that held only our relocated hook is dropped on disconnect"
+        )
+    }
+
+    private static func checkDoesNotClaimForeignOrGenericName(context: inout CheckContext) {
+        // The whole point of the namespaced name: an unrelated executable that
+        // reuses a generic stem — including the old pre-rename names `codex-hook`
+        // / `claude-code-hook` — must never be claimed as ours, even if it sits
+        // in a plausible hooks directory. isConnected stays false and disconnect
+        // leaves it byte-for-byte intact.
+        let foreign = [
+            "/usr/local/bin/codex-hook",                 // old generic name, no longer ours
+            "/usr/local/bin/claude-code-hook",           // old generic name, no longer ours
+            "/Users/x/.codex/hooks/codex-activity-hook"  // similar but missing the worklings- prefix
+        ]
+        for command in foreign {
+            let input = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"'\#(command)' taskCompleted"}]}]}}"#
+            context.expect(
+                !HookConfigMerger.isConnected(configJSON: Data(input.utf8), adapterPath: adapter),
+                "a foreign/generic-named hook (\(command)) is not claimed as ours"
+            )
+            let disconnected = (try? HookConfigMerger.disconnected(configJSON: Data(input.utf8), adapterPath: adapter)) ?? Data()
+            context.expect(
+                commands(disconnected, event: "Stop").contains("'\(command)' taskCompleted"),
+                "disconnect leaves a foreign/generic-named hook (\(command)) untouched"
+            )
+        }
     }
 
     private static func checkNotificationHookIsMatched(context: inout CheckContext) {
@@ -220,7 +301,7 @@ enum HookConfigMergerChecks {
     }
 
     private static func checkExecFormNeedsNoQuoting(context: inout CheckContext) {
-        let spaced = "/tmp/My Tools/claude-code-hook"
+        let spaced = "/tmp/My Tools/worklings-claude-code-activity-hook"
         let out = (try? HookConfigMerger.connected(
             configJSON: Data(),
             adapterPath: spaced,
@@ -238,7 +319,7 @@ enum HookConfigMergerChecks {
     }
 
     private static func checkShellFormQuotesPath(context: inout CheckContext) {
-        let spaced = "/tmp/My Tools/codex-hook"
+        let spaced = "/tmp/My Tools/worklings-codex-activity-hook"
         let out = (try? HookConfigMerger.connected(
             configJSON: Data(),
             adapterPath: spaced,
@@ -248,7 +329,7 @@ enum HookConfigMergerChecks {
 
         context.expectEqual(
             firstHook(out, event: "Stop")?["command"] as? String,
-            "'/tmp/My Tools/codex-hook' taskCompleted",
+            "'/tmp/My Tools/worklings-codex-activity-hook' taskCompleted",
             "shell form single-quotes the path so a space cannot break it"
         )
         context.expect(

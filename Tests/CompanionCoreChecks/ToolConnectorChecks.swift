@@ -7,6 +7,7 @@ enum ToolConnectorChecks {
         checkConnectBacksUpAndMergesExisting(context: &context)
         checkConnectLeavesUnparseableConfigUntouched(context: &context)
         checkConnectRefusesMissingAdapter(context: &context)
+        checkConnectFailsClosedOnUnreadableConfig(context: &context)
         checkDisconnectRemovesOurs(context: &context)
     }
 
@@ -20,7 +21,7 @@ enum ToolConnectorChecks {
     /// Writes a real, executable adapter stub so the connector's
     /// "adapter must exist and be runnable" guard is satisfied.
     private static func makeAdapter(in dir: URL) -> String {
-        let url = dir.appendingPathComponent("claude-code-hook")
+        let url = dir.appendingPathComponent("worklings-claude-code-activity-hook")
         try? "#!/bin/sh\nexit 0\n".write(to: url, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url.path
@@ -122,6 +123,29 @@ enum ToolConnectorChecks {
             "the config is untouched when the adapter is unavailable"
         )
         context.expect(backups(in: dir).isEmpty, "no backup is written when the adapter is unavailable")
+    }
+
+    private static func checkConnectFailsClosedOnUnreadableConfig(context: inout CheckContext) {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // A config *path* that exists but cannot be read as file bytes (here a
+        // directory) stands in for a permission/I-O read failure. The connector
+        // must fail closed — never treat this as an empty config and clobber it.
+        let config = dir.appendingPathComponent("settings.json")
+        try? FileManager.default.createDirectory(at: config, withIntermediateDirectories: true)
+        let c = connector(config, adapter: makeAdapter(in: dir))
+
+        context.expectThrows("connect fails closed when the existing config cannot be read") {
+            _ = try c.connect()
+        }
+        context.expect(
+            backups(in: dir).isEmpty,
+            "no backup is written when the existing config is unreadable"
+        )
+        context.expect(
+            !c.isConnected(),
+            "an unreadable config reports as not connected rather than crashing"
+        )
     }
 
     private static func checkDisconnectRemovesOurs(context: inout CheckContext) {

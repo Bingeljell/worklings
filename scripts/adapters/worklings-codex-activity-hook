@@ -7,10 +7,10 @@
 # event JSON on stdin; this adapter ignores it entirely and emits only the fixed
 # kind named on the command line — no prompt, code, file path, or transcript
 # ever leaves the tool. That is the privacy contract: the adapter cannot forward
-# content because it never reads any. (Same shape as claude-code-hook.)
+# content because it never reads any. (Same shape as worklings-claude-code-activity-hook.)
 #
 # Usage (from a hooks.json / config.toml [hooks] command):
-#   /abs/path/scripts/adapters/codex-hook <kind>
+#   /abs/path/scripts/adapters/worklings-codex-activity-hook <kind>
 # where <kind> is the inbox kind the Codex hook is mapped to, e.g.
 #   SessionStart -> workStarted, Stop -> taskCompleted, SessionEnd -> workEnded.
 #
@@ -37,7 +37,7 @@ if [ -n "$kind" ]; then
   # The emitter validates the kind and performs the atomic write-then-rename.
   "$emitter" "$kind" codex >/dev/null 2>&1 || true
 else
-  printf 'codex-hook: missing <kind> argument; emitting nothing\n' >&2
+  printf 'worklings-codex-activity-hook: missing <kind> argument; emitting nothing\n' >&2
 fi
 
 exit 0

@@ -142,8 +142,8 @@ done
 # Resources/adapters/, and each adapter calls ../emit-activity-event — i.e.
 # Resources/emit-activity-event. All three must stay executable.
 mkdir -p -- "$resources_dir/adapters"
-install -m 755 -- "$repo_root/scripts/adapters/claude-code-hook" "$resources_dir/adapters/claude-code-hook"
-install -m 755 -- "$repo_root/scripts/adapters/codex-hook" "$resources_dir/adapters/codex-hook"
+install -m 755 -- "$repo_root/scripts/adapters/worklings-claude-code-activity-hook" "$resources_dir/adapters/worklings-claude-code-activity-hook"
+install -m 755 -- "$repo_root/scripts/adapters/worklings-codex-activity-hook" "$resources_dir/adapters/worklings-codex-activity-hook"
 install -m 755 -- "$repo_root/scripts/emit-activity-event" "$resources_dir/emit-activity-event"
 
 cat >"$info_plist" <<EOF

@@ -18,6 +18,10 @@ public struct ToolConnector {
         /// command that fails to launch — which for Codex (exit 2 blocks a turn)
         /// could stall the user's session.
         case adapterUnavailable(String)
+        /// A config file exists on disk but could not be read (permission, I/O,
+        /// allocation). We fail closed rather than treat it as empty: merging
+        /// onto a blank base and then backing up would replace the live config.
+        case existingConfigUnreadable(String)
     }
 
     public init(
@@ -33,7 +37,9 @@ public struct ToolConnector {
     }
 
     public func isConnected() -> Bool {
-        let data = (try? Data(contentsOf: configURL)) ?? Data()
+        // Best-effort query: an unreadable config (throws) or a missing one (nil)
+        // both count as "not connected" — we cannot confirm our hooks are there.
+        guard let data = (try? readExistingConfig()) ?? nil else { return false }
         return HookConfigMerger.isConnected(configJSON: data, adapterPath: adapterPath)
     }
 
@@ -47,7 +53,10 @@ public struct ToolConnector {
         guard FileManager.default.isExecutableFile(atPath: adapterPath) else {
             throw ConnectorError.adapterUnavailable(adapterPath)
         }
-        let existing = (try? Data(contentsOf: configURL)) ?? Data()
+        // Read fail-closed: a present-but-unreadable config throws here, before
+        // any backup or write, so we never merge our hooks onto an empty base
+        // and clobber a config we simply could not read.
+        let existing = try readExistingConfig() ?? Data()
         // Merge first: if this throws, we return before writing or backing up,
         // so the file on disk is untouched.
         let merged = try HookConfigMerger.connected(
@@ -65,7 +74,9 @@ public struct ToolConnector {
     /// if there is no config file yet.
     @discardableResult
     public func disconnect() throws -> URL? {
-        guard let existing = try? Data(contentsOf: configURL), !existing.isEmpty else {
+        // No config yet → nothing of ours to remove. A present-but-unreadable
+        // config throws (fail closed) rather than silently reporting success.
+        guard let existing = try readExistingConfig(), !existing.isEmpty else {
             return nil
         }
         let updated = try HookConfigMerger.disconnected(
@@ -75,6 +86,21 @@ public struct ToolConnector {
         let backup = try backUpExisting()
         try write(updated)
         return backup
+    }
+
+    /// Reads the existing config, distinguishing "no file yet" (returns nil)
+    /// from "file is present but unreadable" (throws `existingConfigUnreadable`).
+    /// This is the fail-closed boundary: callers must never treat an unreadable
+    /// config as empty.
+    private func readExistingConfig() throws -> Data? {
+        guard FileManager.default.fileExists(atPath: configURL.path) else {
+            return nil
+        }
+        do {
+            return try Data(contentsOf: configURL)
+        } catch {
+            throw ConnectorError.existingConfigUnreadable(configURL.path)
+        }
     }
 
     /// Copies the current config aside as a timestamped backup, if it exists.

@@ -10,7 +10,7 @@
 # adapter cannot forward content because it never reads any.
 #
 # Usage (from a settings.json hook command):
-#   /abs/path/scripts/adapters/claude-code-hook <kind>
+#   /abs/path/scripts/adapters/worklings-claude-code-activity-hook <kind>
 # where <kind> is the inbox kind that Claude Code hook is mapped to, e.g.
 #   SessionStart -> workStarted, Stop -> taskCompleted, SessionEnd -> workEnded.
 
@@ -18,7 +18,7 @@ set -euo pipefail
 
 kind="${1:-}"
 if [ -z "$kind" ]; then
-  printf 'claude-code-hook: missing <kind> argument\n' >&2
+  printf 'worklings-claude-code-activity-hook: missing <kind> argument\n' >&2
   exit 2
 fi
 

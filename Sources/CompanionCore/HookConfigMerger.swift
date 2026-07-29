@@ -13,7 +13,10 @@ import Foundation
 /// at the level of an individual command hook, by the adapter's exact file name,
 /// so re-connecting is idempotent, disconnecting removes only our hooks (a
 /// sibling hook sharing the same entry survives), and a similarly-named user
-/// script (`my-codex-hook-wrapper`) is never mistaken for ours.
+/// script (`my-worklings-codex-activity-hook-wrapper`) is never mistaken for
+/// ours. The adapter names are Worklings-namespaced precisely so that matching
+/// on the file name alone — which is what lets a relocated app bundle still
+/// clean up its own hooks — cannot accidentally claim an unrelated executable.
 public enum HookConfigMerger {
     public struct Mapping: Sendable, Equatable {
         public let event: String
@@ -220,23 +223,63 @@ public enum HookConfigMerger {
             executable = executablePath(ofCommand: command)
         }
         guard let executable else { return false }
-        // Match by exact file name of the invoked executable — so a moved bundle
-        // path still cleans up, but a differently-named user script that merely
-        // contains our name as a substring is never claimed.
+        // Match by exact file name of the invoked executable — so a moved or
+        // reinstalled app bundle (whose absolute path changed) still recognizes
+        // and cleans up its own hooks. The adapter names are Worklings-namespaced
+        // (`worklings-…-activity-hook`), so an exact file-name match is a reliable
+        // ownership signal: a differently-named user script — whether it merely
+        // contains our name as a substring or reuses a generic stem like
+        // `codex-hook` — is never claimed.
         return (executable as NSString).lastPathComponent == (adapterPath as NSString).lastPathComponent
     }
 
-    /// The executable (first token) of a hook command, handling a single-quoted
-    /// path (which is how we write paths that need shell-safety).
+    /// The executable (first shell word) of a hook command. Reverses the POSIX
+    /// quoting `singleQuoted` applies, so a path containing a space *or* an
+    /// apostrophe round-trips: an embedded quote is written as `'\''` (close,
+    /// backslash-escaped quote, reopen), and this walks single-quoted spans and
+    /// backslash escapes to recover the literal path. A plain unquoted command
+    /// (a hand-written config) reduces to its first whitespace-delimited token.
     private static func executablePath(ofCommand command: String) -> String? {
-        let trimmed = command.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return nil }
-        if trimmed.hasPrefix("'") {
-            let afterQuote = trimmed.dropFirst()
-            guard let end = afterQuote.firstIndex(of: "'") else { return nil }
-            return String(afterQuote[..<end])
+        var result = ""
+        var sawToken = false
+        var index = command.startIndex
+        let end = command.endIndex
+
+        // Skip leading whitespace before the first token.
+        while index < end, command[index] == " " || command[index] == "\t" {
+            index = command.index(after: index)
         }
-        return trimmed.split(separator: " ", maxSplits: 1).first.map(String.init)
+
+        loop: while index < end {
+            let character = command[index]
+            switch character {
+            case " ", "\t":
+                break loop // top-level whitespace ends the first word
+            case "'":
+                // A single-quoted span: everything up to the next quote is literal.
+                sawToken = true
+                index = command.index(after: index)
+                while index < end, command[index] != "'" {
+                    result.append(command[index])
+                    index = command.index(after: index)
+                }
+                guard index < end else { return nil } // unterminated quote
+                index = command.index(after: index) // consume the closing quote
+            case "\\":
+                // A backslash escapes the next character — this is how an embedded
+                // quote survives between single-quoted spans (the `\'` in `'\''`).
+                sawToken = true
+                index = command.index(after: index)
+                guard index < end else { return nil }
+                result.append(command[index])
+                index = command.index(after: index)
+            default:
+                sawToken = true
+                result.append(character)
+                index = command.index(after: index)
+            }
+        }
+        return sawToken ? result : nil
     }
 
     // MARK: - JSON
