@@ -55,18 +55,43 @@ public struct ToolConnector {
         /// was moved or deleted). The wiring is "ours" but no longer runnable;
         /// re-connecting repoints it at the current adapter.
         case stale
+        /// The config file exists but could not be inspected — it is unreadable
+        /// (permission/I-O) or not valid JSON. We cannot confirm *or* deny that
+        /// our hooks are in it, so it must never be silently reported as
+        /// "not connected": a caller cleaning up should treat this as a failure
+        /// to resolve, not as "nothing to do."
+        case unknown
     }
 
     public func isConnected() -> Bool {
-        connectionState() != .notConnected
+        let state = connectionState()
+        return state == .live || state == .stale
     }
 
     /// Distinguishes *"is this hook ours?"* (ownership, by the adapter file name,
     /// which survives an app relocation) from *"does it point at the currently
-    /// installed adapter?"* (liveness). A best-effort query: an unreadable or
-    /// missing config counts as `.notConnected`.
+    /// installed adapter?"* (liveness) — and, crucially, from *"could we even
+    /// read the file?"* A missing config is `.notConnected`; a present one we
+    /// cannot read or parse is `.unknown`, never a false `.notConnected`.
     public func connectionState() -> ConnectionState {
-        guard let data = (try? readExistingConfig()) ?? nil else { return .notConnected }
+        let data: Data
+        do {
+            guard let existing = try readExistingConfig() else { return .notConnected }
+            data = existing
+        } catch {
+            return .unknown // present but unreadable (permission/I-O)
+        }
+
+        // An empty or whitespace-only file holds nothing of ours.
+        let isBlank = data.allSatisfy { $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }
+        if data.isEmpty || isBlank { return .notConnected }
+
+        // Present but not parseable JSON: our hooks might be in there, we just
+        // can't tell. Fail loud (unknown), never a false "not connected".
+        guard (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
+            return .unknown
+        }
+
         let paths = HookConfigMerger.ourHookExecutablePaths(configJSON: data, adapterPath: adapterPath)
         guard !paths.isEmpty else { return .notConnected }
         let anyLive = paths.contains { FileManager.default.isExecutableFile(atPath: $0) }
@@ -114,15 +139,18 @@ public struct ToolConnector {
     }
 
     /// Reads the config, applies `transform`, and writes the result back
-    /// atomically — closing the read→write race. Immediately before writing it
-    /// re-reads and compares against what `transform` was computed from; if
-    /// another program (Claude, Codex) or the user changed the file in that
-    /// window, it recomputes `transform` on the new contents and retries, so a
-    /// concurrent edit is preserved rather than clobbered. After
-    /// `maxWriteAttempts` racing passes it throws `configChangedDuringWrite`
-    /// instead of writing stale data. Returns the backup URL if a file existed.
+    /// atomically — closing the read→write race. Each attempt backs up the
+    /// current file, then re-reads and compares against what `transform` was
+    /// computed from, then — only if they still match — writes. The confirming
+    /// re-read is the *last* thing before the atomic write, with nothing (not
+    /// even the backup) between it and the rename, so a program (Claude, Codex)
+    /// or the user editing the file during the backup can no longer be
+    /// overwritten: the mismatch is caught and the attempt retries on the new
+    /// bytes. After `maxWriteAttempts` racing passes it throws
+    /// `configChangedDuringWrite` instead of writing stale data. Returns the
+    /// backup URL if a file existed.
     ///
-    /// A vanishing window remains between the confirming re-read and the rename;
+    /// A vanishing window remains between that confirming re-read and the rename;
     /// closing it fully would need file locking, which these tools don't
     /// coordinate on. Re-reading immediately before the write shrinks it to
     /// microseconds, which is what the safety requirement asks for.
@@ -130,14 +158,21 @@ public struct ToolConnector {
         var existing = try readExistingConfig() ?? Data()
         for _ in 0 ..< Self.maxWriteAttempts {
             let updated = try transform(existing)
-            let current = try readExistingConfig() ?? Data()
-            guard current == existing else {
-                existing = current // the file moved under us — retry on the new bytes
-                continue
-            }
+            // Back up first, then confirm the file is still what we merged from
+            // *immediately* before writing — the backup is no longer inside the
+            // check→write window.
             let backup = try backUpExisting()
-            try write(updated)
-            return backup
+            let current = try readExistingConfig() ?? Data()
+            if current == existing {
+                try write(updated)
+                return backup
+            }
+            // The file changed between our read and now: drop the possibly-stale
+            // backup and retry on the newer contents rather than overwrite them.
+            if let backup {
+                try? FileManager.default.removeItem(at: backup)
+            }
+            existing = current
         }
         throw ConnectorError.configChangedDuringWrite(configURL.path)
     }

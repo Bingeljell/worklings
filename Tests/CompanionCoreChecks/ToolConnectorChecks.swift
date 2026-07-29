@@ -9,6 +9,7 @@ enum ToolConnectorChecks {
         checkConnectRefusesMissingAdapter(context: &context)
         checkConnectFailsClosedOnUnreadableConfig(context: &context)
         checkConnectionStateLiveThenStale(context: &context)
+        checkConnectionStateUnknownForUnreadableOrMalformed(context: &context)
         checkDisconnectRemovesOurs(context: &context)
     }
 
@@ -173,6 +174,29 @@ enum ToolConnectorChecks {
         } catch {
             context.expect(false, "connect/disconnect round trip should succeed: \(error)")
         }
+    }
+
+    private static func checkConnectionStateUnknownForUnreadableOrMalformed(context: inout CheckContext) {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let adapter = makeAdapter(in: dir)
+
+        // Present but not valid JSON: our hooks might be in there, we just can't
+        // tell — must be unknown, never a false "not connected".
+        let malformed = dir.appendingPathComponent("settings.json")
+        try? Data("not json { oops".utf8).write(to: malformed)
+        context.expect(
+            connector(malformed, adapter: adapter).connectionState() == .unknown,
+            "a malformed config reads as unknown, not notConnected"
+        )
+
+        // Present but unreadable (a directory stands in for a permission/I-O
+        // read failure).
+        let unreadable = dir.appendingPathComponent("hooks.json")
+        try? FileManager.default.createDirectory(at: unreadable, withIntermediateDirectories: true)
+        let u = connector(unreadable, adapter: adapter)
+        context.expect(u.connectionState() == .unknown, "an unreadable config reads as unknown")
+        context.expect(!u.isConnected(), "unknown does not count as connected")
     }
 
     private static func checkDisconnectRemovesOurs(context: inout CheckContext) {

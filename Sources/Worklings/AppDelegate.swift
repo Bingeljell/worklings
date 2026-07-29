@@ -759,6 +759,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .stale:
             item?.title = "Reconnect \(name) — adapter moved"
             item?.state = .off
+        case .unknown:
+            item?.title = "Connect \(name) — can’t read config"
+            item?.state = .off
         }
         return state
     }
@@ -789,6 +792,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             switch connector.connectionState() {
             case .live:
                 _ = try connector.disconnect()
+            case .unknown:
+                // We can't read or parse the config, so we can't safely say
+                // whether our hooks are there — don't write anything, just
+                // explain. (Writing would fail closed anyway.)
+                NSApp.activate(ignoringOtherApps: true)
+                let alert = NSAlert()
+                alert.messageText = "Can’t read \(name)’s config"
+                alert.informativeText = "Worklings couldn’t read or parse:\n\(connector.configURL.path)\n\nSo it can’t tell whether its hooks are there. Fix or remove that file, then try again."
+                alert.runModal()
             case .notConnected, .stale:
                 // Informed consent before the first write of any tool; if the
                 // user declines, nothing is written.
@@ -829,12 +841,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         var removed: [String] = []
         var failures: [String] = []
-        for tool in tools where tool.connector.connectionState() != .notConnected {
-            do {
-                _ = try tool.connector.disconnect()
-                removed.append(tool.name)
-            } catch {
-                failures.append("\(tool.name): \(error)")
+        for tool in tools {
+            switch tool.connector.connectionState() {
+            case .notConnected:
+                continue // nothing of ours to remove
+            case .unknown:
+                // Its config couldn't be read/parsed — we can't confirm it is
+                // clean, so report it as a cleanup failure rather than a silent
+                // "nothing found."
+                failures.append("\(tool.name): its config couldn’t be read or parsed, so Worklings couldn’t check for or remove its hooks (\(tool.connector.configURL.path)).")
+            case .live, .stale:
+                do {
+                    _ = try tool.connector.disconnect()
+                    removed.append(tool.name)
+                } catch {
+                    failures.append("\(tool.name): \(error)")
+                }
             }
         }
 

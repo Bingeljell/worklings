@@ -52,6 +52,11 @@ Worklings still reported that hook as **connected** purely from its file name.
 - **Explicit disconnect-all.** A **Disconnect All Tools** paw-menu item removes every
   Worklings hook from both tools in one step (each config backed up first), incl.
   stale entries. The clean pre-uninstall path. Documented in `adapters.md`.
+- *Second-review refinement (2026-07-29):* a `.unknown` connection state was added
+  for a config that exists but is unreadable or malformed. Previously that collapsed
+  to `.notConnected`, so Disconnect All could skip a tool and report "nothing found"
+  when it simply could not inspect the file. `.unknown` is now surfaced as an
+  explicit cleanup failure (and in the menu as "… — can't read config").
 - **Drag-to-Trash:** the residual case (app fully deleted, so no code can run to
   self-heal) is documented in `adapters.md`: leftover hooks are inert (content-free
   adapter; Claude logs a non-blocking error, Codex only exits 0), and the tidy path
@@ -71,10 +76,15 @@ their live change was replaced (recoverable from backup, but still "in question"
 writing and compares it to the bytes the merge was computed from. If they differ,
 it recomputes the transform on the new contents and retries (bounded by
 `maxWriteAttempts`), so a concurrent edit is merged rather than clobbered; after
-the retries it throws `configChangedDuringWrite` rather than write stale data. A
-vanishing read→rename window remains (full closure needs file locking the tools
-don't coordinate on) — re-reading right before the write shrinks it to
-microseconds, which is what the requirement asks.
+the retries it throws `configChangedDuringWrite` rather than write stale data.
+
+*Second-review refinement (2026-07-29):* the first cut compared **before** backing
+up, leaving the backup step itself inside the check→write window — a mid-backup
+edit could still be overwritten. Reordered so each attempt backs up, then does the
+confirming re-read, then writes, with **nothing but the atomic rename between the
+compare and the write** (a stale backup from a losing attempt is deleted before
+retrying). A vanishing read→rename window remains (full closure needs file locking
+the tools don't coordinate on).
 
 ---
 
