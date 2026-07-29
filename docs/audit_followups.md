@@ -61,19 +61,21 @@ contradicts the clean-uninstall / no-impact promise.
 
 ---
 
-## 3. [P1] A simultaneous configuration edit could be overwritten (TOCTOU)
+## 3. [P1] A simultaneous configuration edit could be overwritten (TOCTOU) — DONE (2026-07-29)
 
-**Problem:** `ToolConnector` reads the config, prepares the merge, backs up
-whatever exists, then writes a version derived from the **earlier** read. If
-Claude, Codex, another program, or the user edits the file during that window,
-their live change is replaced. It's recoverable from the timestamped backup, but
-that still puts user data "in question."
+**Problem:** `ToolConnector` read the config, prepared the merge, backed up
+whatever existed, then wrote a version derived from the **earlier** read. If
+Claude, Codex, another program, or the user edited the file during that window,
+their live change was replaced (recoverable from backup, but still "in question").
 
-**Direction:** Close the read→write window. Immediately before the atomic write,
-**re-read and compare** against the bytes we read at the start; if the file
-changed, either re-run the merge on the new contents and retry, or abort and
-surface it — never blind-write the stale version. (The atomic temp-file+rename we
-already do protects against a half-write, not against a concurrent full edit.)
+**Done:** A `commit(transform:)` helper re-reads the config immediately before
+writing and compares it to the bytes the merge was computed from. If they differ,
+it recomputes the transform on the new contents and retries (bounded by
+`maxWriteAttempts`), so a concurrent edit is merged rather than clobbered; after
+the retries it throws `configChangedDuringWrite` rather than write stale data. A
+vanishing read→rename window remains (full closure needs file locking the tools
+don't coordinate on) — re-reading right before the write shrinks it to
+microseconds, which is what the requirement asks.
 
 ---
 

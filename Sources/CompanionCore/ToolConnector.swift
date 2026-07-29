@@ -22,7 +22,15 @@ public struct ToolConnector {
         /// allocation). We fail closed rather than treat it as empty: merging
         /// onto a blank base and then backing up would replace the live config.
         case existingConfigUnreadable(String)
+        /// The config kept changing underneath us (another program or the user
+        /// editing it) across every write attempt, so we stopped rather than
+        /// risk overwriting a live edit with a stale merge.
+        case configChangedDuringWrite(String)
     }
+
+    /// How many times a write re-reads and retries when the config changed
+    /// between our read and our write, before giving up and throwing.
+    private static let maxWriteAttempts = 4
 
     public init(
         configURL: URL,
@@ -53,21 +61,17 @@ public struct ToolConnector {
         guard FileManager.default.isExecutableFile(atPath: adapterPath) else {
             throw ConnectorError.adapterUnavailable(adapterPath)
         }
-        // Read fail-closed: a present-but-unreadable config throws here, before
-        // any backup or write, so we never merge our hooks onto an empty base
-        // and clobber a config we simply could not read.
-        let existing = try readExistingConfig() ?? Data()
-        // Merge first: if this throws, we return before writing or backing up,
-        // so the file on disk is untouched.
-        let merged = try HookConfigMerger.connected(
-            configJSON: existing,
-            adapterPath: adapterPath,
-            mappings: mappings,
-            style: style
-        )
-        let backup = try backUpExisting()
-        try write(merged)
-        return backup
+        return try commit { existing in
+            // Merge onto the latest on-disk bytes. If this throws (unparseable
+            // or unfamiliar structure) we return before writing or backing up,
+            // so the file is left exactly as it was.
+            try HookConfigMerger.connected(
+                configJSON: existing,
+                adapterPath: adapterPath,
+                mappings: mappings,
+                style: style
+            )
+        }
     }
 
     /// Removes only our hooks. Returns the backup URL if one was made. A no-op
@@ -79,13 +83,41 @@ public struct ToolConnector {
         guard let existing = try readExistingConfig(), !existing.isEmpty else {
             return nil
         }
-        let updated = try HookConfigMerger.disconnected(
-            configJSON: existing,
-            adapterPath: adapterPath
-        )
-        let backup = try backUpExisting()
-        try write(updated)
-        return backup
+        return try commit { current in
+            try HookConfigMerger.disconnected(
+                configJSON: current,
+                adapterPath: adapterPath
+            )
+        }
+    }
+
+    /// Reads the config, applies `transform`, and writes the result back
+    /// atomically — closing the read→write race. Immediately before writing it
+    /// re-reads and compares against what `transform` was computed from; if
+    /// another program (Claude, Codex) or the user changed the file in that
+    /// window, it recomputes `transform` on the new contents and retries, so a
+    /// concurrent edit is preserved rather than clobbered. After
+    /// `maxWriteAttempts` racing passes it throws `configChangedDuringWrite`
+    /// instead of writing stale data. Returns the backup URL if a file existed.
+    ///
+    /// A vanishing window remains between the confirming re-read and the rename;
+    /// closing it fully would need file locking, which these tools don't
+    /// coordinate on. Re-reading immediately before the write shrinks it to
+    /// microseconds, which is what the safety requirement asks for.
+    private func commit(transform: (Data) throws -> Data) throws -> URL? {
+        var existing = try readExistingConfig() ?? Data()
+        for _ in 0 ..< Self.maxWriteAttempts {
+            let updated = try transform(existing)
+            let current = try readExistingConfig() ?? Data()
+            guard current == existing else {
+                existing = current // the file moved under us — retry on the new bytes
+                continue
+            }
+            let backup = try backUpExisting()
+            try write(updated)
+            return backup
+        }
+        throw ConnectorError.configChangedDuringWrite(configURL.path)
     }
 
     /// Reads the existing config, distinguishing "no file yet" (returns nil)
