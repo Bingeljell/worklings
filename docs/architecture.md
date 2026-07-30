@@ -30,6 +30,8 @@ Raw prompts, source code, tool arguments, window contents, and keystrokes are ou
 
 Worklings uses Swift Package Manager and Apple frameworks only, targeting macOS 14 or newer.
 
+The current implementation remains intentionally macOS-first. The boundaries, framework evaluation criteria, and decision gates for a possible Windows, Linux, iOS, or Android expansion are recorded in the [cross-platform architecture roadmap](cross_platform_architecture.md). That roadmap is guidance rather than committed scope or a planned rewrite.
+
 - `CompanionCore`: deterministic state, simulation, persistence primitives, care status, and presentation decisions.
 - `Worklings`: AppKit application/window behavior, SwiftUI views, live session, menu bar, and filesystem wiring.
 - `CompanionCoreChecks`: dependency-free executable verification for machines without XCTest or Swift Testing.
