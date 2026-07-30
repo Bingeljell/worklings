@@ -182,6 +182,9 @@ by `WorklingSpriteFrame`'s explicit column/row cases. The core five poses extend
 pose = extend each family's sheet + add the enum case. The `dungeons.md` combat states
 reuse this exact mechanism, so no new rendering path is needed.
 
+Ready-to-use generation prompts for these poses (and the Cache Warren foes) live in
+[Sprite prompts](sprite-prompts.md).
+
 ## Open questions (for iteration)
 
 1. **Combat model** — confirm the active-auto-battler spine before deeper tuning.
