@@ -10,7 +10,19 @@ enum CombatChecks {
         checkSeededGeneratorReplays(context: &context)
         checkSeededGeneratorDivergesBySeed(context: &context)
         checkChanceBoundsAndDistribution(context: &context)
+        checkFullConditionPetKeepsFullStats(context: &context)
+        checkNeglectScalesStatsAndHP(context: &context)
+        checkFoeIgnoresCondition(context: &context)
+        checkCombatantDamageAndHealClamp(context: &context)
     }
+
+    // A Level-3 Aegis: Guard 11 (signature), the rest at 7.
+    private static let aegisStats = PetStats(
+        vitality: 7, power: 7, defense: 11, agility: 7, wit: 7
+    )
+    private static let fullHealth = PetNeeds(
+        hunger: 0, energy: 100, happiness: 100, trust: 100
+    )
 
     // The worked Flicker example in docs/design/dungeons.md is the reference:
     // a Level-3 Aegis (Vitality/Power/Agility/Wit 7, Guard 11) versus a Flicker
@@ -127,5 +139,60 @@ enum CombatChecks {
             (400...600).contains(successes),
             "chance(0.5) lands near half over many draws (got \(successes)/1000)"
         )
+    }
+
+    private static func checkFullConditionPetKeepsFullStats(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let pet = Combatant.pet(
+            name: "Pixel", baseStats: aegisStats, needs: fullHealth, rates: rates
+        )
+        // Effectiveness 1.0 at full condition: stats and HP match the sheet.
+        context.expectEqual(pet.stats.power, 7, "full-condition Power unscaled")
+        context.expectEqual(pet.stats.defense, 11, "full-condition Guard unscaled")
+        context.expectEqual(pet.maxHP, 41, "full-condition maxHP matches Vitality 7")
+        context.expectEqual(pet.currentHP, 41, "pet starts at full HP")
+    }
+
+    private static func checkNeglectScalesStatsAndHP(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // All needs at 0 → effectiveness clamps to the 0.5 combat floor.
+        let neglected = PetNeeds(hunger: 100, energy: 0, happiness: 0, trust: 0)
+        context.expectApproximatelyEqual(
+            rates.combatEffectiveness(needs: neglected), 0.5,
+            "neglect clamps effectiveness to the combat floor"
+        )
+        let pet = Combatant.pet(
+            name: "Pixel", baseStats: aegisStats, needs: neglected, rates: rates
+        )
+        // Stats halve (rounded): Power 7→4 (3.5 rounds to 4), Guard 11→6 (5.5→6),
+        // and maxHP derives from the scaled Vitality 7→4 (3.5→4): 20 + 12 = 32.
+        context.expectEqual(pet.stats.power, 4, "neglected Power scales down")
+        context.expectEqual(pet.stats.defense, 6, "neglected Guard scales down")
+        context.expectEqual(pet.maxHP, 32, "neglected maxHP scales down")
+    }
+
+    private static func checkFoeIgnoresCondition(context: inout CheckContext) {
+        // A foe is built from its raw block; there is no condition to apply.
+        let flicker = Combatant.foe(
+            name: "Flicker", maxHP: 18,
+            stats: CombatStats(power: 6, defense: 2, agility: 14, wit: 4)
+        )
+        context.expectEqual(flicker.maxHP, 18, "foe HP is authored directly")
+        context.expectEqual(flicker.stats.agility, 14, "foe stats are raw")
+    }
+
+    private static func checkCombatantDamageAndHealClamp(context: inout CheckContext) {
+        var c = Combatant.foe(
+            name: "Mote", maxHP: 8,
+            stats: CombatStats(power: 3, defense: 0, agility: 5, wit: 1)
+        )
+        c.takeDamage(3)
+        context.expectEqual(c.currentHP, 5, "damage subtracts")
+        context.expectApproximatelyEqual(c.hpFraction, 5.0 / 8.0, "hpFraction tracks HP")
+        c.heal(100)
+        context.expectEqual(c.currentHP, 8, "heal clamps at maxHP")
+        c.takeDamage(999)
+        context.expectEqual(c.currentHP, 0, "damage clamps at 0")
+        context.expect(c.isDefeated, "0 HP is defeated")
     }
 }

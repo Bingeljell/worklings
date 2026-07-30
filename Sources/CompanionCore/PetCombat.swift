@@ -30,6 +30,10 @@ public struct PetCombatRates: Equatable, Sendable {
     public let critChancePerAgility: Double
     /// Damage multiplier applied on a crit.
     public let critMultiplier: Double
+    /// Lower bound on the condition→combat effectiveness multiplier. Higher than
+    /// the progression `conditionMultiplierFloor` so neglect weakens a fighter
+    /// without crippling it — see the closed loop in the dungeon design.
+    public let combatEffectivenessFloor: Double
 
     public init(
         baseHP: Double = 20,
@@ -41,7 +45,8 @@ public struct PetCombatRates: Equatable, Sendable {
         hitChanceFloor: Double = 0.25,
         hitChanceCeiling: Double = 0.95,
         critChancePerAgility: Double = 0.01,
-        critMultiplier: Double = 1.5
+        critMultiplier: Double = 1.5,
+        combatEffectivenessFloor: Double = 0.5
     ) {
         self.baseHP = max(baseHP, 0)
         self.vitalityToHP = max(vitalityToHP, 0)
@@ -53,6 +58,14 @@ public struct PetCombatRates: Equatable, Sendable {
         self.hitChanceCeiling = min(max(hitChanceCeiling, 0), 1)
         self.critChancePerAgility = max(critChancePerAgility, 0)
         self.critMultiplier = max(critMultiplier, 1)
+        self.combatEffectivenessFloor = min(max(combatEffectivenessFloor, 0), 1)
+    }
+
+    /// The condition→combat multiplier: full condition fights at 100%, neglect
+    /// scales down to `combatEffectivenessFloor`. Reuses the same needs average
+    /// the progression multiplier uses, so care means one consistent thing.
+    public func combatEffectiveness(needs: PetNeeds) -> Double {
+        needs.xpMultiplier(floor: combatEffectivenessFloor)
     }
 
     /// A combatant's maximum combat HP. This is a transient pool, unrelated to
