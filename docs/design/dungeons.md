@@ -229,15 +229,15 @@ three families share the contract, so **every new pose is authored for all three
 | **Low-HP** | staggered / on the ropes |
 | **Victory** | encounter or delve won |
 | **Downed** | retreat at 0 HP |
-| **Brace** *(opt.)* | defending |
-| **Signature** *(opt.)* | unleashing the class move |
+| **Brace** | defending |
+| **Signature** | unleashing the class move |
 
-Sheet/code contract: the current sheet is a 4×3 grid of 256px cells (1024×768), mapped by
-`WorklingSpriteFrame`'s explicit column/row cases. The core five poses extend it to a
-**4×4 grid** (a new row 3); the two optional poses take a further row. Adding a pose =
-extend each family's sheet + add the enum case; no new rendering path is needed. Ready-to-
-use generation prompts for these poses (and the Cache Warren foes) live in
-[Sprite prompts](sprite-prompts.md).
+Sheet/code contract: each sheet is a **4×5 grid** of 256px cells (1024×1280), mapped by
+`WorklingSpriteFrame`'s explicit column/row cases. Rows 0–2 hold the original twelve
+companion poses; row index 3 holds Strike, Hurt, Low-HP, and Victory; row index 4 holds
+Downed, Brace, Signature, and one unused cell. Adding a pose = extend each family's sheet
++ add the enum case; no new rendering path is needed. Ready-to-use generation prompts for
+these poses (and the Cache Warren foes) live in [Sprite prompts](sprite-prompts.md).
 
 ## What a first playable encounter needs
 

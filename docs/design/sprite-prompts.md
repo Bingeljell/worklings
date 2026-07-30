@@ -28,8 +28,8 @@ Square composition.
 
 ### Technical / delivery notes
 
-- The app crops sprites from a **4-column grid of 256×256 px cells** (`WildkinPetView.WorklingSpriteFrame`; existing sheets are 1024×768, twelve frames). Generate large (e.g. 1024²) and downscale to a clean 256² cell.
-- Deliver either individual transparent PNGs (preferred for iteration) or an assembled sheet matching the existing 4-column layout. The five core combat poses add **row 3** (a 4×4 sheet); the two optional poses add row 4.
+- The app crops sprites from a **4-column grid of 256×256 px cells** (`WildkinPetView.WorklingSpriteFrame`; the original sheets were 1024×768, twelve frames). Generate large (e.g. 1024²) and downscale to a clean 256² cell.
+- The seven combat poses extend each sheet to a **4×5 grid (1024×1280)**. Row index 3 is Strike, Hurt, Low-HP, Victory; row index 4 is Downed, Brace, Signature, unused. Deliver individual transparent PNGs for iteration or an assembled sheet matching that fixed layout.
 - **Match each family's existing palette exactly** — pull colors from `assets/worklings-<family>-spritesheet.png`.
 - Keep proportions and accessories identical to the anchor across all poses (same bell, same key, same ember orb, etc.).
 
@@ -54,8 +54,8 @@ sleepy, sad, wary).
 | **Low-HP** | on the ropes | `battle-worn and staggering, hunched low and breathing hard, weakened trembling stance, scuffed and weary but still standing, exhausted-yet-determined expression. Clearly a combat exhaustion, not sleeping.` |
 | **Victory** | fight won | `triumphant celebratory pose, chest up and one paw raised high, bright joyful confident expression, an energetic little hop, a sparkle or two. More dynamic and heroic than a calm happy idle.` |
 | **Downed** | knocked out | `collapsed and knocked out, lying on its side/back with limbs splayed, eyes shut or dizzy swirls, a small puff of dust. Defeated, not curled up asleep.` |
-| **Brace** *(opt.)* | defending | `defensive bracing crouch, hunkered low behind a raised guard (paw/tail/scaled back), bracing for impact, focused eyes.` |
-| **Signature** *(opt.)* | class special | `charging a powerful signature move, dynamic heroic stance wreathed in a glowing elemental aura, building energy, intense expression.` For the aura, use the family element: Wildkin → swirling green nature/leaf glow; Elemental → flaring orange fire; Relicborn → radiant cyan rune-light. |
+| **Brace** | defending | `defensive bracing crouch, hunkered low behind a raised guard (paw/tail/scaled back), bracing for impact, focused eyes.` |
+| **Signature** | class special | `charging a powerful signature move, dynamic heroic stance wreathed in a glowing elemental aura, building energy, intense expression.` For the aura, use the family element: Wildkin → swirling green nature/leaf glow; Elemental → flaring orange fire; Relicborn → radiant cyan rune-light. |
 
 ### Fully-assembled example (Wildkin · Strike)
 

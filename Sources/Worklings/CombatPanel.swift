@@ -16,9 +16,13 @@ final class CombatViewModel: ObservableObject {
     @Published private(set) var foeMaxHP: Int
     @Published private(set) var awaitingDecision: DecisionReason?
     @Published private(set) var outcome: EncounterResolution?
+    /// The pet's current pose, driven by the beat being revealed, so the sprite
+    /// strikes, recoils, braces, and celebrates in time with the narration.
+    @Published private(set) var petPose: WorklingSpriteFrame = .idle
 
     let petName: String
     let foeName: String
+    let petFamily: PetFamily
 
     private let session: PetSession
     private let foe: Foe
@@ -42,6 +46,7 @@ final class CombatViewModel: ObservableObject {
         )
         petName = pet.name
         foeName = foe.name
+        petFamily = session.state.family
         petHP = encounter.pet.currentHP
         petMaxHP = encounter.pet.maxHP
         foeHP = encounter.foe.currentHP
@@ -70,6 +75,7 @@ final class CombatViewModel: ObservableObject {
                     let event = self.encounter.log[self.revealIndex]
                     self.revealIndex += 1
                     if let line = self.narrate(event) { self.lines.append(line) }
+                    self.petPose = self.pose(for: event)
                     self.syncHP()
                     try? await Task.sleep(for: self.beat)
                     if Task.isCancelled { return }
@@ -91,6 +97,32 @@ final class CombatViewModel: ObservableObject {
     private func syncHP() {
         petHP = encounter.pet.currentHP
         foeHP = encounter.foe.currentHP
+    }
+
+    /// The pet's pose for the beat being revealed. Action beats (its own strike,
+    /// a hit landing on it, bracing, unleashing, the ending) drive a matching
+    /// pose; everything else rests on idle, or Low-HP once it's hurt enough.
+    private func pose(for event: CombatEvent) -> WorklingSpriteFrame {
+        switch event {
+        case let .struck(attacker, _, outcome):
+            if attacker == petName { return .strike }
+            return outcome.didHit ? .hurt : restingPose
+        case let .signature(attacker, _, _):
+            return attacker == petName ? .signature : restingPose
+        case let .braced(who, _):
+            return who == petName ? .brace : restingPose
+        case let .defeated(who):
+            return who == petName ? .downed : restingPose
+        case let .encounterEnded(victory):
+            return victory ? .victory : .downed
+        default:
+            return restingPose
+        }
+    }
+
+    private var restingPose: WorklingSpriteFrame {
+        let fraction = petMaxHP > 0 ? Double(petHP) / Double(petMaxHP) : 1
+        return fraction < session.combatRates.lowHPEventThreshold ? .lowHP : .idle
     }
 
     private func finish() {
@@ -185,13 +217,20 @@ struct CombatPanelView: View {
         VStack(alignment: .leading, spacing: 14) {
             header
             CombatantRow(
-                name: model.petName, symbol: "pawprint.fill",
+                name: model.petName,
                 hp: model.petHP, maxHP: model.petMaxHP, tint: .green
-            )
+            ) {
+                WorklingSprite(family: model.petFamily, frame: model.petPose, size: 60)
+            }
             CombatantRow(
-                name: model.foeName, symbol: "ant.fill",
+                name: model.foeName,
                 hp: model.foeHP, maxHP: model.foeMaxHP, tint: .orange
-            )
+            ) {
+                // Placeholder — foe sprites are a later asset drop.
+                Image(systemName: "ant.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(.orange)
+            }
             logView
             Divider().opacity(0.3)
             controls
@@ -323,20 +362,17 @@ struct CombatPanelView: View {
     }
 }
 
-private struct CombatantRow: View {
+private struct CombatantRow<Avatar: View>: View {
     let name: String
-    let symbol: String
     let hp: Int
     let maxHP: Int
     let tint: Color
+    @ViewBuilder var avatar: () -> Avatar
 
     var body: some View {
         HStack(spacing: 12) {
-            // Placeholder art — swapped for the real combat sprites once generated.
-            Image(systemName: symbol)
-                .font(.system(size: 30))
-                .foregroundStyle(tint)
-                .frame(width: 54, height: 54)
+            avatar()
+                .frame(width: 60, height: 60)
                 .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.08)))
             VStack(alignment: .leading, spacing: 5) {
                 HStack {

@@ -167,12 +167,14 @@ private struct SmokeEffectSprite: View {
     }
 }
 
-private struct WorklingSprite: View {
+struct WorklingSprite: View {
     private static let sourceCellSize: CGFloat = 256
-    private static let cellSize: CGFloat = 168
 
     let family: PetFamily
     let frame: WorklingSpriteFrame
+    /// Rendered edge length. Defaults to the desktop companion's size; the
+    /// combat panel passes a smaller value.
+    var size: CGFloat = 168
 
     private static let wildkinSpriteSheet = loadSpriteSheet(
         resourceName: "worklings-wildkin-spritesheet",
@@ -227,7 +229,7 @@ private struct WorklingSprite: View {
                     .padding(48)
             }
         }
-        .frame(width: Self.cellSize, height: Self.cellSize)
+        .frame(width: size, height: size)
     }
 
     private var frameImage: CGImage? {
@@ -250,7 +252,7 @@ private struct WorklingSprite: View {
     }
 }
 
-private enum WorklingSpriteFrame {
+enum WorklingSpriteFrame {
     case idle
     case idleBlink
     case walkContact
@@ -263,16 +265,23 @@ private enum WorklingSpriteFrame {
     case sleepy
     case sad
     case wary
+    case strike
+    case hurt
+    case lowHP
+    case victory
+    case downed
+    case brace
+    case signature
 
     var column: Int {
         switch self {
-        case .idle, .walkContactOpposite, .hungry:
+        case .idle, .walkContactOpposite, .hungry, .strike, .downed:
             return 0
-        case .idleBlink, .walkPassingOpposite, .sleepy:
+        case .idleBlink, .walkPassingOpposite, .sleepy, .hurt, .brace:
             return 1
-        case .walkContact, .happy, .sad:
+        case .walkContact, .happy, .sad, .lowHP, .signature:
             return 2
-        case .walkPassing, .caredFor, .wary:
+        case .walkPassing, .caredFor, .wary, .victory:
             return 3
         }
     }
@@ -285,6 +294,10 @@ private enum WorklingSpriteFrame {
             return 1
         case .hungry, .sleepy, .sad, .wary:
             return 2
+        case .strike, .hurt, .lowHP, .victory:
+            return 3
+        case .downed, .brace, .signature:
+            return 4
         }
     }
 }
