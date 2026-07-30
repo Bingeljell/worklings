@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the **design direction** for the first content system — solo dungeons — and
+This is the **full design spec** for the first content system — solo dungeons — and
 nothing here is implemented yet. It builds directly on the shipped [progression
 sheet](progression.md) (XP, levels, class, five stats) and the [condition
 layer](pet-brain.md), and it is the loop's first "spend" step: the place level, stats,
@@ -13,41 +13,72 @@ v1 deliberately resolves against **stats + class + condition only** — no abili
 gear — and is built so both slot in later without rework. Abilities land in
 `abilities.md`; gear stays a read-time effective-stats layer.
 
+**Every number here is a proposed default — a knob to tune.** They're grounded in the
+real stat scales (base stat 5, signature +3/level, others +1/level, so a Level-3 gate
+gives a signature stat of 11 and off-stats of 7) but they're first-pass. All of them are
+collected in [Tuning knobs](#tuning-knobs) at the bottom for the dial-up/dial-down
+discussion, and they'd live in a named `PetCombatRates` struct the same way
+`PetProgressionRates` holds the progression numbers — never hard-coded at the call site.
+
 ## The combat model
 
 **Turn-based under the hood, auto-resolving, with light tactical input** — an *active
 auto-battler*. Every turn is visible and narrated (a line of text plus a sprite
 reaction), so the fight reads as a story rather than a spinner. The pet mostly acts on
-its own; the player steers with an approach at the start and the occasional tactical
-beat.
+its own; the player steers with an Approach and the occasional decision point.
 
 - **Encounter** — the pet versus one foe (v1; multi-foe groups are a later revisit).
-- **Round** — both combatants act once, ordered by **initiative** (Agility). Ties resolve to the pet.
+- **Round** — both combatants act once, ordered by **initiative** (higher Agility acts first; ties to the pet).
 - **Action** — one per actor per turn.
 - **Resolution** — rounds proceed until one side's combat HP hits zero. Foe at 0 → won. Pet at 0 → **downed**, the delve ends in a retreat.
 
-Combat is **seeded-deterministic**: each encounter draws from a PRNG seeded from the
-save state plus a per-delve nonce, so a fight is reproducible and testable in pure
+Combat is **seeded-deterministic**: each encounter draws from a PRNG seeded from the save
+state plus a per-delve nonce, so a fight is reproducible and testable in pure
 `CompanionCore` (matching the existing deterministic-simulation boundary), while still
 feeling varied turn to turn.
+
+### Round loop
+
+```text
+for each round:
+    order = combatants sorted by effective Agility, desc (pet wins ties)
+    for actor in order:
+        if actor is the pet: act on the current Approach (or a queued decision)
+        else:               act on the foe's behavior script
+        resolve action, narrate, update HP
+        if either side is at 0 HP: end encounter
+    if a decision-point trigger fires: pause for player input
+```
 
 ### The pet's actions (v1, pre-abilities)
 
 | Action | Uses | Effect |
 | --- | --- | --- |
-| **Strike** | Power vs foe mitigation | Basic attack. Hit chance shaded by attacker vs defender Agility; can crit off Agility. |
-| **Brace** | Guard | Raises mitigation for the round and grants a little HP regen. The survivable, patient option. |
-| **Signature** | the class's signature stat | A once-per-encounter class-flavored move. This is the **seed of each class's first real ability** — see the per-class walkthrough. |
+| **Strike** | Power vs foe Guard | Basic attack. `damage = max(1, Power·1.5 − foeGuard·1.0)` ± 15% variance. Hit chance and crit below. |
+| **Brace** | Guard | Halves incoming damage for the round and regens a flat **2 HP**. The patient, survivable option. |
+| **Signature** | — (v1 fixed) | A once-per-encounter move: a **guaranteed-hit strike at 1.5× damage**, offered at an *opening* decision point. In v1 every class shares this mechanic; the per-class flavor is the **seed of each class's first real ability** (see the walkthrough). |
 
-### The player's input: strategy at decision points
+### Core formulas
+
+```text
+maxHP     = 20 + Vitality · 3
+strike    = max(1, Power · 1.5 − foeGuard · 1.0)   ± 15%
+hitChance = clamp(0.75 + (Agility − foeAgility) · 0.03, 0.25, 0.95)
+critChance= Agility · 0.01           (crit deals ×1.5)
+```
+
+Every one of the pet's effective numbers is then scaled by the **condition effectiveness
+multiplier** (below) before it hits the table.
+
+## The player's input: strategy at decision points
 
 An encounter runs **n turns**, and the player steers it at **decision points** rather
 than every turn. This cadence is the core lever the whole encounter is designed around.
 
-- **Approach** — the standing strategy the Workling fights on *between* decisions: **Aggressive** (bias Strike / damage), **Careful** (bias Brace / survival), or **Clever** (bias Signature / exploit). The Workling acts automatically on the current Approach, so a hands-off player still gets a coherent fight.
-- **Decision points** — moments where the player can *re-choose* the Approach or spend a one-off tactical action. They fire on a mix of:
-  - **Cadence** — every *x* turns, a steady "reassess" beat.
-  - **Events** — a triggered moment: the Workling drops low, the foe winds up a heavy move, an opening appears, the fight changes phase.
+- **Approach** — the standing strategy the Workling fights on *between* decisions: **Aggressive** (bias Strike), **Careful** (bias Brace), or **Clever** (hold for the Signature opening). The Workling acts automatically on the current Approach, so a hands-off player still gets a coherent fight.
+- **Decision points** — moments where the player can *re-choose* the Approach or spend a one-off action (notably **Unleash** the Signature). They fire on a mix of:
+  - **Cadence** — every **3 turns**, a steady "reassess" beat.
+  - **Events** — a triggered moment: the Workling drops below **30%** HP; the foe winds up a heavy move; an **opening** appears (a foe over-extends — the window to Unleash); the fight changes phase (boss only).
 
 Designing an encounter is therefore largely **designing its decision points** — how often
 the cadence beat lands, and which events force a rethink. A well-built foe punishes the
@@ -61,110 +92,117 @@ The five progression stats, which today only grow, get their combat meaning here
 
 | Stat | Class | Combat role |
 | --- | --- | --- |
-| **Vitality** | Wellspring | Max combat HP + healing potency |
-| **Power** | Juggernaut | Physical damage dealt |
-| **Guard** | Aegis | Damage mitigation |
-| **Agility** | Maverick | Initiative, hit/evade, crit |
-| **Wit** | Tinkerer | Signature/ability potency + status effects |
-
-Illustrative formulas (placeholders, to live in named tuning fields like
-`PetProgressionRates`, never hard-coded at the call site):
-
-```text
-maxHP        = baseHP + Vitality * vitToHP
-strikeDamage = max(1, Power * powScale - foe.Guard * guardScale)   ± variance
-hitChance    = clamp(baseHit + (Agility - foe.Agility) * agiToHit, floor, ceil)
-```
-
-All of the pet's effective numbers are then scaled by the **condition effectiveness
-multiplier** below.
+| **Vitality** | Wellspring | Max combat HP (`+3`/point) + Brace regen |
+| **Power** | Juggernaut | Strike damage (`×1.5`) |
+| **Guard** | Aegis | Damage mitigation (`−1.0`/point; doubled while Bracing) |
+| **Agility** | Maverick | Initiative, hit chance, crit, evasion |
+| **Wit** | Tinkerer | Signature/ability potency + status effects *(mostly latent until abilities)* |
 
 ## Condition ↔ combat: the closed loop
 
 Combat HP is its **own transient pool** — it is *not* the Fullness/Energy needs, it
 resets between delves, and a lost fight can never zero-out the pet's real condition. But
-the two layers touch at the boundaries, in both directions:
+the two layers touch at the boundaries, in both directions.
 
-**Condition → combat (on the way in and during):**
-- **Effectiveness multiplier.** The same care→XP multiplier that already exists (`needs.xpMultiplier(floor:)`) scales the pet's effective stats and max HP. Well-cared → ~100%; neglected → down to the floor; **critical neglect → the pet refuses to enter** (the doc's "fights below its sheet, or refuses to fight").
-- **HP regen.** Recovery between encounters within a delve (and the Brace trickle) scales with condition — a rested, happy Workling bounces back faster mid-delve.
+**Condition → combat (entry & during):**
+- **Effectiveness multiplier.** `effectiveness = max(0.5, avg(needs)/100)` — the same shape as the existing care→XP multiplier (`needs.xpMultiplier`), but with a higher **0.5 combat floor** so neglect weakens without crippling. It scales the pet's effective stats and max HP. Full condition → 100%; half → ~50%.
+- **Refusal.** If **any need is critical (≤ 10)** the pet **won't enter** a delve — the doc's "fights below its sheet, or refuses to fight."
+- **HP regen** between encounters within a delve restores **30% of max HP × effectiveness** — a rested, happy Workling recovers more mid-delve.
 
-**Combat → condition (on the way out):** the HP you *exit the delve with* moves **all
-four conditions**, so a delve is a real event in the pet's day — a triumph lifts it
-across the board, an ordeal wears it down across the board:
+**Condition → combat (on the way out):** the HP you *exit the delve with* moves **all four
+conditions**, so a delve is a real event in the pet's day — a triumph lifts it across the
+board, an ordeal wears it down across the board:
 
-| Exit tier | Combat HP left | Fullness | Energy | Happiness | Trust |
+| Exit tier | HP left | Fullness | Energy | Happiness | Trust |
 | --- | --- | :---: | :---: | :---: | :---: |
-| **Flawless** | ≥ 90% | ▲ | ▲ | ▲▲ | ▲ |
-| **Solid** | 40–90% | ▼ | ▼ | ▲ | ▲ |
-| **Barely** | < 40% | ▼▼ | ▼▼ | ▼ | – |
-| **Downed** | retreat at 0 | ▼▼ | ▼▼ | ▼▼ | ▼ |
+| **Flawless** | ≥ 90% | +2 | +2 | +10 | +5 |
+| **Solid** | 40–90% | −5 | −8 | +5 | +2 |
+| **Barely** | < 40% | −10 | −15 | −5 | 0 |
+| **Downed** | retreat at 0 | −12 | −20 | −12 | −6 |
 
-*(▲ gain, ▼ loss, magnitude by count; a proposal to tune.)* Best case is a genuine
-across-the-board reward — a reason to delve even when the sheet doesn't strictly need the
-XP. Worst case is a real setback the care loop then has to repair. Every magnitude stays
-inside the **reversible-neglect envelope** — a disastrous delve leaves the pet drained
-and shaken, never broken, and care always restores it. This coupling is the tuning's
-sharpest edge and needs real playtesting.
+Best case is a genuine across-the-board reward — a reason to delve even when the sheet
+doesn't strictly need the XP. Worst case is a real setback the care loop then has to
+repair. Every magnitude stays inside the **reversible-neglect envelope** — a disastrous
+delve leaves the pet drained and shaken, never broken, and care always restores it. This
+coupling is the tuning's sharpest edge and needs real playtesting.
 
-## A worked encounter: the Flicker
+## The Cache Warren
 
 *Setting — the **first** dungeon's, not the world's. Worklings is a broad universe, and
 dungeons can span many work- and productivity-themed settings; this is one, not the
-canon. The first delve, the **Cache Warren**, is the buried strata of the machine the
-Workling lives in, rendered as a fantasy underworld whose bestiary **dual-codes** to
-work-chaos the way the class names do (Wellspring, Juggernaut): Motes, Snags, Flickers,
-and a slow **Monolith** at the bottom. Later dungeons are free to inhabit entirely
-different work universes — the combat model below is setting-agnostic.*
+canon. The Cache Warren is the buried strata of the machine the Workling lives in,
+rendered as a fantasy underworld whose bestiary **dual-codes** to work-chaos the way the
+class names do (Wellspring, Juggernaut). Later dungeons are free to inhabit entirely
+different work universes — the combat model above is setting-agnostic.*
 
-The **Flicker** is a jittery, half-there creature — high Agility, low HP, moderate bite.
-It is hard to *land* a hit on but folds the moment you do. It's the ideal teaching foe
-because every class solves "an evasive target" differently:
+**Gate:** Level 3. **Shape:** three encounters, then a mini-boss. **Cadence:** limited
+attempts per day (a stamina, refreshed on `dailyWake`), so a delve is a returning ritual.
+
+The four foes form a deliberate mechanic curve — a warm-up, a wall, an accuracy test,
+then an endurance check:
+
+| # | Foe | HP | Pow | Guard | Agi | Wit | Hook |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | **Mote** | 8 | 3 | 0 | 5 | 1 | Trivial warm-up; teaches the loop. |
+| 2 | **Snag** | 30 | 7 | 6 | 3 | 3 | Tanky grabber; its bite lowers your Agility for a turn. Rewards Power / patience. |
+| 3 | **Flicker** | 18 | 6 | 2 | 14 | 4 | Evasive; hard to hit, folds fast. Rewards accuracy / the Signature opening. |
+| B | **Monolith** | 90 | 12 | 12 | 2 | 2 | Slow mini-boss; heavy wind-up hits telegraphed a turn ahead. Rewards Bracing the big blow and grinding. |
+
+Combat HP **carries across** the three encounters (regen between them scales with
+condition); the boss is the attrition payoff. HP fully restores after the delve.
+
+## A worked encounter: the Flicker
+
+The Flicker is the teaching foe for "an evasive target," walked here with a **Level-3
+Aegis** (Guard 11; Vitality/Power/Agility/Wit 7) at full condition — `maxHP = 20 + 7·3 =
+41`, effectiveness 1.0. Flicker is Agility 14, so it acts first each round.
 
 ```text
-Round 1 — Flicker acts first (Agility). It phase-darts in: 6 damage.
-          Your Workling Strikes — but the Flicker blurs aside (miss).
-Round 2 — Careful Approach: your Workling Braces, reading the pattern (+mitigation, +2 HP).
-          Flicker bites into the guard: 2 damage.
-Round 3 — Opening! (decision point → Unleash) the Signature lands clean.
-          The Flicker snaps back into focus and scatters. Encounter won.
+Approach: Aggressive (Strike).   Flicker 18 HP · Your Workling 41 HP
+Round 1 — Flicker phase-darts: max(1, 6·1.5 − 11) = 1 dmg → 40.
+          Your Workling Strikes — hit roll 0.54 → misses (it blurs aside).
+Round 2 — Flicker darts: 1 → 39.
+          Strike lands: 7·1.5 − 2 = 8 dmg → Flicker 10.
+Round 3 — (cadence decision point) hold Aggressive.
+          Flicker darts: 1 → 38.  Strike misses.
+Round 4 — Flicker darts: 1 → 37.  Strike lands: 8 → Flicker 2.
+          The Flicker over-extends — an OPENING (event decision point).
+Round 5 — Unleash: guaranteed-hit Signature, 8·1.5 = 12 → Flicker down. Won.
 ```
 
-Narration + a sprite reaction per line is the whole texture of the fight.
+Exit at 37/41 = 90% → **Flawless**. Narration + a sprite reaction per line is the whole
+texture; the Aegis can't really be hurt (its Guard 11 shrugs the darts to 1) but has to
+grind through a 54% hit rate, and the Unleash at the opening closes it cleanly.
 
 ## The same fight, per class
 
-The point of one encounter across five classes: it's where class identity first becomes
-*mechanical*, and where the first ability ideas fall out.
+One encounter across five classes is where class identity first becomes *mechanical*, and
+where the first ability ideas fall out.
 
-- **Maverick (Agility)** — out-initiatives and out-dodges the Flicker; wins the accuracy war outright. *Ability seed: a guaranteed-hit or extra-turn burst.*
-- **Tinkerer (Wit)** — its Signature reads the pattern and negates the evasion. *Ability seed: an accuracy debuff / "mark" that makes a slippery foe hittable.*
-- **Juggernaut (Power)** — misses often but one shot ends it; a feast-or-famine race. *Ability seed: a big committed swing that can't miss but costs a turn to wind up.*
-- **Aegis (Guard)** — can't be out-damaged; Braces through the misses and grinds it down. *Ability seed: a counter that punishes the foe's attack.*
-- **Wellspring (Vitality)** — highest HP, out-attrits everything; healing turns a long fight trivial. *Ability seed: a regen/second-wind that makes attrition its win condition.*
+- **Maverick (Agility 11)** — hit chance `0.75 + (11−14)·0.03 = 0.66` and out-initiatives more; wins the accuracy war outright. *Ability seed: a guaranteed-hit or extra-turn burst.*
+- **Tinkerer (Wit 11)** — its Signature reads the pattern and negates the evasion. *Ability seed: an accuracy debuff / "mark" that makes a slippery foe hittable.*
+- **Juggernaut (Power 11)** — Strike `11·1.5 − 2 = 14.5`; misses often but two clean hits end it — feast-or-famine. *Ability seed: a big committed swing that can't miss but costs a wind-up.*
+- **Aegis (Guard 11)** — the worked example: can't be out-damaged, grinds through the misses. *Ability seed: a counter that punishes the foe's attack.*
+- **Wellspring (Vitality 11)** — `maxHP = 53`, out-attrits everything; healing turns a long fight trivial. *Ability seed: a regen / second-wind that makes attrition the win condition.*
 
-Reading these five back-to-back is how we'll shape the **first ability per class** —
-each is the Signature move promoted into a real, costed action. That work moves to
-`abilities.md`.
+Reading these five back-to-back is how we'll shape the **first ability per class** — each
+is the shared v1 Signature promoted into a real, costed, class-specific action. That work
+moves to `abilities.md`.
 
-## The delve frame
+## Rewards
 
-A **solo delve** is the unit of content:
-
-- **Shape** — 3 encounters + 1 mini-boss.
-- **Gate** — unlocked at a modest level (the first place level gates real content).
-- **Attrition** — combat HP carries *across* encounters within the delve; regen between them scales with condition. Fully restored after the delve.
-- **Cadence** — a limited number of attempts per day (a stamina/cooldown), so a delve is a returning daily ritual and pairs naturally with the `dailyWake` login rhythm.
-- **Rewards** — XP, plus an **ability-point currency** (deliberately *separate* from stat growth, per [progression](progression.md#levels)); gear drops later as effective-stat modifiers. Reduced or forfeit rewards on a Downed exit.
+- **Per encounter** — XP on a kill: Mote 8, Snag 20, Flicker 25, Monolith 100.
+- **Delve completion** — +50 XP and **1 ability point** (the currency deliberately *separate* from stat growth, per [progression](progression.md#levels)).
+- **Downed exit** — half XP for the encounters actually cleared; no completion bonus, no ability point.
+- **Gear** — deferred; when it arrives it drops here as read-time effective-stat modifiers.
+- **XP channel** — dungeon XP has its **own daily cap (300)**, separate from the work/care caps, so grinding delves can't cannibalize the work-driven economy but is still bounded. *(Open question — could instead share the overall cap.)*
 
 ## New sprite states this needs
 
 Combat needs poses the current [twelve-frame contract](characters.md) doesn't have. All
 three families share the contract, so **every new pose is authored for all three sheets**
-— which is exactly the multiplier that makes the planned 3D→2D asset pipeline pay for
-itself (author/rig once, render every pose for every family).
-
-Proposed additions (the art list):
+— exactly the multiplier that makes the planned 3D→2D asset pipeline pay for itself
+(author/rig once, render every pose for every family).
 
 | Pose | When it shows |
 | --- | --- |
@@ -176,20 +214,51 @@ Proposed additions (the art list):
 | **Brace** *(opt.)* | defending |
 | **Signature** *(opt.)* | unleashing the class move |
 
-Sheet/code contract: the current sheet is a 4×3 grid of 256px cells (1024×768), mapped
-by `WorklingSpriteFrame`'s explicit column/row cases. The core five poses extend it to a
-**4×4 grid** (a new row 3); the two optional poses would take a further row. Adding a
-pose = extend each family's sheet + add the enum case. The `dungeons.md` combat states
-reuse this exact mechanism, so no new rendering path is needed.
-
-Ready-to-use generation prompts for these poses (and the Cache Warren foes) live in
+Sheet/code contract: the current sheet is a 4×3 grid of 256px cells (1024×768), mapped by
+`WorklingSpriteFrame`'s explicit column/row cases. The core five poses extend it to a
+**4×4 grid** (a new row 3); the two optional poses take a further row. Adding a pose =
+extend each family's sheet + add the enum case; no new rendering path is needed. Ready-to-
+use generation prompts for these poses (and the Cache Warren foes) live in
 [Sprite prompts](sprite-prompts.md).
+
+## Tuning knobs
+
+Everything dial-able, in one place, for the dial-up/dial-down discussion. Proposed to live
+in a `PetCombatRates` struct alongside `PetProgressionRates`.
+
+| Knob | Default | Raising it… |
+| --- | --- | --- |
+| `baseHP` | 20 | Everyone survives longer; flattens the Vitality gap. |
+| `vitToHP` | 3 | Makes Vitality (and Wellspring) matter more for survival. |
+| `powScale` | 1.5 | Faster kills; Power/Juggernaut swingier. |
+| `guardScale` | 1.0 | Mitigation matters more; Aegis tankier, low-Power stalls out. |
+| `strikeVariance` | ±15% | More/less randomness in damage. |
+| `baseHit` | 0.75 | Fewer misses overall; dulls evasion mechanics. |
+| `agiToHit` | 0.03 | Widens the accuracy gap Agility buys; evasive foes get sharper. |
+| `hitFloor / hitCeil` | 0.25 / 0.95 | Bounds on the worst/best hit chance. |
+| `critPerAgility` | 0.01 | More crits; Agility/Maverick spikier. |
+| `critMultiplier` | 1.5 | Bigger crit payoff. |
+| `braceMitigation` | ×0.5 dmg | How much Brace rewards patience. |
+| `braceRegen` | 2 HP | Sustain from defending. |
+| `signatureMultiplier` | 1.5 | Power of the once-per-encounter Unleash. |
+| `decisionCadence` | every 3 turns | Less frequent = more hands-off, fewer choices. |
+| `lowHPEvent` | 30% | When the "faltering" decision point fires. |
+| `combatEffectivenessFloor` | 0.5 | How hard neglect can nerf combat (lower = harsher). |
+| `refusalThreshold` | need ≤ 10 | How bad condition must get before the pet won't delve. |
+| `interEncounterRegen` | 30% × eff | Attrition pressure across a delve. |
+| exit-tier deltas | see table | The whole combat→condition feedback strength. |
+| `delveGateLevel` | 3 | When the first dungeon unlocks. |
+| `delveAttemptsPerDay` | 3 | How much a player can grind per day. |
+| foe stat blocks | see table | Each encounter's difficulty and mechanic weight. |
+| encounter/delve XP | 8/20/25/100 · +50 | Reward pace vs the work economy. |
+| `dungeonXPDailyCap` | 300 | Ceiling on grind XP. |
+| `abilityPointsPerDelve` | 1 | How fast the ability currency accrues. |
 
 ## Open questions (for iteration)
 
 1. **Combat model** — confirm the active-auto-battler spine before deeper tuning.
-2. **Condition↔combat magnitudes** — the exit-tier deltas and effectiveness floor need playtesting; the risk is combat souring the daily care loop if set too harsh.
-3. **XP channel** — do dungeon rewards share the existing daily XP caps, or is dungeon XP a separate channel?
+2. **Condition↔combat magnitudes** — the exit-tier deltas, the 0.5 effectiveness floor, and the regen rate need playtesting; the risk is combat souring the daily care loop if set too harsh.
+3. **XP channel** — separate dungeon cap (proposed) vs sharing the overall daily cap.
 4. **Randomness** — confirm seeded-per-encounter PRNG (reproducible, testable) over live RNG.
 5. **Encounter breadth** — v1 single-foe; when do multi-foe groups and targeting arrive?
 6. **First abilities** — promote each class's Signature into its first costed ability (moves to `abilities.md`).
