@@ -43,7 +43,7 @@ Contributions should preserve these boundaries:
 - The desktop companion must remain controllable, non-obstructive, keyboard accessible where applicable, and respectful of Reduce Motion.
 - Creature art and animation remain presentation concerns rather than species-specific branches in the core simulation.
 
-Read [the architecture](docs/architecture.md), [product brief](docs/product_brief.md), and [interaction model](docs/pet_interaction.md) before changing those areas.
+Read [the architecture](docs/engineering/architecture.md), [product brief](docs/product-brief.md), and [interaction model](docs/design/interaction.md) before changing those areas.
 
 ## Making a change
 
@@ -54,7 +54,7 @@ Read [the architecture](docs/architecture.md), [product brief](docs/product_brie
 5. Update relevant documentation and `docs/changelog.md`.
 6. Rebase or merge the latest `main` if the branch has become difficult to review.
 
-External contributors may use their normal Git workflow. Maintainers and repository automation follow [the project Git workflow](docs/git_workflow.md), including the `scripts/committer` safeguards.
+External contributors may use their normal Git workflow. Maintainers and repository automation follow [the project Git workflow](docs/process/git-workflow.md), including the `scripts/committer` safeguards.
 
 ## Pull request acceptance
 

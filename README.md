@@ -47,7 +47,7 @@ Family is the cosmetic axis — class is the mechanical one. Every Workling leve
 | **Maverick** | Agility | Finesse offense | Moves fast, breaks convention — quick, decisive, takes the opening first. |
 | **Tinkerer** | Wit | Mage-equivalent | Technology so advanced it might as well be magic — clever, inventive, otherworldly effective. |
 
-Classes are freely swappable for now; once abilities and gear exist, changing class will become a more deliberate choice. Families, species, and the class roster all live in the [character compendium](docs/characters.md).
+Classes are freely swappable for now; once abilities and gear exist, changing class will become a more deliberate choice. Families, species, and the class roster all live in the [character compendium](docs/design/characters.md).
 
 ## Current state
 
@@ -159,13 +159,13 @@ Near-term work focuses on tuning the care loop, safe roaming, and desktop intera
 
 ## Documentation
 
-- [Product brief](docs/product_brief.md)
-- [Architecture](docs/architecture.md)
-- [Pet Brain](docs/pet_brain.md)
-- [Progression design](docs/progression.md)
-- [Pet interaction model](docs/pet_interaction.md)
-- [Beta distribution](docs/distribution.md)
-- [Git workflow](docs/git_workflow.md)
+- [Product brief](docs/product-brief.md)
+- [Architecture](docs/engineering/architecture.md)
+- [Pet Brain](docs/design/pet-brain.md)
+- [Progression design](docs/design/progression.md)
+- [Pet interaction model](docs/design/interaction.md)
+- [Beta distribution](docs/process/distribution.md)
+- [Git workflow](docs/process/git-workflow.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
@@ -201,7 +201,7 @@ Every PR should:
 
 Keep PRs scoped to one coherent outcome. The description should explain the user problem, the chosen approach, important tradeoffs, and exactly how the change was tested. Screenshots or a short recording are encouraged for visible interface changes.
 
-External contributors may use their normal Git workflow in a fork. Maintainer and agent commits in this repository follow [the project Git workflow](docs/git_workflow.md).
+External contributors may use their normal Git workflow in a fork. Maintainer and agent commits in this repository follow [the project Git workflow](docs/process/git-workflow.md).
 
 Unless explicitly stated otherwise, contributions submitted for inclusion are accepted under the project's [Apache License 2.0](LICENSE).
 

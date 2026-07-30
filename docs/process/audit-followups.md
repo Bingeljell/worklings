@@ -142,5 +142,5 @@ the minimal valid success payload for `Stop` and is harmless for `SessionStart` 
 
 ---
 
-*Captured 2026-07-29, after `v0.1.0-alpha.5`. See `docs/adapters.md` for the
+*Captured 2026-07-29, after `v0.1.0-alpha.5`. See `docs/engineering/adapters.md` for the
 shipped connector and `docs/changelog.md` for the audit rounds already landed.*

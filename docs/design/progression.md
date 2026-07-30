@@ -4,7 +4,7 @@
 
 This is the agreed design direction for activity awareness, experience, levels, and stats. Activity awareness (events, context, sources) and XP/levels/class/stats are implemented; everything past that — abilities, gear, dungeons, endgame, PVP — is not. It exists so that implementation slices, and eventually external contributors, build toward one coherent game rather than a collection of features.
 
-The care loop described in [Pet Brain](pet_brain.md) is implemented and remains the foundation this design builds on.
+The care loop described in [Pet Brain](pet-brain.md) is implemented and remains the foundation this design builds on.
 
 ## The two-layer model
 
@@ -40,7 +40,7 @@ The long-run shape, roughly in build order, so every slice below is built with r
 
 ## Activity events
 
-All real-world stimulus enters through the provider-neutral boundary already defined in [Architecture](architecture.md):
+All real-world stimulus enters through the provider-neutral boundary already defined in [Architecture](../engineering/architecture.md):
 
 ```text
 Activity source -> normalized event -> activity context -> Pet Brain intent -> presentation
@@ -68,7 +68,7 @@ Ordered roughly by implementation cost:
 3. **Presence.** System input idle time (no content, no per-app visibility) drives `userIdle` and `userReturned`, and bounds work blocks.
 4. **Local git.** *(Implemented.)* An **in-app source, not an external adapter** — git has no lifecycle hooks to ride, so the running app is the watcher. It watches the `.git` directory of repositories you connect from the paw menu (**Connected Repos → Connect a Repo…**) and emits `milestone` per new commit. Opt-in per repository; the connected list is visible and each entry is one click to disconnect. Detection is by HEAD **commit-SHA movement** with an ancestor check (`GitCommitDelta`), so a message, diff, or path is never read; an amend, reset, or rebase that rewrites rather than advances history emits nothing, and commits made while the app was closed are not retro-credited (the baseline is synced silently on connect and launch). Successive commits the same day earn geometrically less XP — see `milestoneDecayFactor` in the Tuning reference.
 5. **GitHub connect.** See below.
-6. **Agent adapters.** Claude Code and Codex ship in `scripts/adapters/` (see [Activity adapters](adapters.md)). Both map a lifecycle through their tool's hooks (event JSON drained and discarded on stdin): Claude Code's `workStarted`/`taskCompleted`/`awaitingInput`/`workEnded`, and Codex's `[hooks]` `SessionStart`/`Stop`/`SessionEnd` → `workStarted`/`taskCompleted`/`workEnded` (Codex has no documented "awaiting input" event yet).
+6. **Agent adapters.** Claude Code and Codex ship in `scripts/adapters/` (see [Activity adapters](../engineering/adapters.md)). Both map a lifecycle through their tool's hooks (event JSON drained and discarded on stdin): Claude Code's `workStarted`/`taskCompleted`/`awaitingInput`/`workEnded`, and Codex's `[hooks]` `SessionStart`/`Stop`/`SessionEnd` → `workStarted`/`taskCompleted`/`workEnded` (Codex has no documented "awaiting input" event yet).
 
 ### GitHub connect
 
@@ -153,7 +153,7 @@ Progression fields (XP, class, stats, daily accrual bookkeeping) extend the exis
 
 ## Tuning reference
 
-Same posture as [Pet Brain's tuning reference](pet_brain.md#tuning-reference): every number below is alpha tuning, living in named `PetProgressionRates` fields (`Sources/CompanionCore/PetProgression.swift`), easy to retune without touching the mechanism.
+Same posture as [Pet Brain's tuning reference](pet-brain.md#tuning-reference): every number below is alpha tuning, living in named `PetProgressionRates` fields (`Sources/CompanionCore/PetProgression.swift`), easy to retune without touching the mechanism.
 
 | Knob | Default | Field |
 | --- | --- | --- |
@@ -174,6 +174,6 @@ Same posture as [Pet Brain's tuning reference](pet_brain.md#tuning-reference): e
 1. Event vocabulary, activity context, and the simulated source in `CompanionCore`, with behavioral checks. **Done.**
 2. `dailyWake`, presence, Log Work, Focus Session, and pet renaming — the cheapest real stimuli and companion-identity basics. **Done.**
 3. XP, levels, class, and class-weighted stat growth on the event stream, as an additive save-schema revision. **Done.**
-4. The first real activity sources on top of the event stream: the Claude Code and Codex agent adapters (see [adapters](adapters.md)) and the in-app local-git source. **Done.** GitHub connect remains, once reactions feel right on real input.
+4. The first real activity sources on top of the event stream: the Claude Code and Codex agent adapters (see [adapters](../engineering/adapters.md)) and the in-app local-git source. **Done.** GitHub connect remains, once reactions feel right on real input.
 5. Dungeons/PVE: level-gated text encounters against the stat sheet, reusing existing mood/reaction sprite states.
 6. Abilities and their own points currency, gear as an effective-stats computation layer, and multiplayer-normalized PVP, far later, on top of the sheet this document defines.

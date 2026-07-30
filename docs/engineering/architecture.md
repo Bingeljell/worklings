@@ -24,13 +24,13 @@ Activity source -> normalized event -> activity context -> Pet Brain intent -> p
 
 The pipeline is implemented in `CompanionCore`: `ActivityEvent` carries kind, timestamp, and source id only; `ActivityContext` reduces events into short-lived, never-persisted state that expires when events stop; `PetBrain.observe` turns share-worthy events into reactions and small need changes; and `PetBrain.advance` accepts the context so active work modulates the simulation. A debug-build Simulate Activity menu is one source, and the [activity inbox](#the-activity-inbox) is the doorway external adapters use; the Claude Code and Codex hook adapters, the in-app connector that wires them, and the in-app local-git commit watcher are implemented.
 
-Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract. The event vocabulary, sources, and the progression systems built on top of it are defined in the [progression design](progression.md).
+Raw prompts, source code, tool arguments, window contents, and keystrokes are outside this contract. The event vocabulary, sources, and the progression systems built on top of it are defined in the [progression design](../design/progression.md).
 
 ## Technology and targets
 
 Worklings uses Swift Package Manager and Apple frameworks only, targeting macOS 14 or newer.
 
-The current implementation remains intentionally macOS-first. The boundaries, framework evaluation criteria, and decision gates for a possible Windows, Linux, iOS, or Android expansion are recorded in the [cross-platform architecture roadmap](cross_platform_architecture.md). That roadmap is guidance rather than committed scope or a planned rewrite.
+The current implementation remains intentionally macOS-first. The boundaries, framework evaluation criteria, and decision gates for a possible Windows, Linux, iOS, or Android expansion are recorded in the [cross-platform architecture roadmap](cross-platform-architecture.md). That roadmap is guidance rather than committed scope or a planned rewrite.
 
 - `CompanionCore`: deterministic state, simulation, persistence primitives, care status, and presentation decisions.
 - `Worklings`: AppKit application/window behavior, SwiftUI views, live session, menu bar, and filesystem wiring.

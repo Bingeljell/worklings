@@ -2,7 +2,7 @@
 
 How you read and care for a Workling. Information reveals progressively — the pet itself, then hover, then the care card, then the menu bar — so Pixel feels like a companion, not a monitoring dashboard.
 
-Everything below describes implemented behavior unless marked deferred. Values are **Fullness-first**: higher always means better, matching the [Pet Brain](pet_brain.md).
+Everything below describes implemented behavior unless marked deferred. Values are **Fullness-first**: higher always means better, matching the [Pet Brain](pet-brain.md).
 
 ## 1. The pet is the primary UI
 

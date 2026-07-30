@@ -62,7 +62,7 @@ First match wins:
 5. **Happy** — Happiness `>= 75`, Trust `>= 60`, and Fullness `>= 60`
 6. **Content** — otherwise
 
-`PetCareStatus` separately ranks notice/urgent/critical conditions for hover summaries and action availability — see the [interaction model](pet_interaction.md).
+`PetCareStatus` separately ranks notice/urgent/critical conditions for hover summaries and action availability — see the [interaction model](interaction.md).
 
 ## Activity events
 
