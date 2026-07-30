@@ -37,13 +37,21 @@ final class CombatViewModel: ObservableObject {
     private let session: PetSession
     private let foe: Foe
     private var encounter: CombatEncounter
-    private var revealIndex = 0
     private var pumpTask: Task<Void, Never>?
 
-    /// Per-beat reveal delay, collapsed to nothing under Reduce Motion.
-    private var beat: Duration {
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-            ? .zero : .milliseconds(650)
+    /// UI beats waiting to play, and how far through the engine log they've been
+    /// turned into beats.
+    private var pendingBeats: [Beat] = []
+    private var processedEventIndex = 0
+
+    /// One readable moment on screen: a line above a creature, the pet's pose, an
+    /// optional HP change, and how long to hold before the next.
+    private struct Beat {
+        var side: CombatSide?
+        var text: String?
+        var petPose: WorklingSpriteFrame = .idle
+        var hpChange: (side: CombatSide, amount: Int)?
+        var hold: Duration
     }
 
     init(session: PetSession, foe: Foe, approach: Approach = .aggressive, seed: UInt64) {
@@ -71,63 +79,142 @@ final class CombatViewModel: ObservableObject {
     func decide(approach: Approach, unleash: Bool) {
         guard awaitingDecision != nil else { return }
         awaitingDecision = nil
+        speaker = nil
+        speechLine = nil
         encounter.decide(approach: approach, unleash: unleash)
         pump()
     }
 
-    /// Reveals any queued log beats, then advances the engine — pausing at a
-    /// decision and finishing at an ending.
+    /// Plays queued beats with their holds, stepping the engine for more, pausing
+    /// at a decision, and finishing at an ending.
     private func pump() {
         pumpTask?.cancel()
         pumpTask = Task { @MainActor [weak self] in
             while let self {
-                while self.revealIndex < self.encounter.log.count {
-                    let event = self.encounter.log[self.revealIndex]
-                    self.revealIndex += 1
-                    if let line = self.narrate(event) { self.lines.append(line) }
-                    self.petPose = self.pose(for: event)
-                    self.applySpeech(for: event)
-                    self.syncHP()
-                    try? await Task.sleep(for: self.beat)
-                    if Task.isCancelled { return }
+                while self.pendingBeats.isEmpty {
+                    switch self.encounter.status {
+                    case .ongoing:
+                        self.encounter.step()
+                        self.enqueueNewBeats()
+                    case .awaitingDecision(let reason):
+                        self.showDecision(reason)
+                        return
+                    case .petVictory, .petDefeat:
+                        self.finish()
+                        return
+                    }
                 }
-                switch self.encounter.status {
-                case .ongoing:
-                    self.encounter.step()
-                case .awaitingDecision(let reason):
-                    self.awaitingDecision = reason
-                    return
-                case .petVictory, .petDefeat:
-                    self.finish()
-                    return
-                }
+                let beat = self.pendingBeats.removeFirst()
+                self.apply(beat)
+                try? await Task.sleep(for: beat.hold)
+                if Task.isCancelled { return }
             }
         }
     }
 
-    private func syncHP() {
-        petHP = encounter.pet.currentHP
-        foeHP = encounter.foe.currentHP
+    /// Turns any freshly-appended engine events into UI beats.
+    private func enqueueNewBeats() {
+        while processedEventIndex < encounter.log.count {
+            let event = encounter.log[processedEventIndex]
+            processedEventIndex += 1
+            pendingBeats.append(contentsOf: beats(for: event))
+        }
     }
 
-    /// The pet's pose for the beat being revealed. Action beats (its own strike,
-    /// a hit landing on it, bracing, unleashing, the ending) drive a matching
-    /// pose; everything else rests on idle, or Low-HP once it's hurt enough.
-    private func pose(for event: CombatEvent) -> WorklingSpriteFrame {
+    private func apply(_ beat: Beat) {
+        speaker = beat.side
+        speechLine = beat.text
+        // A stored `.idle` means "rest" — resolve it to Low-HP when hurt enough.
+        petPose = beat.petPose == .idle ? restingPose : beat.petPose
+        if let change = beat.hpChange {
+            switch change.side {
+            case .pet: petHP = min(petMaxHP, max(0, petHP + change.amount))
+            case .foe: foeHP = min(foeMaxHP, max(0, foeHP + change.amount))
+            }
+        }
+        if let text = beat.text { lines.append(text) }
+    }
+
+    private func showDecision(_ reason: DecisionReason) {
+        awaitingDecision = reason
+        speaker = .pet
+        speechLine = reason == .lowHP ? "I'm hurting — what now?" : "What's the plan?"
+    }
+
+    /// Expands one engine event into the readable beats it plays. A strike becomes
+    /// a wind-up ("… attacks the …") then a result ("… hits … for N damage"), each
+    /// held long enough to read; the foe's own wind-up is its "gearing up" beat.
+    private func beats(for event: CombatEvent) -> [Beat] {
         switch event {
-        case let .struck(attacker, _, outcome):
-            if attacker == petName { return .strike }
-            return outcome.didHit ? .hurt : restingPose
-        case let .signature(attacker, _, _):
-            return attacker == petName ? .signature : restingPose
-        case let .braced(who, _):
-            return who == petName ? .brace : restingPose
+        case let .encounterBegan(_, foe):
+            return [Beat(side: .foe, text: "A \(foe) blocks the way!", hold: .milliseconds(1300))]
+
+        case let .struck(attacker, defender, outcome):
+            let attackerSide: CombatSide = attacker == petName ? .pet : .foe
+            let defenderSide: CombatSide = defender == petName ? .pet : .foe
+            let windupPose: WorklingSpriteFrame = attackerSide == .pet ? .strike : .idle
+            var result = [
+                Beat(
+                    side: attackerSide,
+                    text: "\(attacker) attacks the \(defender).",
+                    petPose: windupPose,
+                    hold: .milliseconds(1200)
+                )
+            ]
+            if outcome.didHit {
+                let lead = outcome.didCrit ? "A critical hit! " : ""
+                let reactionPose: WorklingSpriteFrame = defenderSide == .pet ? .hurt : windupPose
+                result.append(
+                    Beat(
+                        side: attackerSide,
+                        text: "\(lead)\(attacker) hits the \(defender) for \(outcome.damage) damage.",
+                        petPose: reactionPose,
+                        hpChange: (defenderSide, -outcome.damage),
+                        hold: .milliseconds(1500)
+                    )
+                )
+            } else {
+                result.append(
+                    Beat(
+                        side: defenderSide,
+                        text: "\(defender) dodges the blow!",
+                        hold: .milliseconds(1200)
+                    )
+                )
+            }
+            return result
+
+        case let .signature(attacker, defender, outcome):
+            return [
+                Beat(side: .pet, text: "\(attacker) unleashes its Signature!", petPose: .signature, hold: .milliseconds(1300)),
+                Beat(
+                    side: .pet,
+                    text: "It tears into the \(defender) for \(outcome.damage) damage!",
+                    petPose: .signature,
+                    hpChange: (.foe, -outcome.damage),
+                    hold: .milliseconds(1500)
+                )
+            ]
+
+        case let .braced(who, regen):
+            return [
+                Beat(
+                    side: .pet,
+                    text: "\(who) braces and steadies itself (+\(regen)).",
+                    petPose: .brace,
+                    hpChange: (.pet, regen),
+                    hold: .milliseconds(1200)
+                )
+            ]
+
         case let .defeated(who):
-            return who == petName ? .downed : restingPose
-        case let .encounterEnded(victory):
-            return victory ? .victory : .downed
-        default:
-            return restingPose
+            if who == petName {
+                return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, hold: .milliseconds(1800))]
+            }
+            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, hold: .milliseconds(1800))]
+
+        case .roundBegan, .decisionPoint, .encounterEnded:
+            return []
         }
     }
 
@@ -136,70 +223,12 @@ final class CombatViewModel: ObservableObject {
         return fraction < session.combatRates.lowHPEventThreshold ? .lowHP : .idle
     }
 
-    /// Updates the speech bubbles for a beat. Action beats put a short line above
-    /// the acting creature; a decision or the ending clears them; structural
-    /// beats (round markers) leave the last bubble in place.
-    private func applySpeech(for event: CombatEvent) {
-        switch event {
-        case .decisionPoint, .encounterEnded:
-            speaker = nil
-            speechLine = nil
-        case let .struck(attacker, _, outcome):
-            let side: CombatSide = attacker == petName ? .pet : .foe
-            speaker = side
-            speechLine = outcome.didHit
-                ? (outcome.didCrit ? "Critical! \(outcome.damage)!" : "\(outcome.damage)!")
-                : "Miss!"
-        case let .signature(attacker, _, outcome):
-            speaker = attacker == petName ? .pet : .foe
-            speechLine = "Signature! \(outcome.damage)!"
-        case let .braced(who, _):
-            speaker = who == petName ? .pet : .foe
-            speechLine = "Bracing…"
-        case let .defeated(who):
-            if who == petName {
-                speaker = .foe
-                speechLine = "Gotcha!"
-            } else {
-                speaker = .pet
-                speechLine = "Victory!"
-            }
-        case .encounterBegan, .roundBegan:
-            break
-        }
-    }
-
     private func finish() {
         let resolution = session.state.applyingOutcome(
             of: encounter, foe: foe, rates: session.combatRates
         )
         session.applyCombatResolution(resolution)
         outcome = resolution
-    }
-
-    private func narrate(_ event: CombatEvent) -> String? {
-        switch event {
-        case let .encounterBegan(_, foe):
-            return "A \(foe) blocks the way."
-        case let .roundBegan(number):
-            return "— Round \(number) —"
-        case let .struck(attacker, defender, outcome):
-            guard outcome.didHit else { return "\(attacker) strikes at \(defender) — a miss!" }
-            let crit = outcome.didCrit ? " A critical hit!" : ""
-            return "\(attacker) hits \(defender) for \(outcome.damage).\(crit)"
-        case let .signature(attacker, defender, outcome):
-            return "\(attacker) unleashes — \(outcome.damage) to \(defender)!"
-        case let .braced(who, regen):
-            return "\(who) braces, steadying (+\(regen))."
-        case let .defeated(who):
-            return "\(who) is defeated!"
-        case let .decisionPoint(reason):
-            return reason == .lowHP
-                ? "\(petName) is faltering — what now?"
-                : "A moment to reassess…"
-        case .encounterEnded:
-            return nil
-        }
     }
 }
 
@@ -324,9 +353,10 @@ struct CombatPanelView: View {
 
     private func combatant(side: CombatSide, name: String, hp: Int, maxHP: Int, tint: Color) -> some View {
         VStack(spacing: 8) {
-            // Reserve the bubble's height so the creatures never shift.
+            // Reserve the bubble's height (bottom-aligned so it grows upward and
+            // the creatures never shift).
             SpeechBubble(text: model.speaker == side ? model.speechLine : nil)
-                .frame(height: 54)
+                .frame(height: 78, alignment: .bottom)
 
             ZStack(alignment: .bottom) {
                 Ellipse()
@@ -501,10 +531,13 @@ private struct SpeechBubble: View {
             if let text {
                 VStack(spacing: 0) {
                     Text(text)
-                        .font(.system(.headline, design: .rounded).weight(.semibold))
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
                         .foregroundStyle(.black)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 190)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 7)
                         .background(.white, in: RoundedRectangle(cornerRadius: 14))
                     BubbleTail()
                         .fill(.white)
