@@ -35,6 +35,15 @@ final class CombatViewModel: ObservableObject {
     @Published private(set) var petPose: WorklingSpriteFrame = .idle
     /// The foe's current pose, driven the same way.
     @Published private(set) var foePose: FoePose = .idle
+    /// Transient hit signals for the impact "juice": a token that ticks each time
+    /// a side takes damage, plus that hit's amount and whether it crit. The view
+    /// watches the token to fire a shake / flash / damage-number.
+    @Published private(set) var petHitToken = 0
+    @Published private(set) var petHitAmount = 0
+    @Published private(set) var petHitCrit = false
+    @Published private(set) var foeHitToken = 0
+    @Published private(set) var foeHitAmount = 0
+    @Published private(set) var foeHitCrit = false
     /// The creature the current speech bubble sits above, and its short line —
     /// nil hides the bubbles.
     @Published private(set) var speaker: CombatSide?
@@ -61,6 +70,7 @@ final class CombatViewModel: ObservableObject {
         var text: String?
         var petPose: WorklingSpriteFrame = .idle
         var foePose: FoePose = .idle
+        var isCrit = false
         var hpChange: (side: CombatSide, amount: Int)?
         var hold: Duration
     }
@@ -143,6 +153,19 @@ final class CombatViewModel: ObservableObject {
             case .pet: petHP = min(petMaxHP, max(0, petHP + change.amount))
             case .foe: foeHP = min(foeMaxHP, max(0, foeHP + change.amount))
             }
+            if change.amount < 0 {
+                let amount = -change.amount
+                switch change.side {
+                case .pet:
+                    petHitAmount = amount
+                    petHitCrit = beat.isCrit
+                    petHitToken += 1
+                case .foe:
+                    foeHitAmount = amount
+                    foeHitCrit = beat.isCrit
+                    foeHitToken += 1
+                }
+            }
         }
         if let text = beat.text { lines.append(text) }
     }
@@ -187,6 +210,7 @@ final class CombatViewModel: ObservableObject {
                         text: "\(lead)\(attacker) hits the \(defender) for \(outcome.damage) damage.",
                         petPose: reactionPetPose,
                         foePose: reactionFoePose,
+                        isCrit: outcome.didCrit,
                         hpChange: (defenderSide, -outcome.damage),
                         hold: .milliseconds(1500)
                     )
@@ -357,48 +381,17 @@ struct CombatPanelView: View {
 
     private var arena: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            combatant(side: .pet, name: model.petName, hp: model.petHP, maxHP: model.petMaxHP, tint: .green)
+            ArenaCombatant(model: model, side: .pet, tint: .green, creatureSize: Self.creatureSize)
             Spacer()
             Text("vs")
                 .font(.system(.title3, design: .rounded).weight(.black))
                 .foregroundStyle(.white.opacity(0.3))
                 .padding(.bottom, 60)
             Spacer()
-            combatant(side: .foe, name: model.foeName, hp: model.foeHP, maxHP: model.foeMaxHP, tint: .orange)
+            ArenaCombatant(model: model, side: .foe, tint: .orange, creatureSize: Self.creatureSize)
         }
         .padding(.horizontal, 34)
         .frame(maxHeight: .infinity)
-    }
-
-    private func combatant(side: CombatSide, name: String, hp: Int, maxHP: Int, tint: Color) -> some View {
-        VStack(spacing: 8) {
-            // Reserve the bubble's height (bottom-aligned so it grows upward and
-            // the creatures never shift).
-            SpeechBubble(text: model.speaker == side ? model.speechLine : nil)
-                .frame(height: 78, alignment: .bottom)
-
-            ZStack(alignment: .bottom) {
-                Ellipse()
-                    .fill(.black.opacity(0.25))
-                    .frame(width: Self.creatureSize * 0.6, height: 14)
-                    .blur(radius: 3)
-                if side == .pet {
-                    PetCombatSprite(family: model.petFamily, pose: model.petPose, size: Self.creatureSize)
-                } else {
-                    FoeSprite(foeName: model.foeName, pose: model.foePose, size: Self.creatureSize)
-                }
-            }
-            .frame(height: Self.creatureSize)
-
-            VStack(spacing: 4) {
-                Text(name).font(.headline)
-                HPBar(fraction: maxHP > 0 ? Double(max(hp, 0)) / Double(maxHP) : 0, tint: tint)
-                    .frame(width: 132)
-                Text("\(max(hp, 0)) / \(maxHP)")
-                    .font(.caption2).monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.65))
-            }
-        }
     }
 
     private var controlBar: some View {
@@ -491,6 +484,145 @@ struct CombatPanelView: View {
         case .barely: "you limp back, shaken"
         case .downed: "you retreat to recover"
         }
+    }
+}
+
+/// One fighter's column: speech bubble, sprite (with ground shadow), name, and
+/// HP. Owns the transient impact "juice" — a shake, a white flash, and a rising
+/// damage number whenever this side takes a hit.
+private struct ArenaCombatant: View {
+    @ObservedObject var model: CombatViewModel
+    let side: CombatSide
+    let tint: Color
+    let creatureSize: CGFloat
+
+    @State private var flash: Double = 0
+    @State private var floaters: [DamageFloater] = []
+
+    private var name: String { side == .pet ? model.petName : model.foeName }
+    private var hp: Int { side == .pet ? model.petHP : model.foeHP }
+    private var maxHP: Int { side == .pet ? model.petMaxHP : model.foeMaxHP }
+    private var hitToken: Int { side == .pet ? model.petHitToken : model.foeHitToken }
+    private var hitAmount: Int { side == .pet ? model.petHitAmount : model.foeHitAmount }
+    private var hitCrit: Bool { side == .pet ? model.petHitCrit : model.foeHitCrit }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Bottom-aligned so the bubble grows upward and never shifts the row.
+            SpeechBubble(text: model.speaker == side ? model.speechLine : nil)
+                .frame(height: 78, alignment: .bottom)
+
+            ZStack(alignment: .bottom) {
+                Ellipse()
+                    .fill(.black.opacity(0.25))
+                    .frame(width: creatureSize * 0.6, height: 14)
+                    .blur(radius: 3)
+                creature
+                    .brightness(flash)
+                    .impactShake(trigger: hitToken)
+            }
+            .frame(height: creatureSize)
+            .overlay(alignment: .top) {
+                ForEach(floaters) { floater in
+                    DamageFloaterView(amount: floater.amount, crit: floater.crit) {
+                        floaters.removeAll { $0.id == floater.id }
+                    }
+                }
+            }
+
+            VStack(spacing: 4) {
+                Text(name).font(.headline)
+                HPBar(fraction: maxHP > 0 ? Double(max(hp, 0)) / Double(maxHP) : 0, tint: tint)
+                    .frame(width: 132)
+                Text("\(max(hp, 0)) / \(maxHP)")
+                    .font(.caption2).monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+        }
+        .onChange(of: hitToken) { _, token in
+            guard token > 0 else { return }
+            flash = 0.55
+            withAnimation(.easeOut(duration: 0.35)) { flash = 0 }
+            floaters.append(DamageFloater(amount: hitAmount, crit: hitCrit))
+        }
+    }
+
+    @ViewBuilder
+    private var creature: some View {
+        if side == .pet {
+            PetCombatSprite(family: model.petFamily, pose: model.petPose, size: creatureSize)
+        } else {
+            FoeSprite(foeName: model.foeName, pose: model.foePose, size: creatureSize)
+        }
+    }
+}
+
+/// A damage number that rises and fades above the creature that was hit.
+private struct DamageFloater: Identifiable {
+    let id = UUID()
+    let amount: Int
+    let crit: Bool
+}
+
+private struct DamageFloaterView: View {
+    let amount: Int
+    let crit: Bool
+    let onDone: () -> Void
+
+    @State private var rise: CGFloat = 6
+    @State private var fade: Double = 0
+
+    var body: some View {
+        Text(crit ? "\(amount)!" : "\(amount)")
+            .font(.system(crit ? .title2 : .title3, design: .rounded).weight(.heavy))
+            .foregroundStyle(crit ? .yellow : .white)
+            .shadow(color: .black.opacity(0.6), radius: 2, y: 1)
+            .offset(y: rise)
+            .opacity(fade)
+            .onAppear {
+                fade = 1
+                withAnimation(.easeOut(duration: 0.85)) {
+                    rise = -46
+                    fade = 0
+                }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(880))
+                    onDone()
+                }
+            }
+    }
+}
+
+/// The scale-and-shake punch that fires each time `trigger` changes (a hit).
+private struct ImpactValue: Sendable {
+    var shakeX: CGFloat = 0
+    var scale: CGFloat = 1
+}
+
+private struct ImpactShake: ViewModifier {
+    let trigger: Int
+
+    func body(content: Content) -> some View {
+        content.keyframeAnimator(initialValue: ImpactValue(), trigger: trigger) { view, value in
+            view.offset(x: value.shakeX).scaleEffect(value.scale)
+        } keyframes: { _ in
+            KeyframeTrack(\.shakeX) {
+                CubicKeyframe(-7, duration: 0.05)
+                CubicKeyframe(7, duration: 0.06)
+                CubicKeyframe(-4, duration: 0.06)
+                CubicKeyframe(0, duration: 0.08)
+            }
+            KeyframeTrack(\.scale) {
+                CubicKeyframe(0.9, duration: 0.06)
+                SpringKeyframe(1.0, duration: 0.26)
+            }
+        }
+    }
+}
+
+private extension View {
+    func impactShake(trigger: Int) -> some View {
+        modifier(ImpactShake(trigger: trigger))
     }
 }
 

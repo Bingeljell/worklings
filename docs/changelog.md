@@ -1,5 +1,9 @@
 # Changelog
 
+- **2026-07-30 > Sources/Worklings/CombatPanel.swift > combat impact juice (no new art) > Adds code-driven hit feedback on top of the single-frame sprites: whoever takes damage does a quick squash-and-shake punch, a white flash, and a rising damage number (crits bigger and yellow). The view-model emits a per-side hit token/amount/crit on each damaging beat; a new `ArenaCombatant` view owns the transient effects and an `ImpactShake` keyframe modifier drives the punch. Makes the current static poses land much harder while real multi-frame animation waits on the Blender pass.**
+
+- **2026-07-30 > assets/dungeons/cache-warren-cave-backdrop.png > Cache Warren arena cave backdrop > Adds a 1200×960 painterly pixel-art cavern background for the 5:4 combat arena, with a broad readable floor, a quiet central combat space, perimeter-weighted buried brass machinery, muted warm lighting, and restrained cyan rune cracks.**
+
 - **2026-07-30 > assets/foes/mote-idle.png, mote-attack.png, mote-hurt.png, Package.swift, Sources/Worklings/CombatPanel.swift > wire the Mote's combat sprites > Registers the Mote's idle/attack/hurt PNGs as resources and renders them in the arena via a new `FoeSprite` view and `FoeSpriteAsset` loader (loaded once, like the family sheets). The foe now gets the same beat-driven treatment as the pet — idle bob at rest, its attack pose (lunging left toward the pet) on its wind-up, and its hurt pose when the Workling lands a hit. Foes without art fall back to the placeholder.**
 
 - **2026-07-30 > assets/foes/mote-idle.png, assets/foes/mote-attack.png, assets/foes/mote-hurt.png > Mote Dungeon Scamp idle, attack, and hurt frames > Adds the selected asymmetric dust-and-lint dungeon adversary as three transparent 256×256 sprites: a hovering idle, leftward headbutt with a compact impact puff, and squished recoil with loose lint, all normalized to a consistent mini-enemy scale for the foe-sprite loader.**
