@@ -49,6 +49,11 @@ public struct PetCombatRates: Equatable, Sendable {
     public let lowHPEventThreshold: Double
     /// HP fraction below which a Careful Approach chooses Brace over Strike.
     public let carefulBraceThreshold: Double
+    /// The level a Workling must reach before the first dungeon unlocks.
+    public let delveGateLevel: Int
+    /// If any need is at or below this, the pet refuses to delve — "fights below
+    /// its sheet, or refuses to fight."
+    public let refusalNeedThreshold: Double
 
     public init(
         baseHP: Double = 20,
@@ -68,7 +73,9 @@ public struct PetCombatRates: Equatable, Sendable {
         signatureMultiplier: Double = 1.5,
         decisionCadenceRounds: Int = 3,
         lowHPEventThreshold: Double = 0.3,
-        carefulBraceThreshold: Double = 0.5
+        carefulBraceThreshold: Double = 0.5,
+        delveGateLevel: Int = 3,
+        refusalNeedThreshold: Double = 10
     ) {
         self.baseHP = max(baseHP, 0)
         self.vitalityToHP = max(vitalityToHP, 0)
@@ -88,6 +95,8 @@ public struct PetCombatRates: Equatable, Sendable {
         self.decisionCadenceRounds = max(decisionCadenceRounds, 1)
         self.lowHPEventThreshold = min(max(lowHPEventThreshold, 0), 1)
         self.carefulBraceThreshold = min(max(carefulBraceThreshold, 0), 1)
+        self.delveGateLevel = max(delveGateLevel, 1)
+        self.refusalNeedThreshold = min(max(refusalNeedThreshold, 0), 100)
     }
 
     /// The condition→combat multiplier: full condition fights at 100%, neglect

@@ -32,6 +32,7 @@ enum CombatChecks {
         checkDefeatIsDownedWithNoXP(context: &context)
         checkOutcomeStaysInsideTheReversibleEnvelope(context: &context)
         checkPetCombatantBuildsFromState(context: &context)
+        checkDelveEntryEligibility(context: &context)
     }
 
     private static func midHealthPet() -> PetState {
@@ -564,5 +565,32 @@ enum CombatChecks {
         )
         context.expectEqual(fromState, direct, "pet(from:) matches building from the parts")
         context.expectEqual(fromState.name, state.name, "the combatant takes the pet's name")
+    }
+
+    private static func checkDelveEntryEligibility(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)
+        // A new pet is Level 1 — below the Level-3 gate.
+        let fresh = PetState.newPet(now: t0).applying(needs: fullHealth)
+        context.expectEqual(
+            rates.delveBlock(for: fresh), .belowGateLevel(required: 3),
+            "a below-gate pet is blocked"
+        )
+        context.expect(!rates.canEnterDelve(fresh), "cannot enter below the gate")
+
+        // 300 XP reaches Level 3; healthy needs clear the refusal.
+        let ready = fresh.applying(addingXP: 300)
+        context.expect(ready.level >= 3, "300 XP reaches the gate level")
+        context.expect(rates.canEnterDelve(ready), "a healthy, leveled pet may enter")
+        context.expect(rates.delveBlock(for: ready) == nil, "no block when eligible")
+
+        // A single critical need refuses the delve even at level.
+        let neglected = ready.applying(
+            needs: PetNeeds(hunger: 95, energy: 5, happiness: 50, trust: 50)
+        )
+        context.expectEqual(
+            rates.delveBlock(for: neglected), .needsCare,
+            "a critical need blocks entry"
+        )
     }
 }

@@ -52,6 +52,34 @@ extension PetCombatRates {
     }
 }
 
+/// Why a delve can't be entered right now, for the UI to explain rather than
+/// just disable a control.
+public enum DelveBlock: Equatable, Sendable {
+    case belowGateLevel(required: Int)
+    case needsCare
+}
+
+extension PetCombatRates {
+    /// Whether the pet may enter a delve, or why not: it must have reached the
+    /// gate level and have no critical need. Mirrors the care card's
+    /// disabled-with-explanation pattern.
+    public func delveBlock(for state: PetState) -> DelveBlock? {
+        if state.level < delveGateLevel {
+            return .belowGateLevel(required: delveGateLevel)
+        }
+        let needs = state.needs
+        let lowest = min(needs.fullness, needs.energy, needs.happiness, needs.trust)
+        if lowest <= refusalNeedThreshold {
+            return .needsCare
+        }
+        return nil
+    }
+
+    public func canEnterDelve(_ state: PetState) -> Bool {
+        delveBlock(for: state) == nil
+    }
+}
+
 /// The result of applying a finished encounter to a pet: the updated state, the
 /// tier reached, and the XP granted.
 public struct EncounterResolution: Equatable, Sendable {
