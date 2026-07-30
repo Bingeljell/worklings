@@ -1,0 +1,83 @@
+/// The dungeon combat model's tunable numbers and the core resolution formulas.
+///
+/// Same posture as `PetProgressionRates`: every value here is first-pass alpha
+/// tuning — a knob, held now and retuned from real play later without touching
+/// the mechanism. The design and the full knob list live in
+/// `docs/design/dungeons.md`.
+///
+/// This first slice covers only the four core formulas (max HP, strike damage,
+/// hit chance, crit chance). Damage variance, the condition-effectiveness
+/// multiplier, actions, and the resolver arrive in later slices, and their
+/// knobs land here alongside these.
+public struct PetCombatRates: Equatable, Sendable {
+    /// Flat combat HP every combatant starts from, before Vitality.
+    public let baseHP: Double
+    /// Combat HP added per point of Vitality.
+    public let vitalityToHP: Double
+    /// Strike damage per point of Power.
+    public let powerScale: Double
+    /// Strike damage removed per point of the target's Guard.
+    public let guardScale: Double
+    /// Base hit chance before the attacker/defender Agility difference.
+    public let baseHitChance: Double
+    /// Hit chance gained per point of Agility advantage over the defender.
+    public let agilityToHit: Double
+    /// Lower bound on hit chance, so nothing is ever a guaranteed miss.
+    public let hitChanceFloor: Double
+    /// Upper bound on hit chance, so nothing is ever a guaranteed hit.
+    public let hitChanceCeiling: Double
+    /// Crit chance gained per point of Agility.
+    public let critChancePerAgility: Double
+    /// Damage multiplier applied on a crit.
+    public let critMultiplier: Double
+
+    public init(
+        baseHP: Double = 20,
+        vitalityToHP: Double = 3,
+        powerScale: Double = 1.5,
+        guardScale: Double = 1,
+        baseHitChance: Double = 0.75,
+        agilityToHit: Double = 0.03,
+        hitChanceFloor: Double = 0.25,
+        hitChanceCeiling: Double = 0.95,
+        critChancePerAgility: Double = 0.01,
+        critMultiplier: Double = 1.5
+    ) {
+        self.baseHP = max(baseHP, 0)
+        self.vitalityToHP = max(vitalityToHP, 0)
+        self.powerScale = max(powerScale, 0)
+        self.guardScale = max(guardScale, 0)
+        self.baseHitChance = min(max(baseHitChance, 0), 1)
+        self.agilityToHit = max(agilityToHit, 0)
+        self.hitChanceFloor = min(max(hitChanceFloor, 0), 1)
+        self.hitChanceCeiling = min(max(hitChanceCeiling, 0), 1)
+        self.critChancePerAgility = max(critChancePerAgility, 0)
+        self.critMultiplier = max(critMultiplier, 1)
+    }
+
+    /// A combatant's maximum combat HP. This is a transient pool, unrelated to
+    /// the condition needs — see the closed loop in the dungeon design.
+    public func maxHP(vitality: Int) -> Int {
+        Int((baseHP + Double(vitality) * vitalityToHP).rounded())
+    }
+
+    /// The base damage of a Strike before variance and crit, floored at 1 so a
+    /// heavily armoured target still takes chip damage rather than none.
+    public func strikeDamage(power: Int, targetGuard: Int) -> Double {
+        max(1, Double(power) * powerScale - Double(targetGuard) * guardScale)
+    }
+
+    /// The chance a Strike lands, shaded by the Agility gap and clamped so the
+    /// result is always a real gamble.
+    public func hitChance(attackerAgility: Int, defenderAgility: Int) -> Double {
+        let raw = baseHitChance
+            + Double(attackerAgility - defenderAgility) * agilityToHit
+        return min(max(raw, hitChanceFloor), hitChanceCeiling)
+    }
+
+    /// The chance a landed Strike crits, from the attacker's Agility, clamped to
+    /// a probability.
+    public func critChance(agility: Int) -> Double {
+        min(max(Double(agility) * critChancePerAgility, 0), 1)
+    }
+}
