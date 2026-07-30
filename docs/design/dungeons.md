@@ -143,7 +143,7 @@ then an endurance check:
 
 | # | Foe | HP | Pow | Guard | Agi | Wit | Hook |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| 1 | **Mote** | 8 | 3 | 0 | 5 | 1 | Trivial warm-up; teaches the loop. |
+| 1 | **Mote** | 30 | 4 | 1 | 6 | 1 | Trivial warm-up; a few rounds to teach the loop. |
 | 2 | **Snag** | 30 | 7 | 6 | 3 | 3 | Tanky grabber; its bite lowers your Agility for a turn. Rewards Power / patience. |
 | 3 | **Flicker** | 18 | 6 | 2 | 14 | 4 | Evasive; hard to hit, folds fast. Rewards accuracy / the Signature opening. |
 | B | **Monolith** | 90 | 12 | 12 | 2 | 2 | Slow mini-boss; heavy wind-up hits telegraphed a turn ahead. Rewards Bracing the big blow and grinding. |

@@ -380,14 +380,14 @@ enum CombatChecks {
 
     private static func checkBestiaryMatchesTheSpec(context: inout CheckContext) {
         // The stat blocks are the reward the whole design leans on; guard them.
-        context.expectEqual(CacheWarren.mote.maxHP, 8, "Mote HP")
+        context.expectEqual(CacheWarren.mote.maxHP, 30, "Mote HP (tuned for a few rounds)")
         context.expectEqual(CacheWarren.flicker.stats.agility, 14, "Flicker is fast")
         context.expectEqual(CacheWarren.monolith.stats.defense, 12, "Monolith is armoured")
         context.expectApproximatelyEqual(CacheWarren.flicker.rewardXP, 25, "Flicker reward")
         context.expectEqual(CacheWarren.encounters.count, 3, "three regular encounters")
         // makeCombatant yields a full-HP fighter from the block.
         let mote = CacheWarren.mote.makeCombatant()
-        context.expectEqual(mote.currentHP, 8, "a fresh foe starts at full HP")
+        context.expectEqual(mote.currentHP, 30, "a fresh foe starts at full HP")
         context.expectEqual(mote.currentHP, mote.maxHP, "fresh foe is undamaged")
     }
 

@@ -27,8 +27,8 @@ public struct Foe: Equatable, Sendable {
 /// until their abilities are built.
 public enum CacheWarren {
     public static let mote = Foe(
-        name: "Mote", maxHP: 8,
-        stats: CombatStats(power: 3, defense: 0, agility: 5, wit: 1),
+        name: "Mote", maxHP: 30,
+        stats: CombatStats(power: 4, defense: 1, agility: 6, wit: 1),
         rewardXP: 8
     )
     public static let snag = Foe(
