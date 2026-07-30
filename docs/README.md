@@ -23,6 +23,7 @@ abilities, dungeons, and the class/family splits all land here as they take shap
 - [Progression](design/progression.md) — the character sheet: XP, levels, stats, class, and the systems ladder up to dungeons and endgame.
 - [Characters](design/characters.md) — the identity layer: families, species, and the five-class roster.
 - [Interaction](design/interaction.md) — how a player reads and cares for a Workling: the pet, hover, care card, menu bar.
+- [Dungeons](design/dungeons.md) — the first content system: solo delves, the active-auto-battler combat model, and the condition↔combat loop. *Design direction, not yet implemented.*
 
 ## engineering/ — how it's built
 
