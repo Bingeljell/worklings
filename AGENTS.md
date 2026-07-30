@@ -11,6 +11,7 @@
    - Each change should be on a new bullet point
 8. Before installing dependencies or creating additional files, get user permission and explain why they are needed.
 9. Git branching/release process is documented in `docs/git_workflow.md` and must be followed.
+10. Before using browser automation, confirm whether the user wants the agent to perform the browser steps. Prefer a concise handoff when the user can complete them more quickly or with less token usage. An explicit request to use the browser in the current task counts as confirmation.
 
 ## Commit Workflow
   - Always commit and push using `scripts/committer`.
