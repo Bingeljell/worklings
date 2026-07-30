@@ -624,7 +624,7 @@ private struct ArenaBackground: View {
                     .allowsHitTesting(false)
             }
             LinearGradient(
-                colors: [.black.opacity(0.32), .clear, .black.opacity(0.12)],
+                colors: [.black.opacity(0.42), .black.opacity(0.14), .black.opacity(0.34)],
                 startPoint: .top, endPoint: .bottom
             )
         }
@@ -663,10 +663,12 @@ private struct AtmosphereDrift: View {
     }
 
     private func tile(_ width: CGFloat, _ height: CGFloat) -> some View {
+        // The overlay is a pale haze; keep it very faint so it drifts as
+        // atmosphere without washing the cave out or flattening the fighters.
         Image(decorative: image, scale: 1, orientation: .up)
             .resizable()
             .frame(width: width, height: height)
-            .opacity(0.85)
+            .opacity(0.14)
     }
 }
 
