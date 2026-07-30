@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-30 > Sources/Worklings/CombatPanel.swift > bigger, higher combat text > Enlarges the event speech bubbles (title-size bold, wider wrap, more padding, a drop shadow) and raises them with a taller reserved slot so each beat's text occupies more of the stage and reads as a more interactive fight.**
+
 - **2026-07-30 > assets/dungeons/cache-warren-cave-backdrop.png, cache-warren-atmosphere-overlay.png, Package.swift, Sources/Worklings/CombatPanel.swift > cave backdrop and drifting parallax atmosphere > Replaces the flat gradient stage with the painted Cache Warren cave backdrop plus a slowly-drifting, seamlessly-looping translucent atmosphere overlay (two chasing copies) for parallax life, over a faint darkening for text legibility. New `ArenaBackground` / `AtmosphereDrift` views and a `DungeonArtAsset` loader (shared `bundledCGImage` helper). Drift freezes under Reduce Motion; falls back to the gradient if art is missing.**
 
 - **2026-07-30 > assets/dungeons/cache-warren-atmosphere-overlay.png > seamless Cache Warren atmosphere layer > Adds a deterministic 1600×900 native-alpha overlay of horizontally periodic pixel-cluster fog, warm drifting dust and embers, and sparse cyan motes; the left/right boundary is byte-identical for seamless scrolling and all atmosphere remains low-opacity so combatants and speech bubbles stay readable.**

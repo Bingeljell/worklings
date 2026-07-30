@@ -569,9 +569,10 @@ private struct ArenaCombatant: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // Bottom-aligned so the bubble grows upward and never shifts the row.
+            // Bottom-aligned so the bubble grows upward (higher on the stage,
+            // occupying more of the space) and never shifts the row.
             SpeechBubble(text: model.speaker == side ? model.speechLine : nil)
-                .frame(height: 78, alignment: .bottom)
+                .frame(height: 112, alignment: .bottom)
 
             ZStack(alignment: .bottom) {
                 Ellipse()
@@ -835,17 +836,18 @@ private struct SpeechBubble: View {
             if let text {
                 VStack(spacing: 0) {
                     Text(text)
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .font(.system(.title3, design: .rounded).weight(.bold))
                         .foregroundStyle(.black)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 190)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 7)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                        .frame(maxWidth: 250)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
                     BubbleTail()
                         .fill(.white)
-                        .frame(width: 16, height: 9)
+                        .frame(width: 18, height: 10)
                 }
                 .transition(.scale(scale: 0.5).combined(with: .opacity))
                 .id(text)
