@@ -206,56 +206,53 @@ final class CombatViewModel: ObservableObject {
             let attackerSide: CombatSide = attacker == petName ? .pet : .foe
             let defenderSide: CombatSide = defender == petName ? .pet : .foe
             let petAttacking = attackerSide == .pet
-            let windupPetPose: WorklingSpriteFrame = petAttacking ? .strike : .idle
-            let windupFoePose: FoePose = petAttacking ? .idle : .attack
-            var result = [
-                Beat(
-                    side: attackerSide,
-                    text: "\(attacker) attacks the \(defender).",
-                    petPose: windupPetPose,
-                    foePose: windupFoePose,
-                    hold: .milliseconds(1200)
-                )
+            // Intro line, then the 3-2-1 countdown, then the swing + hit together.
+            var out: [Beat] = [
+                Beat(side: attackerSide, text: "\(attacker) sets upon the \(defender).", hold: .milliseconds(900))
             ]
+            out += countdownBeats()
             if outcome.didHit {
                 let lead = outcome.didCrit ? "A critical hit! " : ""
-                // The one that got hit recoils.
-                let reactionPetPose: WorklingSpriteFrame = defenderSide == .pet ? .hurt : windupPetPose
-                let reactionFoePose: FoePose = defenderSide == .foe ? .hurt : windupFoePose
-                result.append(
+                out.append(
                     Beat(
                         side: attackerSide,
-                        text: "\(lead)\(attacker) hits the \(defender) for \(outcome.damage) damage.",
-                        petPose: reactionPetPose,
-                        foePose: reactionFoePose,
+                        text: "\(lead)\(attacker) hits the \(defender) for \(outcome.damage) damage!",
+                        petPose: petAttacking ? .strike : .hurt,
+                        foePose: petAttacking ? .hurt : .attack,
                         isCrit: outcome.didCrit,
                         hpChange: (defenderSide, -outcome.damage),
                         hold: .milliseconds(1500)
                     )
                 )
             } else {
-                result.append(
+                out.append(
                     Beat(
                         side: defenderSide,
-                        text: "\(defender) dodges the blow!",
-                        hold: .milliseconds(1200)
+                        text: "\(attacker) swings — the \(defender) dodges!",
+                        petPose: petAttacking ? .strike : .idle,
+                        foePose: petAttacking ? .idle : .attack,
+                        hold: .milliseconds(1300)
                     )
                 )
             }
-            return result
+            return out
 
         case let .signature(attacker, defender, outcome):
-            return [
-                Beat(side: .pet, text: "\(attacker) unleashes its Signature!", petPose: .signature, hold: .milliseconds(1300)),
+            var out: [Beat] = [
+                Beat(side: .pet, text: "\(attacker) gathers power for its Signature…", hold: .milliseconds(900))
+            ]
+            out += countdownBeats()
+            out.append(
                 Beat(
                     side: .pet,
-                    text: "It tears into the \(defender) for \(outcome.damage) damage!",
+                    text: "\(attacker) unleashes — the \(defender) takes \(outcome.damage)!",
                     petPose: .signature,
                     foePose: .hurt,
                     hpChange: (.foe, -outcome.damage),
-                    hold: .milliseconds(1500)
+                    hold: .milliseconds(1600)
                 )
-            ]
+            )
+            return out
 
         case let .braced(who, regen):
             return [
@@ -282,6 +279,11 @@ final class CombatViewModel: ObservableObject {
     private var restingPose: WorklingSpriteFrame {
         let fraction = petMaxHP > 0 ? Double(petHP) / Double(petMaxHP) : 1
         return fraction < session.combatRates.lowHPEventThreshold ? .lowHP : .idle
+    }
+
+    /// The 3 → 2 → 1 beats shown before an action, for anticipation.
+    private func countdownBeats() -> [Beat] {
+        [3, 2, 1].map { Beat(countdown: $0, hold: .milliseconds(700)) }
     }
 
     private func finish() {
@@ -409,6 +411,23 @@ struct CombatPanelView: View {
         }
         .padding(.horizontal, 34)
         .frame(maxHeight: .infinity)
+        .overlay { countdownOverlay }
+    }
+
+    @ViewBuilder
+    private var countdownOverlay: some View {
+        ZStack {
+            if let value = model.countdownValue {
+                Text("\(value)")
+                    .font(.system(size: 96, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 10, y: 3)
+                    .transition(.scale(scale: 1.6).combined(with: .opacity))
+                    .id(value)
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: model.countdownValue)
+        .allowsHitTesting(false)
     }
 
     private var controlBar: some View {

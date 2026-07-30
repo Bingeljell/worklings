@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-30 > Sources/Worklings/CombatPanel.swift > 3-2-1 countdown before each action > Restructures the beat flow into a clear rhythm: an intro line naming the coming action, then a big centre 3 → 2 → 1 countdown (each number pops in and out), then the swing and the hit land together on one beat. Gives every attack anticipation and paces the fight so it's easy to follow. During the countdown the bubbles hide and both creatures idle.**
+
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift > poof the loser at defeat, and a clean winner-only victory screen > The smoke now fires the instant a fighter is defeated, over it in the arena (an `ArenaCombatant` poof driven by a new `defeatedSide` signal), instead of late on the end screen. The end screen is now opaque (its own cave background) and shows only the victor — no more the dungeon and both characters showing through behind a dim overlay.**
 
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift > stop the atmosphere overlay washing out the stage > The overlay is a near-white haze; drops its opacity from 0.85 to 0.14 so it drifts as faint atmosphere instead of a white veil, and strengthens the background darkening so the fighters and text read clearly against the cave.**
