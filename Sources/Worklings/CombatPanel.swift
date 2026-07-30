@@ -10,6 +10,14 @@ enum CombatSide {
     case foe
 }
 
+/// The foe's arena pose. Foes have a small, fixed set of sprites (idle / attack
+/// / hurt) rather than the pet's full sheet.
+enum FoePose {
+    case idle
+    case attack
+    case hurt
+}
+
 /// Drives one encounter for the UI: steps the engine, reveals it a beat at a
 /// time so it reads as a fight, pauses for decisions, and writes the result back
 /// to the session on completion.
@@ -25,6 +33,8 @@ final class CombatViewModel: ObservableObject {
     /// The pet's current pose, driven by the beat being revealed, so the sprite
     /// strikes, recoils, braces, and celebrates in time with the narration.
     @Published private(set) var petPose: WorklingSpriteFrame = .idle
+    /// The foe's current pose, driven the same way.
+    @Published private(set) var foePose: FoePose = .idle
     /// The creature the current speech bubble sits above, and its short line —
     /// nil hides the bubbles.
     @Published private(set) var speaker: CombatSide?
@@ -50,6 +60,7 @@ final class CombatViewModel: ObservableObject {
         var side: CombatSide?
         var text: String?
         var petPose: WorklingSpriteFrame = .idle
+        var foePose: FoePose = .idle
         var hpChange: (side: CombatSide, amount: Int)?
         var hold: Duration
     }
@@ -124,6 +135,7 @@ final class CombatViewModel: ObservableObject {
     private func apply(_ beat: Beat) {
         speaker = beat.side
         speechLine = beat.text
+        foePose = beat.foePose
         // A stored `.idle` means "rest" — resolve it to Low-HP when hurt enough.
         petPose = beat.petPose == .idle ? restingPose : beat.petPose
         if let change = beat.hpChange {
@@ -152,23 +164,29 @@ final class CombatViewModel: ObservableObject {
         case let .struck(attacker, defender, outcome):
             let attackerSide: CombatSide = attacker == petName ? .pet : .foe
             let defenderSide: CombatSide = defender == petName ? .pet : .foe
-            let windupPose: WorklingSpriteFrame = attackerSide == .pet ? .strike : .idle
+            let petAttacking = attackerSide == .pet
+            let windupPetPose: WorklingSpriteFrame = petAttacking ? .strike : .idle
+            let windupFoePose: FoePose = petAttacking ? .idle : .attack
             var result = [
                 Beat(
                     side: attackerSide,
                     text: "\(attacker) attacks the \(defender).",
-                    petPose: windupPose,
+                    petPose: windupPetPose,
+                    foePose: windupFoePose,
                     hold: .milliseconds(1200)
                 )
             ]
             if outcome.didHit {
                 let lead = outcome.didCrit ? "A critical hit! " : ""
-                let reactionPose: WorklingSpriteFrame = defenderSide == .pet ? .hurt : windupPose
+                // The one that got hit recoils.
+                let reactionPetPose: WorklingSpriteFrame = defenderSide == .pet ? .hurt : windupPetPose
+                let reactionFoePose: FoePose = defenderSide == .foe ? .hurt : windupFoePose
                 result.append(
                     Beat(
                         side: attackerSide,
                         text: "\(lead)\(attacker) hits the \(defender) for \(outcome.damage) damage.",
-                        petPose: reactionPose,
+                        petPose: reactionPetPose,
+                        foePose: reactionFoePose,
                         hpChange: (defenderSide, -outcome.damage),
                         hold: .milliseconds(1500)
                     )
@@ -191,6 +209,7 @@ final class CombatViewModel: ObservableObject {
                     side: .pet,
                     text: "It tears into the \(defender) for \(outcome.damage) damage!",
                     petPose: .signature,
+                    foePose: .hurt,
                     hpChange: (.foe, -outcome.damage),
                     hold: .milliseconds(1500)
                 )
@@ -209,9 +228,9 @@ final class CombatViewModel: ObservableObject {
 
         case let .defeated(who):
             if who == petName {
-                return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, hold: .milliseconds(1800))]
+                return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, hold: .milliseconds(1800))]
             }
-            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, hold: .milliseconds(1800))]
+            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, foePose: .hurt, hold: .milliseconds(1800))]
 
         case .roundBegan, .decisionPoint, .encounterEnded:
             return []
@@ -366,7 +385,7 @@ struct CombatPanelView: View {
                 if side == .pet {
                     PetCombatSprite(family: model.petFamily, pose: model.petPose, size: Self.creatureSize)
                 } else {
-                    FoePlaceholder(size: Self.creatureSize)
+                    FoeSprite(foeName: model.foeName, pose: model.foePose, size: Self.creatureSize)
                 }
             }
             .frame(height: Self.creatureSize)
@@ -499,6 +518,86 @@ private struct PetCombatSprite: View {
 
     private var isLunging: Bool {
         pose == .strike || pose == .signature
+    }
+}
+
+/// The foe in the arena: renders its idle / attack / hurt sprite (facing the pet
+/// natively), bobbing while idle and lunging left into its attack. Falls back to
+/// the placeholder for foes whose sprites haven't been drawn yet.
+private struct FoeSprite: View {
+    let foeName: String
+    let pose: FoePose
+    let size: CGFloat
+
+    var body: some View {
+        if FoeSpriteAsset.hasArt(foeName) {
+            TimelineView(.periodic(from: .now, by: 0.9)) { context in
+                sprite(at: context.date)
+            }
+        } else {
+            FoePlaceholder(size: size)
+        }
+    }
+
+    private func sprite(at date: Date) -> some View {
+        Group {
+            if let image = FoeSpriteAsset.image(foe: foeName, pose: pose) {
+                Image(decorative: image, scale: 1, orientation: .up)
+                    .resizable()
+                    .interpolation(.none)
+                    .scaledToFit()
+            } else {
+                Color.clear
+            }
+        }
+        .frame(width: size, height: size)
+        .offset(x: pose == .attack ? -22 : 0, y: idleBob(at: date))
+        .animation(.easeOut(duration: 0.14), value: pose)
+    }
+
+    private func idleBob(at date: Date) -> CGFloat {
+        guard pose == .idle else { return 0 }
+        let phase = Int(date.timeIntervalSinceReferenceDate / 0.9)
+        return phase.isMultiple(of: 2) ? 0 : -4
+    }
+}
+
+/// Loads and caches the small foe sprite sets. Each supported foe has an idle,
+/// attack, and hurt PNG, loaded once like the family sheets.
+private enum FoeSpriteAsset {
+    static let moteIdle = load("mote-idle")
+    static let moteAttack = load("mote-attack")
+    static let moteHurt = load("mote-hurt")
+
+    static func hasArt(_ foe: String) -> Bool {
+        resourceBase(for: foe) != nil
+    }
+
+    static func image(foe: String, pose: FoePose) -> CGImage? {
+        switch (resourceBase(for: foe), pose) {
+        case ("mote", .idle): return moteIdle
+        case ("mote", .attack): return moteAttack
+        case ("mote", .hurt): return moteHurt
+        default: return nil
+        }
+    }
+
+    private static func resourceBase(for foe: String) -> String? {
+        switch foe {
+        case "Mote": return "mote"
+        default: return nil
+        }
+    }
+
+    private static func load(_ resourceName: String) -> CGImage? {
+        let url = Bundle.main.url(forResource: resourceName, withExtension: "png")
+            ?? Bundle.module.url(forResource: resourceName, withExtension: "png")
+        guard let url, let image = NSImage(contentsOf: url) else {
+            NSLog("Worklings could not load the %@ foe sprite.", resourceName)
+            return nil
+        }
+        var rect = NSRect(origin: .zero, size: image.size)
+        return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
     }
 }
 
