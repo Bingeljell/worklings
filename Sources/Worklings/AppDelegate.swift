@@ -366,8 +366,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Seed from the moment of entry so each delve plays out a little
         // differently; the fight itself is deterministic from this seed.
         let seed = UInt64(bitPattern: Int64(Date().timeIntervalSinceReferenceDate.bitPattern))
+        // The companion leaves the desktop (a smoke conceal) and reappears in the
+        // arena; bring it back when the fight ends, however it ends.
+        let wasVisible = companionController?.isVisible ?? false
+        companionController?.hide()
         combatPanelController?.present(
-            session: petSession, foe: CacheWarren.mote, seed: seed
+            session: petSession, foe: CacheWarren.mote, seed: seed,
+            onDismiss: { [weak self] in
+                if wasVisible { self?.companionController?.show() }
+            }
         )
     }
 

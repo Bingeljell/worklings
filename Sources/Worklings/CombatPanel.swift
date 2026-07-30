@@ -211,11 +211,15 @@ final class CombatViewModel: ObservableObject {
 final class CombatPanelController {
     private var panel: NSPanel?
     private var model: CombatViewModel?
+    private var onDismiss: (() -> Void)?
 
     var isPresenting: Bool { panel != nil }
 
-    func present(session: PetSession, foe: Foe, seed: UInt64) {
+    /// Opens the arena for one fight. `onDismiss` runs when it closes (however it
+    /// closes), so the caller can bring the desktop companion back.
+    func present(session: PetSession, foe: Foe, seed: UInt64, onDismiss: @escaping () -> Void) {
         dismiss()
+        self.onDismiss = onDismiss
 
         let model = CombatViewModel(session: session, foe: foe, seed: seed)
         self.model = model
@@ -223,9 +227,11 @@ final class CombatPanelController {
         let root = CombatPanelView(model: model, onClose: { [weak self] in self?.dismiss() })
         let hosting = NSHostingView(rootView: root)
 
+        // No .closable — the in-panel Close/Return is the only exit, so the
+        // dismiss path (and the companion's return) always runs.
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 480),
-            styleMask: [.titled, .closable, .nonactivatingPanel],
+            styleMask: [.titled, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -242,9 +248,15 @@ final class CombatPanelController {
     }
 
     func dismiss() {
+        let wasPresenting = panel != nil
         panel?.orderOut(nil)
         panel = nil
         model = nil
+        if wasPresenting {
+            let callback = onDismiss
+            onDismiss = nil
+            callback?()
+        }
     }
 }
 
