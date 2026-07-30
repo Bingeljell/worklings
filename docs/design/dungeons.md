@@ -151,6 +151,24 @@ then an endurance check:
 Combat HP **carries across** the three encounters (regen between them scales with
 condition); the boss is the attrition payoff. HP fully restores after the delve.
 
+### Enemy behaviors & abilities
+
+Each foe runs a small **behavior script** — what it does on its turn — and the tougher
+ones carry a named ability. These lean on the same **status-effect** and **telegraph**
+primitives the [class abilities](abilities.md#the-status-effect-system-these-need) need, so
+both get built once. Magnitudes are held as knobs.
+
+| Foe | Behavior | Ability |
+| --- | --- | --- |
+| **Mote** | Attacks every turn; no tactics. | — (pure filler; teaches the loop). |
+| **Snag** | Attacks; occasionally grabs instead. | **Snare** — on a grab, applies a timed debuff lowering the pet's Agility (its initiative and accuracy sag). Rewards Power or riding it out. *(Knobs: snare magnitude, duration, grab frequency.)* |
+| **Flicker** | Darts in and out; hard to pin. | **Blur** (passive high evasion) plus an occasional **Phase** that dodges the next hit outright — then it **over-extends**, opening the Unleash window. *(Knobs: evasion, phase chance, opening frequency.)* |
+| **Monolith** | Slow; acts rarely but heavily. | **Slam** — a heavy hit **telegraphed a turn ahead** (a decision point to Brace or eat it), and it **hardens** (raises Guard) at HP-threshold **phases**. *(Knobs: slam multiplier, telegraph length, phase thresholds.)* |
+
+The design intent of the curve: Mote teaches the loop, Snag punishes a glass-cannon
+Approach, Flicker demands accuracy (or Tinkerer's Expose), and Monolith rewards reading a
+telegraph and Bracing — so by the boss the player has used every part of the model once.
+
 ## A worked encounter: the Flicker
 
 The Flicker is the teaching foe for "an evasive target," walked here with a **Level-3
@@ -221,10 +239,68 @@ extend each family's sheet + add the enum case; no new rendering path is needed.
 use generation prompts for these poses (and the Cache Warren foes) live in
 [Sprite prompts](sprite-prompts.md).
 
+## What a first playable encounter needs
+
+Stepping back from the design to the *build*: what has to exist for a single encounter to
+be playable end-to-end. The recommendation is to ship a **vertical slice first** — one
+encounter, not the whole delve — to prove the loop, then widen.
+
+### The vertical slice (smallest playable thing)
+
+**The pet versus one Mote (or Flicker): three base actions, one Approach, one decision
+point, a win/lose, and one reward + condition delta applied.** No delve chain, no
+abilities, no items, no boss. If that reads as a fight and the numbers flow back into the
+sheet and needs, everything else is additive.
+
+### Domain — `CompanionCore` (pure, testable)
+
+- **Combat state model** — `CombatState` (round, turn order, each combatant's HP + statuses, the RNG seed, current Approach, any pending decision, the narration log) and `Combatant` (effective stats, HP, statuses).
+- **Seeded PRNG** — a small deterministic generator in `CompanionCore`, seeded from save state + a delve nonce, so a fight replays identically under test.
+- **Resolver** — `step()` advancing one action as a pure function of `(state, seed)`: initiative, action resolution via the [formulas](#core-formulas), status ticks, win/lose check.
+- **Effective-stat function** — base + (gear, when it exists) × condition effectiveness; the resolver reads this, never raw base stats.
+- **Foe data** — the [stat blocks and behavior scripts](#enemy-behaviors--abilities) as data, not code branches.
+- **Decision-point detection** — the cadence + event triggers that pause for input.
+- **Orchestration** — encounter → (later) delve: HP carry, inter-encounter regen, entry gate (level + [refusal](#condition--combat-the-closed-loop)), and exit-tier computation.
+- **Reward + feedback application** — grant XP (reuse the existing progression path), apply the [exit-tier condition deltas](#condition--combat-the-closed-loop) to needs, and (later) award ability points / items.
+- **Behavioral checks** — determinism/replay, each formula, decision triggers, exit-tier mapping, refusal, reward caps, and the per-class differences. This is the layer `CompanionCoreChecks` covers.
+
+### App — `Worklings` (timing, animation, presentation)
+
+- **A combat surface** — *the open UI decision.* The care card is small; options are a dedicated combat panel/window or an expanded card mode. It needs: pet + foe sprites, two HP bars, the narration log revealing turn by turn, an Approach control, and a decision-point prompt.
+- **An entry point** — how a delve starts: a paw-menu item ("Enter the Cache Warren") and/or a button on the Stats tab, gated by level and blocked on critical need.
+- **Sprite wiring** — the new [combat poses](#new-sprite-states-this-needs) added to `WorklingSpriteFrame` + extended family sheets, and a **foe-sprite path** (foes are a new asset type — likely their own sheet/loader, since today only the pet is drawn).
+- **Pacing** — turns revealed with a delay so it reads as a fight, honoring Reduce Motion (instant/settled fallback).
+- **Narration** — templated lines per action/outcome (the text beside each sprite beat).
+- **Write-back** — apply results through `PetSession` and persist.
+- **Accessibility** — the log, HP values, and prompts exposed to VoiceOver; decisions keyboard-reachable; colour never the only signal — matching the [interaction](interaction.md#accessibility) bar the rest of the app holds.
+
+### Persistence (additive, backward-compatible)
+
+New save fields, all additive so an old save reads cleanly: delve stamina / attempts-per-day
+(reuse `DailyTally` for the rollover), dungeon-XP daily bookkeeping, and — as their layers
+land — ability points + unlocked ids ([abilities](abilities.md#the-ability-point-currency))
+and owned/equipped items ([items](items.md#persistence)). Bump the save version once,
+additively.
+
+### Content minimum for the slice
+
+One foe fully defined (Mote is simplest), the three base actions, and the minimum sprites
+to not look broken: pet **Strike / Hurt / Victory / Downed** (idle reused) plus **one foe
+sprite**. Janky first-pass art is fine (see [sprite prompts](sprite-prompts.md)).
+
+### Decisions to make before building
+
+1. **Combat surface** — dedicated panel/window vs expanded care card. *(Biggest UX call.)*
+2. **Foe-sprite pipeline** — sheet layout and loader for a non-pet drawable.
+3. **Slice vs full delve** for the first shippable cut (recommend: slice).
+4. **Save-migration** timing — one version bump now covering the known additive fields, or bump per layer.
+
 ## Tuning knobs
 
 Everything dial-able, in one place, for the dial-up/dial-down discussion. Proposed to live
-in a `PetCombatRates` struct alongside `PetProgressionRates`.
+in a `PetCombatRates` struct alongside `PetProgressionRates`. **All values below are held —
+noted, not being tuned yet.** Enemy-ability, [ability](abilities.md#knobs), and
+[item](items.md#knobs) knobs are held in their own docs.
 
 | Knob | Default | Raising it… |
 | --- | --- | --- |
