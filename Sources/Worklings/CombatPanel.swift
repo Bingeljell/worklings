@@ -352,6 +352,11 @@ struct CombatPanelView: View {
         .frame(width: 600, height: 480)
         .background(stageBackground)
         .foregroundStyle(.white)
+        .overlay {
+            if let outcome = model.outcome {
+                EndScreen(outcome: outcome, model: model, onReturn: onClose)
+            }
+        }
     }
 
     private var stageBackground: some View {
@@ -390,8 +395,8 @@ struct CombatPanelView: View {
 
     private var controlBar: some View {
         Group {
-            if let outcome = model.outcome {
-                summary(outcome)
+            if model.outcome != nil {
+                Color.clear.frame(height: 1) // the end screen takes over
             } else if model.awaitingDecision != nil {
                 decisionControls
             } else {
@@ -432,28 +437,6 @@ struct CombatPanelView: View {
         }
     }
 
-    private func summary(_ resolution: EncounterResolution) -> some View {
-        let won = resolution.tier != .downed
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(won ? "Victory!" : "Downed…")
-                .font(.title3.bold())
-                .foregroundStyle(won ? .green : .orange)
-            Text("\(tierName(resolution.tier)) — \(exitBlurb(resolution.tier))")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.75))
-            if resolution.xpGained > 0 {
-                Label("+\(Int(resolution.xpGained)) XP", systemImage: "sparkles")
-                    .font(.caption)
-            }
-            Button {
-                onClose()
-            } label: {
-                Text("Return").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-
     private func name(for approach: Approach) -> String {
         switch approach {
         case .aggressive: "Aggressive"
@@ -461,23 +444,162 @@ struct CombatPanelView: View {
         case .clever: "Clever"
         }
     }
+}
 
-    private func tierName(_ tier: ExitTier) -> String {
-        switch tier {
-        case .flawless: "Flawless"
-        case .solid: "Solid"
-        case .barely: "Barely"
-        case .downed: "Downed"
+private func tierName(_ tier: ExitTier) -> String {
+    switch tier {
+    case .flawless: "Flawless"
+    case .solid: "Solid"
+    case .barely: "Barely"
+    case .downed: "Downed"
+    }
+}
+
+private func exitBlurb(_ tier: ExitTier) -> String {
+    switch tier {
+    case .flawless: "you return triumphant"
+    case .solid: "a fair fight, a little worn"
+    case .barely: "you limp back, shaken"
+    case .downed: "you retreat to recover"
+    }
+}
+
+/// The end-of-fight screen: the winner takes centre stage in its victory pose
+/// (with a pop-in and sparkles), the loser vanishes in a puff of smoke, then the
+/// result and Return button fade in.
+private struct EndScreen: View {
+    let outcome: EncounterResolution
+    @ObservedObject var model: CombatViewModel
+    let onReturn: () -> Void
+
+    @State private var titleShown = false
+    @State private var winnerScale: CGFloat = 0.4
+    @State private var winnerBob = false
+    @State private var loserVisible = true
+    @State private var smokeFrame: Int?
+    @State private var footerShown = false
+
+    private var won: Bool { outcome.tier != .downed }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.62).ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Text(won ? "Victory!" : "Defeated…")
+                    .font(.system(size: 46, weight: .black, design: .rounded))
+                    .foregroundStyle(won ? Color.green : Color.orange)
+                    .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+                    .scaleEffect(titleShown ? 1 : 0.5)
+                    .opacity(titleShown ? 1 : 0)
+
+                ZStack {
+                    winner
+                        .scaleEffect(winnerScale)
+                        .offset(y: winnerBob ? -6 : 0)
+                        .overlay { if won { Sparkles() } }
+
+                    if loserVisible {
+                        ZStack {
+                            loser.opacity((smokeFrame ?? 0) < 4 ? 1 : 0)
+                            if let frame = smokeFrame {
+                                SmokeEffectSprite(frameIndex: frame, size: 150)
+                            }
+                        }
+                        .offset(x: won ? 150 : -150, y: 24)
+                    }
+                }
+                .frame(height: 190)
+
+                if footerShown {
+                    VStack(spacing: 10) {
+                        Text("\(tierName(outcome.tier)) — \(exitBlurb(outcome.tier))")
+                            .font(.headline)
+                            .foregroundStyle(.white.opacity(0.85))
+                        if outcome.xpGained > 0 {
+                            Label("+\(Int(outcome.xpGained)) XP", systemImage: "sparkles")
+                                .font(.title3.bold())
+                                .foregroundStyle(.white)
+                        }
+                        Button(action: onReturn) {
+                            Text("Return").frame(width: 160)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .padding(28)
+        }
+        .onAppear(perform: runSequence)
+    }
+
+    @ViewBuilder
+    private var winner: some View {
+        if won {
+            PetCombatSprite(family: model.petFamily, pose: .victory, size: 150)
+        } else {
+            FoeSprite(foeName: model.foeName, pose: .attack, size: 150)
         }
     }
 
-    private func exitBlurb(_ tier: ExitTier) -> String {
-        switch tier {
-        case .flawless: "you return triumphant"
-        case .solid: "a fair fight, a little worn"
-        case .barely: "you limp back, shaken"
-        case .downed: "you retreat to recover"
+    @ViewBuilder
+    private var loser: some View {
+        if won {
+            FoeSprite(foeName: model.foeName, pose: .hurt, size: 118)
+        } else {
+            PetCombatSprite(family: model.petFamily, pose: .downed, size: 118)
         }
+    }
+
+    private func runSequence() {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+            winnerScale = 1
+            titleShown = true
+        }
+        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            winnerBob = true
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            for frame in 0..<8 {
+                smokeFrame = frame
+                try? await Task.sleep(for: .milliseconds(70))
+            }
+            loserVisible = false
+            smokeFrame = nil
+            withAnimation(.easeOut(duration: 0.35)) { footerShown = true }
+        }
+    }
+}
+
+/// A ring of twinkling sparkles for the victor.
+private struct Sparkles: View {
+    @State private var lit = false
+
+    private let spots: [CGPoint] = [
+        CGPoint(x: -62, y: -46), CGPoint(x: 66, y: -34), CGPoint(x: -50, y: 46),
+        CGPoint(x: 58, y: 52), CGPoint(x: 4, y: -74)
+    ]
+
+    var body: some View {
+        ZStack {
+            ForEach(spots.indices, id: \.self) { index in
+                Image(systemName: "sparkle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.yellow)
+                    .offset(x: spots[index].x, y: spots[index].y)
+                    .opacity(lit ? 1 : 0.2)
+                    .scaleEffect(lit ? 1 : 0.5)
+                    .animation(
+                        .easeInOut(duration: 0.7).repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.12),
+                        value: lit
+                    )
+            }
+        }
+        .onAppear { lit = true }
     }
 }
 

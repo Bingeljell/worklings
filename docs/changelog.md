@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-30 > Sources/Worklings/CombatPanel.swift, WildkinPetView.swift > victory / defeat end screen > When a fight ends, a full-arena overlay takes over: a big Victory!/Defeated title pops in, the winner takes centre stage in its victory pose with a spring pop-in, a gentle bob, and a ring of twinkling sparkles, while the loser puffs away in the reused 8-frame smoke effect; then the exit tier, XP, and Return button fade in. Makes `SmokeEffectSprite` reusable with a size; moves the old bottom summary into this screen.**
+
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift > bigger, higher combat text > Enlarges the event speech bubbles (title-size bold, wider wrap, more padding, a drop shadow) and raises them with a taller reserved slot so each beat's text occupies more of the stage and reads as a more interactive fight.**
 
 - **2026-07-30 > assets/dungeons/cache-warren-cave-backdrop.png, cache-warren-atmosphere-overlay.png, Package.swift, Sources/Worklings/CombatPanel.swift > cave backdrop and drifting parallax atmosphere > Replaces the flat gradient stage with the painted Cache Warren cave backdrop plus a slowly-drifting, seamlessly-looping translucent atmosphere overlay (two chasing copies) for parallax life, over a faint darkening for text legibility. New `ArenaBackground` / `AtmosphereDrift` views and a `DungeonArtAsset` loader (shared `bundledCGImage` helper). Drift freezes under Reduce Motion; falls back to the gradient if art is missing.**

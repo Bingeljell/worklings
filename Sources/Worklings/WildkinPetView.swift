@@ -113,12 +113,12 @@ struct WorklingPetView: View {
     }
 }
 
-private struct SmokeEffectSprite: View {
+struct SmokeEffectSprite: View {
     private static let resourceName = "worklings-smoke-effects"
     private static let sourceCellSize: CGFloat = 256
-    private static let cellSize: CGFloat = 196
 
     let frameIndex: Int
+    var size: CGFloat = 196
 
     private static let spriteSheet: CGImage? = {
         let resourceURL = Bundle.main.url(
@@ -151,7 +151,7 @@ private struct SmokeEffectSprite: View {
                     .interpolation(.none)
             }
         }
-        .frame(width: Self.cellSize, height: Self.cellSize)
+        .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
 
