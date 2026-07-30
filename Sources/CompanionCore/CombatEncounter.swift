@@ -1,5 +1,5 @@
 /// The standing strategy the pet fights on between decisions.
-public enum Approach: Equatable, Sendable, CaseIterable {
+public enum Approach: Equatable, Hashable, Sendable, CaseIterable {
     case aggressive  // bias Strike
     case careful     // Brace when hurt, else Strike
     case clever      // Strike, holding the Signature for a chosen moment
