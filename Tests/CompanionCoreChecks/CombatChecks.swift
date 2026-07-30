@@ -21,6 +21,30 @@ enum CombatChecks {
         checkBraceMitigationReducesDamage(context: &context)
         checkSignatureAlwaysHitsAndHitsHarder(context: &context)
         checkBestiaryMatchesTheSpec(context: &context)
+        checkEncounterReplaysIdentically(context: &context)
+        checkAggressivePetBeatsMote(context: &context)
+        checkOutmatchedPetIsDefeated(context: &context)
+        checkFasterCombatantActsFirst(context: &context)
+        checkDecisionPointAndUnleashConsumeSignature(context: &context)
+    }
+
+    private static func aegisPet(_ rates: PetCombatRates) -> Combatant {
+        Combatant.pet(name: "Pixel", baseStats: aegisStats, needs: fullHealth, rates: rates)
+    }
+
+    private static func firstStruckAttacker(in log: [CombatEvent]) -> String? {
+        for event in log {
+            if case let .struck(attacker, _, _) = event { return attacker }
+        }
+        return nil
+    }
+
+    private static func logContainsSignature(_ log: [CombatEvent]) -> Bool {
+        log.contains { if case .signature = $0 { return true } else { return false } }
+    }
+
+    private static func logContainsDecision(_ log: [CombatEvent]) -> Bool {
+        log.contains { if case .decisionPoint = $0 { return true } else { return false } }
     }
 
     private static let flickerStats = CombatStats(
@@ -353,5 +377,92 @@ enum CombatChecks {
         let mote = CacheWarren.mote.makeCombatant()
         context.expectEqual(mote.currentHP, 8, "a fresh foe starts at full HP")
         context.expectEqual(mote.currentHP, mote.maxHP, "fresh foe is undamaged")
+    }
+
+    private static func checkEncounterReplaysIdentically(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        func fight() -> CombatEncounter {
+            var encounter = CombatEncounter(
+                pet: aegisPet(rates), foe: CacheWarren.flicker,
+                approach: .aggressive, rates: rates, seed: 314
+            )
+            encounter.runToCompletion()
+            return encounter
+        }
+        // The whole encounter is Equatable, so this compares log, HP, and the
+        // generator's final state at once.
+        context.expectEqual(fight(), fight(), "a seeded encounter replays identically")
+    }
+
+    private static func checkAggressivePetBeatsMote(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.mote,
+            approach: .aggressive, rates: rates, seed: 7
+        )
+        encounter.runToCompletion()
+        context.expectEqual(encounter.status, .petVictory, "the pet beats a Mote")
+        context.expect(encounter.foe.isDefeated, "the Mote is defeated")
+        context.expect(encounter.pet.currentHP > 0, "the pet survives a Mote")
+    }
+
+    private static func checkOutmatchedPetIsDefeated(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // A deliberately feeble fighter against the mini-boss.
+        let weakling = Combatant(
+            name: "Sprout",
+            stats: CombatStats(power: 1, defense: 0, agility: 1, wit: 1),
+            maxHP: 6, currentHP: 6
+        )
+        var encounter = CombatEncounter(
+            pet: weakling, foe: CacheWarren.monolith,
+            approach: .aggressive, rates: rates, seed: 7
+        )
+        encounter.runToCompletion()
+        context.expectEqual(encounter.status, .petDefeat, "an outmatched pet is downed")
+        context.expect(encounter.pet.isDefeated, "the pet is at 0 HP")
+    }
+
+    private static func checkFasterCombatantActsFirst(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // The pet's Agility 7 is slower than the Flicker's 14, so the Flicker
+        // opens the first round.
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.flicker,
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // resolve round 1
+        context.expectEqual(
+            firstStruckAttacker(in: encounter.log), "Flicker",
+            "the faster combatant strikes first"
+        )
+    }
+
+    private static func checkDecisionPointAndUnleashConsumeSignature(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // The Monolith is a long fight, so a cadence decision point is reached;
+        // Unleashing there must fire the Signature exactly once.
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.monolith,
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        var unleashed = false
+        var guardCount = 0
+        loop: while guardCount < 400 {
+            switch encounter.status {
+            case .ongoing:
+                encounter.step()
+            case .awaitingDecision:
+                encounter.decide(approach: .aggressive, unleash: !unleashed)
+                unleashed = true
+            case .petVictory, .petDefeat:
+                break loop
+            }
+            guardCount += 1
+        }
+        context.expect(logContainsDecision(encounter.log), "a decision point was reached")
+        context.expect(unleashed, "the fight paused for a decision")
+        context.expect(logContainsSignature(encounter.log), "Unleash fired the Signature")
+        context.expect(!encounter.signatureReady, "the Signature is consumed after use")
     }
 }

@@ -9,7 +9,7 @@
 /// The algorithm is SplitMix64: tiny, fast, and well-distributed. Conforming to
 /// `RandomNumberGenerator` means the standard library's `random(in:using:)`
 /// helpers work against it unchanged.
-public struct SeededGenerator: RandomNumberGenerator {
+public struct SeededGenerator: RandomNumberGenerator, Equatable, Sendable {
     private var state: UInt64
 
     public init(seed: UInt64) {

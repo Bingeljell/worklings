@@ -43,6 +43,12 @@ public struct PetCombatRates: Equatable, Sendable {
     public let braceRegen: Int
     /// Damage multiplier on the once-per-encounter Signature, which always hits.
     public let signatureMultiplier: Double
+    /// Rounds between the steady "reassess" decision points.
+    public let decisionCadenceRounds: Int
+    /// HP fraction below which the "faltering" decision point fires (once).
+    public let lowHPEventThreshold: Double
+    /// HP fraction below which a Careful Approach chooses Brace over Strike.
+    public let carefulBraceThreshold: Double
 
     public init(
         baseHP: Double = 20,
@@ -59,7 +65,10 @@ public struct PetCombatRates: Equatable, Sendable {
         combatEffectivenessFloor: Double = 0.5,
         braceMitigation: Double = 0.5,
         braceRegen: Int = 2,
-        signatureMultiplier: Double = 1.5
+        signatureMultiplier: Double = 1.5,
+        decisionCadenceRounds: Int = 3,
+        lowHPEventThreshold: Double = 0.3,
+        carefulBraceThreshold: Double = 0.5
     ) {
         self.baseHP = max(baseHP, 0)
         self.vitalityToHP = max(vitalityToHP, 0)
@@ -76,6 +85,9 @@ public struct PetCombatRates: Equatable, Sendable {
         self.braceMitigation = min(max(braceMitigation, 0), 1)
         self.braceRegen = max(braceRegen, 0)
         self.signatureMultiplier = max(signatureMultiplier, 1)
+        self.decisionCadenceRounds = max(decisionCadenceRounds, 1)
+        self.lowHPEventThreshold = min(max(lowHPEventThreshold, 0), 1)
+        self.carefulBraceThreshold = min(max(carefulBraceThreshold, 0), 1)
     }
 
     /// The condition→combat multiplier: full condition fights at 100%, neglect
