@@ -41,8 +41,8 @@ The [systems ladder](progression.md#the-systems-ladder) lists the build order. I
 terms:
 
 - **Content (dungeons/PVE)** — *designed, not yet built.* The first place level, stats, class, and condition are spent rather than just accumulated: level-gated solo delves of turn-based, narrated encounters resolved against the sheet. This is the loop's missing "spend" step and the next major slice. Design in [Dungeons](dungeons.md).
-- **Abilities** — *planned.* Level- and class-gated actions used inside encounters, unlocked by a points currency deliberately separate from stat growth. Design lands in `abilities.md`.
-- **Gear** — *planned.* Modifies *effective* stats at read-time without touching the persisted base numbers, so it arrives as computation rather than a save migration.
+- **Abilities** — *designed, not yet built.* Level- and class-gated actions used inside encounters, unlocked by a points currency deliberately separate from stat growth. Design in [Abilities](abilities.md).
+- **Gear** — *designed, not yet built.* Modifies *effective* stats at read-time without touching the persisted base numbers, so it arrives as computation rather than a save migration. Design in [Items & gear](items.md).
 - **Endgame, then PVP** — *deferred.* A level cap followed by lateral progression; PVP waits behind multiplayer normalization.
 
 ## Why this order
@@ -60,4 +60,5 @@ later without rework.
 - XP, levels, stats, class, the full ladder → [Progression](progression.md)
 - Families, species, class roster → [Characters](characters.md)
 - Dungeons / encounters → [Dungeons](dungeons.md)
-- Abilities → `abilities.md` *(planned)*
+- Abilities → [Abilities](abilities.md)
+- Items / gear → [Items & gear](items.md)

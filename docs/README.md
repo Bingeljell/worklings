@@ -24,6 +24,8 @@ abilities, dungeons, and the class/family splits all land here as they take shap
 - [Characters](design/characters.md) — the identity layer: families, species, and the five-class roster.
 - [Interaction](design/interaction.md) — how a player reads and cares for a Workling: the pet, hover, care card, menu bar.
 - [Dungeons](design/dungeons.md) — the first content system: solo delves, the active-auto-battler combat model, and the condition↔combat loop. *Design direction, not yet implemented.*
+- [Abilities](design/abilities.md) — the first class-specific ability each, the ability-point currency, and the status-effect primitive combat needs. *Design direction.*
+- [Items & gear](design/items.md) — the read-time effective-stats model, slots, and a base item set. *Design direction.*
 - [Sprite prompts](design/sprite-prompts.md) — ready-to-use generation prompts for the new combat poses and the Cache Warren foes.
 
 ## engineering/ — how it's built
