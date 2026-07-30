@@ -24,7 +24,9 @@ let package = Package(
                 .copy("../../assets/worklings-smoke-effects.png"),
                 .copy("../../assets/foes/mote-idle.png"),
                 .copy("../../assets/foes/mote-attack.png"),
-                .copy("../../assets/foes/mote-hurt.png")
+                .copy("../../assets/foes/mote-hurt.png"),
+                .copy("../../assets/dungeons/cache-warren-cave-backdrop.png"),
+                .copy("../../assets/dungeons/cache-warren-atmosphere-overlay.png")
             ]
         ),
         .executableTarget(
