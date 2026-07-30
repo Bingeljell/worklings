@@ -14,6 +14,17 @@ enum CombatChecks {
         checkNeglectScalesStatsAndHP(context: &context)
         checkFoeIgnoresCondition(context: &context)
         checkCombatantDamageAndHealClamp(context: &context)
+        checkStrikeIsDeterministicForASeed(context: &context)
+        checkMissDealsNoDamageHitDealsSome(context: &context)
+        checkStrikeDamageStaysInBounds(context: &context)
+        checkStrikeHitRateApproximatesTheFormula(context: &context)
+    }
+
+    private static let flickerStats = CombatStats(
+        power: 6, defense: 2, agility: 14, wit: 4
+    )
+    private static func freshFlicker() -> Combatant {
+        Combatant.foe(name: "Flicker", maxHP: 18, stats: flickerStats)
     }
 
     // A Level-3 Aegis: Guard 11 (signature), the rest at 7.
@@ -194,5 +205,89 @@ enum CombatChecks {
         c.takeDamage(999)
         context.expectEqual(c.currentHP, 0, "damage clamps at 0")
         context.expect(c.isDefeated, "0 HP is defeated")
+    }
+
+    private static func checkStrikeIsDeterministicForASeed(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let attacker = CombatStats(power: 7, defense: 11, agility: 7, wit: 7) // Aegis
+
+        func run() -> [StrikeOutcome] {
+            var generator = SeededGenerator(seed: 99)
+            var target = freshFlicker()
+            return (0..<12).map { _ in
+                CombatResolver.resolveStrike(
+                    attacker: attacker, defender: &target, rates: rates, using: &generator
+                )
+            }
+        }
+        context.expectEqual(run(), run(), "a seeded strike sequence replays identically")
+    }
+
+    private static func checkMissDealsNoDamageHitDealsSome(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let attacker = CombatStats(power: 7, defense: 11, agility: 7, wit: 7)
+        var generator = SeededGenerator(seed: 3)
+        var target = freshFlicker()
+        var sawMiss = false
+        var sawHit = false
+        for _ in 0..<200 where !(sawMiss && sawHit) {
+            let before = target.currentHP
+            let outcome = CombatResolver.resolveStrike(
+                attacker: attacker, defender: &target, rates: rates, using: &generator
+            )
+            if outcome.didHit {
+                sawHit = true
+                context.expect(outcome.damage >= 1, "a hit deals at least 1")
+                context.expect(target.currentHP < before || before == 0, "a hit lowers HP")
+            } else {
+                sawMiss = true
+                context.expectEqual(outcome.damage, 0, "a miss deals 0")
+                context.expectEqual(target.currentHP, before, "a miss leaves HP unchanged")
+            }
+            if target.isDefeated { target = freshFlicker() }
+        }
+        context.expect(sawMiss && sawHit, "both a hit and a miss occur over many strikes")
+    }
+
+    private static func checkStrikeDamageStaysInBounds(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // Juggernaut Power 11 vs Flicker Guard 2: base 14.5.
+        let attacker = CombatStats(power: 11, defense: 7, agility: 7, wit: 7)
+        let base = rates.strikeDamage(power: 11, targetGuard: 2) // 14.5
+        let maxNonCrit = Int((base * (1 + rates.strikeVariance)).rounded())
+        let maxCrit = Int((base * (1 + rates.strikeVariance) * rates.critMultiplier).rounded())
+        var generator = SeededGenerator(seed: 55)
+        for _ in 0..<300 {
+            var target = freshFlicker()
+            let outcome = CombatResolver.resolveStrike(
+                attacker: attacker, defender: &target, rates: rates, using: &generator
+            )
+            guard outcome.didHit else { continue }
+            let ceiling = outcome.didCrit ? maxCrit : maxNonCrit
+            context.expect(
+                outcome.damage >= 1 && outcome.damage <= ceiling,
+                "strike damage \(outcome.damage) within [1, \(ceiling)] (crit \(outcome.didCrit))"
+            )
+        }
+    }
+
+    private static func checkStrikeHitRateApproximatesTheFormula(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // Aegis Agility 7 vs Flicker 14 → 0.54 expected hit rate.
+        let attacker = CombatStats(power: 7, defense: 11, agility: 7, wit: 7)
+        var generator = SeededGenerator(seed: 2_024)
+        var hits = 0
+        let trials = 2000
+        for _ in 0..<trials {
+            var target = freshFlicker()
+            if CombatResolver.resolveStrike(
+                attacker: attacker, defender: &target, rates: rates, using: &generator
+            ).didHit { hits += 1 }
+        }
+        let rate = Double(hits) / Double(trials)
+        context.expect(
+            abs(rate - 0.54) < 0.05,
+            "observed hit rate \(rate) is near the 0.54 formula"
+        )
     }
 }

@@ -18,6 +18,8 @@ public struct PetCombatRates: Equatable, Sendable {
     public let powerScale: Double
     /// Strike damage removed per point of the target's Guard.
     public let guardScale: Double
+    /// Symmetric random swing applied to a Strike's damage, e.g. 0.15 = ±15%.
+    public let strikeVariance: Double
     /// Base hit chance before the attacker/defender Agility difference.
     public let baseHitChance: Double
     /// Hit chance gained per point of Agility advantage over the defender.
@@ -40,6 +42,7 @@ public struct PetCombatRates: Equatable, Sendable {
         vitalityToHP: Double = 3,
         powerScale: Double = 1.5,
         guardScale: Double = 1,
+        strikeVariance: Double = 0.15,
         baseHitChance: Double = 0.75,
         agilityToHit: Double = 0.03,
         hitChanceFloor: Double = 0.25,
@@ -52,6 +55,7 @@ public struct PetCombatRates: Equatable, Sendable {
         self.vitalityToHP = max(vitalityToHP, 0)
         self.powerScale = max(powerScale, 0)
         self.guardScale = max(guardScale, 0)
+        self.strikeVariance = min(max(strikeVariance, 0), 1)
         self.baseHitChance = min(max(baseHitChance, 0), 1)
         self.agilityToHit = max(agilityToHit, 0)
         self.hitChanceFloor = min(max(hitChanceFloor, 0), 1)
