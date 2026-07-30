@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-30 > Sources/Worklings/CombatPanel.swift > poof the loser at defeat, and a clean winner-only victory screen > The smoke now fires the instant a fighter is defeated, over it in the arena (an `ArenaCombatant` poof driven by a new `defeatedSide` signal), instead of late on the end screen. The end screen is now opaque (its own cave background) and shows only the victor — no more the dungeon and both characters showing through behind a dim overlay.**
+
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift > stop the atmosphere overlay washing out the stage > The overlay is a near-white haze; drops its opacity from 0.85 to 0.14 so it drifts as faint atmosphere instead of a white veil, and strengthens the background darkening so the fighters and text read clearly against the cave.**
 
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift, WildkinPetView.swift > victory / defeat end screen > When a fight ends, a full-arena overlay takes over: a big Victory!/Defeated title pops in, the winner takes centre stage in its victory pose with a spring pop-in, a gentle bob, and a ring of twinkling sparkles, while the loser puffs away in the reused 8-frame smoke effect; then the exit tier, XP, and Return button fade in. Makes `SmokeEffectSprite` reusable with a size; moves the old bottom summary into this screen.**

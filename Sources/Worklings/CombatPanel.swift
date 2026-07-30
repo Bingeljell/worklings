@@ -44,6 +44,11 @@ final class CombatViewModel: ObservableObject {
     @Published private(set) var foeHitToken = 0
     @Published private(set) var foeHitAmount = 0
     @Published private(set) var foeHitCrit = false
+    /// The side that just fell — the arena plays a smoke poof over it, at the
+    /// moment of defeat, before the end screen appears.
+    @Published private(set) var defeatedSide: CombatSide?
+    /// A big centre countdown before each action (3 → 2 → 1); nil hides it.
+    @Published private(set) var countdownValue: Int?
     /// The creature the current speech bubble sits above, and its short line —
     /// nil hides the bubbles.
     @Published private(set) var speaker: CombatSide?
@@ -72,6 +77,8 @@ final class CombatViewModel: ObservableObject {
         var foePose: FoePose = .idle
         var isCrit = false
         var hpChange: (side: CombatSide, amount: Int)?
+        var defeats: CombatSide?
+        var countdown: Int?
         var hold: Duration
     }
 
@@ -143,6 +150,16 @@ final class CombatViewModel: ObservableObject {
     }
 
     private func apply(_ beat: Beat) {
+        countdownValue = beat.countdown
+        // A countdown tick is just the big number: no bubble, creatures idle.
+        if beat.countdown != nil {
+            speaker = nil
+            speechLine = nil
+            petPose = restingPose
+            foePose = .idle
+            return
+        }
+
         speaker = beat.side
         speechLine = beat.text
         foePose = beat.foePose
@@ -167,6 +184,7 @@ final class CombatViewModel: ObservableObject {
                 }
             }
         }
+        if let defeated = beat.defeats { defeatedSide = defeated }
         if let text = beat.text { lines.append(text) }
     }
 
@@ -252,9 +270,9 @@ final class CombatViewModel: ObservableObject {
 
         case let .defeated(who):
             if who == petName {
-                return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, hold: .milliseconds(1800))]
+                return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, defeats: .pet, hold: .milliseconds(1700))]
             }
-            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, foePose: .hurt, hold: .milliseconds(1800))]
+            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, foePose: .hurt, defeats: .foe, hold: .milliseconds(1700))]
 
         case .roundBegan, .decisionPoint, .encounterEnded:
             return []
@@ -475,17 +493,18 @@ private struct EndScreen: View {
     @State private var titleShown = false
     @State private var winnerScale: CGFloat = 0.4
     @State private var winnerBob = false
-    @State private var loserVisible = true
-    @State private var smokeFrame: Int?
     @State private var footerShown = false
 
     private var won: Bool { outcome.tier != .downed }
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.62).ignoresSafeArea()
+            // Opaque so the busy arena (HP bars, the other fighter) is fully
+            // hidden — just the cave and the victor.
+            ArenaBackground()
+            Color.black.opacity(0.5)
 
-            VStack(spacing: 16) {
+            VStack(spacing: 18) {
                 Text(won ? "Victory!" : "Defeated…")
                     .font(.system(size: 46, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color.green : Color.orange)
@@ -493,23 +512,11 @@ private struct EndScreen: View {
                     .scaleEffect(titleShown ? 1 : 0.5)
                     .opacity(titleShown ? 1 : 0)
 
-                ZStack {
-                    winner
-                        .scaleEffect(winnerScale)
-                        .offset(y: winnerBob ? -6 : 0)
-                        .overlay { if won { Sparkles() } }
-
-                    if loserVisible {
-                        ZStack {
-                            loser.opacity((smokeFrame ?? 0) < 4 ? 1 : 0)
-                            if let frame = smokeFrame {
-                                SmokeEffectSprite(frameIndex: frame, size: 150)
-                            }
-                        }
-                        .offset(x: won ? 150 : -150, y: 24)
-                    }
-                }
-                .frame(height: 190)
+                winner
+                    .scaleEffect(winnerScale)
+                    .offset(y: winnerBob ? -6 : 0)
+                    .overlay { if won { Sparkles() } }
+                    .frame(height: 180)
 
                 if footerShown {
                     VStack(spacing: 10) {
@@ -544,15 +551,6 @@ private struct EndScreen: View {
         }
     }
 
-    @ViewBuilder
-    private var loser: some View {
-        if won {
-            FoeSprite(foeName: model.foeName, pose: .hurt, size: 118)
-        } else {
-            PetCombatSprite(family: model.petFamily, pose: .downed, size: 118)
-        }
-    }
-
     private func runSequence() {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
             winnerScale = 1
@@ -562,13 +560,7 @@ private struct EndScreen: View {
             winnerBob = true
         }
         Task {
-            try? await Task.sleep(for: .milliseconds(600))
-            for frame in 0..<8 {
-                smokeFrame = frame
-                try? await Task.sleep(for: .milliseconds(70))
-            }
-            loserVisible = false
-            smokeFrame = nil
+            try? await Task.sleep(for: .milliseconds(450))
             withAnimation(.easeOut(duration: 0.35)) { footerShown = true }
         }
     }
@@ -683,6 +675,8 @@ private struct ArenaCombatant: View {
 
     @State private var flash: Double = 0
     @State private var floaters: [DamageFloater] = []
+    @State private var poofFrame: Int?
+    @State private var poofed = false
 
     private var name: String { side == .pet ? model.petName : model.foeName }
     private var hp: Int { side == .pet ? model.petHP : model.foeHP }
@@ -703,9 +697,16 @@ private struct ArenaCombatant: View {
                     .fill(.black.opacity(0.25))
                     .frame(width: creatureSize * 0.6, height: 14)
                     .blur(radius: 3)
-                creature
-                    .brightness(flash)
-                    .impactShake(trigger: hitToken)
+                    .opacity(poofed ? 0 : 1)
+                if !poofed {
+                    creature
+                        .brightness(flash)
+                        .impactShake(trigger: hitToken)
+                        .opacity((poofFrame ?? 0) < 4 ? 1 : 0)
+                }
+                if let frame = poofFrame {
+                    SmokeEffectSprite(frameIndex: frame, size: creatureSize)
+                }
             }
             .frame(height: creatureSize)
             .overlay(alignment: .top) {
@@ -730,6 +731,17 @@ private struct ArenaCombatant: View {
             flash = 0.55
             withAnimation(.easeOut(duration: 0.35)) { flash = 0 }
             floaters.append(DamageFloater(amount: hitAmount, crit: hitCrit))
+        }
+        .onChange(of: model.defeatedSide) { _, defeated in
+            guard defeated == side, poofFrame == nil, !poofed else { return }
+            Task {
+                for frame in 0..<8 {
+                    poofFrame = frame
+                    try? await Task.sleep(for: .milliseconds(65))
+                }
+                poofed = true
+                poofFrame = nil
+            }
         }
     }
 
