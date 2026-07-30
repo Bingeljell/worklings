@@ -18,6 +18,8 @@ enum CombatChecks {
         checkMissDealsNoDamageHitDealsSome(context: &context)
         checkStrikeDamageStaysInBounds(context: &context)
         checkStrikeHitRateApproximatesTheFormula(context: &context)
+        checkBraceMitigationReducesDamage(context: &context)
+        checkSignatureAlwaysHitsAndHitsHarder(context: &context)
     }
 
     private static let flickerStats = CombatStats(
@@ -289,5 +291,53 @@ enum CombatChecks {
             abs(rate - 0.54) < 0.05,
             "observed hit rate \(rate) is near the 0.54 formula"
         )
+    }
+
+    private static func checkBraceMitigationReducesDamage(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // A hard-hitting, reliably-landing attacker so we find a hit to compare.
+        let attacker = CombatStats(power: 12, defense: 7, agility: 60, wit: 7)
+        // Same seed → identical hit/crit/swing rolls, so full vs braced isolates
+        // only the multiplier.
+        for seed in UInt64(0)..<40 {
+            var full = SeededGenerator(seed: seed)
+            var target1 = freshFlicker()
+            let a = CombatResolver.resolveStrike(
+                attacker: attacker, defender: &target1, rates: rates,
+                damageMultiplier: 1, using: &full
+            )
+            guard a.didHit else { continue }
+            var braced = SeededGenerator(seed: seed)
+            var target2 = freshFlicker()
+            let b = CombatResolver.resolveStrike(
+                attacker: attacker, defender: &target2, rates: rates,
+                damageMultiplier: rates.braceMitigation, using: &braced
+            )
+            context.expect(b.damage <= a.damage, "bracing never increases damage taken")
+            context.expect(b.damage >= 1, "a braced hit still lands for at least 1")
+            return
+        }
+        context.expect(false, "expected at least one hit to compare brace mitigation")
+    }
+
+    private static func checkSignatureAlwaysHitsAndHitsHarder(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let attacker = CombatStats(power: 7, defense: 11, agility: 7, wit: 7)
+        // Guaranteed hit every time, regardless of the target's evasion.
+        var generator = SeededGenerator(seed: 8)
+        var allHit = true
+        var sawAboveBase = false
+        let base = rates.strikeDamage(power: 7, targetGuard: flickerStats.defense) // 8.5
+        for _ in 0..<50 {
+            var target = freshFlicker()
+            let outcome = CombatResolver.resolveSignature(
+                attacker: attacker, defender: &target, rates: rates, using: &generator
+            )
+            if !outcome.didHit { allHit = false }
+            // ×1.5 means it clears the un-multiplied base even at the low end of variance.
+            if Double(outcome.damage) > base { sawAboveBase = true }
+        }
+        context.expect(allHit, "the Signature always lands")
+        context.expect(sawAboveBase, "the Signature hits harder than a base Strike")
     }
 }

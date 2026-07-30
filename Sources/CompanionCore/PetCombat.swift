@@ -36,6 +36,13 @@ public struct PetCombatRates: Equatable, Sendable {
     /// the progression `conditionMultiplierFloor` so neglect weakens a fighter
     /// without crippling it — see the closed loop in the dungeon design.
     public let combatEffectivenessFloor: Double
+    /// Damage multiplier applied to a Strike that lands on a Bracing target,
+    /// e.g. 0.5 halves it. The patient option's payoff.
+    public let braceMitigation: Double
+    /// Flat HP a Bracing combatant regains that round.
+    public let braceRegen: Int
+    /// Damage multiplier on the once-per-encounter Signature, which always hits.
+    public let signatureMultiplier: Double
 
     public init(
         baseHP: Double = 20,
@@ -49,7 +56,10 @@ public struct PetCombatRates: Equatable, Sendable {
         hitChanceCeiling: Double = 0.95,
         critChancePerAgility: Double = 0.01,
         critMultiplier: Double = 1.5,
-        combatEffectivenessFloor: Double = 0.5
+        combatEffectivenessFloor: Double = 0.5,
+        braceMitigation: Double = 0.5,
+        braceRegen: Int = 2,
+        signatureMultiplier: Double = 1.5
     ) {
         self.baseHP = max(baseHP, 0)
         self.vitalityToHP = max(vitalityToHP, 0)
@@ -63,6 +73,9 @@ public struct PetCombatRates: Equatable, Sendable {
         self.critChancePerAgility = max(critChancePerAgility, 0)
         self.critMultiplier = max(critMultiplier, 1)
         self.combatEffectivenessFloor = min(max(combatEffectivenessFloor, 0), 1)
+        self.braceMitigation = min(max(braceMitigation, 0), 1)
+        self.braceRegen = max(braceRegen, 0)
+        self.signatureMultiplier = max(signatureMultiplier, 1)
     }
 
     /// The condition→combat multiplier: full condition fights at 100%, neglect
