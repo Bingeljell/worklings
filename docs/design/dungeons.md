@@ -242,8 +242,8 @@ use generation prompts for these poses (and the Cache Warren foes) live in
 ## What a first playable encounter needs
 
 Stepping back from the design to the *build*: what has to exist for a single encounter to
-be playable end-to-end. The recommendation is to ship a **vertical slice first** — one
-encounter, not the whole delve — to prove the loop, then widen.
+be playable end-to-end. **Decided: ship a vertical slice first** — one encounter, not the whole delve — to prove
+the loop, then widen.
 
 ### The vertical slice (smallest playable thing)
 
@@ -266,7 +266,7 @@ sheet and needs, everything else is additive.
 
 ### App — `Worklings` (timing, animation, presentation)
 
-- **A combat surface** — *the open UI decision.* The care card is small; options are a dedicated combat panel/window or an expanded card mode. It needs: pet + foe sprites, two HP bars, the narration log revealing turn by turn, an Approach control, and a decision-point prompt.
+- **A combat surface** — **decided: a dedicated combat panel** that opens near the pet for a fight and closes back to the quiet desktop companion afterward (chosen over an expanded care card or a full window — room for two combatants without cramping the card, and it preserves the companion feel). It needs: pet + foe sprites, two HP bars, the narration log revealing turn by turn, an Approach control, and a decision-point prompt.
 - **An entry point** — how a delve starts: a paw-menu item ("Enter the Cache Warren") and/or a button on the Stats tab, gated by level and blocked on critical need.
 - **Sprite wiring** — the new [combat poses](#new-sprite-states-this-needs) added to `WorklingSpriteFrame` + extended family sheets, and a **foe-sprite path** (foes are a new asset type — likely their own sheet/loader, since today only the pet is drawn).
 - **Pacing** — turns revealed with a delay so it reads as a fight, honoring Reduce Motion (instant/settled fallback).
@@ -288,12 +288,12 @@ One foe fully defined (Mote is simplest), the three base actions, and the minimu
 to not look broken: pet **Strike / Hurt / Victory / Downed** (idle reused) plus **one foe
 sprite**. Janky first-pass art is fine (see [sprite prompts](sprite-prompts.md)).
 
-### Decisions to make before building
+### Decisions
 
-1. **Combat surface** — dedicated panel/window vs expanded care card. *(Biggest UX call.)*
-2. **Foe-sprite pipeline** — sheet layout and loader for a non-pet drawable.
-3. **Slice vs full delve** for the first shippable cut (recommend: slice).
-4. **Save-migration** timing — one version bump now covering the known additive fields, or bump per layer.
+1. **Combat surface** — ✅ **decided: a dedicated combat panel** (over expanded card / full window).
+2. **First cut** — ✅ **decided: the vertical slice** (one encounter) before the full delve.
+3. **Foe-sprite pipeline** — *open:* sheet layout and loader for a non-pet drawable.
+4. **Save-migration** timing — *open:* one version bump now covering the known additive fields, or bump per layer.
 
 ## Tuning knobs
 
