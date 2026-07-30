@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-30 > Sources/Worklings/PetSession.swift > PetSession dungeon hooks (vertical slice, step 11) > Adds the app's bridge to the combat engine: a shared `combatRates`, `delveBlock`/`canEnterDelve` for the entry control, `makePetCombatant()` to start a fight from the live sheet+condition, and `applyCombatResolution(_:)` to write a finished encounter's XP and exit-tier condition change back into the pet and persist.**
+
 - **2026-07-30 > Sources/CompanionCore/CombatRewards.swift, PetCombat.swift, Tests/CompanionCoreChecks/CombatChecks.swift > delve entry eligibility (vertical slice, step 10) > Adds the level gate and critical-need refusal: new `delveGateLevel` (3) and `refusalNeedThreshold` (10) knobs, plus `PetCombatRates.delveBlock(for:)` returning a `DelveBlock` reason (belowGateLevel / needsCare) and `canEnterDelve(_:)`, so the UI can explain a disabled delve rather than just greying it out. Checks cover a below-gate pet, a healthy leveled pet, and a critical need blocking entry.**
 
 - **2026-07-30 > Sources/CompanionCore/Combat.swift, Tests/CompanionCoreChecks/CombatChecks.swift > build the pet combatant from PetState (vertical slice, step 9) > Adds `Combatant.pet(from:rates:)`, reading name, the earned stat sheet, and current condition straight off the live `PetState`, so the app can start a fight without unpacking state. Checked against building from the parts.**
