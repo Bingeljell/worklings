@@ -7,6 +7,9 @@ enum CombatChecks {
         checkStrikeDamageAndFloor(context: &context)
         checkHitChanceAndClamp(context: &context)
         checkCritChanceAndClamp(context: &context)
+        checkSeededGeneratorReplays(context: &context)
+        checkSeededGeneratorDivergesBySeed(context: &context)
+        checkChanceBoundsAndDistribution(context: &context)
     }
 
     // The worked Flicker example in docs/design/dungeons.md is the reference:
@@ -78,6 +81,51 @@ enum CombatChecks {
         // Absurd Agility clamps to a certainty rather than exceeding 1.
         context.expectApproximatelyEqual(
             rates.critChance(agility: 500), 1, "crit chance clamps to 1"
+        )
+    }
+
+    private static func checkSeededGeneratorReplays(context: inout CheckContext) {
+        var a = SeededGenerator(seed: 42)
+        var b = SeededGenerator(seed: 42)
+        let sequenceA = (0..<16).map { _ in a.next() }
+        let sequenceB = (0..<16).map { _ in b.next() }
+        context.expectEqual(
+            sequenceA, sequenceB,
+            "the same seed replays the same sequence"
+        )
+    }
+
+    private static func checkSeededGeneratorDivergesBySeed(context: inout CheckContext) {
+        var a = SeededGenerator(seed: 1)
+        var b = SeededGenerator(seed: 2)
+        let sequenceA = (0..<16).map { _ in a.next() }
+        let sequenceB = (0..<16).map { _ in b.next() }
+        context.expect(
+            sequenceA != sequenceB,
+            "different seeds produce different sequences"
+        )
+    }
+
+    private static func checkChanceBoundsAndDistribution(context: inout CheckContext) {
+        var generator = SeededGenerator(seed: 7)
+        // The extremes are certainties and never consume differently-shaped luck.
+        context.expect(
+            (0..<100).allSatisfy { _ in generator.chance(1) },
+            "chance(1) always succeeds"
+        )
+        context.expect(
+            (0..<100).allSatisfy { _ in !generator.chance(0) },
+            "chance(0) never succeeds"
+        )
+        // A fair coin over many draws lands near half — deterministic under the
+        // fixed seed, so this bound is stable, not flaky.
+        var coin = SeededGenerator(seed: 12_345)
+        let successes = (0..<1000).reduce(into: 0) { total, _ in
+            if coin.chance(0.5) { total += 1 }
+        }
+        context.expect(
+            (400...600).contains(successes),
+            "chance(0.5) lands near half over many draws (got \(successes)/1000)"
         )
     }
 }
