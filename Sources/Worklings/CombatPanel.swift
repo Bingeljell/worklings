@@ -4,9 +4,15 @@ import CompanionCore
 import Foundation
 import SwiftUI
 
-/// Drives one encounter for the UI: steps the engine, reveals the narration log
-/// a beat at a time so it reads as a fight, pauses for decisions, and writes the
-/// result back to the session on completion.
+/// Which side of the arena a bit of speech belongs above.
+enum CombatSide {
+    case pet
+    case foe
+}
+
+/// Drives one encounter for the UI: steps the engine, reveals it a beat at a
+/// time so it reads as a fight, pauses for decisions, and writes the result back
+/// to the session on completion.
 @MainActor
 final class CombatViewModel: ObservableObject {
     @Published private(set) var lines: [String] = []
@@ -19,6 +25,10 @@ final class CombatViewModel: ObservableObject {
     /// The pet's current pose, driven by the beat being revealed, so the sprite
     /// strikes, recoils, braces, and celebrates in time with the narration.
     @Published private(set) var petPose: WorklingSpriteFrame = .idle
+    /// The creature the current speech bubble sits above, and its short line —
+    /// nil hides the bubbles.
+    @Published private(set) var speaker: CombatSide?
+    @Published private(set) var speechLine: String?
 
     let petName: String
     let foeName: String
@@ -76,6 +86,7 @@ final class CombatViewModel: ObservableObject {
                     self.revealIndex += 1
                     if let line = self.narrate(event) { self.lines.append(line) }
                     self.petPose = self.pose(for: event)
+                    self.applySpeech(for: event)
                     self.syncHP()
                     try? await Task.sleep(for: self.beat)
                     if Task.isCancelled { return }
@@ -123,6 +134,39 @@ final class CombatViewModel: ObservableObject {
     private var restingPose: WorklingSpriteFrame {
         let fraction = petMaxHP > 0 ? Double(petHP) / Double(petMaxHP) : 1
         return fraction < session.combatRates.lowHPEventThreshold ? .lowHP : .idle
+    }
+
+    /// Updates the speech bubbles for a beat. Action beats put a short line above
+    /// the acting creature; a decision or the ending clears them; structural
+    /// beats (round markers) leave the last bubble in place.
+    private func applySpeech(for event: CombatEvent) {
+        switch event {
+        case .decisionPoint, .encounterEnded:
+            speaker = nil
+            speechLine = nil
+        case let .struck(attacker, _, outcome):
+            let side: CombatSide = attacker == petName ? .pet : .foe
+            speaker = side
+            speechLine = outcome.didHit
+                ? (outcome.didCrit ? "Critical! \(outcome.damage)!" : "\(outcome.damage)!")
+                : "Miss!"
+        case let .signature(attacker, _, outcome):
+            speaker = attacker == petName ? .pet : .foe
+            speechLine = "Signature! \(outcome.damage)!"
+        case let .braced(who, _):
+            speaker = who == petName ? .pet : .foe
+            speechLine = "Bracing…"
+        case let .defeated(who):
+            if who == petName {
+                speaker = .foe
+                speechLine = "Gotcha!"
+            } else {
+                speaker = .pet
+                speechLine = "Victory!"
+            }
+        case .encounterBegan, .roundBegan:
+            break
+        }
     }
 
     private func finish() {
@@ -180,7 +224,7 @@ final class CombatPanelController {
         let hosting = NSHostingView(rootView: root)
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 440),
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 480),
             styleMask: [.titled, .closable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -213,77 +257,104 @@ struct CombatPanelView: View {
     @State private var approach: Approach = .aggressive
     @State private var unleash = false
 
+    private static let creatureSize: CGFloat = 150
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(spacing: 0) {
             header
-            CombatantRow(
-                name: model.petName,
-                hp: model.petHP, maxHP: model.petMaxHP, tint: .green
-            ) {
-                WorklingSprite(family: model.petFamily, frame: model.petPose, size: 60)
-            }
-            CombatantRow(
-                name: model.foeName,
-                hp: model.foeHP, maxHP: model.foeMaxHP, tint: .orange
-            ) {
-                // Placeholder — foe sprites are a later asset drop.
-                Image(systemName: "ant.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(.orange)
-            }
-            logView
-            Divider().opacity(0.3)
-            controls
+            arena
+            controlBar
         }
-        .padding(18)
-        .frame(width: 340)
-        .background(Color(white: 0.12))
+        .frame(width: 600, height: 480)
+        .background(stageBackground)
         .foregroundStyle(.white)
+    }
+
+    private var stageBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.11, green: 0.10, blue: 0.17),
+                Color(red: 0.05, green: 0.05, blue: 0.09)
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
     }
 
     private var header: some View {
         HStack {
-            Text("The Cache Warren").font(.title3.bold())
+            Text("The Cache Warren")
+                .font(.title3.bold())
             Spacer()
             Button(action: onClose) {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.6))
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.55))
             }
             .buttonStyle(.plain)
             .help("Leave the delve")
         }
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
     }
 
-    private var logView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(model.lines.enumerated()), id: \.offset) { index, line in
-                        Text(line)
-                            .font(.system(.callout, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.85))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .id(index)
-                    }
+    private var arena: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            combatant(side: .pet, name: model.petName, hp: model.petHP, maxHP: model.petMaxHP, tint: .green)
+            Spacer()
+            Text("vs")
+                .font(.system(.title3, design: .rounded).weight(.black))
+                .foregroundStyle(.white.opacity(0.3))
+                .padding(.bottom, 60)
+            Spacer()
+            combatant(side: .foe, name: model.foeName, hp: model.foeHP, maxHP: model.foeMaxHP, tint: .orange)
+        }
+        .padding(.horizontal, 34)
+        .frame(maxHeight: .infinity)
+    }
+
+    private func combatant(side: CombatSide, name: String, hp: Int, maxHP: Int, tint: Color) -> some View {
+        VStack(spacing: 8) {
+            // Reserve the bubble's height so the creatures never shift.
+            SpeechBubble(text: model.speaker == side ? model.speechLine : nil)
+                .frame(height: 54)
+
+            ZStack(alignment: .bottom) {
+                Ellipse()
+                    .fill(.black.opacity(0.25))
+                    .frame(width: Self.creatureSize * 0.6, height: 14)
+                    .blur(radius: 3)
+                if side == .pet {
+                    PetCombatSprite(family: model.petFamily, pose: model.petPose, size: Self.creatureSize)
+                } else {
+                    FoePlaceholder(size: Self.creatureSize)
                 }
             }
-            .frame(height: 120)
-            .onChange(of: model.lines.count) { _, count in
-                withAnimation { proxy.scrollTo(count - 1, anchor: .bottom) }
+            .frame(height: Self.creatureSize)
+
+            VStack(spacing: 4) {
+                Text(name).font(.headline)
+                HPBar(fraction: maxHP > 0 ? Double(max(hp, 0)) / Double(maxHP) : 0, tint: tint)
+                    .frame(width: 132)
+                Text("\(max(hp, 0)) / \(maxHP)")
+                    .font(.caption2).monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.65))
             }
         }
     }
 
-    @ViewBuilder
-    private var controls: some View {
-        if let outcome = model.outcome {
-            summary(outcome)
-        } else if model.awaitingDecision != nil {
-            decisionControls
-        } else {
-            Label("The fight unfolds…", systemImage: "hourglass")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
+    private var controlBar: some View {
+        Group {
+            if let outcome = model.outcome {
+                summary(outcome)
+            } else if model.awaitingDecision != nil {
+                decisionControls
+            } else {
+                Label("The fight unfolds…", systemImage: "hourglass")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
+            }
         }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity)
     }
 
     private var decisionControls: some View {
@@ -362,28 +433,87 @@ struct CombatPanelView: View {
     }
 }
 
-private struct CombatantRow<Avatar: View>: View {
-    let name: String
-    let hp: Int
-    let maxHP: Int
-    let tint: Color
-    @ViewBuilder var avatar: () -> Avatar
+/// The pet in the arena: faces right toward the foe, blinks while idle, and
+/// plays its action pose (with a small lunge on an attack) on the current beat.
+private struct PetCombatSprite: View {
+    let family: PetFamily
+    let pose: WorklingSpriteFrame
+    let size: CGFloat
 
     var body: some View {
-        HStack(spacing: 12) {
-            avatar()
-                .frame(width: 60, height: 60)
-                .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.08)))
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text(name).font(.headline)
-                    Spacer()
-                    Text("\(max(hp, 0))/\(maxHP)").font(.caption).monospacedDigit()
-                        .foregroundStyle(.white.opacity(0.7))
+        TimelineView(.periodic(from: .now, by: 0.7)) { context in
+            WorklingSprite(family: family, frame: displayPose(at: context.date), size: size)
+        }
+        .scaleEffect(x: -1, y: 1) // sheets face left; flip to face the foe
+        .offset(x: isLunging ? 24 : 0)
+        .animation(.easeOut(duration: 0.14), value: pose)
+    }
+
+    private func displayPose(at date: Date) -> WorklingSpriteFrame {
+        guard pose == .idle else { return pose }
+        let phase = Int(date.timeIntervalSinceReferenceDate / 0.7)
+        return phase.isMultiple(of: 2) ? .idle : .idleBlink
+    }
+
+    private var isLunging: Bool {
+        pose == .strike || pose == .signature
+    }
+}
+
+/// The foe's arena slot. Placeholder until the foe sprites land — it faces the
+/// pet and bobs gently so the standoff still feels alive.
+private struct FoePlaceholder: View {
+    let size: CGFloat
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.9)) { context in
+            let phase = Int(context.date.timeIntervalSinceReferenceDate / 0.9)
+            Image(systemName: "ant.fill")
+                .resizable().scaledToFit()
+                .foregroundStyle(.orange)
+                .padding(size * 0.22)
+                .frame(width: size, height: size)
+                .offset(y: phase.isMultiple(of: 2) ? 0 : -4)
+                .animation(.easeInOut(duration: 0.45), value: phase)
+        }
+    }
+}
+
+/// A comic speech bubble with a downward tail. Empty when `text` is nil, but its
+/// caller reserves the height so creatures never shift.
+private struct SpeechBubble: View {
+    let text: String?
+
+    var body: some View {
+        ZStack {
+            if let text {
+                VStack(spacing: 0) {
+                    Text(text)
+                        .font(.system(.headline, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                    BubbleTail()
+                        .fill(.white)
+                        .frame(width: 16, height: 9)
                 }
-                HPBar(fraction: maxHP > 0 ? Double(max(hp, 0)) / Double(maxHP) : 0, tint: tint)
+                .transition(.scale(scale: 0.5).combined(with: .opacity))
+                .id(text)
             }
         }
+        .animation(.spring(response: 0.28, dampingFraction: 0.68), value: text)
+    }
+}
+
+private struct BubbleTail: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

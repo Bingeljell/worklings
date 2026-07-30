@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-07-30 > Sources/Worklings/CombatPanel.swift > combat as a face-off arena with speech bubbles > Rebuilds the combat panel into a larger (600×480) dungeon stage: the pet and foe stand off facing each other over a shadowed ground, the pet flipped to face the foe, blinking while idle and lunging into its action pose on a strike. Narration moves out of the inline log into comic speech bubbles above the acting creature (damage, crit, miss, brace, unleash, victory). Bigger sprites (150px), HP bars and counts under each combatant. Foe is a gently-bobbing placeholder until its sprites land.**
+
 - **2026-07-30 > Sources/CompanionCore/Bestiary.swift, Tests/CompanionCoreChecks/CombatChecks.swift, docs/design/dungeons.md > tune the Mote for a few rounds > Raises the Mote from 8 HP to 30 (with a small Guard/Agility/Power bump) so a Level-3 Workling can't one-shot it — the warm-up now runs two to three rounds of back-and-forth instead of ending on the first strike. Check and bestiary table updated.**
 
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift, WildkinPetView.swift > render the real Workling sprite in combat > Makes `WorklingSprite`/`WorklingSpriteFrame` reusable (adds a `size` parameter) and renders the pet's family sheet in the combat panel instead of the SF Symbol placeholder, with the pose driven by each narrated beat — Strike on its attack, Hurt when hit, Brace/Signature on those actions, Victory/Downed at the end, and Low-HP at rest once hurt enough. The foe stays a placeholder until foe sprites land.**
