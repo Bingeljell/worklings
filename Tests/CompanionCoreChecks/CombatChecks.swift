@@ -1,4 +1,5 @@
 import CompanionCore
+import Foundation
 
 enum CombatChecks {
     static func run(context: inout CheckContext) {
@@ -26,6 +27,15 @@ enum CombatChecks {
         checkOutmatchedPetIsDefeated(context: &context)
         checkFasterCombatantActsFirst(context: &context)
         checkDecisionPointAndUnleashConsumeSignature(context: &context)
+        checkExitTierDerivation(context: &context)
+        checkVictoryGrantsXPAndMovesConditionsByTier(context: &context)
+        checkDefeatIsDownedWithNoXP(context: &context)
+        checkOutcomeStaysInsideTheReversibleEnvelope(context: &context)
+    }
+
+    private static func midHealthPet() -> PetState {
+        PetState.newPet(now: Date(timeIntervalSinceReferenceDate: 0))
+            .applying(needs: PetNeeds(hunger: 50, energy: 50, happiness: 50, trust: 50))
     }
 
     private static func aegisPet(_ rates: PetCombatRates) -> Combatant {
@@ -464,5 +474,82 @@ enum CombatChecks {
         context.expect(unleashed, "the fight paused for a decision")
         context.expect(logContainsSignature(encounter.log), "Unleash fired the Signature")
         context.expect(!encounter.signatureReady, "the Signature is consumed after use")
+    }
+
+    private static func checkExitTierDerivation(context: inout CheckContext) {
+        context.expectEqual(ExitTier.forOutcome(victory: true, hpFraction: 0.95), .flawless, "≥90% is flawless")
+        context.expectEqual(ExitTier.forOutcome(victory: true, hpFraction: 0.50), .solid, "mid HP is solid")
+        context.expectEqual(ExitTier.forOutcome(victory: true, hpFraction: 0.20), .barely, "low HP is barely")
+        context.expectEqual(ExitTier.forOutcome(victory: false, hpFraction: 0.90), .downed, "a loss is always downed")
+    }
+
+    private static func checkVictoryGrantsXPAndMovesConditionsByTier(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let base = midHealthPet()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.mote,
+            approach: .aggressive, rates: rates, seed: 7
+        )
+        encounter.runToCompletion()
+        let resolution = base.applyingOutcome(of: encounter, foe: CacheWarren.mote, rates: rates)
+
+        context.expectApproximatelyEqual(
+            resolution.state.totalXP, base.totalXP + CacheWarren.mote.rewardXP,
+            "a win grants the foe's reward XP"
+        )
+        // Whatever tier was reached, the needs moved by exactly that tier's delta
+        // (needs start mid, so nothing clamps here).
+        let delta = rates.exitConditionDelta(for: resolution.tier)
+        context.expectApproximatelyEqual(resolution.state.needs.energy, 50 + delta.energy, "energy moved by tier")
+        context.expectApproximatelyEqual(resolution.state.needs.happiness, 50 + delta.happiness, "happiness moved by tier")
+        context.expectApproximatelyEqual(resolution.state.needs.trust, 50 + delta.trust, "trust moved by tier")
+        context.expectApproximatelyEqual(resolution.state.needs.fullness, 50 + delta.fullness, "fullness moved by tier")
+    }
+
+    private static func checkDefeatIsDownedWithNoXP(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let base = midHealthPet()
+        let weakling = Combatant(
+            name: "Sprout",
+            stats: CombatStats(power: 1, defense: 0, agility: 1, wit: 1),
+            maxHP: 6, currentHP: 6
+        )
+        var encounter = CombatEncounter(
+            pet: weakling, foe: CacheWarren.monolith,
+            approach: .aggressive, rates: rates, seed: 7
+        )
+        encounter.runToCompletion()
+        let resolution = base.applyingOutcome(of: encounter, foe: CacheWarren.monolith, rates: rates)
+
+        context.expectEqual(resolution.tier, .downed, "a defeat is downed")
+        context.expectApproximatelyEqual(resolution.xpGained, 0, "a defeat grants no XP")
+        context.expectApproximatelyEqual(resolution.state.totalXP, base.totalXP, "XP is unchanged on a loss")
+        context.expect(resolution.state.needs.happiness < 50, "a downed exit lowers Happiness")
+        context.expect(resolution.state.needs.energy < 50, "a downed exit costs Energy")
+    }
+
+    private static func checkOutcomeStaysInsideTheReversibleEnvelope(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // A best-case delta on a maxed-out pet clamps at 100, never above.
+        let flawless = rates.exitConditionDelta(for: .flawless)
+        let ceilinged = PetNeeds(
+            hunger: 0 - flawless.fullness,
+            energy: 100 + flawless.energy,
+            happiness: 100 + flawless.happiness,
+            trust: 100 + flawless.trust
+        )
+        context.expectApproximatelyEqual(ceilinged.happiness, 100, "gains clamp at 100")
+        context.expectApproximatelyEqual(ceilinged.fullness, 100, "fullness clamps at 100")
+        // A worst-case delta on an empty pet clamps at 0, never below (never broken).
+        let downed = rates.exitConditionDelta(for: .downed)
+        let floored = PetNeeds(
+            hunger: 100 - downed.fullness,
+            energy: 0 + downed.energy,
+            happiness: 0 + downed.happiness,
+            trust: 0 + downed.trust
+        )
+        context.expectApproximatelyEqual(floored.energy, 0, "losses clamp at 0")
+        context.expectApproximatelyEqual(floored.happiness, 0, "happiness never goes negative")
+        context.expectApproximatelyEqual(floored.fullness, 0, "fullness clamps at 0")
     }
 }
