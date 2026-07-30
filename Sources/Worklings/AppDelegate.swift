@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var companionController: CompanionPanelController?
+    private var combatPanelController: CombatPanelController?
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
     private var activityInboxMonitor: ActivityInboxMonitor?
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var sleepMenuItem: NSMenuItem?
     private var focusSessionMenuItem: NSMenuItem?
     private var logWorkMenuItem: NSMenuItem?
+    private var dungeonMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
     private var connectedReposMenuItem: NSMenuItem?
     private var connectedReposMenu: NSMenu?
@@ -55,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let companionController = CompanionPanelController(session: petSession)
         self.petSession = petSession
         self.companionController = companionController
+        self.combatPanelController = CombatPanelController()
 
         #if DEBUG
         let idleThreshold = ProcessInfo.processInfo.environment["WORKLINGS_IDLE_THRESHOLD_SECONDS"]
@@ -176,6 +179,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         logWorkItem.target = self
         menu.addItem(logWorkItem)
         logWorkMenuItem = logWorkItem
+
+        menu.addItem(.separator())
+        let dungeonItem = NSMenuItem(
+            title: "Enter the Cache Warren…",
+            action: #selector(enterDelve),
+            keyEquivalent: ""
+        )
+        dungeonItem.target = self
+        menu.addItem(dungeonItem)
+        dungeonMenuItem = dungeonItem
 
         menu.addItem(.separator())
         let roamingItem = NSMenuItem(
@@ -310,6 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             to: logWorkMenuItem
         )
         updateFocusSessionMenuItem()
+        updateDungeonMenuItem(state: state)
 
         syncCheckmarks(foodMenuItems, selectedRawValue: state.preferences.favouriteFood.rawValue)
         syncCheckmarks(
@@ -330,6 +344,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     ) {
         menuItem?.isEnabled = availability.isEnabled
         menuItem?.toolTip = availability.explanation
+    }
+
+    private func updateDungeonMenuItem(state: PetState) {
+        guard let dungeonMenuItem, let petSession else { return }
+        switch petSession.delveBlock {
+        case nil:
+            dungeonMenuItem.isEnabled = true
+            dungeonMenuItem.toolTip = "Descend into the Cache Warren for a fight."
+        case .belowGateLevel(let required):
+            dungeonMenuItem.isEnabled = false
+            dungeonMenuItem.toolTip = "Reach level \(required) to unlock the Cache Warren."
+        case .needsCare:
+            dungeonMenuItem.isEnabled = false
+            dungeonMenuItem.toolTip = "\(state.name) needs care before delving."
+        }
+    }
+
+    @objc private func enterDelve() {
+        guard let petSession, petSession.canEnterDelve else { return }
+        // Seed from the moment of entry so each delve plays out a little
+        // differently; the fight itself is deterministic from this seed.
+        let seed = UInt64(bitPattern: Int64(Date().timeIntervalSinceReferenceDate.bitPattern))
+        combatPanelController?.present(
+            session: petSession, foe: CacheWarren.mote, seed: seed
+        )
     }
 
     /// The one submenu builder behind every raw-representable choice menu

@@ -127,6 +127,51 @@ final class CombatViewModel: ObservableObject {
     }
 }
 
+// MARK: - Panel window
+
+/// Hosts the combat panel in its own floating window for the length of a fight,
+/// then tears it down. One fight at a time.
+@MainActor
+final class CombatPanelController {
+    private var panel: NSPanel?
+    private var model: CombatViewModel?
+
+    var isPresenting: Bool { panel != nil }
+
+    func present(session: PetSession, foe: Foe, seed: UInt64) {
+        dismiss()
+
+        let model = CombatViewModel(session: session, foe: foe, seed: seed)
+        self.model = model
+
+        let root = CombatPanelView(model: model, onClose: { [weak self] in self?.dismiss() })
+        let hosting = NSHostingView(rootView: root)
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 340, height: 440),
+            styleMask: [.titled, .closable, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "The Cache Warren"
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.contentView = hosting
+        panel.setContentSize(hosting.fittingSize)
+        panel.center()
+        panel.makeKeyAndOrderFront(nil)
+        self.panel = panel
+    }
+
+    func dismiss() {
+        panel?.orderOut(nil)
+        panel = nil
+        model = nil
+    }
+}
+
 // MARK: - View
 
 struct CombatPanelView: View {
