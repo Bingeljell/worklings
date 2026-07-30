@@ -78,6 +78,13 @@ extension Combatant {
         )
     }
 
+    /// Builds the pet's combatant straight from its live `PetState` — name, the
+    /// earned stat sheet, and current condition — so the app never has to
+    /// unpack the state itself.
+    public static func pet(from state: PetState, rates: PetCombatRates) -> Combatant {
+        pet(name: state.name, baseStats: state.stats, needs: state.needs, rates: rates)
+    }
+
     /// Builds a foe from its stat block. Foe HP is authored directly (the
     /// bestiary lists it), not derived from Vitality, and condition never scales
     /// a foe — only the pet is cared for.

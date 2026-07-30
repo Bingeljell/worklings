@@ -31,6 +31,7 @@ enum CombatChecks {
         checkVictoryGrantsXPAndMovesConditionsByTier(context: &context)
         checkDefeatIsDownedWithNoXP(context: &context)
         checkOutcomeStaysInsideTheReversibleEnvelope(context: &context)
+        checkPetCombatantBuildsFromState(context: &context)
     }
 
     private static func midHealthPet() -> PetState {
@@ -551,5 +552,17 @@ enum CombatChecks {
         context.expectApproximatelyEqual(floored.energy, 0, "losses clamp at 0")
         context.expectApproximatelyEqual(floored.happiness, 0, "happiness never goes negative")
         context.expectApproximatelyEqual(floored.fullness, 0, "fullness clamps at 0")
+    }
+
+    private static func checkPetCombatantBuildsFromState(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let state = PetState.newPet(now: Date(timeIntervalSinceReferenceDate: 0))
+            .applying(needs: fullHealth)
+        let fromState = Combatant.pet(from: state, rates: rates)
+        let direct = Combatant.pet(
+            name: state.name, baseStats: state.stats, needs: state.needs, rates: rates
+        )
+        context.expectEqual(fromState, direct, "pet(from:) matches building from the parts")
+        context.expectEqual(fromState.name, state.name, "the combatant takes the pet's name")
     }
 }
