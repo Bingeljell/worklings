@@ -56,6 +56,7 @@ public struct CombatEncounter: Equatable, Sendable {
     public private(set) var log: [CombatEvent]
 
     private let rates: PetCombatRates
+    private let foeBehavior: FoeBehavior
     private var generator: SeededGenerator
     private var signatureAvailable: Bool
     private var pendingSignature: Bool
@@ -75,6 +76,7 @@ public struct CombatEncounter: Equatable, Sendable {
         self.round = 0
         self.status = .ongoing
         self.rates = rates
+        self.foeBehavior = foe.behavior
         self.generator = SeededGenerator(seed: seed)
         self.signatureAvailable = true
         self.pendingSignature = false
@@ -207,13 +209,23 @@ public struct CombatEncounter: Equatable, Sendable {
     }
 
     private mutating func performFoe(petIsBracing: Bool) {
+        // Dispatch on the foe's archetype. Each special behavior lands in its own
+        // slice; until then every foe simply Strikes, exactly as before.
+        switch foeBehavior {
+        case .mindless, .grabber, .evasive, .colossus:
+            foeStrike(petIsBracing: petIsBracing)
+        }
+        resolveDefeatIfAny()
+    }
+
+    /// The foe's plain attack — the baseline every archetype falls back to.
+    private mutating func foeStrike(petIsBracing: Bool) {
         let outcome = CombatResolver.resolveStrike(
             attacker: foe.effectiveStats, defender: &pet, rates: rates,
             damageMultiplier: petIsBracing ? rates.braceMitigation : 1,
             using: &generator
         )
         log.append(.struck(attacker: foe.name, defender: pet.name, outcome: outcome))
-        resolveDefeatIfAny()
     }
 
     private mutating func resolveDefeatIfAny() {

@@ -378,6 +378,21 @@ enum CombatChecks {
         context.expect(sawAboveBase, "the Signature hits harder than a base Strike")
     }
 
+    private static func isGrabber(_ behavior: FoeBehavior) -> Bool {
+        if case .grabber = behavior { return true }
+        return false
+    }
+
+    private static func isEvasive(_ behavior: FoeBehavior) -> Bool {
+        if case .evasive = behavior { return true }
+        return false
+    }
+
+    private static func isColossus(_ behavior: FoeBehavior) -> Bool {
+        if case .colossus = behavior { return true }
+        return false
+    }
+
     private static func checkBestiaryMatchesTheSpec(context: inout CheckContext) {
         // The stat blocks are the reward the whole design leans on; guard them.
         // The display name is also the sprite join key (name → mote-* assets), so
@@ -388,6 +403,11 @@ enum CombatChecks {
         context.expectEqual(CacheWarren.monolith.stats.defense, 12, "Monolith is armoured")
         context.expectApproximatelyEqual(CacheWarren.flicker.rewardXP, 25, "Flicker reward")
         context.expectEqual(CacheWarren.encounters.count, 3, "three regular encounters")
+        // Each foe carries its archetype — the curve's mechanic weight.
+        context.expectEqual(CacheWarren.mote.behavior, .mindless, "the Scamp is mindless (pure warm-up)")
+        context.expect(isGrabber(CacheWarren.snag.behavior), "Snag is a grabber")
+        context.expect(isEvasive(CacheWarren.flicker.behavior), "Flicker is evasive")
+        context.expect(isColossus(CacheWarren.monolith.behavior), "Monolith is a colossus")
         // makeCombatant yields a full-HP fighter from the block.
         let mote = CacheWarren.mote.makeCombatant()
         context.expectEqual(mote.currentHP, 30, "a fresh foe starts at full HP")
