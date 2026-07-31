@@ -29,6 +29,9 @@ enum CombatChecks {
         checkGrabberEncounterReplays(context: &context)
         checkBlurAddsEvasion(context: &context)
         checkPhaseSlipsAndOpens(context: &context)
+        checkTelegraphThenSlam(context: &context)
+        checkHardenRaisesGuard(context: &context)
+        checkColossusEncounterReplays(context: &context)
         checkOutmatchedPetIsDefeated(context: &context)
         checkFasterCombatantActsFirst(context: &context)
         checkDecisionPointAndUnleashConsumeSignature(context: &context)
@@ -549,6 +552,79 @@ enum CombatChecks {
             encounter.status, .awaitingDecision(.opening),
             "over-extending opens the Unleash window"
         )
+    }
+
+    private static func firstSlam(in log: [CombatEvent]) -> StrikeOutcome? {
+        for event in log {
+            if case let .slammed(_, _, outcome) = event { return outcome }
+        }
+        return nil
+    }
+
+    private static func checkTelegraphThenSlam(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.monolith,
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // round 1: pet strikes, Monolith telegraphs (no damage)
+        let telegraphed = encounter.log.contains {
+            if case .telegraphed = $0 { return true }
+            return false
+        }
+        context.expect(telegraphed, "the colossus telegraphs its Slam a turn ahead")
+
+        encounter.step() // the wind-up opens a Brace-or-eat decision
+        context.expectEqual(
+            encounter.status, .awaitingDecision(.telegraph),
+            "the telegraph opens a Brace-or-eat decision"
+        )
+
+        encounter.decide(approach: .aggressive, unleash: false) // eat it
+        encounter.step() // round 2: the Slam lands
+        guard let slam = firstSlam(in: encounter.log) else {
+            context.expect(false, "the colossus Slams after the wind-up")
+            return
+        }
+        context.expect(slam.didHit, "the Slam is a guaranteed hit")
+        context.expect(slam.damage >= 10, "the Slam hits heavily")
+    }
+
+    private static func checkHardenRaisesGuard(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // A durable, high-Power stand-in grinds the Monolith past its phase
+        // thresholds while shrugging the Slams, so Harden fires.
+        let bruiser = Combatant.foe(
+            name: "Bruiser", maxHP: 400,
+            stats: CombatStats(power: 20, defense: 20, agility: 20, wit: 1)
+        )
+        var encounter = CombatEncounter(
+            pet: bruiser, foe: CacheWarren.monolith,
+            approach: .aggressive, rates: rates, seed: 7
+        )
+        encounter.runToCompletion()
+        let hardens = encounter.log.reduce(0) { count, event in
+            if case .hardened = event { return count + 1 }
+            return count
+        }
+        context.expect(hardens >= 1, "the colossus Hardens as its HP crosses a phase threshold")
+        context.expect(
+            encounter.foe.statuses.contains { $0.kind == .guardBuff },
+            "Harden leaves a Guard buff on the colossus"
+        )
+    }
+
+    private static func checkColossusEncounterReplays(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        func fight() -> CombatEncounter {
+            var encounter = CombatEncounter(
+                pet: aegisPet(rates), foe: CacheWarren.monolith,
+                approach: .aggressive, rates: rates, seed: 404
+            )
+            encounter.runToCompletion()
+            return encounter
+        }
+        context.expectEqual(fight(), fight(), "a seeded colossus encounter replays identically")
     }
 
     private static func checkOutmatchedPetIsDefeated(context: inout CheckContext) {

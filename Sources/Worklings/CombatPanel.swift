@@ -212,6 +212,7 @@ final class CombatViewModel: ObservableObject {
         switch reason {
         case .lowHP: speechLine = "I'm hurting — what now?"
         case .opening: speechLine = "It's wide open — now's the moment!"
+        case .telegraph: speechLine = "It's winding up — Brace, or I take it?"
         case .cadence: speechLine = "What's the plan?"
         }
     }
@@ -303,6 +304,39 @@ final class CombatViewModel: ObservableObject {
                 Beat(
                     side: .foe,
                     text: "The \(who) blurs aside — your next blow will slip!",
+                    foePose: .idle,
+                    hold: .milliseconds(1800)
+                )
+            ]
+
+        case let .telegraphed(who):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "The \(who) heaves back — a crushing blow is coming!",
+                    foePose: .attack,
+                    hold: .milliseconds(2000)
+                )
+            ]
+
+        case let .slammed(attacker, defender, outcome):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "SLAM! \(attacker) crushes \(defender) for \(outcome.damage)!",
+                    petPose: .hurt,
+                    foePose: .attack,
+                    isCrit: outcome.didCrit,
+                    hpChange: (.pet, -outcome.damage),
+                    hold: .milliseconds(2200)
+                )
+            ]
+
+        case let .hardened(who, guardGain):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "The \(who) hardens — its guard rises! (+\(guardGain))",
                     foePose: .idle,
                     hold: .milliseconds(1800)
                 )
