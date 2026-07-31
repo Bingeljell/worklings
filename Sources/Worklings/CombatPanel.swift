@@ -209,7 +209,11 @@ final class CombatViewModel: ObservableObject {
         awaitingDecision = reason
         narrativeLine = nil
         speaker = .pet
-        speechLine = reason == .lowHP ? "I'm hurting — what now?" : "What's the plan?"
+        switch reason {
+        case .lowHP: speechLine = "I'm hurting — what now?"
+        case .opening: speechLine = "It's wide open — now's the moment!"
+        case .cadence: speechLine = "What's the plan?"
+        }
     }
 
     /// Expands one engine event into the readable beats it plays. A strike becomes
@@ -291,6 +295,16 @@ final class CombatViewModel: ObservableObject {
                     petPose: .hurt,
                     foePose: .attack,
                     hold: .milliseconds(2000)
+                )
+            ]
+
+        case let .phased(who):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "The \(who) blurs aside — your next blow will slip!",
+                    foePose: .idle,
+                    hold: .milliseconds(1800)
                 )
             ]
 

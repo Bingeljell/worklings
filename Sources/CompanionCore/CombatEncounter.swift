@@ -16,6 +16,7 @@ public enum CombatAction: Equatable, Sendable {
 public enum DecisionReason: Equatable, Sendable {
     case cadence   // the every-few-rounds reassess beat
     case lowHP     // the pet is faltering
+    case opening   // an evasive foe over-extended — the window to Unleash
 }
 
 /// Where the encounter is right now.
@@ -37,6 +38,8 @@ public enum CombatEvent: Equatable, Sendable {
     case braced(who: String, regen: Int)
     /// A grabber (Snag) seizes the pet instead of striking, Snaring its Agility.
     case grabbed(attacker: String, target: String, agilityLoss: Int)
+    /// An evasive foe (Flicker) blurs aside — the pet's next blow will slip.
+    case phased(who: String)
     case defeated(who: String)
     case decisionPoint(DecisionReason)
     case encounterEnded(victory: Bool)
@@ -66,6 +69,11 @@ public struct CombatEncounter: Equatable, Sendable {
     private var lastCadenceRound: Int
     /// Rounds remaining before a grabber (Snag) may Snare again.
     private var grabCooldownRemaining: Int
+    /// Set when an evasive foe (Flicker) over-extends, so the next decision is the
+    /// Unleash opening; cleared once that decision is taken.
+    private var openingPending: Bool
+    /// Rounds remaining before an evasive foe may Phase-and-open again.
+    private var openingCooldownRemaining: Int
 
     public init(
         pet: Combatant,
@@ -87,7 +95,15 @@ public struct CombatEncounter: Equatable, Sendable {
         self.promptedLowHP = false
         self.lastCadenceRound = 0
         self.grabCooldownRemaining = 0
+        self.openingPending = false
+        self.openingCooldownRemaining = 0
         self.log = [.encounterBegan(pet: pet.name, foe: self.foe.name)]
+
+        // Blur is a passive: an evasive foe carries its evasion for the whole
+        // fight, on top of its native Agility.
+        if case let .evasive(evasion, _, _) = foe.behavior {
+            self.foe.apply(StatusEffect(kind: .evasion, magnitude: evasion, isPermanent: true))
+        }
     }
 
     /// Whether the pet still has its once-per-encounter Signature.
@@ -117,6 +133,7 @@ public struct CombatEncounter: Equatable, Sendable {
         switch reason {
         case .lowHP: promptedLowHP = true
         case .cadence: lastCadenceRound = round
+        case .opening: openingPending = false
         }
         status = .ongoing
     }
@@ -144,6 +161,9 @@ public struct CombatEncounter: Equatable, Sendable {
     private func pendingDecision() -> DecisionReason? {
         if !promptedLowHP, pet.hpFraction < rates.lowHPEventThreshold {
             return .lowHP
+        }
+        if openingPending {
+            return .opening
         }
         if round > 0,
            round % rates.decisionCadenceRounds == 0,
@@ -218,7 +238,7 @@ public struct CombatEncounter: Equatable, Sendable {
         // Dispatch on the foe's archetype. Each special behavior lands in its own
         // slice; until then every foe simply Strikes, exactly as before.
         switch foeBehavior {
-        case .mindless, .evasive, .colossus:
+        case .mindless, .colossus:
             foeStrike(petIsBracing: petIsBracing)
         case let .grabber(snareChance, snareMagnitude, snareDuration, grabCooldown):
             performGrab(
@@ -226,8 +246,31 @@ public struct CombatEncounter: Equatable, Sendable {
                 snareDuration: snareDuration, grabCooldown: grabCooldown,
                 petIsBracing: petIsBracing
             )
+        case let .evasive(_, phaseChance, openingCooldown):
+            performEvasive(
+                phaseChance: phaseChance, openingCooldown: openingCooldown,
+                petIsBracing: petIsBracing
+            )
         }
         resolveDefeatIfAny()
+    }
+
+    /// An evasive foe (Flicker): it always darts in for chip damage, and — off
+    /// cooldown — sometimes Phases, slipping the pet's next blow and over-extending
+    /// into an Unleash opening. The opening only arms while the Signature is still
+    /// in hand, since that's the whole point of the window.
+    private mutating func performEvasive(
+        phaseChance: Double, openingCooldown: Int, petIsBracing: Bool
+    ) {
+        foeStrike(petIsBracing: petIsBracing)
+        if openingCooldownRemaining > 0 {
+            openingCooldownRemaining -= 1
+        } else if generator.chance(phaseChance) {
+            foe.apply(StatusEffect(kind: .phasing, magnitude: 0, remainingRounds: 2))
+            log.append(.phased(who: foe.name))
+            if signatureAvailable { openingPending = true }
+            openingCooldownRemaining = openingCooldown
+        }
     }
 
     /// A grabber (Snag): off cooldown, it may seize the pet instead of striking,

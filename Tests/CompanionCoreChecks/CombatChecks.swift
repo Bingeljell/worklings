@@ -27,6 +27,8 @@ enum CombatChecks {
         checkSnareGrabsAndDebuffs(context: &context)
         checkGrabHasCooldown(context: &context)
         checkGrabberEncounterReplays(context: &context)
+        checkBlurAddsEvasion(context: &context)
+        checkPhaseSlipsAndOpens(context: &context)
         checkOutmatchedPetIsDefeated(context: &context)
         checkFasterCombatantActsFirst(context: &context)
         checkDecisionPointAndUnleashConsumeSignature(context: &context)
@@ -500,6 +502,53 @@ enum CombatChecks {
             return encounter
         }
         context.expectEqual(fight(), fight(), "a seeded grabber encounter replays identically")
+    }
+
+    private static func checkBlurAddsEvasion(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.flicker,
+            approach: .aggressive, rates: rates, seed: 5
+        )
+        context.expect(
+            encounter.foe.statuses.contains { $0.kind == .evasion },
+            "an evasive foe carries Blur (evasion) from the start"
+        )
+    }
+
+    private static func checkPhaseSlipsAndOpens(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // A certain-Phase Flicker: it must Phase on turn one, slipping the pet's
+        // blow that round and over-extending into the Unleash opening.
+        let flicker = Foe(
+            name: "Flicker", maxHP: 40,
+            stats: CombatStats(power: 3, defense: 2, agility: 14, wit: 4),
+            behavior: .evasive(evasion: 30, phaseChance: 1.0, openingCooldown: 3),
+            rewardXP: 0
+        )
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: flicker,
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // round 1: foe darts + phases, pet's blow slips
+        let phased = encounter.log.contains {
+            if case .phased = $0 { return true }
+            return false
+        }
+        context.expect(phased, "an evasive foe Phases when it can")
+        let petBlowSlipped = encounter.log.contains {
+            if case let .struck(attacker, _, outcome) = $0, attacker == "Pixel" {
+                return !outcome.didHit
+            }
+            return false
+        }
+        context.expect(petBlowSlipped, "the pet's blow slips through the Phase")
+
+        encounter.step() // the over-extend now opens the window
+        context.expectEqual(
+            encounter.status, .awaitingDecision(.opening),
+            "over-extending opens the Unleash window"
+        )
     }
 
     private static func checkOutmatchedPetIsDefeated(context: inout CheckContext) {

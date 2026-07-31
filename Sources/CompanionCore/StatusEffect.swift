@@ -19,17 +19,27 @@ public struct StatusEffect: Equatable, Sendable {
     public let kind: StatusEffectKind
     public let magnitude: Int
     public private(set) var remainingRounds: Int
+    /// A permanent effect never ages or expires — for passives like Flicker's Blur
+    /// and Monolith's phase Harden that last the rest of the fight.
+    public let isPermanent: Bool
 
-    public init(kind: StatusEffectKind, magnitude: Int, remainingRounds: Int) {
+    public init(
+        kind: StatusEffectKind,
+        magnitude: Int,
+        remainingRounds: Int = 0,
+        isPermanent: Bool = false
+    ) {
         self.kind = kind
         self.magnitude = max(0, magnitude)
         self.remainingRounds = max(0, remainingRounds)
+        self.isPermanent = isPermanent
     }
 
-    public var isExpired: Bool { remainingRounds <= 0 }
+    public var isExpired: Bool { isPermanent ? false : remainingRounds <= 0 }
 
-    /// Ages the effect by one round.
+    /// Ages the effect by one round (permanent effects are untouched).
     mutating func tick() {
-        if remainingRounds > 0 { remainingRounds -= 1 }
+        guard !isPermanent, remainingRounds > 0 else { return }
+        remainingRounds -= 1
     }
 }
