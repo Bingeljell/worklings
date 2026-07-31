@@ -53,6 +53,10 @@ final class CombatViewModel: ObservableObject {
     /// nil hides the bubbles.
     @Published private(set) var speaker: CombatSide?
     @Published private(set) var speechLine: String?
+    /// Scene-setting narration (e.g. the encounter's opening line). Shown as a
+    /// centered banner across the stage, distinct from the combatants' action
+    /// bubbles; nil hides it.
+    @Published private(set) var narrativeLine: String?
 
     let petName: String
     let foeName: String
@@ -73,6 +77,9 @@ final class CombatViewModel: ObservableObject {
     private struct Beat {
         var side: CombatSide?
         var text: String?
+        /// Scene-setting narration rather than a combatant's line — shown in the
+        /// centered banner instead of a speech bubble.
+        var isNarrative = false
         var petPose: WorklingSpriteFrame = .idle
         var foePose: FoePose = .idle
         var isCrit = false
@@ -109,6 +116,7 @@ final class CombatViewModel: ObservableObject {
         awaitingDecision = nil
         speaker = nil
         speechLine = nil
+        narrativeLine = nil
         encounter.decide(approach: approach, unleash: unleash)
         pump()
     }
@@ -155,13 +163,22 @@ final class CombatViewModel: ObservableObject {
         if beat.countdown != nil {
             speaker = nil
             speechLine = nil
+            narrativeLine = nil
             petPose = restingPose
             foePose = .idle
             return
         }
 
-        speaker = beat.side
-        speechLine = beat.text
+        // Scene-setting narration goes to the centered banner, not a bubble.
+        if beat.isNarrative {
+            narrativeLine = beat.text
+            speaker = nil
+            speechLine = nil
+        } else {
+            narrativeLine = nil
+            speaker = beat.side
+            speechLine = beat.text
+        }
         foePose = beat.foePose
         // A stored `.idle` means "rest" — resolve it to Low-HP when hurt enough.
         petPose = beat.petPose == .idle ? restingPose : beat.petPose
@@ -190,6 +207,7 @@ final class CombatViewModel: ObservableObject {
 
     private func showDecision(_ reason: DecisionReason) {
         awaitingDecision = reason
+        narrativeLine = nil
         speaker = .pet
         speechLine = reason == .lowHP ? "I'm hurting — what now?" : "What's the plan?"
     }
@@ -200,7 +218,7 @@ final class CombatViewModel: ObservableObject {
     private func beats(for event: CombatEvent) -> [Beat] {
         switch event {
         case let .encounterBegan(_, foe):
-            return [Beat(side: .foe, text: "A \(foe) blocks the way!", hold: .milliseconds(1300))]
+            return [Beat(text: "A \(foe) blocks the way…", isNarrative: true, hold: .milliseconds(2200))]
 
         case let .struck(attacker, defender, outcome):
             let attackerSide: CombatSide = attacker == petName ? .pet : .foe
@@ -411,6 +429,7 @@ struct CombatPanelView: View {
         }
         .padding(.horizontal, 34)
         .frame(maxHeight: .infinity)
+        .overlay(alignment: .top) { NarrativeBanner(text: model.narrativeLine) }
         .overlay { countdownOverlay }
     }
 
@@ -978,6 +997,35 @@ private struct FoePlaceholder: View {
                 .offset(y: phase.isMultiple(of: 2) ? 0 : -4)
                 .animation(.easeInOut(duration: 0.45), value: phase)
         }
+    }
+}
+
+/// Scene-setting narration across the top of the stage — a centered, italic
+/// banner that reads as the dungeon's own voice, distinct from the combatants'
+/// speech bubbles. Empty when `text` is nil.
+private struct NarrativeBanner: View {
+    let text: String?
+
+    var body: some View {
+        ZStack {
+            if let text {
+                Text(text)
+                    .font(.system(.title3, design: .serif).italic())
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 420)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 12)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.18), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .id(text)
+            }
+        }
+        .padding(.top, 8)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: text)
     }
 }
 
