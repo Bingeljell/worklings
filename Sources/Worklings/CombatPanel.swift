@@ -952,7 +952,8 @@ private enum FoeSpriteAsset {
 
     private static func resourceBase(for foe: String) -> String? {
         switch foe {
-        case "Mote": return "mote"
+        // Display name → asset base. The Scamp's art files are still `mote-*`.
+        case "Dungeon Scamp": return "mote"
         default: return nil
         }
     }

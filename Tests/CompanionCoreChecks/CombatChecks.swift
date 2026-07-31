@@ -380,7 +380,10 @@ enum CombatChecks {
 
     private static func checkBestiaryMatchesTheSpec(context: inout CheckContext) {
         // The stat blocks are the reward the whole design leans on; guard them.
-        context.expectEqual(CacheWarren.mote.maxHP, 30, "Mote HP (tuned for a few rounds)")
+        // The display name is also the sprite join key (name → mote-* assets), so
+        // pin it here — a silent rename would drop the Scamp's art.
+        context.expectEqual(CacheWarren.mote.name, "Dungeon Scamp", "the Scamp's display name (also its sprite join key)")
+        context.expectEqual(CacheWarren.mote.maxHP, 30, "Dungeon Scamp HP (tuned for a few rounds)")
         context.expectEqual(CacheWarren.flicker.stats.agility, 14, "Flicker is fast")
         context.expectEqual(CacheWarren.monolith.stats.defense, 12, "Monolith is armoured")
         context.expectApproximatelyEqual(CacheWarren.flicker.rewardXP, 25, "Flicker reward")
@@ -413,9 +416,9 @@ enum CombatChecks {
             approach: .aggressive, rates: rates, seed: 7
         )
         encounter.runToCompletion()
-        context.expectEqual(encounter.status, .petVictory, "the pet beats a Mote")
-        context.expect(encounter.foe.isDefeated, "the Mote is defeated")
-        context.expect(encounter.pet.currentHP > 0, "the pet survives a Mote")
+        context.expectEqual(encounter.status, .petVictory, "the pet beats a Dungeon Scamp")
+        context.expect(encounter.foe.isDefeated, "the Dungeon Scamp is defeated")
+        context.expect(encounter.pet.currentHP > 0, "the pet survives a Dungeon Scamp")
     }
 
     private static func checkOutmatchedPetIsDefeated(context: inout CheckContext) {
