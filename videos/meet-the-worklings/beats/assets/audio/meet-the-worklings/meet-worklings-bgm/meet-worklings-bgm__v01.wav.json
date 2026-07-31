@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "audio": "assets/audio/meet-the-worklings/meet-worklings-bgm/meet-worklings-bgm__v01.wav",
+  "beats": [
+    {
+      "time": 0.469,
+      "strength": 0.696
+    },
+    {
+      "time": 0.576,
+      "strength": 0.755
+    },
+    {
+      "time": 1.835,
+      "strength": 0.768
+    },
+    {
+      "time": 2.283,
+      "strength": 0.576
+    },
+    {
+      "time": 2.624,
+      "strength": 0.633
+    },
+    {
+      "time": 3.648,
+      "strength": 0.664
+    },
+    {
+      "time": 3.925,
+      "strength": 0.649
+    },
+    {
+      "time": 4.107,
+      "strength": 0.705
+    },
+    {
+      "time": 5.088,
+      "strength": 0.603
+    },
+    {
+      "time": 5.547,
+      "strength": 0.614
+    },
+    {
+      "time": 5.92,
+      "strength": 0.538
+    },
+    {
+      "time": 6.037,
+      "strength": 0.758
+    },
+    {
+      "time": 6.443,
+      "strength": 0.8
+    },
+    {
+      "time": 7.36,
+      "strength": 0.661
+    },
+    {
+      "time": 7.573,
+      "strength": 0.679
+    },
+    {
+      "time": 7.744,
+      "strength": 0.702
+    },
+    {
+      "time": 9.109,
+      "strength": 0.744
+    },
+    {
+      "time": 9.557,
+      "strength": 0.647
+    },
+    {
+      "time": 10.539,
+      "strength": 0.637
+    },
+    {
+      "time": 11.168,
+      "strength": 0.804
+    },
+    {
+      "time": 11.381,
+      "strength": 0.659
+    },
+    {
+      "time": 11.659,
+      "strength": 0.712
+    },
+    {
+      "time": 12.789,
+      "strength": 0.727
+    },
+    {
+      "time": 13.045,
+      "strength": 0.77
+    },
+    {
+      "time": 13.237,
+      "strength": 0.766
+    },
+    {
+      "time": 14.155,
+      "strength": 0.844
+    },
+    {
+      "time": 15.019,
+      "strength": 0.955
+    },
+    {
+      "time": 15.232,
+      "strength": 1
+    },
+    {
+      "time": 15.403,
+      "strength": 0.943
+    },
+    {
+      "time": 15.712,
+      "strength": 0.793
+    },
+    {
+      "time": 16.267,
+      "strength": 0.298
+    },
+    {
+      "time": 16.533,
+      "strength": 0.222
+    },
+    {
+      "time": 16.683,
+      "strength": 0.225
+    }
+  ]
+}

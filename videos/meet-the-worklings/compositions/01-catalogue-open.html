@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    <template>
+      <style>
+        @font-face { font-family: Teko; src: url('assets/fonts/teko-700.woff2'); font-weight: 700; }
+        @font-face { font-family: Inter; src: url('assets/fonts/inter-700.woff2'); font-weight: 700; }
+        @font-face { font-family: Plex; src: url('assets/fonts/ibm-plex-mono-500.woff2'); font-weight: 500; }
+        #root { position: absolute; inset: 0; width: 1080px; height: 1920px; overflow: hidden; }
+        * { box-sizing: border-box; }
+        .ground { position: absolute; inset: 0; background-color: #FF6B1A; overflow: hidden; }
+        .grid { position: absolute; inset: 0; opacity: .2; background-image: linear-gradient(rgba(11,18,36,.35) 1px, rgba(11,18,36,0) 1px), linear-gradient(90deg, rgba(11,18,36,.35) 1px, rgba(11,18,36,0) 1px); background-size: 90px 90px; }
+        .ghost { position: absolute; left: -70px; top: 210px; font: 700 620px/.8 Teko; letter-spacing: -.06em; color: rgba(11,18,36,.11); }
+        .ghost::before { content: "01"; }
+        .portal { position: absolute; right: 64px; top: 150px; width: 190px; height: 1510px; background: #0B1224; border-left: 1px solid rgba(11,18,36,.4); overflow: hidden; transform-origin: 50% 50%; }
+        .silhouette { position: absolute; left: -33px; width: 256px; height: 256px; background-size: 1024px 1280px; background-repeat: no-repeat; image-rendering: pixelated; filter: saturate(0) brightness(.25); transform: scale(.72); }
+        .wild { top: 260px; background-image: url('assets/characters/worklings-wildkin-spritesheet.png'); background-position: 0 0; }
+        .ember { top: 650px; background-image: url('assets/characters/worklings-elemental-spritesheet.png'); background-position: 0 0; }
+        .relic { top: 1040px; background-image: url('assets/characters/worklings-relicborn-spritesheet.png'); background-position: 0 0; }
+        .content { position: absolute; inset: 0; padding: 154px 92px 260px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; }
+        .kicker, .meta, .counter { font: 500 22px/1.4 Plex; letter-spacing: .14em; text-transform: uppercase; color: #0B1224; }
+        .kicker { position: absolute; left: 92px; top: 155px; }
+        .counter { position: absolute; right: 88px; top: 92px; writing-mode: vertical-rl; }
+        .title { width: 780px; font: 700 168px/1.24 Teko; letter-spacing: -.045em; text-transform: lowercase; color: #0B1224; }
+        .title span { display: block; }
+        .meta { margin-top: 58px; font-size: 19px; }
+        .top-rule, .bottom-rule { position: absolute; left: 92px; right: 92px; height: 1px; background: rgba(11,18,36,.35); transform-origin: left center; }
+        .top-rule { top: 218px; } .bottom-rule { bottom: 122px; }
+        .marks { position: absolute; left: 92px; bottom: 164px; display: flex; gap: 10px; }
+        .mark { width: 62px; height: 7px; background: rgba(11,18,36,.25); }
+        .mark:first-child { background: #0B1224; }
+      </style>
+      <div id="root" data-composition-id="01-catalogue-open" data-width="1080" data-height="1920" data-duration="2.52">
+        <div class="ground">
+          <div id="hook-grid" class="grid"></div>
+          <div id="hook-ghost" class="ghost" aria-hidden="true" data-layout-allow-overflow=""></div>
+          <div id="hook-portal" class="portal clip" data-start="0.01" data-track-index="3">
+            <div id="hook-wild" class="silhouette wild"></div>
+            <div id="hook-ember" class="silhouette ember"></div>
+            <div id="hook-relic" class="silhouette relic"></div>
+          </div>
+          <div class="top-rule" id="hook-top-rule"></div>
+          <div class="bottom-rule" id="hook-bottom-rule"></div>
+          <div id="hook-kicker" class="kicker">companion field guide</div>
+          <div id="hook-counter" class="counter">09:16 / origin index</div>
+          <div class="content">
+            <div class="title"><span id="hook-meet">meet the</span><span id="hook-worklings">worklings</span></div>
+            <div id="hook-meta" class="meta">three families / one persistent companion</div>
+          </div>
+          <div class="marks"><div class="mark"></div><div class="mark"></div><div class="mark"></div></div>
+        </div>
+      </div>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+        tl.fromTo("#hook-portal", { scaleY: 0 }, { scaleY: 1, duration: 1.095, ease: "expo.out" }, 0.05);
+        tl.fromTo("#hook-meet", { y: -90, opacity: 0 }, { y: 0, opacity: 1, duration: .54, ease: "power3.out" }, .14);
+        tl.fromTo("#hook-worklings", { y: 120, opacity: 0, scale: .92 }, { y: 0, opacity: 1, scale: 1, duration: .66, ease: "back.out(1.55)" }, .28);
+        tl.fromTo("#hook-kicker", { x: -70, opacity: 0 }, { x: 0, opacity: 1, duration: .42, ease: "power2.out" }, .22);
+        tl.fromTo("#hook-meta", { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: .44, ease: "power2.out" }, .78);
+        tl.fromTo("#hook-top-rule, #hook-bottom-rule", { scaleX: 0 }, { scaleX: 1, duration: .72, stagger: .08, ease: "power3.out" }, .2);
+        tl.fromTo("#hook-counter", { opacity: 0 }, { opacity: 1, duration: .5, ease: "sine.out" }, .62);
+        tl.fromTo("#hook-wild, #hook-ember, #hook-relic", { x: 120, opacity: 0 }, { x: 0, opacity: 1, duration: .44, stagger: .13, ease: "power4.out" }, .38);
+        tl.fromTo("#hook-grid", { opacity: .08 }, { opacity: .2, duration: 2.52, ease: "sine.inOut" }, 0);
+        tl.fromTo("#hook-ghost", { y: 42 }, { y: -18, duration: 2.52, ease: "none" }, 0);
+        window.__timelines["01-catalogue-open"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "asset_id": "meet-worklings-bgm",
+  "kind": "music",
+  "variant": 1,
+  "generator": {
+    "engine": "stable-audio-3-medium",
+    "preset": null,
+    "audio_assetlab_version": "0.1.0",
+    "model": "stabilityai/stable-audio-3-medium",
+    "optimized_model": "stabilityai/stable-audio-3-optimized",
+    "model_revision": "06debc30bee4d94aa6a93e5f100d73245c02e5b0",
+    "text_encoder_revision": "08c64b96b1e59942aade69759f60fb88c58c90c4",
+    "runtime_source_revision": "124e8a799f57a1f665495ecb72e547d0a62867f1"
+  },
+  "generation": {
+    "prompt": "Eighteen-second energetic creature-collector game showcase music, immediate hook from the first beat, approximately 132 BPM, warm hand percussion and punchy cinematic drums, playful plucked fantasy motif, compact heroic brass and strings, three escalating character sections, magical collectible-game energy, clean triumphant ending at eighteen seconds, instrumental, polished social-video mix\n",
+    "negative_prompt": "vocals, speech, slow ambient intro, harsh distortion, horror, long reverb tail",
+    "seed": 31801,
+    "requested_duration_seconds": 20,
+    "actual_duration_seconds": 18.0,
+    "generated_at": "2026-07-31T10:42:50.753923+00:00",
+    "parameters": {
+      "steps": 8,
+      "cfg": 1.0,
+      "apg": 1.0
+    }
+  },
+  "postprocess": [
+    {
+      "op": "crop",
+      "start_seconds": 0,
+      "duration_seconds": 18
+    },
+    {
+      "op": "fade",
+      "in_ms": 10,
+      "out_ms": 350
+    },
+    {
+      "op": "peak_normalize",
+      "peak_db": -3
+    }
+  ],
+  "audio": {
+    "sample_rate": 48000,
+    "channels": 2,
+    "master_encoding": "24-bit PCM WAV"
+  },
+  "source": {
+    "manifest_path": "audio-lab/manifest.yaml",
+    "manifest_sha256": "254888a0e598bfd30986e9044664f8d5bd185ca08951b75b83b48893cff55f17",
+    "candidate_path": "audio-lab/library/candidates/meet-the-worklings/meet-worklings-bgm/meet-worklings-bgm__seed-31801.wav",
+    "candidate_sha256": "359b7cfedd305472efae136ffb11933666247b2f9b103905cd90160771872856"
+  },
+  "outputs": {
+    "master": {
+      "path": "audio-lab/library/masters/meet-the-worklings/meet-worklings-bgm/meet-worklings-bgm__v01.wav",
+      "sha256": "cb077bed6b4660380c41c00675413648153197e2d95840d2d4cb62f2c66064ad"
+    },
+    "exports": [
+      {
+        "path": "audio-lab/exports/meet-the-worklings/meet-worklings-bgm/meet-worklings-bgm__v01.wav",
+        "sha256": "cb077bed6b4660380c41c00675413648153197e2d95840d2d4cb62f2c66064ad"
+      },
+      {
+        "path": "audio-lab/exports/meet-the-worklings/meet-worklings-bgm/meet-worklings-bgm__v01.ogg",
+        "sha256": "714af16fb01e41d21cb4baaf0ebc102a5ab3db884dfcbcecd060f3047d45d0e7"
+      }
+    ]
+  },
+  "licenses": {
+    "code": "NOASSERTION",
+    "model": "Stability AI Community License",
+    "text_encoder": "Gemma Terms of Use",
+    "asset": "Stability AI Community License"
+  },
+  "environment": {
+    "python": "3.13.14",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "ffmpeg": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers"
+  }
+}

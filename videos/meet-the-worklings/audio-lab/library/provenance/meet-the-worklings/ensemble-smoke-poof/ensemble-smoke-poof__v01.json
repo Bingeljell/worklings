@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "asset_id": "ensemble-smoke-poof",
+  "kind": "sfx",
+  "variant": 1,
+  "generator": {
+    "engine": "stable-audio-3-small-sfx",
+    "preset": null,
+    "audio_assetlab_version": "0.1.0",
+    "model": "stabilityai/stable-audio-3-small-sfx",
+    "optimized_model": "stabilityai/stable-audio-3-optimized",
+    "model_revision": "08c64b96b1e59942aade69759f60fb88c58c90c4",
+    "text_encoder_revision": "08c64b96b1e59942aade69759f60fb88c58c90c4",
+    "runtime_source_revision": "124e8a799f57a1f665495ecb72e547d0a62867f1"
+  },
+  "generation": {
+    "prompt": "Single soft magical smoke poof with compact low impact, fluffy air body, and bright sparkling dispersal, charming creature-collection game sound\n",
+    "negative_prompt": "music, speech, explosion, cannon, ambience, long reverb, harsh noise, clipping, distortion",
+    "seed": 31852,
+    "requested_duration_seconds": 3,
+    "actual_duration_seconds": 1.4,
+    "generated_at": "2026-07-31T12:05:29.886107+00:00",
+    "parameters": {
+      "steps": 8,
+      "cfg": 1.0,
+      "apg": 1.0
+    }
+  },
+  "postprocess": [
+    {
+      "op": "crop",
+      "start_seconds": 0,
+      "duration_seconds": 1.4
+    },
+    {
+      "op": "fade",
+      "in_ms": 2,
+      "out_ms": 120
+    },
+    {
+      "op": "peak_normalize",
+      "peak_db": -1
+    }
+  ],
+  "audio": {
+    "sample_rate": 48000,
+    "channels": 2,
+    "master_encoding": "24-bit PCM WAV"
+  },
+  "source": {
+    "manifest_path": "audio-lab/manifest.yaml",
+    "manifest_sha256": "ee2a39a3e4878550735a060be263a0256ac4d8fdc60a3abf54e137cd727baca5",
+    "candidate_path": "audio-lab/library/candidates/meet-the-worklings/ensemble-smoke-poof/ensemble-smoke-poof__seed-31852.wav",
+    "candidate_sha256": "fb76907c7bd25c83e52a590ce1d067d01cb8997da92c9e8e8a95c293d7a17e13"
+  },
+  "outputs": {
+    "master": {
+      "path": "audio-lab/library/masters/meet-the-worklings/ensemble-smoke-poof/ensemble-smoke-poof__v01.wav",
+      "sha256": "11df0aa235e5cb11c338dda159f24c7fe3328c4a0276508d4c88d94e178c789b"
+    },
+    "exports": [
+      {
+        "path": "audio-lab/exports/meet-the-worklings/ensemble-smoke-poof/ensemble-smoke-poof__v01.wav",
+        "sha256": "11df0aa235e5cb11c338dda159f24c7fe3328c4a0276508d4c88d94e178c789b"
+      },
+      {
+        "path": "audio-lab/exports/meet-the-worklings/ensemble-smoke-poof/ensemble-smoke-poof__v01.ogg",
+        "sha256": "2ac68ee9c8805b18dce2d90236f7da24af6b1bab5e4f2557e64d368fe4531d76"
+      }
+    ]
+  },
+  "licenses": {
+    "code": "NOASSERTION",
+    "model": "Stability AI Community License",
+    "text_encoder": "Gemma Terms of Use",
+    "asset": "Stability AI Community License"
+  },
+  "environment": {
+    "python": "3.13.14",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "ffmpeg": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers"
+  }
+}

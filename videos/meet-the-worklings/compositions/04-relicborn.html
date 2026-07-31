@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><body><template>
+  <style>
+    @font-face { font-family:Teko; src:url('assets/fonts/teko-700.woff2'); font-weight:700; }
+    @font-face { font-family:Inter; src:url('assets/fonts/inter-700.woff2'); font-weight:700; }
+    @font-face { font-family:Plex; src:url('assets/fonts/ibm-plex-mono-500.woff2'); font-weight:500; }
+    #root { position:absolute; inset:0; width:1080px; height:1920px; overflow:hidden; }
+    * { box-sizing:border-box; }
+    .ground { position:absolute; inset:0; overflow:hidden; background-color:#0B1224; color:#F3E4C8; }
+    .camera { position:absolute; inset:-40px; transform-origin:50% 50%; will-change:transform; }
+    .axis-v,.axis-h { position:absolute; background:#FF6B1A; }
+    .axis-v { left:536px; top:0; width:2px; height:1920px; }
+    .axis-h { left:0; top:795px; width:1080px; height:2px; }
+    .rune { position:absolute; left:173px; top:300px; width:734px; height:734px; border:2px solid #117E87; border-radius:50%; }
+    .rune::before,.rune::after { content:""; position:absolute; border:1px solid rgba(28,202,216,.45); border-radius:50%; }
+    .rune::before { inset:72px; }.rune::after { inset:155px; }
+    .key { position:absolute; right:-105px; top:245px; width:620px; height:620px; background:url('assets/characters/worklings-relicborn-spritesheet.png') 0 0/1024px 1280px no-repeat; image-rendering:pixelated; opacity:.13; transform:scale(1.5); transform-origin:54% 26%; }
+    .cal { position:absolute; width:86px; height:86px; border-color:#FF6B1A; opacity:.9; }
+    .c1{left:92px;top:258px;border-left:3px solid;border-top:3px solid}.c2{right:92px;top:258px;border-right:3px solid;border-top:3px solid}.c3{left:92px;top:1020px;border-left:3px solid;border-bottom:3px solid}.c4{right:92px;top:1020px;border-right:3px solid;border-bottom:3px solid}
+    .sprite-stage { position:absolute; left:150px; top:350px; width:780px; height:850px; }
+    .sprite { position:absolute; left:262px; top:258px; width:256px; height:256px; background-image:url('assets/characters/worklings-relicborn-spritesheet.png'); background-size:1024px 1280px; background-repeat:no-repeat; image-rendering:pixelated; transform:scale(2.8); transform-origin:50% 70%; }
+    #relic-idle{background-position:0 0} #relic-care{background-position:-768px -256px;opacity:0} #relic-brace{background-position:-256px -1024px;opacity:0} #relic-signature{background-position:-512px -1024px;opacity:0}
+    .copy { position:absolute; left:92px; right:92px; bottom:220px; z-index:5; }
+    .kicker,.meta,.pose { font:500 21px/1.4 Plex; letter-spacing:.14em; text-transform:uppercase; }
+    .kicker{color:#FF6B1A}.name{margin-top:52px;font:700 124px/1.28 Teko;letter-spacing:-.04em;text-transform:lowercase}.name span{display:block}.tagline{margin-top:52px;font:700 48px/1.15 Inter}.tagline span{color:#FF6B1A}.rule{width:100%;height:1px;margin-top:34px;background:#094145;transform-origin:left center}.meta{margin-top:20px;font-size:17px;color:#1CCAD8}
+    .progress{position:absolute;top:135px;right:90px;display:flex;gap:10px}.pip{width:54px;height:7px;background:#094145}.pip.on{background:#FF6B1A}.index{position:absolute;left:90px;top:118px;font:700 170px/.8 Teko;color:rgba(243,228,200,.13)}.pose{position:absolute;right:90px;bottom:118px;font-size:17px;color:#1CCAD8}
+  </style>
+  <div id="root" data-composition-id="04-relicborn" data-width="1080" data-height="1920" data-duration="4.5">
+    <div class="ground"><div id="relic-camera" class="camera" data-layout-allow-overflow>
+      <div class="index">03</div><div class="progress"><div class="pip"></div><div class="pip"></div><div class="pip on"></div></div>
+      <div class="axis-v"></div><div class="axis-h"></div><div id="relic-rune" class="rune"></div><div id="relic-key" class="key"></div>
+      <div class="cal c1"></div><div class="cal c2"></div><div class="cal c3"></div><div class="cal c4"></div>
+      <div class="sprite-stage"><div id="relic-idle" class="sprite"></div><div id="relic-care" class="sprite"></div><div id="relic-brace" class="sprite"></div><div id="relic-signature" class="sprite"></div></div>
+      <div class="copy"><div id="relic-kicker" class="kicker">03 / relicborn</div><div id="relic-name" class="name"><span>keyback</span><span>pangolin</span></div><div id="relic-tag" class="tagline"><span>built</span> to endure.</div><div id="relic-rule" class="rule"></div><div id="relic-meta" class="meta">ancient mechanisms / rune power</div></div>
+      <div class="pose">rune / signature</div>
+    </div></div>
+  </div>
+  <script>
+    window.__timelines=window.__timelines||{}; const tl=gsap.timeline({paused:true});
+    tl.fromTo(".cal",{scale:.4,opacity:0},{scale:1,opacity:.9,duration:.46,stagger:.06,ease:"back.out(1.5)"},.04);
+    tl.fromTo("#relic-kicker",{x:-80,opacity:0},{x:0,opacity:1,duration:.42,ease:"power3.out"},.1);
+    tl.fromTo("#relic-name span",{x:-110,opacity:0},{x:0,opacity:1,duration:.56,stagger:.09,ease:"power4.out"},.18);
+    tl.fromTo("#relic-tag",{y:28,opacity:0},{y:0,opacity:1,duration:.42,ease:"power2.out"},.66);
+    tl.fromTo("#relic-rule",{scaleX:0},{scaleX:1,duration:.62,ease:"power3.out"},.42);
+    tl.fromTo("#relic-meta",{opacity:0},{opacity:1,duration:.4,ease:"sine.out"},.88);
+    tl.fromTo("#relic-idle",{y:-260,opacity:0,scale:2.35},{y:0,opacity:1,scale:2.8,duration:.62,ease:"back.out(1.35)"},.08);
+    tl.fromTo("#relic-key",{rotation:-12,opacity:0},{rotation:4,opacity:.13,duration:.75,ease:"back.out(1.5)"},.2);
+    tl.to("#relic-idle",{scale:2.2,opacity:0,duration:.24,ease:"power2.in"},1.36);
+    tl.fromTo("#relic-care",{scale:2.15,opacity:0},{scale:2.8,opacity:1,duration:.46,ease:"back.out(1.5)"},1.46);
+    tl.to("#relic-care",{scale:2.18,opacity:0,duration:.25,ease:"power2.in"},2.26);
+    tl.fromTo("#relic-brace",{scale:2.12,opacity:0},{scale:2.8,opacity:1,duration:.48,ease:"back.out(1.45)"},2.36);
+    tl.to("#relic-brace",{scale:2.08,opacity:0,duration:.25,ease:"power2.in"},3.0);
+    tl.fromTo("#relic-signature",{scale:2.05,opacity:0},{scale:2.9,opacity:1,duration:.52,ease:"back.out(1.65)"},3.1);
+    tl.fromTo("#relic-rune",{scale:.25,opacity:0,rotation:-90},{scale:1,opacity:1,rotation:0,duration:.8,ease:"power3.out"},2.98);
+    tl.fromTo("#relic-camera",{scale:.98},{scale:1.04,duration:4.5,ease:"sine.inOut"},0);
+    window.__timelines["04-relicborn"]=tl;
+  </script>
+</template></body></html>

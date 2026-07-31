@@ -1,0 +1,142 @@
+version: 1
+project: meet-the-worklings
+
+defaults:
+  sample_rate: 48000
+  channels: stereo
+  master_format: wav
+  exports:
+    - wav
+    - ogg
+
+assets:
+  - id: meet-worklings-bgm
+    kind: music
+    engine: stable-audio-3-medium
+    prompt: >
+      Eighteen-second energetic creature-collector game showcase music,
+      immediate hook from the first beat, approximately 132 BPM, warm hand
+      percussion and punchy cinematic drums, playful plucked fantasy motif,
+      compact heroic brass and strings, three escalating character sections,
+      magical collectible-game energy, clean triumphant ending at eighteen
+      seconds, instrumental, polished social-video mix
+    negative_prompt: vocals, speech, slow ambient intro, harsh distortion, horror, long reverb tail
+    duration: 20
+    seeds: [31801]
+    variants_to_keep: 1
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: crop
+        start_seconds: 0
+        duration_seconds: 18
+      - op: fade
+        in_ms: 10
+        out_ms: 350
+      - op: peak_normalize
+        peak_db: -3
+
+  - id: catalogue-open
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Single compact magical field-guide opening impact, thick paper snap,
+      tiny sparkling rune shimmer, warm game UI reveal, isolated studio sound
+    negative_prompt: music, melody, speech, ambience, explosion, long reverb, harsh noise, clipping, distortion
+    duration: 3
+    seeds: [31813, 31811, 31812]
+    variants_to_keep: 1
+    license: Stability AI Community License
+    params: { steps: 8, cfg: 1.0, apg: 1.0 }
+    postprocess:
+      - { op: crop, start_seconds: 0, duration_seconds: 1.2 }
+      - { op: fade, in_ms: 2, out_ms: 80 }
+      - { op: peak_normalize, peak_db: -1 }
+
+  - id: wildkin-leaf-rush
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      One fast leafy air rush passing upward, crisp fern fronds and soft twigs,
+      ending in a compact warm nature-energy bloom, isolated close game sound
+    negative_prompt: music, speech, forest ambience, birds, water, long tail, harsh noise, clipping, distortion
+    duration: 3
+    seeds: [31821, 31822, 31823]
+    variants_to_keep: 1
+    license: Stability AI Community License
+    params: { steps: 8, cfg: 1.0, apg: 1.0 }
+    postprocess:
+      - { op: crop, start_seconds: 0, duration_seconds: 1.4 }
+      - { op: fade, in_ms: 2, out_ms: 100 }
+      - { op: peak_normalize, peak_db: -1 }
+
+  - id: elemental-ember-whip
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Single quick flame ignition whipping upward into a contained ember-ring
+      burst, warm low body, crisp sparks, stylized fantasy game sound
+    negative_prompt: music, speech, huge explosion, destruction, ambience, long fire loop, harsh noise, clipping, distortion
+    duration: 3
+    seeds: [31832, 31831, 31833]
+    variants_to_keep: 1
+    license: Stability AI Community License
+    params: { steps: 8, cfg: 1.0, apg: 1.0 }
+    postprocess:
+      - { op: crop, start_seconds: 0, duration_seconds: 1.3 }
+      - { op: fade, in_ms: 2, out_ms: 90 }
+      - { op: peak_normalize, peak_db: -1 }
+
+  - id: relicborn-clockwork-rune
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      One compact brass clockwork key turn with precise ratchet clicks,
+      mechanical lock impact, resolving into a clean radiant rune ping,
+      isolated fantasy game sound
+    negative_prompt: music, speech, machinery ambience, alarm, harsh metal, long reverb, harsh noise, clipping, distortion
+    duration: 3
+    seeds: [31843, 31841, 31842]
+    variants_to_keep: 1
+    license: Stability AI Community License
+    params: { steps: 8, cfg: 1.0, apg: 1.0 }
+    postprocess:
+      - { op: crop, start_seconds: 0, duration_seconds: 1.5 }
+      - { op: fade, in_ms: 2, out_ms: 120 }
+      - { op: peak_normalize, peak_db: -1 }
+
+  - id: ensemble-smoke-poof
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Single soft magical smoke poof with compact low impact, fluffy air body,
+      and bright sparkling dispersal, charming creature-collection game sound
+    negative_prompt: music, speech, explosion, cannon, ambience, long reverb, harsh noise, clipping, distortion
+    duration: 3
+    seeds: [31852, 31851, 31853]
+    variants_to_keep: 1
+    license: Stability AI Community License
+    params: { steps: 8, cfg: 1.0, apg: 1.0 }
+    postprocess:
+      - { op: crop, start_seconds: 0, duration_seconds: 1.4 }
+      - { op: fade, in_ms: 2, out_ms: 120 }
+      - { op: peak_normalize, peak_db: -1 }
+
+  - id: collection-flourish
+    kind: sfx
+    engine: procedural
+    preset: victory_jingle
+    duration: 1.4
+    seeds: [31861]
+    variants_to_keep: 1
+    license: NOASSERTION
+    params:
+      root_note: C5
+      tone: bell
+      brightness: 0.58
+    postprocess:
+      - { op: fade, in_ms: 3, out_ms: 180 }
+      - { op: peak_normalize, peak_db: -2 }
