@@ -6,6 +6,7 @@ enum CheckRunner {
         var context = CheckContext()
 
         ScreenPlacementChecks.run(context: &context)
+        StatusEffectChecks.run(context: &context)
         PetBrainChecks.run(context: &context)
         ActivityChecks.run(context: &context)
         ActivitySourceChecks.run(context: &context)

@@ -25,6 +25,9 @@ public struct Combatant: Equatable, Sendable {
     public let stats: CombatStats
     public let maxHP: Int
     public private(set) var currentHP: Int
+    /// Active timed modifiers (Snare, Blur, Phase, Harden, …). Empty by default,
+    /// folded into `effectiveStats` and ticked once per round.
+    public private(set) var statuses: [StatusEffect] = []
 
     public init(name: String, stats: CombatStats, maxHP: Int, currentHP: Int) {
         self.name = name
@@ -94,5 +97,64 @@ extension Combatant {
         stats: CombatStats
     ) -> Combatant {
         Combatant(name: name, stats: stats, maxHP: maxHP, currentHP: maxHP)
+    }
+}
+
+// MARK: - Status effects
+
+extension Combatant {
+    /// Stats after active effects: Snare lowers Agility, Harden raises Guard.
+    /// Power and Wit are untouched for now. The resolver reads these, never the
+    /// raw block, so every timed modifier lands in one place.
+    public var effectiveStats: CombatStats {
+        var agility = stats.agility
+        var defense = stats.defense
+        for effect in statuses {
+            switch effect.kind {
+            case .agilityDebuff: agility -= effect.magnitude
+            case .guardBuff: defense += effect.magnitude
+            case .evasion, .phasing: break
+            }
+        }
+        return CombatStats(
+            power: stats.power,
+            defense: max(0, defense),
+            agility: max(0, agility),
+            wit: stats.wit
+        )
+    }
+
+    /// Extra chance (0…1) for an incoming attack to miss, from Blur-style evasion.
+    public var evasionChance: Double {
+        let points = statuses
+            .filter { $0.kind == .evasion }
+            .reduce(0) { $0 + $1.magnitude }
+        return Double(points) / 100
+    }
+
+    /// Whether a Phase is up, ready to slip the next incoming attack.
+    public var isPhasing: Bool {
+        statuses.contains { $0.kind == .phasing }
+    }
+
+    /// Applies a new timed effect.
+    public mutating func apply(_ effect: StatusEffect) {
+        statuses.append(effect)
+    }
+
+    /// Ages every effect one round and drops the expired ones. Called once at the
+    /// top of each round.
+    public mutating func tickStatuses() {
+        for index in statuses.indices {
+            statuses[index].tick()
+        }
+        statuses.removeAll { $0.isExpired }
+    }
+
+    /// Consumes one Phase after it has slipped an attack.
+    public mutating func consumePhasing() {
+        if let index = statuses.firstIndex(where: { $0.kind == .phasing }) {
+            statuses.remove(at: index)
+        }
     }
 }

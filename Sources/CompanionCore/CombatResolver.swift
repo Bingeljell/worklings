@@ -32,10 +32,17 @@ public enum CombatResolver {
         damageMultiplier: Double = 1,
         using generator: inout SeededGenerator
     ) -> StrikeOutcome {
+        // A Phase slips the next blow entirely (Flicker), consuming the phase and
+        // spending no roll.
+        if defender.isPhasing {
+            defender.consumePhasing()
+            return .miss
+        }
+
         let hitChance = rates.hitChance(
             attackerAgility: attacker.agility,
-            defenderAgility: defender.stats.agility
-        )
+            defenderAgility: defender.effectiveStats.agility
+        ) - defender.evasionChance
         guard generator.chance(hitChance) else {
             return .miss
         }
@@ -44,7 +51,7 @@ public enum CombatResolver {
 
         let base = rates.strikeDamage(
             power: attacker.power,
-            targetGuard: defender.stats.defense
+            targetGuard: defender.effectiveStats.defense
         )
         let swing = Double.random(
             in: -rates.strikeVariance...rates.strikeVariance,
@@ -73,7 +80,7 @@ public enum CombatResolver {
     ) -> StrikeOutcome {
         let base = rates.strikeDamage(
             power: attacker.power,
-            targetGuard: defender.stats.defense
+            targetGuard: defender.effectiveStats.defense
         )
         let swing = Double.random(
             in: -rates.strikeVariance...rates.strikeVariance,

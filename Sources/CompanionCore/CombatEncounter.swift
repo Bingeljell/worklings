@@ -150,6 +150,11 @@ public struct CombatEncounter: Equatable, Sendable {
         round += 1
         log.append(.roundBegan(round))
 
+        // Age any timed effects (Snare, Blur, Phase, Harden) at the top of the
+        // round, before anyone acts, and drop the expired ones.
+        pet.tickStatuses()
+        foe.tickStatuses()
+
         let petAction = chosenPetAction()
         let bracing = petAction == .brace
 
@@ -185,7 +190,7 @@ public struct CombatEncounter: Equatable, Sendable {
         switch action {
         case .strike:
             let outcome = CombatResolver.resolveStrike(
-                attacker: pet.stats, defender: &foe, rates: rates, using: &generator
+                attacker: pet.effectiveStats, defender: &foe, rates: rates, using: &generator
             )
             log.append(.struck(attacker: pet.name, defender: foe.name, outcome: outcome))
         case .brace:
@@ -194,7 +199,7 @@ public struct CombatEncounter: Equatable, Sendable {
         case .signature:
             signatureAvailable = false
             let outcome = CombatResolver.resolveSignature(
-                attacker: pet.stats, defender: &foe, rates: rates, using: &generator
+                attacker: pet.effectiveStats, defender: &foe, rates: rates, using: &generator
             )
             log.append(.signature(attacker: pet.name, defender: foe.name, outcome: outcome))
         }
@@ -203,7 +208,7 @@ public struct CombatEncounter: Equatable, Sendable {
 
     private mutating func performFoe(petIsBracing: Bool) {
         let outcome = CombatResolver.resolveStrike(
-            attacker: foe.stats, defender: &pet, rates: rates,
+            attacker: foe.effectiveStats, defender: &pet, rates: rates,
             damageMultiplier: petIsBracing ? rates.braceMitigation : 1,
             using: &generator
         )
