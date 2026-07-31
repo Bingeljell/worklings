@@ -439,6 +439,10 @@ struct CombatPanelView: View {
     @State private var unleash = false
 
     private static let creatureSize: CGFloat = 150
+    /// Each combatant column is fixed-width so the sprite never shifts when its
+    /// speech bubble grows, shrinks, or disappears (which the countdown does
+    /// constantly). Without this the flanking Spacers shove the sprites sideways.
+    private static let columnWidth: CGFloat = 244
 
     var body: some View {
         VStack(spacing: 0) {
@@ -478,6 +482,7 @@ struct CombatPanelView: View {
     private var arena: some View {
         HStack(alignment: .bottom, spacing: 0) {
             ArenaCombatant(model: model, side: .pet, tint: .green, creatureSize: Self.creatureSize)
+                .frame(width: Self.columnWidth)
             Spacer()
             Text("vs")
                 .font(.system(.title3, design: .rounded).weight(.black))
@@ -485,6 +490,7 @@ struct CombatPanelView: View {
                 .padding(.bottom, 60)
             Spacer()
             ArenaCombatant(model: model, side: .foe, tint: .orange, creatureSize: Self.creatureSize)
+                .frame(width: Self.columnWidth)
         }
         .padding(.horizontal, 34)
         .frame(maxHeight: .infinity)
@@ -1103,7 +1109,7 @@ private struct SpeechBubble: View {
                         .foregroundStyle(.black)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 250)
+                        .frame(maxWidth: 210)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(.white, in: RoundedRectangle(cornerRadius: 16))
