@@ -283,6 +283,17 @@ final class CombatViewModel: ObservableObject {
                 )
             ]
 
+        case let .grabbed(attacker, target, agilityLoss):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "\(attacker) grabs \(target)! Its agility sags (−\(agilityLoss)).",
+                    petPose: .hurt,
+                    foePose: .attack,
+                    hold: .milliseconds(2000)
+                )
+            ]
+
         case let .defeated(who):
             if who == petName {
                 return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, defeats: .pet, hold: .milliseconds(2300))]

@@ -24,6 +24,9 @@ enum CombatChecks {
         checkBestiaryMatchesTheSpec(context: &context)
         checkEncounterReplaysIdentically(context: &context)
         checkAggressivePetBeatsMote(context: &context)
+        checkSnareGrabsAndDebuffs(context: &context)
+        checkGrabHasCooldown(context: &context)
+        checkGrabberEncounterReplays(context: &context)
         checkOutmatchedPetIsDefeated(context: &context)
         checkFasterCombatantActsFirst(context: &context)
         checkDecisionPointAndUnleashConsumeSignature(context: &context)
@@ -439,6 +442,64 @@ enum CombatChecks {
         context.expectEqual(encounter.status, .petVictory, "the pet beats a Dungeon Scamp")
         context.expect(encounter.foe.isDefeated, "the Dungeon Scamp is defeated")
         context.expect(encounter.pet.currentHP > 0, "the pet survives a Dungeon Scamp")
+    }
+
+    private static func snareTestFoe(chance: Double, cooldown: Int) -> Foe {
+        Foe(
+            name: "Snag", maxHP: 60,
+            stats: CombatStats(power: 4, defense: 3, agility: 3, wit: 2),
+            behavior: .grabber(snareChance: chance, snareMagnitude: 3, snareDuration: 2, grabCooldown: cooldown),
+            rewardXP: 0
+        )
+    }
+
+    private static func grabbedCount(in log: [CombatEvent]) -> Int {
+        log.reduce(0) { count, event in
+            if case .grabbed = event { return count + 1 }
+            return count
+        }
+    }
+
+    private static func checkSnareGrabsAndDebuffs(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: snareTestFoe(chance: 1.0, cooldown: 2),
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // resolves round 1
+        context.expectEqual(grabbedCount(in: encounter.log), 1, "a certain grabber Snares on its first turn")
+        context.expect(
+            encounter.pet.statuses.contains { $0.kind == .agilityDebuff },
+            "the grab leaves an Agility debuff on the pet"
+        )
+    }
+
+    private static func checkGrabHasCooldown(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: snareTestFoe(chance: 1.0, cooldown: 2),
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // round 1 → grab
+        let afterFirstRound = grabbedCount(in: encounter.log)
+        encounter.step() // round 2 → on cooldown, no grab
+        context.expectEqual(
+            grabbedCount(in: encounter.log), afterFirstRound,
+            "the grab is on cooldown the very next turn"
+        )
+    }
+
+    private static func checkGrabberEncounterReplays(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        func fight() -> CombatEncounter {
+            var encounter = CombatEncounter(
+                pet: aegisPet(rates), foe: CacheWarren.snag,
+                approach: .aggressive, rates: rates, seed: 202
+            )
+            encounter.runToCompletion()
+            return encounter
+        }
+        context.expectEqual(fight(), fight(), "a seeded grabber encounter replays identically")
     }
 
     private static func checkOutmatchedPetIsDefeated(context: inout CheckContext) {

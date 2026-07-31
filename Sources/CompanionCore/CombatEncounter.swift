@@ -35,6 +35,8 @@ public enum CombatEvent: Equatable, Sendable {
     case struck(attacker: String, defender: String, outcome: StrikeOutcome)
     case signature(attacker: String, defender: String, outcome: StrikeOutcome)
     case braced(who: String, regen: Int)
+    /// A grabber (Snag) seizes the pet instead of striking, Snaring its Agility.
+    case grabbed(attacker: String, target: String, agilityLoss: Int)
     case defeated(who: String)
     case decisionPoint(DecisionReason)
     case encounterEnded(victory: Bool)
@@ -62,6 +64,8 @@ public struct CombatEncounter: Equatable, Sendable {
     private var pendingSignature: Bool
     private var promptedLowHP: Bool
     private var lastCadenceRound: Int
+    /// Rounds remaining before a grabber (Snag) may Snare again.
+    private var grabCooldownRemaining: Int
 
     public init(
         pet: Combatant,
@@ -82,6 +86,7 @@ public struct CombatEncounter: Equatable, Sendable {
         self.pendingSignature = false
         self.promptedLowHP = false
         self.lastCadenceRound = 0
+        self.grabCooldownRemaining = 0
         self.log = [.encounterBegan(pet: pet.name, foe: self.foe.name)]
     }
 
@@ -160,8 +165,9 @@ public struct CombatEncounter: Equatable, Sendable {
         let petAction = chosenPetAction()
         let bracing = petAction == .brace
 
-        // Higher Agility acts first; the pet wins ties.
-        let petFirst = pet.stats.agility >= foe.stats.agility
+        // Higher Agility acts first; the pet wins ties. Reads effective Agility so
+        // a Snare (which sags initiative) actually costs the pet its turn order.
+        let petFirst = pet.effectiveStats.agility >= foe.effectiveStats.agility
         if petFirst {
             performPet(petAction)
             if status == .ongoing { performFoe(petIsBracing: bracing) }
@@ -212,10 +218,39 @@ public struct CombatEncounter: Equatable, Sendable {
         // Dispatch on the foe's archetype. Each special behavior lands in its own
         // slice; until then every foe simply Strikes, exactly as before.
         switch foeBehavior {
-        case .mindless, .grabber, .evasive, .colossus:
+        case .mindless, .evasive, .colossus:
             foeStrike(petIsBracing: petIsBracing)
+        case let .grabber(snareChance, snareMagnitude, snareDuration, grabCooldown):
+            performGrab(
+                snareChance: snareChance, snareMagnitude: snareMagnitude,
+                snareDuration: snareDuration, grabCooldown: grabCooldown,
+                petIsBracing: petIsBracing
+            )
         }
         resolveDefeatIfAny()
+    }
+
+    /// A grabber (Snag): off cooldown, it may seize the pet instead of striking,
+    /// Snaring its Agility for a few rounds; otherwise it just attacks. The grab
+    /// is spaced by a cooldown so it can't lock the pet down every turn.
+    private mutating func performGrab(
+        snareChance: Double, snareMagnitude: Int, snareDuration: Int,
+        grabCooldown: Int, petIsBracing: Bool
+    ) {
+        if grabCooldownRemaining > 0 {
+            grabCooldownRemaining -= 1
+            foeStrike(petIsBracing: petIsBracing)
+            return
+        }
+        if generator.chance(snareChance) {
+            pet.apply(StatusEffect(
+                kind: .agilityDebuff, magnitude: snareMagnitude, remainingRounds: snareDuration
+            ))
+            grabCooldownRemaining = grabCooldown
+            log.append(.grabbed(attacker: foe.name, target: pet.name, agilityLoss: snareMagnitude))
+        } else {
+            foeStrike(petIsBracing: petIsBracing)
+        }
     }
 
     /// The foe's plain attack — the baseline every archetype falls back to.
