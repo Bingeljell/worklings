@@ -24,6 +24,14 @@ enum CombatChecks {
         checkBestiaryMatchesTheSpec(context: &context)
         checkEncounterReplaysIdentically(context: &context)
         checkAggressivePetBeatsMote(context: &context)
+        checkSnareGrabsAndDebuffs(context: &context)
+        checkGrabHasCooldown(context: &context)
+        checkGrabberEncounterReplays(context: &context)
+        checkBlurAddsEvasion(context: &context)
+        checkPhaseSlipsAndOpens(context: &context)
+        checkTelegraphThenSlam(context: &context)
+        checkHardenRaisesGuard(context: &context)
+        checkColossusEncounterReplays(context: &context)
         checkOutmatchedPetIsDefeated(context: &context)
         checkFasterCombatantActsFirst(context: &context)
         checkDecisionPointAndUnleashConsumeSignature(context: &context)
@@ -378,6 +386,21 @@ enum CombatChecks {
         context.expect(sawAboveBase, "the Signature hits harder than a base Strike")
     }
 
+    private static func isGrabber(_ behavior: FoeBehavior) -> Bool {
+        if case .grabber = behavior { return true }
+        return false
+    }
+
+    private static func isEvasive(_ behavior: FoeBehavior) -> Bool {
+        if case .evasive = behavior { return true }
+        return false
+    }
+
+    private static func isColossus(_ behavior: FoeBehavior) -> Bool {
+        if case .colossus = behavior { return true }
+        return false
+    }
+
     private static func checkBestiaryMatchesTheSpec(context: inout CheckContext) {
         // The stat blocks are the reward the whole design leans on; guard them.
         // The display name is also the sprite join key (name → mote-* assets), so
@@ -388,6 +411,11 @@ enum CombatChecks {
         context.expectEqual(CacheWarren.monolith.stats.defense, 12, "Monolith is armoured")
         context.expectApproximatelyEqual(CacheWarren.flicker.rewardXP, 25, "Flicker reward")
         context.expectEqual(CacheWarren.encounters.count, 3, "three regular encounters")
+        // Each foe carries its archetype — the curve's mechanic weight.
+        context.expectEqual(CacheWarren.mote.behavior, .mindless, "the Scamp is mindless (pure warm-up)")
+        context.expect(isGrabber(CacheWarren.snag.behavior), "Snag is a grabber")
+        context.expect(isEvasive(CacheWarren.flicker.behavior), "Flicker is evasive")
+        context.expect(isColossus(CacheWarren.monolith.behavior), "Monolith is a colossus")
         // makeCombatant yields a full-HP fighter from the block.
         let mote = CacheWarren.mote.makeCombatant()
         context.expectEqual(mote.currentHP, 30, "a fresh foe starts at full HP")
@@ -419,6 +447,184 @@ enum CombatChecks {
         context.expectEqual(encounter.status, .petVictory, "the pet beats a Dungeon Scamp")
         context.expect(encounter.foe.isDefeated, "the Dungeon Scamp is defeated")
         context.expect(encounter.pet.currentHP > 0, "the pet survives a Dungeon Scamp")
+    }
+
+    private static func snareTestFoe(chance: Double, cooldown: Int) -> Foe {
+        Foe(
+            name: "Snag", maxHP: 60,
+            stats: CombatStats(power: 4, defense: 3, agility: 3, wit: 2),
+            behavior: .grabber(snareChance: chance, snareMagnitude: 3, snareDuration: 2, grabCooldown: cooldown),
+            rewardXP: 0
+        )
+    }
+
+    private static func grabbedCount(in log: [CombatEvent]) -> Int {
+        log.reduce(0) { count, event in
+            if case .grabbed = event { return count + 1 }
+            return count
+        }
+    }
+
+    private static func checkSnareGrabsAndDebuffs(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: snareTestFoe(chance: 1.0, cooldown: 2),
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // resolves round 1
+        context.expectEqual(grabbedCount(in: encounter.log), 1, "a certain grabber Snares on its first turn")
+        context.expect(
+            encounter.pet.statuses.contains { $0.kind == .agilityDebuff },
+            "the grab leaves an Agility debuff on the pet"
+        )
+    }
+
+    private static func checkGrabHasCooldown(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: snareTestFoe(chance: 1.0, cooldown: 2),
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // round 1 → grab
+        let afterFirstRound = grabbedCount(in: encounter.log)
+        encounter.step() // round 2 → on cooldown, no grab
+        context.expectEqual(
+            grabbedCount(in: encounter.log), afterFirstRound,
+            "the grab is on cooldown the very next turn"
+        )
+    }
+
+    private static func checkGrabberEncounterReplays(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        func fight() -> CombatEncounter {
+            var encounter = CombatEncounter(
+                pet: aegisPet(rates), foe: CacheWarren.snag,
+                approach: .aggressive, rates: rates, seed: 202
+            )
+            encounter.runToCompletion()
+            return encounter
+        }
+        context.expectEqual(fight(), fight(), "a seeded grabber encounter replays identically")
+    }
+
+    private static func checkBlurAddsEvasion(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.flicker,
+            approach: .aggressive, rates: rates, seed: 5
+        )
+        context.expect(
+            encounter.foe.statuses.contains { $0.kind == .evasion },
+            "an evasive foe carries Blur (evasion) from the start"
+        )
+    }
+
+    private static func checkPhaseSlipsAndOpens(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // A certain-Phase Flicker: it must Phase on turn one, slipping the pet's
+        // blow that round and over-extending into the Unleash opening.
+        let flicker = Foe(
+            name: "Flicker", maxHP: 40,
+            stats: CombatStats(power: 3, defense: 2, agility: 14, wit: 4),
+            behavior: .evasive(evasion: 30, phaseChance: 1.0, openingCooldown: 3),
+            rewardXP: 0
+        )
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: flicker,
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // round 1: foe darts + phases, pet's blow slips
+        let phased = encounter.log.contains {
+            if case .phased = $0 { return true }
+            return false
+        }
+        context.expect(phased, "an evasive foe Phases when it can")
+        let petBlowSlipped = encounter.log.contains {
+            if case let .struck(attacker, _, outcome) = $0, attacker == "Pixel" {
+                return !outcome.didHit
+            }
+            return false
+        }
+        context.expect(petBlowSlipped, "the pet's blow slips through the Phase")
+
+        encounter.step() // the over-extend now opens the window
+        context.expectEqual(
+            encounter.status, .awaitingDecision(.opening),
+            "over-extending opens the Unleash window"
+        )
+    }
+
+    private static func firstSlam(in log: [CombatEvent]) -> StrikeOutcome? {
+        for event in log {
+            if case let .slammed(_, _, outcome) = event { return outcome }
+        }
+        return nil
+    }
+
+    private static func checkTelegraphThenSlam(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.monolith,
+            approach: .aggressive, rates: rates, seed: 1
+        )
+        encounter.step() // round 1: pet strikes, Monolith telegraphs (no damage)
+        let telegraphed = encounter.log.contains {
+            if case .telegraphed = $0 { return true }
+            return false
+        }
+        context.expect(telegraphed, "the colossus telegraphs its Slam a turn ahead")
+
+        encounter.step() // the wind-up opens a Brace-or-eat decision
+        context.expectEqual(
+            encounter.status, .awaitingDecision(.telegraph),
+            "the telegraph opens a Brace-or-eat decision"
+        )
+
+        encounter.decide(approach: .aggressive, unleash: false) // eat it
+        encounter.step() // round 2: the Slam lands
+        guard let slam = firstSlam(in: encounter.log) else {
+            context.expect(false, "the colossus Slams after the wind-up")
+            return
+        }
+        context.expect(slam.didHit, "the Slam is a guaranteed hit")
+        context.expect(slam.damage >= 10, "the Slam hits heavily")
+    }
+
+    private static func checkHardenRaisesGuard(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        // A durable, high-Power stand-in grinds the Monolith past its phase
+        // thresholds while shrugging the Slams, so Harden fires.
+        let bruiser = Combatant.foe(
+            name: "Bruiser", maxHP: 400,
+            stats: CombatStats(power: 20, defense: 20, agility: 20, wit: 1)
+        )
+        var encounter = CombatEncounter(
+            pet: bruiser, foe: CacheWarren.monolith,
+            approach: .aggressive, rates: rates, seed: 7
+        )
+        encounter.runToCompletion()
+        let hardens = encounter.log.reduce(0) { count, event in
+            if case .hardened = event { return count + 1 }
+            return count
+        }
+        context.expect(hardens >= 1, "the colossus Hardens as its HP crosses a phase threshold")
+        context.expect(
+            encounter.foe.statuses.contains { $0.kind == .guardBuff },
+            "Harden leaves a Guard buff on the colossus"
+        )
+    }
+
+    private static func checkColossusEncounterReplays(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        func fight() -> CombatEncounter {
+            var encounter = CombatEncounter(
+                pet: aegisPet(rates), foe: CacheWarren.monolith,
+                approach: .aggressive, rates: rates, seed: 404
+            )
+            encounter.runToCompletion()
+            return encounter
+        }
+        context.expectEqual(fight(), fight(), "a seeded colossus encounter replays identically")
     }
 
     private static func checkOutmatchedPetIsDefeated(context: inout CheckContext) {

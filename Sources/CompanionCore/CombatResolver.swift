@@ -30,21 +30,33 @@ public enum CombatResolver {
         defender: inout Combatant,
         rates: PetCombatRates,
         damageMultiplier: Double = 1,
+        guaranteedHit: Bool = false,
         using generator: inout SeededGenerator
     ) -> StrikeOutcome {
-        let hitChance = rates.hitChance(
-            attackerAgility: attacker.agility,
-            defenderAgility: defender.stats.agility
-        )
-        guard generator.chance(hitChance) else {
+        // A Phase slips the next blow entirely (Flicker), consuming the phase and
+        // spending no roll.
+        if defender.isPhasing {
+            defender.consumePhasing()
             return .miss
+        }
+
+        // A guaranteed hit (Monolith's telegraphed Slam; later, Overbear) skips the
+        // accuracy roll entirely, so it can't be dodged or evaded.
+        if !guaranteedHit {
+            let hitChance = rates.hitChance(
+                attackerAgility: attacker.agility,
+                defenderAgility: defender.effectiveStats.agility
+            ) - defender.evasionChance
+            guard generator.chance(hitChance) else {
+                return .miss
+            }
         }
 
         let didCrit = generator.chance(rates.critChance(agility: attacker.agility))
 
         let base = rates.strikeDamage(
             power: attacker.power,
-            targetGuard: defender.stats.defense
+            targetGuard: defender.effectiveStats.defense
         )
         let swing = Double.random(
             in: -rates.strikeVariance...rates.strikeVariance,
@@ -73,7 +85,7 @@ public enum CombatResolver {
     ) -> StrikeOutcome {
         let base = rates.strikeDamage(
             power: attacker.power,
-            targetGuard: defender.stats.defense
+            targetGuard: defender.effectiveStats.defense
         )
         let swing = Double.random(
             in: -rates.strikeVariance...rates.strikeVariance,

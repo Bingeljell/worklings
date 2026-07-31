@@ -16,6 +16,8 @@ public enum CombatAction: Equatable, Sendable {
 public enum DecisionReason: Equatable, Sendable {
     case cadence   // the every-few-rounds reassess beat
     case lowHP     // the pet is faltering
+    case opening   // an evasive foe over-extended — the window to Unleash
+    case telegraph // a heavy foe is winding up — Brace or eat it
 }
 
 /// Where the encounter is right now.
@@ -35,6 +37,16 @@ public enum CombatEvent: Equatable, Sendable {
     case struck(attacker: String, defender: String, outcome: StrikeOutcome)
     case signature(attacker: String, defender: String, outcome: StrikeOutcome)
     case braced(who: String, regen: Int)
+    /// A grabber (Snag) seizes the pet instead of striking, Snaring its Agility.
+    case grabbed(attacker: String, target: String, agilityLoss: Int)
+    /// An evasive foe (Flicker) blurs aside — the pet's next blow will slip.
+    case phased(who: String)
+    /// A colossus (Monolith) winds up its Slam, telegraphed a turn ahead.
+    case telegraphed(who: String)
+    /// The wound-up Slam lands — a heavy, guaranteed hit.
+    case slammed(attacker: String, defender: String, outcome: StrikeOutcome)
+    /// A colossus Hardens at an HP phase, raising its Guard for the rest of the fight.
+    case hardened(who: String, guardGain: Int)
     case defeated(who: String)
     case decisionPoint(DecisionReason)
     case encounterEnded(victory: Bool)
@@ -56,11 +68,28 @@ public struct CombatEncounter: Equatable, Sendable {
     public private(set) var log: [CombatEvent]
 
     private let rates: PetCombatRates
+    private let foeBehavior: FoeBehavior
     private var generator: SeededGenerator
     private var signatureAvailable: Bool
     private var pendingSignature: Bool
     private var promptedLowHP: Bool
     private var lastCadenceRound: Int
+    /// Rounds remaining before a grabber (Snag) may Snare again.
+    private var grabCooldownRemaining: Int
+    /// Set when an evasive foe (Flicker) over-extends, so the next decision is the
+    /// Unleash opening; cleared once that decision is taken.
+    private var openingPending: Bool
+    /// Rounds remaining before an evasive foe may Phase-and-open again.
+    private var openingCooldownRemaining: Int
+    /// Foe turns until a telegraphed Slam lands (0 = not winding up).
+    private var slamCountdown: Int
+    /// Set when a colossus telegraphs, so the next decision is the Brace-or-eat
+    /// prompt; cleared once that decision is taken.
+    private var slamTelegraphPending: Bool
+    /// How many HP-phase Harden thresholds have already fired.
+    private var hardenPhasesApplied: Int
+    /// A one-shot guaranteed Brace queued from a telegraph decision.
+    private var pendingBrace: Bool
 
     public init(
         pet: Combatant,
@@ -75,12 +104,26 @@ public struct CombatEncounter: Equatable, Sendable {
         self.round = 0
         self.status = .ongoing
         self.rates = rates
+        self.foeBehavior = foe.behavior
         self.generator = SeededGenerator(seed: seed)
         self.signatureAvailable = true
         self.pendingSignature = false
         self.promptedLowHP = false
         self.lastCadenceRound = 0
+        self.grabCooldownRemaining = 0
+        self.openingPending = false
+        self.openingCooldownRemaining = 0
+        self.slamCountdown = 0
+        self.slamTelegraphPending = false
+        self.hardenPhasesApplied = 0
+        self.pendingBrace = false
         self.log = [.encounterBegan(pet: pet.name, foe: self.foe.name)]
+
+        // Blur is a passive: an evasive foe carries its evasion for the whole
+        // fight, on top of its native Agility.
+        if case let .evasive(evasion, _, _) = foe.behavior {
+            self.foe.apply(StatusEffect(kind: .evasion, magnitude: evasion, isPermanent: true))
+        }
     }
 
     /// Whether the pet still has its once-per-encounter Signature.
@@ -110,6 +153,12 @@ public struct CombatEncounter: Equatable, Sendable {
         switch reason {
         case .lowHP: promptedLowHP = true
         case .cadence: lastCadenceRound = round
+        case .opening: openingPending = false
+        case .telegraph:
+            slamTelegraphPending = false
+            // Choosing Careful into a telegraph is a deliberate Brace against the
+            // incoming Slam, not the usual hurt-only Brace.
+            if approach == .careful, !unleash { pendingBrace = true }
         }
         status = .ongoing
     }
@@ -138,6 +187,12 @@ public struct CombatEncounter: Equatable, Sendable {
         if !promptedLowHP, pet.hpFraction < rates.lowHPEventThreshold {
             return .lowHP
         }
+        if slamTelegraphPending {
+            return .telegraph
+        }
+        if openingPending {
+            return .opening
+        }
         if round > 0,
            round % rates.decisionCadenceRounds == 0,
            lastCadenceRound != round {
@@ -150,11 +205,17 @@ public struct CombatEncounter: Equatable, Sendable {
         round += 1
         log.append(.roundBegan(round))
 
+        // Age any timed effects (Snare, Blur, Phase, Harden) at the top of the
+        // round, before anyone acts, and drop the expired ones.
+        pet.tickStatuses()
+        foe.tickStatuses()
+
         let petAction = chosenPetAction()
         let bracing = petAction == .brace
 
-        // Higher Agility acts first; the pet wins ties.
-        let petFirst = pet.stats.agility >= foe.stats.agility
+        // Higher Agility acts first; the pet wins ties. Reads effective Agility so
+        // a Snare (which sags initiative) actually costs the pet its turn order.
+        let petFirst = pet.effectiveStats.agility >= foe.effectiveStats.agility
         if petFirst {
             performPet(petAction)
             if status == .ongoing { performFoe(petIsBracing: bracing) }
@@ -165,6 +226,10 @@ public struct CombatEncounter: Equatable, Sendable {
     }
 
     private mutating func chosenPetAction() -> CombatAction {
+        if pendingBrace {
+            pendingBrace = false
+            return .brace
+        }
         if pendingSignature {
             pendingSignature = false
             if signatureAvailable {
@@ -185,7 +250,7 @@ public struct CombatEncounter: Equatable, Sendable {
         switch action {
         case .strike:
             let outcome = CombatResolver.resolveStrike(
-                attacker: pet.stats, defender: &foe, rates: rates, using: &generator
+                attacker: pet.effectiveStats, defender: &foe, rates: rates, using: &generator
             )
             log.append(.struck(attacker: pet.name, defender: foe.name, outcome: outcome))
         case .brace:
@@ -194,7 +259,7 @@ public struct CombatEncounter: Equatable, Sendable {
         case .signature:
             signatureAvailable = false
             let outcome = CombatResolver.resolveSignature(
-                attacker: pet.stats, defender: &foe, rates: rates, using: &generator
+                attacker: pet.effectiveStats, defender: &foe, rates: rates, using: &generator
             )
             log.append(.signature(attacker: pet.name, defender: foe.name, outcome: outcome))
         }
@@ -202,13 +267,124 @@ public struct CombatEncounter: Equatable, Sendable {
     }
 
     private mutating func performFoe(petIsBracing: Bool) {
+        // Dispatch on the foe's archetype. Each special behavior lands in its own
+        // slice; until then every foe simply Strikes, exactly as before.
+        switch foeBehavior {
+        case .mindless:
+            foeStrike(petIsBracing: petIsBracing)
+        case let .colossus(slamMultiplier, telegraphRounds, hardenThresholds, hardenGuard):
+            performColossus(
+                slamMultiplier: slamMultiplier, telegraphRounds: telegraphRounds,
+                hardenThresholds: hardenThresholds, hardenGuard: hardenGuard,
+                petIsBracing: petIsBracing
+            )
+        case let .grabber(snareChance, snareMagnitude, snareDuration, grabCooldown):
+            performGrab(
+                snareChance: snareChance, snareMagnitude: snareMagnitude,
+                snareDuration: snareDuration, grabCooldown: grabCooldown,
+                petIsBracing: petIsBracing
+            )
+        case let .evasive(_, phaseChance, openingCooldown):
+            performEvasive(
+                phaseChance: phaseChance, openingCooldown: openingCooldown,
+                petIsBracing: petIsBracing
+            )
+        }
+        resolveDefeatIfAny()
+    }
+
+    /// An evasive foe (Flicker): it always darts in for chip damage, and — off
+    /// cooldown — sometimes Phases, slipping the pet's next blow and over-extending
+    /// into an Unleash opening. The opening only arms while the Signature is still
+    /// in hand, since that's the whole point of the window.
+    private mutating func performEvasive(
+        phaseChance: Double, openingCooldown: Int, petIsBracing: Bool
+    ) {
+        foeStrike(petIsBracing: petIsBracing)
+        if openingCooldownRemaining > 0 {
+            openingCooldownRemaining -= 1
+        } else if generator.chance(phaseChance) {
+            foe.apply(StatusEffect(kind: .phasing, magnitude: 0, remainingRounds: 2))
+            log.append(.phased(who: foe.name))
+            if signatureAvailable { openingPending = true }
+            openingCooldownRemaining = openingCooldown
+        }
+    }
+
+    /// A grabber (Snag): off cooldown, it may seize the pet instead of striking,
+    /// Snaring its Agility for a few rounds; otherwise it just attacks. The grab
+    /// is spaced by a cooldown so it can't lock the pet down every turn.
+    private mutating func performGrab(
+        snareChance: Double, snareMagnitude: Int, snareDuration: Int,
+        grabCooldown: Int, petIsBracing: Bool
+    ) {
+        if grabCooldownRemaining > 0 {
+            grabCooldownRemaining -= 1
+            foeStrike(petIsBracing: petIsBracing)
+            return
+        }
+        if generator.chance(snareChance) {
+            pet.apply(StatusEffect(
+                kind: .agilityDebuff, magnitude: snareMagnitude, remainingRounds: snareDuration
+            ))
+            grabCooldownRemaining = grabCooldown
+            log.append(.grabbed(attacker: foe.name, target: pet.name, agilityLoss: snareMagnitude))
+        } else {
+            foeStrike(petIsBracing: petIsBracing)
+        }
+    }
+
+    /// A colossus (Monolith): slow but heavy. It Hardens as its HP crosses phase
+    /// thresholds, and instead of ordinary attacks it winds up a telegraphed Slam
+    /// one turn, then lands it — a guaranteed, doubled hit — the next.
+    private mutating func performColossus(
+        slamMultiplier: Double, telegraphRounds: Int,
+        hardenThresholds: [Double], hardenGuard: Int, petIsBracing: Bool
+    ) {
+        applyHardenIfCrossed(thresholds: hardenThresholds, guardGain: hardenGuard)
+        if slamCountdown > 0 {
+            slamCountdown -= 1
+            if slamCountdown == 0 {
+                executeSlam(multiplier: slamMultiplier, petIsBracing: petIsBracing)
+            }
+            // Otherwise it is still winding up and does not attack this turn.
+        } else {
+            slamCountdown = max(1, telegraphRounds)
+            slamTelegraphPending = true
+            log.append(.telegraphed(who: foe.name))
+        }
+    }
+
+    /// The wound-up Slam: a guaranteed hit at the Slam multiplier, halved if the
+    /// pet Braced the blow.
+    private mutating func executeSlam(multiplier: Double, petIsBracing: Bool) {
         let outcome = CombatResolver.resolveStrike(
-            attacker: foe.stats, defender: &pet, rates: rates,
+            attacker: foe.effectiveStats, defender: &pet, rates: rates,
+            damageMultiplier: multiplier * (petIsBracing ? rates.braceMitigation : 1),
+            guaranteedHit: true, using: &generator
+        )
+        log.append(.slammed(attacker: foe.name, defender: pet.name, outcome: outcome))
+    }
+
+    /// Applies each Harden threshold once, in order, as the foe's HP drops past it
+    /// — a single big hit can cross several at once.
+    private mutating func applyHardenIfCrossed(thresholds: [Double], guardGain: Int) {
+        while hardenPhasesApplied < thresholds.count,
+              foe.hpFraction <= thresholds[hardenPhasesApplied] {
+            foe.apply(StatusEffect(kind: .guardBuff, magnitude: guardGain, isPermanent: true))
+            log.append(.hardened(who: foe.name, guardGain: guardGain))
+            hardenPhasesApplied += 1
+        }
+    }
+
+    /// The foe's plain attack — the baseline every archetype falls back to.
+    private mutating func foeStrike(petIsBracing: Bool) {
+        let outcome = CombatResolver.resolveStrike(
+            attacker: foe.effectiveStats, defender: &pet, rates: rates,
             damageMultiplier: petIsBracing ? rates.braceMitigation : 1,
             using: &generator
         )
         log.append(.struck(attacker: foe.name, defender: pet.name, outcome: outcome))
-        resolveDefeatIfAny()
     }
 
     private mutating func resolveDefeatIfAny() {

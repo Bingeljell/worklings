@@ -181,12 +181,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         logWorkMenuItem = logWorkItem
 
         menu.addItem(.separator())
-        let dungeonItem = NSMenuItem(
-            title: "Enter the Cache Warren…",
-            action: #selector(enterDelve),
-            keyEquivalent: ""
-        )
-        dungeonItem.target = self
+        // Interim entry until the delve chain lands: a per-foe picker so each
+        // encounter can be fought (and felt) on its own. The delve orchestration
+        // will later replace this with a single "descend" that runs the sequence.
+        let dungeonItem = NSMenuItem(title: "Enter the Cache Warren", action: nil, keyEquivalent: "")
+        let dungeonSubmenu = NSMenu(title: "Enter the Cache Warren")
+        for foe in [CacheWarren.mote, CacheWarren.snag, CacheWarren.flicker, CacheWarren.boss] {
+            let foeItem = NSMenuItem(
+                title: "Fight the \(foe.name)…",
+                action: #selector(enterDelveForFoe(_:)),
+                keyEquivalent: ""
+            )
+            foeItem.target = self
+            foeItem.representedObject = foe
+            dungeonSubmenu.addItem(foeItem)
+        }
+        dungeonItem.submenu = dungeonSubmenu
         menu.addItem(dungeonItem)
         dungeonMenuItem = dungeonItem
 
@@ -361,7 +371,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func enterDelve() {
+    @objc private func enterDelveForFoe(_ sender: NSMenuItem) {
+        guard let foe = sender.representedObject as? Foe else { return }
+        enterDelve(against: foe)
+    }
+
+    private func enterDelve(against foe: Foe) {
         guard let petSession, petSession.canEnterDelve else { return }
         // Seed from the moment of entry so each delve plays out a little
         // differently; the fight itself is deterministic from this seed.
@@ -371,7 +386,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let wasVisible = companionController?.isVisible ?? false
         companionController?.hide()
         combatPanelController?.present(
-            session: petSession, foe: CacheWarren.mote, seed: seed,
+            session: petSession, foe: foe, seed: seed,
             onDismiss: { [weak self] in
                 if wasVisible { self?.companionController?.show() }
             }

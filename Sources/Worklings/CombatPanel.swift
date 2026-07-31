@@ -159,11 +159,10 @@ final class CombatViewModel: ObservableObject {
 
     private func apply(_ beat: Beat) {
         countdownValue = beat.countdown
-        // A countdown tick is just the big number: no bubble, creatures idle.
+        // A countdown tick keeps the attacker's announcement bubble up (so the
+        // "X attacks Y" line stays readable while 3-2-1 builds) and just idles the
+        // creatures under the big number.
         if beat.countdown != nil {
-            speaker = nil
-            speechLine = nil
-            narrativeLine = nil
             petPose = restingPose
             foePose = .idle
             return
@@ -209,7 +208,12 @@ final class CombatViewModel: ObservableObject {
         awaitingDecision = reason
         narrativeLine = nil
         speaker = .pet
-        speechLine = reason == .lowHP ? "I'm hurting — what now?" : "What's the plan?"
+        switch reason {
+        case .lowHP: speechLine = "I'm hurting — what now?"
+        case .opening: speechLine = "It's wide open — now's the moment!"
+        case .telegraph: speechLine = "It's winding up — Brace, or I take it?"
+        case .cadence: speechLine = "What's the plan?"
+        }
     }
 
     /// Expands one engine event into the readable beats it plays. A strike becomes
@@ -224,50 +228,60 @@ final class CombatViewModel: ObservableObject {
             let attackerSide: CombatSide = attacker == petName ? .pet : .foe
             let defenderSide: CombatSide = defender == petName ? .pet : .foe
             let petAttacking = attackerSide == .pet
-            // Intro line, then the 3-2-1 countdown, then the swing + hit together.
+            // One announcement — "X attacks Y!" — that stays up through the
+            // countdown AND the swing, so the action reads while it plays out. The
+            // rising damage number carries the amount; a miss adds a short dodge.
+            let announce = "\(subject(attackerSide)) attacks \(object(defenderSide))!"
             var out: [Beat] = [
-                Beat(side: attackerSide, text: "\(attacker) sets upon the \(defender).", hold: .milliseconds(1300))
+                Beat(side: attackerSide, text: announce, hold: .milliseconds(800))
             ]
             out += countdownBeats()
             if outcome.didHit {
-                let lead = outcome.didCrit ? "A critical hit! " : ""
                 out.append(
                     Beat(
                         side: attackerSide,
-                        text: "\(lead)\(attacker) hits the \(defender) for \(outcome.damage) damage!",
+                        text: announce,
                         petPose: petAttacking ? .strike : .hurt,
                         foePose: petAttacking ? .hurt : .attack,
                         isCrit: outcome.didCrit,
                         hpChange: (defenderSide, -outcome.damage),
-                        hold: .milliseconds(2100)
+                        hold: .milliseconds(1800)
                     )
                 )
             } else {
                 out.append(
                     Beat(
-                        side: defenderSide,
-                        text: "\(attacker) swings — the \(defender) dodges!",
+                        side: attackerSide,
+                        text: announce,
                         petPose: petAttacking ? .strike : .idle,
                         foePose: petAttacking ? .idle : .attack,
-                        hold: .milliseconds(1900)
+                        hold: .milliseconds(1000)
+                    )
+                )
+                out.append(
+                    Beat(
+                        side: defenderSide,
+                        text: "\(subject(defenderSide)) dodges!",
+                        hold: .milliseconds(1400)
                     )
                 )
             }
             return out
 
-        case let .signature(attacker, defender, outcome):
+        case let .signature(_, _, outcome):
+            let announce = "\(subject(.pet)) unleashes its Signature!"
             var out: [Beat] = [
-                Beat(side: .pet, text: "\(attacker) gathers power for its Signature…", hold: .milliseconds(1300))
+                Beat(side: .pet, text: announce, hold: .milliseconds(800))
             ]
             out += countdownBeats()
             out.append(
                 Beat(
                     side: .pet,
-                    text: "\(attacker) unleashes — the \(defender) takes \(outcome.damage)!",
+                    text: announce,
                     petPose: .signature,
                     foePose: .hurt,
                     hpChange: (.foe, -outcome.damage),
-                    hold: .milliseconds(2200)
+                    hold: .milliseconds(1900)
                 )
             )
             return out
@@ -283,6 +297,60 @@ final class CombatViewModel: ObservableObject {
                 )
             ]
 
+        case let .grabbed(attacker, target, agilityLoss):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "\(attacker) grabs \(target)! Its agility sags (−\(agilityLoss)).",
+                    petPose: .hurt,
+                    foePose: .attack,
+                    hold: .milliseconds(2000)
+                )
+            ]
+
+        case let .phased(who):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "The \(who) blurs aside — your next blow will slip!",
+                    foePose: .idle,
+                    hold: .milliseconds(1800)
+                )
+            ]
+
+        case let .telegraphed(who):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "The \(who) heaves back — a crushing blow is coming!",
+                    foePose: .attack,
+                    hold: .milliseconds(2000)
+                )
+            ]
+
+        case let .slammed(attacker, defender, outcome):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "SLAM! \(attacker) crushes \(defender) for \(outcome.damage)!",
+                    petPose: .hurt,
+                    foePose: .attack,
+                    isCrit: outcome.didCrit,
+                    hpChange: (.pet, -outcome.damage),
+                    hold: .milliseconds(2200)
+                )
+            ]
+
+        case let .hardened(who, guardGain):
+            return [
+                Beat(
+                    side: .foe,
+                    text: "The \(who) hardens — its guard rises! (+\(guardGain))",
+                    foePose: .idle,
+                    hold: .milliseconds(1800)
+                )
+            ]
+
         case let .defeated(who):
             if who == petName {
                 return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, defeats: .pet, hold: .milliseconds(2300))]
@@ -292,6 +360,17 @@ final class CombatViewModel: ObservableObject {
         case .roundBegan, .decisionPoint, .encounterEnded:
             return []
         }
+    }
+
+    /// Sentence-start reference to a combatant: the pet by its name, a foe as
+    /// "The Foe". Keeps the narration grammatical either way round.
+    private func subject(_ side: CombatSide) -> String {
+        side == .pet ? petName : "The \(foeName)"
+    }
+
+    /// Mid-sentence reference: the pet by its name, a foe as "the Foe".
+    private func object(_ side: CombatSide) -> String {
+        side == .pet ? petName : "the \(foeName)"
     }
 
     private var restingPose: WorklingSpriteFrame {
@@ -380,6 +459,10 @@ struct CombatPanelView: View {
     @State private var unleash = false
 
     private static let creatureSize: CGFloat = 150
+    /// Each combatant column is fixed-width so the sprite never shifts when its
+    /// speech bubble grows, shrinks, or disappears (which the countdown does
+    /// constantly). Without this the flanking Spacers shove the sprites sideways.
+    private static let columnWidth: CGFloat = 244
 
     var body: some View {
         VStack(spacing: 0) {
@@ -419,6 +502,7 @@ struct CombatPanelView: View {
     private var arena: some View {
         HStack(alignment: .bottom, spacing: 0) {
             ArenaCombatant(model: model, side: .pet, tint: .green, creatureSize: Self.creatureSize)
+                .frame(width: Self.columnWidth)
             Spacer()
             Text("vs")
                 .font(.system(.title3, design: .rounded).weight(.black))
@@ -426,6 +510,7 @@ struct CombatPanelView: View {
                 .padding(.bottom, 60)
             Spacer()
             ArenaCombatant(model: model, side: .foe, tint: .orange, creatureSize: Self.creatureSize)
+                .frame(width: Self.columnWidth)
         }
         .padding(.horizontal, 34)
         .frame(maxHeight: .infinity)
@@ -1044,7 +1129,7 @@ private struct SpeechBubble: View {
                         .foregroundStyle(.black)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 250)
+                        .frame(maxWidth: 210)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(.white, in: RoundedRectangle(cornerRadius: 16))
