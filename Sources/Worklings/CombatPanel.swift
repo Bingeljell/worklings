@@ -226,7 +226,7 @@ final class CombatViewModel: ObservableObject {
             let petAttacking = attackerSide == .pet
             // Intro line, then the 3-2-1 countdown, then the swing + hit together.
             var out: [Beat] = [
-                Beat(side: attackerSide, text: "\(attacker) sets upon the \(defender).", hold: .milliseconds(900))
+                Beat(side: attackerSide, text: "\(attacker) sets upon the \(defender).", hold: .milliseconds(1300))
             ]
             out += countdownBeats()
             if outcome.didHit {
@@ -239,7 +239,7 @@ final class CombatViewModel: ObservableObject {
                         foePose: petAttacking ? .hurt : .attack,
                         isCrit: outcome.didCrit,
                         hpChange: (defenderSide, -outcome.damage),
-                        hold: .milliseconds(1500)
+                        hold: .milliseconds(2100)
                     )
                 )
             } else {
@@ -249,7 +249,7 @@ final class CombatViewModel: ObservableObject {
                         text: "\(attacker) swings — the \(defender) dodges!",
                         petPose: petAttacking ? .strike : .idle,
                         foePose: petAttacking ? .idle : .attack,
-                        hold: .milliseconds(1300)
+                        hold: .milliseconds(1900)
                     )
                 )
             }
@@ -257,7 +257,7 @@ final class CombatViewModel: ObservableObject {
 
         case let .signature(attacker, defender, outcome):
             var out: [Beat] = [
-                Beat(side: .pet, text: "\(attacker) gathers power for its Signature…", hold: .milliseconds(900))
+                Beat(side: .pet, text: "\(attacker) gathers power for its Signature…", hold: .milliseconds(1300))
             ]
             out += countdownBeats()
             out.append(
@@ -267,7 +267,7 @@ final class CombatViewModel: ObservableObject {
                     petPose: .signature,
                     foePose: .hurt,
                     hpChange: (.foe, -outcome.damage),
-                    hold: .milliseconds(1600)
+                    hold: .milliseconds(2200)
                 )
             )
             return out
@@ -279,15 +279,15 @@ final class CombatViewModel: ObservableObject {
                     text: "\(who) braces and steadies itself (+\(regen)).",
                     petPose: .brace,
                     hpChange: (.pet, regen),
-                    hold: .milliseconds(1200)
+                    hold: .milliseconds(1700)
                 )
             ]
 
         case let .defeated(who):
             if who == petName {
-                return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, defeats: .pet, hold: .milliseconds(1700))]
+                return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, defeats: .pet, hold: .milliseconds(2300))]
             }
-            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, foePose: .hurt, defeats: .foe, hold: .milliseconds(1700))]
+            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, foePose: .hurt, defeats: .foe, hold: .milliseconds(2300))]
 
         case .roundBegan, .decisionPoint, .encounterEnded:
             return []
