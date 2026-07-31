@@ -1,5 +1,11 @@
 # Changelog
 
+- **2026-07-31 > Sources/CompanionCore/Bestiary.swift, Sources/Worklings/CombatPanel.swift, Tests/CompanionCoreChecks/CombatChecks.swift > rename foe Mote → Dungeon Scamp > Changes the first foe's display name to "Dungeon Scamp". The display name is also the sprite join key (name → `mote-*` assets), so the loader's mapping is remapped to the new name while the art files stay `mote-*`, and a check now pins the name so a silent rename can't drop the Scamp's art.**
+
+- **2026-07-31 > Sources/Worklings/CombatPanel.swift > hold combat text longer > Increases the per-beat hold durations across `beats(for:)` (wind-ups, hits, misses, brace, signature, defeat) so each line of narration stays on screen long enough to read comfortably after the 3-2-1 countdown pacing pass.**
+
+- **2026-07-31 > Sources/Worklings/CombatPanel.swift > scene-setting narration as a centered banner > Splits scene-setting narration (the encounter's opening line) out of the combatants' speech bubbles into a distinct centered, italic banner across the top of the stage (new `narrativeLine` channel on the view-model and a `NarrativeBanner` view), so the dungeon's own voice reads differently from per-hit action lines.**
+
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift > 3-2-1 countdown before each action > Restructures the beat flow into a clear rhythm: an intro line naming the coming action, then a big centre 3 → 2 → 1 countdown (each number pops in and out), then the swing and the hit land together on one beat. Gives every attack anticipation and paces the fight so it's easy to follow. During the countdown the bubbles hide and both creatures idle.**
 
 - **2026-07-30 > Sources/Worklings/CombatPanel.swift > poof the loser at defeat, and a clean winner-only victory screen > The smoke now fires the instant a fighter is defeated, over it in the arena (an `ArenaCombatant` poof driven by a new `defeatedSide` signal), instead of late on the end screen. The end screen is now opaque (its own cave background) and shows only the victor — no more the dungeon and both characters showing through behind a dim overlay.**
