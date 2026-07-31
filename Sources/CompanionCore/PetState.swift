@@ -245,23 +245,32 @@ public struct PetState: Codable, Equatable, Sendable {
         schemaVersion: Int? = nil,
         name: String? = nil,
         family: PetFamily? = nil,
-        petClass: PetClass? = nil
+        petClass: PetClass? = nil,
+        needs: PetNeeds? = nil,
+        totalXP: Double? = nil
     ) -> PetState {
         PetState(
             schemaVersion: schemaVersion ?? self.schemaVersion,
             name: name ?? self.name,
             family: family ?? self.family,
-            needs: needs,
+            needs: needs ?? self.needs,
             preferences: preferences,
             lastUpdatedAt: lastUpdatedAt,
             lastWorkLogAt: lastWorkLogAt,
             workLog: workLog,
-            totalXP: totalXP,
+            totalXP: totalXP ?? self.totalXP,
             petClass: petClass ?? self.petClass,
             stats: stats,
             dailyXP: dailyXP,
             dailyEventCount: dailyEventCount
         )
+    }
+
+    /// A copy with adjusted needs and/or added XP. Combat-agnostic — the dungeon
+    /// layer computes the deltas and calls this — so the outcome write-back stays
+    /// out of `PetState`. XP only ever adds; needs clamp themselves.
+    public func applying(needs: PetNeeds? = nil, addingXP xp: Double = 0) -> PetState {
+        replacing(needs: needs, totalXP: totalXP + max(0, xp))
     }
 
     /// Restamps the schema version, preserving every field. Used by the file

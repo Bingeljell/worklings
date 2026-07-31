@@ -40,16 +40,14 @@ Everything below is what closes that gap.
 The [systems ladder](progression.md#the-systems-ladder) lists the build order. In loop
 terms:
 
-- **Content (dungeons/PVE)** — *planned.* The first place level, stats, class, and condition are spent rather than just accumulated. Level-gated, turn-based encounters resolved against the sheet and narrated with the mood-and-reaction sprite states that already exist. This is the loop's missing "spend" step and the next major slice. Design lands in `dungeons.md`.
-- **Abilities** — *planned.* Level- and class-gated actions used inside encounters, unlocked by a points currency deliberately separate from stat growth. Design lands in `abilities.md`.
-- **Gear** — *planned.* Modifies *effective* stats at read-time without touching the persisted base numbers, so it arrives as computation rather than a save migration.
+- **Content (dungeons/PVE)** — *designed, not yet built.* The first place level, stats, class, and condition are spent rather than just accumulated: level-gated solo delves of turn-based, narrated encounters resolved against the sheet. This is the loop's missing "spend" step and the next major slice. Design in [Dungeons](dungeons.md).
+- **Abilities** — *designed, not yet built.* Level- and class-gated actions used inside encounters, unlocked by a points currency deliberately separate from stat growth. Design in [Abilities](abilities.md).
+- **Gear** — *designed, not yet built.* Modifies *effective* stats at read-time without touching the persisted base numbers, so it arrives as computation rather than a save migration. Design in [Items & gear](items.md).
 - **Endgame, then PVP** — *deferred.* A level cap followed by lateral progression; PVP waits behind multiplayer normalization.
 
 ## Why this order
 
-Content comes before a deep abilities or gear tree on purpose: a character sheet that
-grows with nothing to test it against is an invisible reward, and abilities built with
-nowhere to use them are unmotivated. A first encounter that resolves against **stats +
+A first encounter that resolves against **stats +
 class + condition alone** makes the existing progression finally matter, and it creates
 the concrete demand — "this fight needs an answer" — that then shapes what the first
 abilities and gear should even be. The encounter is designed so those layers slot in
@@ -61,5 +59,6 @@ later without rework.
 - Reading and caring for the pet → [Interaction](interaction.md)
 - XP, levels, stats, class, the full ladder → [Progression](progression.md)
 - Families, species, class roster → [Characters](characters.md)
-- Dungeons / encounters → `dungeons.md` *(planned)*
-- Abilities → `abilities.md` *(planned)*
+- Dungeons / encounters → [Dungeons](dungeons.md)
+- Abilities → [Abilities](abilities.md)
+- Items / gear → [Items & gear](items.md)

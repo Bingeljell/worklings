@@ -22,6 +22,10 @@ final class PetSession: ObservableObject {
     /// react.
     private var lastActivityEmoteAt: Date?
 
+    /// The combat tuning the dungeon reads. One instance, shared by the entry
+    /// gate and any running encounter, so eligibility and the fight agree.
+    let combatRates = PetCombatRates()
+
     init(now: Date = Date(), rates: PetSimulationRates = PetSimulationRates()) {
         brain = PetBrain(rates: rates)
         store = Self.makeDefaultStore()
@@ -173,6 +177,31 @@ final class PetSession: ObservableObject {
         }
 
         state = state.renamed(to: name)
+        persist()
+    }
+
+    // MARK: - Dungeon
+
+    /// Why the pet can't delve right now, or `nil` if it can. Drives the entry
+    /// control's enabled state and its explanation.
+    var delveBlock: DelveBlock? {
+        combatRates.delveBlock(for: state)
+    }
+
+    var canEnterDelve: Bool {
+        combatRates.canEnterDelve(state)
+    }
+
+    /// The pet's combatant for a fresh fight, built from the live sheet and
+    /// condition.
+    func makePetCombatant() -> Combatant {
+        Combatant.pet(from: state, rates: combatRates)
+    }
+
+    /// Writes a finished encounter's result back into the pet: XP and the
+    /// exit-tier condition change, then persists.
+    func applyCombatResolution(_ resolution: EncounterResolution) {
+        state = resolution.state
         persist()
     }
 
