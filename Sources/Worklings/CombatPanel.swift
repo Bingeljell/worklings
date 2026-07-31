@@ -159,11 +159,10 @@ final class CombatViewModel: ObservableObject {
 
     private func apply(_ beat: Beat) {
         countdownValue = beat.countdown
-        // A countdown tick is just the big number: no bubble, creatures idle.
+        // A countdown tick keeps the attacker's announcement bubble up (so the
+        // "X attacks Y" line stays readable while 3-2-1 builds) and just idles the
+        // creatures under the big number.
         if beat.countdown != nil {
-            speaker = nil
-            speechLine = nil
-            narrativeLine = nil
             petPose = restingPose
             foePose = .idle
             return
@@ -229,50 +228,60 @@ final class CombatViewModel: ObservableObject {
             let attackerSide: CombatSide = attacker == petName ? .pet : .foe
             let defenderSide: CombatSide = defender == petName ? .pet : .foe
             let petAttacking = attackerSide == .pet
-            // Intro line, then the 3-2-1 countdown, then the swing + hit together.
+            // One announcement — "X attacks Y!" — that stays up through the
+            // countdown AND the swing, so the action reads while it plays out. The
+            // rising damage number carries the amount; a miss adds a short dodge.
+            let announce = "\(subject(attackerSide)) attacks \(object(defenderSide))!"
             var out: [Beat] = [
-                Beat(side: attackerSide, text: "\(attacker) sets upon the \(defender).", hold: .milliseconds(1300))
+                Beat(side: attackerSide, text: announce, hold: .milliseconds(800))
             ]
             out += countdownBeats()
             if outcome.didHit {
-                let lead = outcome.didCrit ? "A critical hit! " : ""
                 out.append(
                     Beat(
                         side: attackerSide,
-                        text: "\(lead)\(attacker) hits the \(defender) for \(outcome.damage) damage!",
+                        text: announce,
                         petPose: petAttacking ? .strike : .hurt,
                         foePose: petAttacking ? .hurt : .attack,
                         isCrit: outcome.didCrit,
                         hpChange: (defenderSide, -outcome.damage),
-                        hold: .milliseconds(2100)
+                        hold: .milliseconds(1800)
                     )
                 )
             } else {
                 out.append(
                     Beat(
-                        side: defenderSide,
-                        text: "\(attacker) swings — the \(defender) dodges!",
+                        side: attackerSide,
+                        text: announce,
                         petPose: petAttacking ? .strike : .idle,
                         foePose: petAttacking ? .idle : .attack,
-                        hold: .milliseconds(1900)
+                        hold: .milliseconds(1000)
+                    )
+                )
+                out.append(
+                    Beat(
+                        side: defenderSide,
+                        text: "\(subject(defenderSide)) dodges!",
+                        hold: .milliseconds(1400)
                     )
                 )
             }
             return out
 
-        case let .signature(attacker, defender, outcome):
+        case let .signature(_, _, outcome):
+            let announce = "\(subject(.pet)) unleashes its Signature!"
             var out: [Beat] = [
-                Beat(side: .pet, text: "\(attacker) gathers power for its Signature…", hold: .milliseconds(1300))
+                Beat(side: .pet, text: announce, hold: .milliseconds(800))
             ]
             out += countdownBeats()
             out.append(
                 Beat(
                     side: .pet,
-                    text: "\(attacker) unleashes — the \(defender) takes \(outcome.damage)!",
+                    text: announce,
                     petPose: .signature,
                     foePose: .hurt,
                     hpChange: (.foe, -outcome.damage),
-                    hold: .milliseconds(2200)
+                    hold: .milliseconds(1900)
                 )
             )
             return out
@@ -351,6 +360,17 @@ final class CombatViewModel: ObservableObject {
         case .roundBegan, .decisionPoint, .encounterEnded:
             return []
         }
+    }
+
+    /// Sentence-start reference to a combatant: the pet by its name, a foe as
+    /// "The Foe". Keeps the narration grammatical either way round.
+    private func subject(_ side: CombatSide) -> String {
+        side == .pet ? petName : "The \(foeName)"
+    }
+
+    /// Mid-sentence reference: the pet by its name, a foe as "the Foe".
+    private func object(_ side: CombatSide) -> String {
+        side == .pet ? petName : "the \(foeName)"
     }
 
     private var restingPose: WorklingSpriteFrame {
