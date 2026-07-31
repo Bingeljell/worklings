@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><body><template>
+  <style>
+    @font-face { font-family:Teko; src:url('assets/fonts/teko-700.woff2'); font-weight:700; }
+    @font-face { font-family:Inter; src:url('assets/fonts/inter-700.woff2'); font-weight:700; }
+    @font-face { font-family:Plex; src:url('assets/fonts/ibm-plex-mono-500.woff2'); font-weight:500; }
+    #root { position:absolute; inset:0; width:1080px; height:1920px; overflow:hidden; }
+    * { box-sizing:border-box; }
+    .ground { position:absolute; inset:0; overflow:hidden; background-color:#06292C; color:#F3E4C8; }
+    .camera { position:absolute; inset:-40px; transform-origin:50% 50%; will-change:transform; }
+    .rail { position:absolute; right:88px; top:0; width:112px; height:1920px; border-left:1px solid #117E87; border-right:1px solid #117E87; }
+    .rail-fill { position:absolute; inset:auto 18px 0; height:100%; background:#FF6B1A; transform-origin:bottom center; }
+    .orb { position:absolute; right:-250px; top:230px; width:760px; height:760px; border:3px solid rgba(255,107,26,.42); border-radius:50%; }
+    .orb::after { content:""; position:absolute; inset:90px; border:2px solid rgba(255,107,26,.23); border-radius:50%; }
+    .thermal { position:absolute; left:110px; top:390px; width:820px; height:820px; }
+    .thermal i { position:absolute; inset:var(--i); border:2px solid rgba(255,107,26,.3); border-radius:50%; }
+    .sprite-stage { position:absolute; left:150px; top:350px; width:780px; height:850px; }
+    .sprite { position:absolute; left:262px; top:260px; width:256px; height:256px; background-image:url('assets/characters/worklings-elemental-spritesheet.png'); background-size:1024px 1280px; background-repeat:no-repeat; image-rendering:pixelated; transform:scale(2.8); transform-origin:50% 70%; }
+    #ember-idle { background-position:0 0; }
+    #ember-blink { background-position:-256px 0; opacity:0; }
+    #ember-happy { background-position:-512px -256px; opacity:0; }
+    #ember-signature { background-position:-512px -1024px; opacity:0; }
+    .copy { position:absolute; left:92px; right:92px; bottom:285px; z-index:5; }
+    .kicker,.meta,.pose { font:500 21px/1.4 Plex; letter-spacing:.14em; text-transform:uppercase; }
+    .kicker { color:#FF6B1A; }
+    .name { margin-top:52px; font:700 150px/1 Teko; letter-spacing:-.045em; text-transform:lowercase; }
+    .tagline { margin-top:54px; font:700 48px/1.15 Inter; }
+    .tagline span { color:#FF6B1A; }
+    .rule { width:100%; height:1px; margin-top:34px; background:#117E87; transform-origin:left center; }
+    .meta { margin-top:20px; font-size:17px; color:#1CCAD8; }
+    .progress { position:absolute; top:135px; right:90px; display:flex; gap:10px; }
+    .pip { width:54px; height:7px; background:#094145; } .pip.on{background:#FF6B1A;}
+    .index { position:absolute; left:90px; top:118px; font:700 170px/.8 Teko; color:rgba(243,228,200,.13); }
+    .pose { position:absolute; right:90px; bottom:128px; font-size:17px; color:#1CCAD8; }
+  </style>
+  <div id="root" data-composition-id="03-elemental" data-width="1080" data-height="1920" data-duration="4.32">
+    <div class="ground"><div id="ember-camera" class="camera" data-layout-allow-overflow>
+      <div class="index">02</div><div class="progress"><div class="pip"></div><div class="pip on"></div><div class="pip"></div></div>
+      <div class="rail"><div id="ember-rail" class="rail-fill"></div></div><div id="ember-orb" class="orb"></div>
+      <div class="thermal"><i style="--i:0"></i><i style="--i:76px"></i><i style="--i:154px"></i></div>
+      <div class="sprite-stage"><div id="ember-idle" class="sprite"></div><div id="ember-blink" class="sprite"></div><div id="ember-happy" class="sprite"></div><div id="ember-signature" class="sprite"></div></div>
+      <div class="copy"><div id="ember-kicker" class="kicker">02 / elemental</div><div id="ember-name" class="name">ember-newt</div><div id="ember-tag" class="tagline"><span>fire</span> within.</div><div id="ember-rule" class="rule"></div><div id="ember-meta" class="meta">inner flame / living anatomy</div></div>
+      <div class="pose">ember / signature</div>
+    </div></div>
+  </div>
+  <script>
+    window.__timelines=window.__timelines||{}; const tl=gsap.timeline({paused:true});
+    tl.fromTo("#ember-rail",{scaleY:0},{scaleY:1,duration:.78,ease:"expo.out"},0);
+    tl.fromTo("#ember-kicker",{x:80,opacity:0},{x:0,opacity:1,duration:.42,ease:"power3.out"},.1);
+    tl.fromTo("#ember-name",{x:-100,opacity:0},{x:0,opacity:1,duration:.56,ease:"power4.out"},.2);
+    tl.fromTo("#ember-tag",{y:28,opacity:0},{y:0,opacity:1,duration:.42,ease:"power2.out"},.58);
+    tl.fromTo("#ember-rule",{scaleX:0},{scaleX:1,duration:.62,ease:"power3.out"},.4);
+    tl.fromTo("#ember-meta",{opacity:0},{opacity:1,duration:.4,ease:"sine.out"},.8);
+    tl.fromTo("#ember-idle",{y:260,opacity:0,scale:2.35},{y:0,opacity:1,scale:2.8,duration:.62,ease:"back.out(1.5)"},.08);
+    tl.to("#ember-idle",{opacity:0,duration:.05},.96); tl.to("#ember-blink",{opacity:1,duration:.05},.96);
+    tl.to("#ember-blink",{opacity:0,duration:.05},1.16); tl.to("#ember-idle",{opacity:1,duration:.05},1.16);
+    tl.to("#ember-idle",{scale:2.2,opacity:0,duration:.25,ease:"power2.in"},1.48);
+    tl.fromTo("#ember-happy",{scale:2.18,opacity:0},{scale:2.8,opacity:1,duration:.46,ease:"back.out(1.65)"},1.58);
+    tl.to("#ember-happy",{scale:2.12,opacity:0,duration:.25,ease:"power2.in"},2.9);
+    tl.fromTo("#ember-signature",{scale:2.08,opacity:0,rotation:6},{scale:2.9,opacity:1,rotation:0,duration:.5,ease:"back.out(1.75)"},3.0);
+    tl.fromTo("#ember-orb",{scale:.3,opacity:0},{scale:1,opacity:1,duration:.68,ease:"power3.out"},2.9);
+    tl.fromTo(".thermal i",{scale:.45,opacity:0},{scale:1,opacity:1,duration:.7,stagger:.06,ease:"power3.out"},2.88);
+    tl.to("#ember-camera",{x:7,duration:.05,ease:"none"},3.06).to("#ember-camera",{x:-7,duration:.06,ease:"none"},3.11).to("#ember-camera",{x:0,duration:.08,ease:"power2.out"},3.17);
+    tl.fromTo("#ember-camera",{scale:.98},{scale:1.04,duration:4.32,ease:"sine.inOut"},0);
+    window.__timelines["03-elemental"]=tl;
+  </script>
+</template></body></html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><body><template>
+  <style>
+    @font-face { font-family:Teko; src:url('assets/fonts/teko-700.woff2'); font-weight:700; }
+    @font-face { font-family:Inter; src:url('assets/fonts/inter-700.woff2'); font-weight:700; }
+    @font-face { font-family:Plex; src:url('assets/fonts/ibm-plex-mono-500.woff2'); font-weight:500; }
+    #root { position:absolute; inset:0; width:1080px; height:1920px; overflow:hidden; }
+    * { box-sizing:border-box; }
+    .ground { position:absolute; inset:0; overflow:hidden; background-color:#0B1224; color:#F3E4C8; }
+    .camera { position:absolute; inset:-40px; transform-origin:50% 50%; will-change:transform; }
+    .lane { position:absolute; left:82px; top:0; width:128px; height:1920px; background:#FF6B1A; transform-origin:bottom center; }
+    .tail-ghost { position:absolute; right:-310px; top:210px; width:1024px; height:1280px; background:url('assets/characters/worklings-wildkin-spritesheet.png') 0 0/1024px 1280px no-repeat; image-rendering:pixelated; opacity:.12; transform:scale(1.28); filter:saturate(.4); }
+    .arc { position:absolute; border:2px solid rgba(255,107,26,.34); border-left-color:rgba(255,107,26,0); border-bottom-color:rgba(255,107,26,0); border-radius:50%; }
+    .a1 { width:760px; height:760px; left:208px; top:410px; transform:rotate(-25deg); }
+    .a2 { width:590px; height:590px; left:290px; top:500px; transform:rotate(22deg); }
+    .sprite-stage { position:absolute; left:220px; top:360px; width:740px; height:850px; }
+    .sprite { position:absolute; left:242px; top:250px; width:256px; height:256px; background-image:url('assets/characters/worklings-wildkin-spritesheet.png'); background-size:1024px 1280px; background-repeat:no-repeat; image-rendering:pixelated; transform:scale(2.72); transform-origin:50% 70%; }
+    #wild-walk-a { background-position:-512px 0; }
+    #wild-walk-b { background-position:-768px 0; opacity:0; }
+    #wild-happy { background-position:-512px -256px; opacity:0; }
+    #wild-signature { background-position:-512px -1024px; opacity:0; }
+    .copy { position:absolute; left:238px; right:90px; bottom:285px; z-index:5; }
+    .kicker,.meta,.progress { font:500 21px/1.4 Plex; letter-spacing:.14em; text-transform:uppercase; }
+    .kicker { color:#FF6B1A; }
+    .name { margin-top:52px; font:700 160px/1 Teko; letter-spacing:-.045em; text-transform:lowercase; }
+    .tagline { margin-top:54px; font:700 48px/1.15 Inter; color:#F3E4C8; }
+    .tagline span { color:#FF6B1A; }
+    .rule { width:100%; height:1px; margin-top:34px; background:#094145; transform-origin:left center; }
+    .meta { margin-top:20px; font-size:17px; color:#1CCAD8; }
+    .progress { position:absolute; top:135px; right:90px; display:flex; gap:10px; color:#F3E4C8; }
+    .pip { width:54px; height:7px; background:#094145; }
+    .pip.on { background:#FF6B1A; }
+    .index { position:absolute; left:90px; top:118px; font:700 170px/.8 Teko; color:rgba(243,228,200,.13); }
+    .pose { position:absolute; right:90px; bottom:128px; font:500 17px/1.4 Plex; letter-spacing:.14em; text-transform:uppercase; color:#1CCAD8; }
+  </style>
+  <div id="root" data-composition-id="02-wildkin" data-width="1080" data-height="1920" data-duration="4.32">
+    <div class="ground"><div id="wild-camera" class="camera" data-layout-allow-overflow>
+      <div id="wild-lane" class="lane"></div><div id="wild-ghost" class="tail-ghost"></div>
+      <div id="wild-arc1" class="arc a1"></div><div id="wild-arc2" class="arc a2"></div>
+      <div class="index">01</div><div class="progress"><div class="pip on"></div><div class="pip"></div><div class="pip"></div></div>
+      <div class="sprite-stage"><div id="wild-walk-a" class="sprite"></div><div id="wild-walk-b" class="sprite"></div><div id="wild-happy" class="sprite"></div><div id="wild-signature" class="sprite"></div></div>
+      <div class="copy"><div id="wild-kicker" class="kicker">01 / wildkin</div><div id="wild-name" class="name">moss-fox</div><div id="wild-tag" class="tagline"><span>wild</span> at heart.</div><div id="wild-rule" class="rule"></div><div id="wild-meta" class="meta">living ecosystems / natural magic</div></div>
+      <div class="pose">nature / signature</div>
+    </div></div>
+  </div>
+  <script>
+    window.__timelines=window.__timelines||{}; const tl=gsap.timeline({paused:true});
+    tl.fromTo("#wild-lane",{scaleY:0},{scaleY:1,duration:.58,ease:"expo.out"},0);
+    tl.fromTo("#wild-kicker",{x:-80,opacity:0},{x:0,opacity:1,duration:.42,ease:"power3.out"},.12);
+    tl.fromTo("#wild-name",{y:90,opacity:0},{y:0,opacity:1,duration:.58,ease:"back.out(1.45)"},.2);
+    tl.fromTo("#wild-tag",{y:28,opacity:0},{y:0,opacity:1,duration:.42,ease:"power2.out"},.55);
+    tl.fromTo("#wild-rule",{scaleX:0},{scaleX:1,duration:.62,ease:"power3.out"},.38);
+    tl.fromTo("#wild-meta",{opacity:0},{opacity:1,duration:.4,ease:"sine.out"},.78);
+    tl.fromTo("#wild-walk-a",{x:-350,opacity:0},{x:0,opacity:1,duration:.52,ease:"power4.out"},.12);
+    tl.to("#wild-walk-a",{opacity:0,duration:.06},.72); tl.to("#wild-walk-b",{opacity:1,duration:.06},.72);
+    tl.to("#wild-walk-b",{opacity:0,duration:.06},1.0); tl.to("#wild-walk-a",{opacity:1,duration:.06},1.0);
+    tl.to("#wild-walk-a",{scale:2.15,opacity:0,duration:.24,ease:"power2.in"},1.34);
+    tl.fromTo("#wild-happy",{scale:2.15,opacity:0},{scale:2.72,opacity:1,duration:.46,ease:"back.out(1.6)"},1.46);
+    tl.to("#wild-happy",{scale:2.1,opacity:0,duration:.26,ease:"power2.in"},2.92);
+    tl.fromTo("#wild-signature",{scale:2.05,opacity:0,rotation:-5},{scale:2.82,opacity:1,rotation:0,duration:.52,ease:"back.out(1.7)"},3.04);
+    tl.fromTo("#wild-arc1",{scale:.45,opacity:0,rotation:-55},{scale:1,opacity:1,rotation:-25,duration:.66,ease:"power3.out"},2.96);
+    tl.fromTo("#wild-arc2",{scale:.35,opacity:0,rotation:55},{scale:1,opacity:1,rotation:22,duration:.7,ease:"power3.out"},3.02);
+    tl.fromTo("#wild-ghost",{x:25},{x:-20,duration:4.32,ease:"none"},0);
+    tl.fromTo("#wild-camera",{scale:.98},{scale:1.035,duration:4.32,ease:"sine.inOut"},0);
+    window.__timelines["02-wildkin"]=tl;
+  </script>
+</template></body></html>

@@ -1,5 +1,17 @@
 # Changelog
 
+- **2026-07-31 > videos/meet-the-worklings/index.html, compositions/*.html, STORYBOARD.md, frame.md, package.json, hyperframes.json, meta.json > main timeline and five modular scene timelines > Adds an 18-second 1080×1920 HyperFrames social composition that opens a living field guide, introduces Wildkin, Elemental, and Relicborn through companion-to-signature pose sequences, and resolves into a smoke-assisted three-character hero lockup. Uses deterministic GSAP motion, portrait-safe typography, velocity-matched scene pushes, and the repository's established Broadside visual system.**
+
+- **2026-07-31 > videos/meet-the-worklings/audio-lab/manifest.yaml, audio-lab/library/provenance/, assets/audio/ > Audio Asset Lab build and verification > Defines and reproducibly generates a bespoke 18-second instrumental music bed, character-specific leaf/ember/clockwork transition cues, a magical smoke poof, and a three-note collection flourish using explicit engines and fixed seeds; exports WAV/OGG delivery files and verifies hashes and provenance before HyperFrames mounts the cues.**
+
+- **2026-07-31 > videos/meet-the-worklings/audio-lab/manifest.yaml, audio-lab/library/candidates/, audio-lab/library/masters/, audio-lab/library/provenance/, audio-lab/exports/, assets/audio/ > short SFX generation and seed selection > Regenerates all five model-driven transition effects as three-second, three-seed candidates, rejects saturated candidates, selects clean early-action takes, and crops them to their original 1.2–1.5-second delivery lengths before fading and normalization.**
+
+- **2026-07-31 > videos/meet-the-worklings/compositions/01-catalogue-open.html > hook portal timing marker > Marks the timed opening portal as a HyperFrames clip so its scheduled visibility validates correctly.**
+
+- **2026-07-31 > videos/meet-the-worklings/renders/meet-the-worklings-18s.mp4 > final high-quality HyperFrames render > Exports the approved vertical social video as an 18-second 1080×1920 H.264 MP4 with 48 kHz stereo AAC audio.**
+
+- **2026-07-31 > videos/meet-the-worklings/assets/characters/, assets/effects/, assets/fonts/, .media/ > project-local first-party media inventory > Packages the three five-row character sprite sheets, eight-frame smoke effect, and established Teko/Inter/IBM Plex Mono fonts into the isolated video project, with a local media ledger so the composition remains portable and its source assets stay traceable.**
+
 - **2026-07-31 > Sources/CompanionCore/Bestiary.swift, Sources/Worklings/CombatPanel.swift, Tests/CompanionCoreChecks/CombatChecks.swift > rename foe Mote → Dungeon Scamp > Changes the first foe's display name to "Dungeon Scamp". The display name is also the sprite join key (name → `mote-*` assets), so the loader's mapping is remapped to the new name while the art files stay `mote-*`, and a check now pins the name so a silent rename can't drop the Scamp's art.**
 
 - **2026-07-31 > Sources/Worklings/CombatPanel.swift > hold combat text longer > Increases the per-beat hold durations across `beats(for:)` (wind-ups, hits, misses, brace, signature, defeat) so each line of narration stays on screen long enough to read comfortably after the 3-2-1 countdown pacing pass.**

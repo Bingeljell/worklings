@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "asset_id": "collection-flourish",
+  "kind": "sfx",
+  "variant": 1,
+  "generator": {
+    "engine": "procedural",
+    "preset": "victory_jingle",
+    "audio_assetlab_version": "0.1.0",
+    "model": null,
+    "optimized_model": null,
+    "model_revision": null,
+    "text_encoder_revision": null,
+    "runtime_source_revision": null
+  },
+  "generation": {
+    "prompt": null,
+    "negative_prompt": null,
+    "seed": 31861,
+    "requested_duration_seconds": 1.4,
+    "actual_duration_seconds": 1.4,
+    "generated_at": "2026-07-31T10:42:51.333565+00:00",
+    "parameters": {
+      "root_note": "C5",
+      "tone": "bell",
+      "brightness": 0.58
+    }
+  },
+  "postprocess": [
+    {
+      "op": "fade",
+      "in_ms": 3,
+      "out_ms": 180
+    },
+    {
+      "op": "peak_normalize",
+      "peak_db": -2
+    }
+  ],
+  "audio": {
+    "sample_rate": 48000,
+    "channels": 2,
+    "master_encoding": "24-bit PCM WAV"
+  },
+  "source": {
+    "manifest_path": "audio-lab/manifest.yaml",
+    "manifest_sha256": "254888a0e598bfd30986e9044664f8d5bd185ca08951b75b83b48893cff55f17",
+    "candidate_path": "audio-lab/library/candidates/meet-the-worklings/collection-flourish/collection-flourish__seed-31861.wav",
+    "candidate_sha256": "6d63cc72a540d28959e5ea2a4e238b532387ac8edbcde6c50db7d7b122d7911e"
+  },
+  "outputs": {
+    "master": {
+      "path": "audio-lab/library/masters/meet-the-worklings/collection-flourish/collection-flourish__v01.wav",
+      "sha256": "547e81afc9c4f243d1b87a9ea3e17dc0e187bf7578cc93185ae0a1656e1d6c16"
+    },
+    "exports": [
+      {
+        "path": "audio-lab/exports/meet-the-worklings/collection-flourish/collection-flourish__v01.wav",
+        "sha256": "547e81afc9c4f243d1b87a9ea3e17dc0e187bf7578cc93185ae0a1656e1d6c16"
+      },
+      {
+        "path": "audio-lab/exports/meet-the-worklings/collection-flourish/collection-flourish__v01.ogg",
+        "sha256": "f3d28d2985c2d95b1047bbd041afeaa3e21ffcefb7ea5648a0490da8d9713e3d"
+      }
+    ]
+  },
+  "licenses": {
+    "code": "NOASSERTION",
+    "model": "not applicable",
+    "text_encoder": "not applicable",
+    "asset": "NOASSERTION"
+  },
+  "environment": {
+    "python": "3.13.14",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "ffmpeg": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers"
+  }
+}

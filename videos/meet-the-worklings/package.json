@@ -1,0 +1,11 @@
+{
+  "name": "meet-the-worklings",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.7.6 preview",
+    "check": "npx --yes hyperframes@0.7.6 lint && npx --yes hyperframes@0.7.6 validate && npx --yes hyperframes@0.7.6 inspect",
+    "snapshot": "npx --yes hyperframes@0.7.6 snapshot --at 1.35,4.8,8.8,12.8,16.2",
+    "render": "npx --yes hyperframes@0.7.6 render --quality high --output renders/meet-the-worklings-18s.mp4"
+  }
+}

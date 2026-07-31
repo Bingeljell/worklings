@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0B1224; }
+      #root {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        will-change: transform, opacity, filter;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-sshj" id="root" data-composition-id="main" data-start="0" data-duration="18" data-width="1080" data-height="1920">
+      <div data-hf-id="hf-5p7q" id="el-hook" class="scene clip" data-composition-id="01-catalogue-open" data-composition-src="compositions/01-catalogue-open.html" data-start="0" data-duration="2.52" data-track-index="0" data-width="1080" data-height="1920"></div>
+      <div data-hf-id="hf-j1z8" id="el-wildkin" class="scene clip" data-composition-id="02-wildkin" data-composition-src="compositions/02-wildkin.html" data-start="2.2" data-duration="4.32" data-track-index="1" data-width="1080" data-height="1920"></div>
+      <div data-hf-id="hf-ud6k" id="el-elemental" class="scene clip" data-composition-id="03-elemental" data-composition-src="compositions/03-elemental.html" data-start="6.2" data-duration="4.32" data-track-index="0" data-width="1080" data-height="1920"></div>
+      <div data-hf-id="hf-vqcj" id="el-relicborn" class="scene clip" data-composition-id="04-relicborn" data-composition-src="compositions/04-relicborn.html" data-start="10.2" data-duration="4.5" data-track-index="1" data-width="1080" data-height="1920"></div>
+      <div data-hf-id="hf-c9gd" id="el-ensemble" class="scene clip" data-composition-id="05-ensemble" data-composition-src="compositions/05-ensemble.html" data-start="14.2" data-duration="3.8" data-track-index="0" data-width="1080" data-height="1920"></div>
+
+      <audio data-hf-id="hf-r3pk" id="audio-bgm" class="clip" src="assets/audio/meet-the-worklings/meet-worklings-bgm/meet-worklings-bgm__v01.wav" data-start="0" data-duration="18" data-track-index="20" data-volume="0.62"></audio>
+      <audio data-hf-id="hf-gmkg" id="audio-open" class="clip" src="assets/audio/meet-the-worklings/catalogue-open/catalogue-open__v01.wav" data-start="0" data-duration="1.2" data-track-index="22" data-volume="0.56"></audio>
+      <audio data-hf-id="hf-jab9" id="audio-wildkin" class="clip" src="assets/audio/meet-the-worklings/wildkin-leaf-rush/wildkin-leaf-rush__v01.wav" data-start="2.1" data-duration="1.4" data-track-index="22" data-volume="0.46"></audio>
+      <audio data-hf-id="hf-5qe2" id="audio-elemental" class="clip" src="assets/audio/meet-the-worklings/elemental-ember-whip/elemental-ember-whip__v01.wav" data-start="6.1" data-duration="1.3" data-track-index="23" data-volume="0.48"></audio>
+      <audio data-hf-id="hf-esg2" id="audio-relicborn" class="clip" src="assets/audio/meet-the-worklings/relicborn-clockwork-rune/relicborn-clockwork-rune__v01.wav" data-start="10.1" data-duration="1.5" data-track-index="24" data-volume="0.52"></audio>
+      <audio data-hf-id="hf-pvh2" id="audio-poof" class="clip" src="assets/audio/meet-the-worklings/ensemble-smoke-poof/ensemble-smoke-poof__v01.wav" data-start="14.1" data-duration="1.4" data-track-index="25" data-volume="0.54"></audio>
+      <audio data-hf-id="hf-4ib6" id="audio-flourish" class="clip" src="assets/audio/meet-the-worklings/collection-flourish/collection-flourish__v01.wav" data-start="15.05" data-duration="1.4" data-track-index="26" data-volume="0.38"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function pushUp(outgoing, incoming, at, duration) {
+        tl.to(outgoing, { y: -1920, filter: "blur(5px)", duration, ease: "power4.in" }, at);
+        tl.fromTo(incoming,
+          { y: 1920, filter: "blur(5px)" },
+          { y: 0, filter: "blur(0px)", duration, ease: "power4.out" },
+          at
+        );
+      }
+
+      pushUp("#el-hook", "#el-wildkin", 2.2, 0.32);
+      pushUp("#el-wildkin", "#el-elemental", 6.2, 0.32);
+      pushUp("#el-elemental", "#el-relicborn", 10.2, 0.32);
+
+      tl.to("#el-relicborn", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.45, ease: "power3.in" }, 14.2);
+      tl.fromTo("#el-ensemble",
+        { scale: 0.9, opacity: 0, filter: "blur(12px)" },
+        { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.55, ease: "power3.out" },
+        14.2
+      );
+      tl.to({}, { duration: 18 }, 0);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><body><template>
+  <style>
+    @font-face { font-family:Teko; src:url('assets/fonts/teko-700.woff2'); font-weight:700; }
+    @font-face { font-family:Inter; src:url('assets/fonts/inter-700.woff2'); font-weight:700; }
+    @font-face { font-family:Plex; src:url('assets/fonts/ibm-plex-mono-500.woff2'); font-weight:500; }
+    #root { position:absolute; inset:0; width:1080px; height:1920px; overflow:hidden; }
+    * { box-sizing:border-box; }
+    .ground { position:absolute; inset:0; overflow:hidden; background-color:#0B1224; color:#F3E4C8; }
+    .orange-panel { position:absolute; right:0; top:0; width:350px; height:1920px; background:#FF6B1A; }
+    .ghost-num { position:absolute; font:700 520px/.8 Teko; color:rgba(243,228,200,.09); }
+    .g1::before{content:"01"}.g2::before{content:"02"}.g3::before{content:"03"}.g1{left:-40px;top:250px}.g2{left:250px;top:540px}.g3{right:-80px;top:180px;color:rgba(11,18,36,.14)}
+    .path { position:absolute; height:2px; background:#FF6B1A; transform-origin:left center; }
+    .p1{left:210px;top:790px;width:620px;transform:rotate(-31deg)}.p2{left:270px;top:980px;width:570px;transform:rotate(25deg)}
+    .heroes { position:absolute; left:80px; right:80px; top:295px; height:1010px; }
+    .hero { position:absolute; width:256px; height:256px; background-size:1024px 1280px; background-repeat:no-repeat; image-rendering:pixelated; transform-origin:50% 75%; }
+    #team-wild { left:40px; top:390px; background-image:url('assets/characters/worklings-wildkin-spritesheet.png'); background-position:-512px -256px; transform:scale(2.18); }
+    #team-ember { left:332px; top:170px; background-image:url('assets/characters/worklings-elemental-spritesheet.png'); background-position:-768px -768px; transform:scale(2.4); }
+    #team-relic { right:28px; top:500px; background-image:url('assets/characters/worklings-relicborn-spritesheet.png'); background-position:-768px -768px; transform:scale(2.2); }
+    .shadow { position:absolute; width:290px; height:42px; background:rgba(0,0,0,.28); border-radius:50%; }
+    .s1{left:20px;top:830px}.s2{left:312px;top:640px}.s3{right:12px;top:930px}
+    .smoke-stage { position:absolute; left:284px; top:520px; width:512px; height:512px; z-index:9; }
+    .smoke { position:absolute; left:128px; top:128px; width:256px; height:256px; background-image:url('assets/effects/worklings-smoke-effects.png'); background-size:1024px 512px; background-repeat:no-repeat; image-rendering:pixelated; transform:scale(3.1); opacity:0; }
+    #smoke-0{background-position:0 0;opacity:1} #smoke-1{background-position:-256px 0} #smoke-2{background-position:-512px 0} #smoke-3{background-position:-768px 0} #smoke-4{background-position:0 -256px} #smoke-5{background-position:-256px -256px} #smoke-6{background-position:-512px -256px} #smoke-7{background-position:-768px -256px}
+    .copy { position:absolute; left:110px; right:90px; bottom:270px; z-index:10; }
+    .kicker,.prompt { font:500 20px/1.4 Plex; letter-spacing:.14em; text-transform:uppercase; }
+    .kicker{color:#FF6B1A}.line{font:700 120px/1 Teko;letter-spacing:-.04em;text-transform:lowercase}#team-line{margin-top:42px}.plate{display:inline-block;margin-top:34px;padding:20px 28px 14px;background:#FF6B1A;color:#0B1224;transform-origin:left center}#team-plate{font-size:96px;line-height:1.2}.prompt{margin-top:38px;color:#1CCAD8}.rule{position:absolute;left:92px;right:92px;bottom:122px;height:1px;background:#094145;transform-origin:left center}.complete{position:absolute;right:92px;top:130px;display:flex;gap:10px}.pip{width:54px;height:7px;background:#FF6B1A}.catalogue{position:absolute;right:18px;top:106px;width:314px;padding:14px 10px 10px;background:#FF6B1A;font:500 17px/1.4 Plex;letter-spacing:.12em;text-transform:uppercase;color:#0B1224;z-index:5}
+  </style>
+  <div id="root" data-composition-id="05-ensemble" data-width="1080" data-height="1920" data-duration="3.8">
+    <div class="ground"><div class="orange-panel"></div><div class="ghost-num g1" aria-hidden="true" data-layout-allow-overflow></div><div class="ghost-num g2" aria-hidden="true"></div><div class="ghost-num g3" aria-hidden="true" data-layout-allow-overflow></div>
+      <div id="team-path1" class="path p1"></div><div id="team-path2" class="path p2"></div>
+      <div class="catalogue">worklings / origin set</div><div class="complete"><div class="pip"></div><div class="pip"></div><div class="pip"></div></div>
+      <div class="heroes"><div class="shadow s1"></div><div class="shadow s2"></div><div class="shadow s3"></div><div id="team-wild" class="hero"></div><div id="team-ember" class="hero"></div><div id="team-relic" class="hero"></div></div>
+      <div class="smoke-stage"><div id="smoke-0" class="smoke"></div><div id="smoke-1" class="smoke"></div><div id="smoke-2" class="smoke"></div><div id="smoke-3" class="smoke"></div><div id="smoke-4" class="smoke"></div><div id="smoke-5" class="smoke"></div><div id="smoke-6" class="smoke"></div><div id="smoke-7" class="smoke"></div></div>
+      <div class="copy"><div id="team-kicker" class="kicker">meet the worklings</div><div id="team-line" class="line">three families.</div><div id="team-plate" class="plate line">one companion.</div><div id="team-prompt" class="prompt">meet yours.</div></div><div id="team-rule" class="rule"></div>
+    </div>
+  </div>
+  <script>
+    window.__timelines=window.__timelines||{}; const tl=gsap.timeline({paused:true});
+    tl.fromTo("#smoke-0",{scale:1.2,opacity:0},{scale:3.1,opacity:1,duration:.07,ease:"power3.out"},0);
+    tl.to("#smoke-0",{opacity:0,duration:.02},.08);tl.fromTo("#smoke-1",{opacity:0},{opacity:1,duration:.02},.08);
+    tl.to("#smoke-1",{opacity:0,duration:.02},.155);tl.fromTo("#smoke-2",{opacity:0},{opacity:1,duration:.02},.155);
+    tl.to("#smoke-2",{opacity:0,duration:.02},.23);tl.fromTo("#smoke-3",{opacity:0},{opacity:1,duration:.02},.23);
+    tl.to("#smoke-3",{opacity:0,duration:.02},.305);tl.fromTo("#smoke-4",{opacity:0},{opacity:1,duration:.02},.305);
+    tl.to("#smoke-4",{opacity:0,duration:.02},.38);tl.fromTo("#smoke-5",{opacity:0},{opacity:1,duration:.02},.38);
+    tl.to("#smoke-5",{opacity:0,duration:.02},.455);tl.fromTo("#smoke-6",{opacity:0},{opacity:1,duration:.02},.455);
+    tl.to("#smoke-6",{opacity:0,duration:.02},.53);tl.fromTo("#smoke-7",{opacity:0},{opacity:1,duration:.02},.53);
+    tl.to("#smoke-7",{opacity:0,scale:3.5,duration:.22,ease:"power2.out"},.62);
+    tl.fromTo("#team-wild",{x:210,y:-40,scale:1.2,opacity:0},{x:0,y:0,scale:2.18,opacity:1,duration:.58,ease:"back.out(1.65)"},.38);
+    tl.fromTo("#team-ember",{y:190,scale:1.3,opacity:0},{y:0,scale:2.4,opacity:1,duration:.6,ease:"back.out(1.7)"},.45);
+    tl.fromTo("#team-relic",{x:-210,y:-30,scale:1.2,opacity:0},{x:0,y:0,scale:2.2,opacity:1,duration:.6,ease:"back.out(1.6)"},.52);
+    tl.fromTo(".shadow",{scaleX:.2,opacity:0},{scaleX:1,opacity:1,duration:.44,stagger:.07,ease:"power2.out"},.6);
+    tl.fromTo("#team-kicker",{x:-70,opacity:0},{x:0,opacity:1,duration:.38,ease:"power3.out"},.82);
+    tl.fromTo("#team-line",{x:-110,opacity:0},{x:0,opacity:1,duration:.5,ease:"power4.out"},.92);
+    tl.fromTo("#team-plate",{scaleX:0},{scaleX:1,duration:.52,ease:"expo.out"},1.16);
+    tl.fromTo("#team-prompt",{y:24,opacity:0},{y:0,opacity:1,duration:.4,ease:"power2.out"},1.62);
+    tl.fromTo("#team-path1, #team-path2, #team-rule",{scaleX:0},{scaleX:1,duration:.7,stagger:.08,ease:"power3.out"},.72);
+    tl.fromTo(".complete .pip",{scaleX:0},{scaleX:1,duration:.34,stagger:.08,ease:"power2.out"},1.0);
+    tl.to("#team-wild, #team-ember, #team-relic",{y:-8,duration:1.5,stagger:.04,ease:"sine.inOut"},2.05);
+    window.__timelines["05-ensemble"]=tl;
+  </script>
+</template></body></html>
