@@ -241,11 +241,11 @@ final class CompanionPanelController {
 
         panel.setFrameOrigin(
             ScreenPlacement.clampedOrigin(
-                proposed: panel.frame.origin,
-                windowSize: Self.panelSize,
-                visibleFrame: visibleFrame,
-                margin: Self.roamingMargin
-            )
+                proposed: panel.frame.origin.placement,
+                windowSize: Self.panelSize.placement,
+                visibleFrame: visibleFrame.placement,
+                margin: Double(Self.roamingMargin)
+            ).cgPoint
         )
     }
 
@@ -305,12 +305,12 @@ final class CompanionPanelController {
 
         let origin = panel.frame.origin
         let destination = ScreenPlacement.roamingOrigin(
-            from: origin,
+            from: origin.placement,
             intent: intent,
-            windowSize: Self.panelSize,
-            visibleFrame: visibleFrame,
-            margin: Self.roamingMargin
-        )
+            windowSize: Self.panelSize.placement,
+            visibleFrame: visibleFrame.placement,
+            margin: Double(Self.roamingMargin)
+        ).cgPoint
 
         guard hypot(destination.x - origin.x, destination.y - origin.y) >= 1 else {
             return
@@ -414,9 +414,9 @@ final class CompanionPanelController {
         }
 
         let origin = ScreenPlacement.defaultOrigin(
-            windowSize: Self.panelSize,
-            visibleFrame: visibleFrame
-        )
+            windowSize: Self.panelSize.placement,
+            visibleFrame: visibleFrame.placement
+        ).cgPoint
         panel.setFrameOrigin(origin)
     }
 }
