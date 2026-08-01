@@ -24,20 +24,24 @@ The five families form five thematic lanes — nature, elements, machinery, ener
 
 ### Species
 
-One species per shipped family exists today; each family is designed to hold many.
+**Species is purely cosmetic** — the critters within a family share its lean, passive, and every class option; they change only the *look*. The full designed catalogue (five-plus per family) lives in the **[Race & Creature Roster](worklings_race_creature_roster.md)**; this section records only which are *implemented* (have art) vs designed.
 
-- **Moss-fox** (Wildkin) — a fox shaped by living woodland magic, moss and growth woven into its coat.
-- **Ember-newt** (Elemental) — a newt whose inner fire is part of its body, not an effect on it.
-- **Keyback pangolin** (Relicborn) — a pangolin whose scales are bonded to an ancient rune-powered relic, a key grown into its back.
+Implemented today (one per shipped family):
 
-Adding a species means: pick its family, deliver the twelve-frame pose contract, and add it here. Species selection today is Pixel switching appearance; a full adoption flow remains a later slice.
+- **Moss Fox** (Wildkin) — a fox shaped by living woodland magic, moss and growth woven into its coat.
+- **Ember Newt** (Elemental) — a newt whose inner fire is part of its body, not an effect on it.
+- **Key-back Pangolin** (Relicborn) — a pangolin whose scales are bonded to an ancient rune-powered relic, a key grown into its back.
 
-### Glitchkin & Bloomglass (design-stage)
+Every other critter in the roster (e.g. Wildkin's Canopy Elephant, Glitchkin's Sparktail, Bloomglass's Starpetal Fawn) is **designed, not yet built**. Adding one means: pick its family, deliver the twelve-frame pose contract, and it's selectable. Species selection today is Pixel switching appearance; a full adoption flow remains a later slice.
 
-The two newest families are designed but not yet built — no sprites, no species implemented. They round the roster to five balanced lanes.
+> Because species is cosmetic, a hulking critter can be a glass-cannon and a tiny one a tank — look and role are decoupled. A later UI cue (class shown beside species) should make that freedom read as intentional.
 
-- **Glitchkin** (also *Signalborn*) — beings shaped by electricity, waves, speed, and interference; born where signals overlap and portals misalign. Sleek, fast, asymmetric silhouettes broken by glowing pulse-lines; darting, flickering movement with brief afterimages. Where Wildkin feel *alive* and Relicborn feel *constructed*, Glitchkin feel **transmitted**. Direction species: Sparktail (waveform-eared fox), Pinghopper, Echo Lynx, Prism Wisp-Hare.
-- **Bloomglass** (also *Astralglass* / *Astralward*) — beings of celestial stillness: starlight, crystal growth, refracted moonlight. Smooth, semi-translucent, luminous-from-within forms; slow, poised, deliberate motion. Read as **big floaty masses** — of soaking presence or of healing energy alike. Direction species: Starpetal Fawn, Halo Tortoise, Moonfin Axolotl, Aurora Hound.
+### The two newest families (design-stage)
+
+Glitchkin and Bloomglass round the roster to five balanced lanes; both are designed but not yet built (no sprites).
+
+- **Glitchkin** (also *Signalborn*) — beings shaped by electricity, waves, speed, and interference; born where signals overlap and portals misalign. Sleek, fast, asymmetric silhouettes broken by glowing pulse-lines; darting, flickering movement with brief afterimages. Where Wildkin feel *alive* and Relicborn feel *constructed*, Glitchkin feel **transmitted**.
+- **Bloomglass** (also *Astralglass* / *Astralward*) — beings of celestial stillness: starlight, crystal growth, refracted moonlight. Smooth, semi-translucent, luminous-from-within forms; slow, poised, deliberate motion. Read as **big floaty masses** — of soaking presence or of healing energy alike.
 
 ## Classes
 
