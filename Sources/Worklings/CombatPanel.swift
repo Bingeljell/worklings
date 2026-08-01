@@ -106,7 +106,8 @@ final class CombatViewModel: ObservableObject {
         petMaxHP = encounter.pet.maxHP
         foeHP = encounter.foe.currentHP
         foeMaxHP = foe.maxHP
-        CombatAudio.shared.startBGM()
+        CombatAudio.shared.play(.enter)
+        CombatAudio.shared.startBGM(boss: foe.name == CacheWarren.boss.name)
         pump()
     }
 
@@ -253,7 +254,7 @@ final class CombatViewModel: ObservableObject {
                         foePose: petAttacking ? .hurt : .attack,
                         isCrit: outcome.didCrit,
                         hpChange: (defenderSide, -outcome.damage),
-                        sound: .hit,
+                        sound: outcome.didCrit ? .crit : .hit,
                         hold: .milliseconds(1800)
                     )
                 )
@@ -291,7 +292,7 @@ final class CombatViewModel: ObservableObject {
                     petPose: .signature,
                     foePose: .hurt,
                     hpChange: (.foe, -outcome.damage),
-                    sound: .slam,
+                    sound: .unleash,
                     hold: .milliseconds(1900)
                 )
             )
@@ -304,6 +305,7 @@ final class CombatViewModel: ObservableObject {
                     text: "\(who) braces and steadies itself (+\(regen)).",
                     petPose: .brace,
                     hpChange: (.pet, regen),
+                    sound: .brace,
                     hold: .milliseconds(1700)
                 )
             ]
@@ -326,7 +328,7 @@ final class CombatViewModel: ObservableObject {
                     side: .foe,
                     text: "The \(who) blurs aside — your next blow will slip!",
                     foePose: .idle,
-                    sound: .dodge,
+                    sound: .phase,
                     hold: .milliseconds(1800)
                 )
             ]
@@ -337,6 +339,7 @@ final class CombatViewModel: ObservableObject {
                     side: .foe,
                     text: "The \(who) heaves back — a crushing blow is coming!",
                     foePose: .attack,
+                    sound: .telegraph,
                     hold: .milliseconds(2000)
                 )
             ]
@@ -370,7 +373,7 @@ final class CombatViewModel: ObservableObject {
             if who == petName {
                 return [Beat(side: .foe, text: "\(petName) is downed!", petPose: .downed, foePose: .attack, defeats: .pet, hold: .milliseconds(2300))]
             }
-            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, foePose: .hurt, defeats: .foe, hold: .milliseconds(2300))]
+            return [Beat(side: .pet, text: "The \(who) is defeated!", petPose: .victory, foePose: .hurt, defeats: .foe, sound: .poof, hold: .milliseconds(2300))]
 
         case .roundBegan, .decisionPoint, .encounterEnded:
             return []
@@ -457,6 +460,7 @@ final class CombatPanelController {
     func dismiss() {
         let wasPresenting = panel != nil
         CombatAudio.shared.stopBGM()
+        if wasPresenting { CombatAudio.shared.play(.returnChime) }
         panel?.orderOut(nil)
         panel = nil
         model = nil

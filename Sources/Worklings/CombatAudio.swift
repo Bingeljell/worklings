@@ -6,13 +6,21 @@ import Foundation
 /// audition variant.
 enum CombatSound: String, CaseIterable {
     case hit = "combat-hit__v01"
+    case crit = "combat-crit__v01"
     case slam = "combat-slam__v01"
     case dodge = "combat-dodge__v01"
+    case unleash = "combat-unleash__v01"
+    case brace = "combat-brace__v01"
     case tick = "countdown-tick__v01"
     case victory = "victory-fanfare__v01"
     case defeat = "defeat-sting__v01"
     case snare = "foe-snare__v01"
+    case phase = "foe-phase__v01"
+    case telegraph = "foe-telegraph__v01"
     case harden = "foe-harden__v01"
+    case poof = "foe-poof__v01"
+    case enter = "encounter-enter__v01"
+    case returnChime = "return-chime__v01"
 }
 
 /// Plays the dungeon arena's audio — a looping BGM bed plus one-shot combat
@@ -25,7 +33,9 @@ final class CombatAudio {
 
     private var sfxPlayers: [CombatSound: AVAudioPlayer] = [:]
     private var bgmPlayer: AVAudioPlayer?
+    private var currentBGMResource: String?
     private let bgmResource = "dungeon-bgm__v01"
+    private let bossBGMResource = "boss-bgm__v01"
 
     private static let muteKey = "worklings.combatAudioMuted"
     private static let volumeKey = "worklings.combatAudioVolume"
@@ -73,10 +83,16 @@ final class CombatAudio {
         player.play()
     }
 
-    /// Starts (or resumes) the looping BGM bed so it sits under the cues.
-    func startBGM() {
+    /// Starts (or resumes) the looping BGM bed so it sits under the cues. The
+    /// mini-boss gets its own heavier theme.
+    func startBGM(boss: Bool = false) {
         guard !isMuted else { return }
-        if bgmPlayer == nil { bgmPlayer = makePlayer(bgmResource) }
+        let resource = boss ? bossBGMResource : bgmResource
+        if bgmPlayer == nil || currentBGMResource != resource {
+            bgmPlayer?.stop()
+            bgmPlayer = makePlayer(resource)
+            currentBGMResource = resource
+        }
         guard let bgm = bgmPlayer else { return }
         bgm.numberOfLoops = -1
         bgm.volume = bgmVolume

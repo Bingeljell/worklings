@@ -35,7 +35,16 @@ let package = Package(
                 .copy("../../assets/audio/dungeon/worklings-dungeon/victory-fanfare/victory-fanfare__v01.wav"),
                 .copy("../../assets/audio/dungeon/worklings-dungeon/defeat-sting/defeat-sting__v01.wav"),
                 .copy("../../assets/audio/dungeon/worklings-dungeon/foe-snare/foe-snare__v01.wav"),
-                .copy("../../assets/audio/dungeon/worklings-dungeon/foe-harden/foe-harden__v01.wav")
+                .copy("../../assets/audio/dungeon/worklings-dungeon/foe-harden/foe-harden__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/combat-crit/combat-crit__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/combat-unleash/combat-unleash__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/combat-brace/combat-brace__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/foe-phase/foe-phase__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/foe-telegraph/foe-telegraph__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/foe-poof/foe-poof__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/encounter-enter/encounter-enter__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/boss-bgm/boss-bgm__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/return-chime/return-chime__v01.wav")
             ]
         ),
         .executableTarget(
