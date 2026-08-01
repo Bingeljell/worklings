@@ -137,7 +137,7 @@ The check runner is used because a minimal Apple Command Line Tools installation
 
 Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
 
-The current prerelease is [`v0.1.0-alpha.7`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.7). Earlier alphas remain available on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
+The current prerelease is [`v0.1.0-alpha.8`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.8) — distinct foe abilities and full combat audio. Earlier alphas remain available on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
 
 To install a packaged alpha:
 
