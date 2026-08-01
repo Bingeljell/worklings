@@ -17,9 +17,11 @@ migration, ever.
 
 ```text
 baseStats        (persisted; from level + class growth)
-  → + equipped item modifiers        = sheet stats   (what the Stats tab shows)
-  → × condition effectiveness         = combat stats  (what the dungeon formulas read)
+  → + family lean + equipped item modifiers   = sheet stats   (what the Stats tab shows)
+  → × condition effectiveness                  = combat stats  (what the dungeon formulas read)
 ```
+
+The **family lean** (see [Characters → Family–class affinity](characters.md#familyclass-affinity)) folds in at read-time exactly like gear does — a small nudge to effective stats, never a rewrite of the persisted base — so switching family needs no migration.
 
 Combat already reads *effective* stats (see [dungeon formulas](dungeons.md#core-formulas));
 gear simply enters that computation. The [care→combat multiplier](dungeons.md#condition--combat-the-closed-loop)

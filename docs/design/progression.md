@@ -123,7 +123,13 @@ Every stat has an ambient effect from day one so growth is meaningful long befor
 
 **Trust and Bond.** Trust stays a condition need. If a long-horizon relationship stat proves necessary, sustained high Trust can graduate into a separate **Bond** stat; that decision is deferred.
 
-**Families stay cosmetic; class carries mechanical identity.** Stat affinities per family (Wildkin, Elemental, Relicborn) would conflict with the shipped promise that switching family preserves all progress, so family stays a purely cosmetic species choice. Class — see below — is the new, separate axis that gives stats a reason to diverge, without touching family at all.
+### Families carry a soft mechanical identity
+
+Originally families were purely cosmetic — no stat affinities — to protect a "switching family preserves *all* progress" promise, made before combat existed. With dungeons shipped, that decision was **revised**: family now carries a **soft** mechanical identity so race means something in a fight, without the downsides of a hard lock.
+
+Concretely, each family has one **fixed stat lean** (a small, permanent nudge toward its primary class's signature stat) and one **passive**. That is enough to give every family a natural best-fit class (its **Primary**) and an anti-fit (its **Weak**), while leaving the other three classes fully pickable — the full model and the five-family matrix live in [Characters → Family–class affinity](characters.md#familyclass-affinity). Class remains the *primary* mechanical axis; the family lean only tilts it.
+
+**What this costs the switch promise:** switching family now shifts the small racial lean and passive — so it is no longer *fully* progress-preserving. Everything the character earned still carries over untouched — level, XP, class, and the base stat growth from leveling — only the racial lean/passive change. The reversible-neglect and no-migration guarantees are unaffected; the lean is a read-time modifier on effective stats (like gear), never a rewrite of the persisted base sheet.
 
 ## Class
 
