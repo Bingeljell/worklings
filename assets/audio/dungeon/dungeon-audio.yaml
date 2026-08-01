@@ -196,3 +196,211 @@ assets:
     postprocess:
       - op: peak_normalize
         peak_db: -3
+
+  # ---- Round-two: full combat SFX set (model textures) ----
+  - id: encounter-enter
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Deep descending magical whoosh into a vast stone cavern, brief airy portal
+      entry, one event, isolated studio recording
+    negative_prompt: music, melody, speech, ambience bed, long reverb tail, echo, repeated, distortion
+    duration: 3
+    seeds: [4801, 4802]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: trim_silence
+      - op: fade
+        in_ms: 2
+        out_ms: 150
+      - op: peak_normalize
+        peak_db: -2
+
+  - id: combat-crit
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Sharp heavy critical combat impact with a bright metallic zing, single
+      decisive hit, punchy transient, isolated studio recording
+    negative_prompt: music, melody, speech, ambience, reverb, echo, repeated hits, distortion
+    duration: 3
+    seeds: [4811, 4812]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: trim_silence
+      - op: fade
+        in_ms: 2
+        out_ms: 80
+      - op: peak_normalize
+        peak_db: -1
+
+  - id: combat-unleash
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Magical energy charge swelling into a bright bursting release, powerful
+      single signature move, isolated studio recording
+    negative_prompt: music, melody, speech, ambience, long reverb tail, echo, repeated, distortion
+    duration: 3
+    seeds: [4821, 4822]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: trim_silence
+      - op: fade
+        in_ms: 2
+        out_ms: 200
+      - op: peak_normalize
+        peak_db: -1
+
+  - id: combat-brace
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Solid metallic shield brace, short defensive clank and settle, one event,
+      isolated studio recording
+    negative_prompt: music, melody, speech, ambience, reverb, echo, repeated, distortion
+    duration: 3
+    seeds: [4831, 4832]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: trim_silence
+      - op: fade
+        in_ms: 2
+        out_ms: 100
+      - op: peak_normalize
+        peak_db: -2
+
+  - id: foe-phase
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Quick shimmering ethereal warp blink, short magical whoosh with a glassy
+      sparkle, isolated studio recording
+    negative_prompt: music, melody, speech, ambience, reverb tail, echo, impact, thud, distortion
+    duration: 3
+    seeds: [4841, 4842]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: trim_silence
+      - op: fade
+        in_ms: 2
+        out_ms: 80
+      - op: peak_normalize
+        peak_db: -2
+
+  - id: foe-telegraph
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Ominous rising low rumble wind-up, tension swell before a heavy blow, short,
+      isolated studio recording
+    negative_prompt: music, melody, speech, ambience bed, echo, repeated, impact hit, distortion
+    duration: 3
+    seeds: [4851, 4852]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: trim_silence
+      - op: fade
+        in_ms: 4
+        out_ms: 120
+      - op: peak_normalize
+        peak_db: -2
+
+  - id: foe-poof
+    kind: sfx
+    engine: stable-audio-3-small-sfx
+    prompt: >
+      Soft smoke poof puff, quick airy burst as a creature vanishes, one event,
+      isolated studio recording
+    negative_prompt: music, melody, speech, ambience, reverb tail, echo, repeated, harsh, distortion
+    duration: 3
+    seeds: [4861, 4862]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: trim_silence
+      - op: fade
+        in_ms: 2
+        out_ms: 100
+      - op: peak_normalize
+        peak_db: -2
+
+  # ---- Boss theme (model) ----
+  - id: boss-bgm
+    kind: music
+    engine: stable-audio-3-small-music
+    prompt: >
+      Heavy slow monstrous boss battle loop for a creature RPG, huge pounding war
+      drums, ominous low brass swells, dread male choir, grinding tension, immense
+      scale, minor key, seamless loop, fully instrumental
+    negative_prompt: vocals lyrics, speech, silence, sparse, fast upbeat, cheerful, slow quiet intro, distortion
+    duration: 24
+    seeds: [4901, 4902]
+    variants_to_keep: 2
+    license: Stability AI Community License
+    params:
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
+    postprocess:
+      - op: crop
+        start_seconds: 4
+        duration_seconds: 16
+      - op: fade
+        in_ms: 300
+        out_ms: 500
+      - op: peak_normalize
+        peak_db: -3
+
+  # ---- Return-to-desktop chime (procedural) ----
+  - id: return-chime
+    kind: sfx
+    engine: procedural
+    preset: victory_jingle
+    duration: 1.0
+    seeds: [4951]
+    license: NOASSERTION
+    params:
+      root_note: G4
+      tone: marimba
+      brightness: 0.4
+    postprocess:
+      - op: fade
+        in_ms: 2
+        out_ms: 250
+      - op: peak_normalize
+        peak_db: -4
