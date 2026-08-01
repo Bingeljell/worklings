@@ -14,6 +14,16 @@ What remains to be decided is whether or not the pet will be context general-con
 
 To keep track of the progress, you can see the [changelog](docs/changelog.md) - this will have all the stuff we've added over the dev cycle.
 
+## What's new
+
+The biggest arc yet — **Worklings now fights.**
+
+- **⚔️ Dungeon combat (the Cache Warren).** Your Workling can leave the desktop and delve into a dungeon: a turn-based auto-battler arena where it faces off against foes one beat at a time. You steer with an **Approach** and the occasional decision (Brace the incoming Slam? Unleash into an opening?) while the pet acts on its own. Four foes with genuinely different mechanics — the **Dungeon Scamp** (warm-up), **Snag** (grabs and snares your agility), **Flicker** (blurs and phases out of the way), and the **Monolith** mini-boss (telegraphed slams and hardening armour) — with impact juice (shake, crits, floating damage), a 3-2-1 countdown, and a victory/defeat screen. Enter from the paw menu.
+- **🔊 Full combat audio.** A driving dungeon soundtrack (plus a separate boss theme), a distinct cue for every action — hit, crit, slam, dodge, snare, telegraph — and a victory fanfare, all behind a mute toggle and a volume slider.
+- **🐾 Five creature families.** Wildkin, Elemental, and Relicborn are joined by two new design-stage families — **Glitchkin** (signal, speed, unstable reality) and **Bloomglass** (starlight, crystal, celestial calm) — rounding the roster to five, each with its own critter catalogue and a new premium art direction in the works.
+- **🧬 Deep RPG systems (design locked, building toward it).** Five classes, a six-stat combat model with a classless **Luck** stat for high-variance builds, **soft race↔class affinity** (each family leans toward one class and away from another, but any family can still be any class), per-class **abilities**, family **passives**, and Energy/Mana resources — the foundation for gear, skill trees, and eventually multiplayer. See the [design docs](docs/design/).
+- **🔌 Works with your tools.** Reacts to real work through **Claude Code** and **Codex** (live) and **local Git commits**, with broader **GitHub sync coming soon** — all content-free (no code, prompts, or keystrokes ever leave your machine).
+
 ## What we are building
 
 Worklings combines three ideas:
@@ -26,7 +36,7 @@ The project is macOS-first and implemented in Swift with SwiftUI and AppKit. Pet
 
 ## Character direction
 
-Worklings may eventually come from several creature families. These early concepts establish three directions that can coexist as the world grows:
+Worklings come from five creature families across five thematic lanes — nature, elements, machinery, energy, and cosmos. Three have art today (below); **Glitchkin** (energy) and **Bloomglass** (cosmos) are the two newest and still design-stage. The full cosmetic critter catalogue lives in the [race & creature roster](docs/design/worklings_race_creature_roster.md).
 
 | Wildkin | Elemental | Relicborn |
 | --- | --- | --- |
@@ -37,7 +47,7 @@ All three families use the same twelve-frame pose contract and are selectable at
 
 ## Classes
 
-Family is the cosmetic axis — class is the mechanical one. Every Workling levels up from real activity, and its class decides which stat grows fastest. Each class name is dual-coded: a term with real currency in modern work/maker culture that also carries its own mythic weight.
+Class is the primary mechanical axis: every Workling levels up from real activity, and its class decides which stat grows fastest. Family is **soft-coupled** to class — each family leans slightly toward one class and away from another (via a small stat lean and a passive), but any family can still be any class. Each class name is dual-coded: a term with real currency in modern work/maker culture that also carries its own mythic weight.
 
 | Class | Signature stat | Role | Flavor |
 | --- | --- | --- | --- |
@@ -127,7 +137,7 @@ The check runner is used because a minimal Apple Command Line Tools installation
 
 Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
 
-The current prerelease is [`v0.1.0-alpha.2`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.2), the first Worklings-branded DMG. The older `v0.1.0-alpha.1` prerelease predates the rename and still downloads Build Companion.
+The current prerelease is [`v0.1.0-alpha.7`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.7). Earlier alphas remain available on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
 
 To install a packaged alpha:
 
