@@ -28,6 +28,11 @@ final class CombatAudio {
     private let bgmResource = "dungeon-bgm__v01"
 
     private static let muteKey = "worklings.combatAudioMuted"
+    private static let volumeKey = "worklings.combatAudioVolume"
+
+    /// BGM sits under the one-shot cues; both are then scaled by `masterVolume`.
+    private let bgmRelativeVolume: Float = 0.5
+    private var bgmVolume: Float { bgmRelativeVolume * masterVolume }
 
     /// Whether combat audio is silenced. Persisted, off by default (combat is an
     /// opt-in delve, so the bed only ever plays inside a fight the player chose).
@@ -36,6 +41,17 @@ final class CombatAudio {
         set {
             UserDefaults.standard.set(newValue, forKey: Self.muteKey)
             if newValue { stopBGM() }
+        }
+    }
+
+    /// Master combat-audio level, 0…1. Persisted; defaults to 0.8. Scales every
+    /// cue and the BGM, and updates a playing bed live.
+    var masterVolume: Float {
+        get { (UserDefaults.standard.object(forKey: Self.volumeKey) as? Float) ?? 0.8 }
+        set {
+            let clamped = min(max(newValue, 0), 1)
+            UserDefaults.standard.set(clamped, forKey: Self.volumeKey)
+            bgmPlayer?.volume = bgmVolume
         }
     }
 
@@ -48,22 +64,22 @@ final class CombatAudio {
         }
     }
 
-    /// Fires a one-shot cue, restarting it if it's already ringing.
+    /// Fires a one-shot cue, restarting it if it's already ringing. `volume` is
+    /// the cue's relative level; the master volume scales it.
     func play(_ sound: CombatSound, volume: Float = 0.8) {
         guard !isMuted, let player = sfxPlayers[sound] else { return }
-        player.volume = volume
+        player.volume = volume * masterVolume
         player.currentTime = 0
         player.play()
     }
 
-    /// Starts (or resumes) the looping BGM bed at a modest volume so it sits
-    /// under the cues rather than dominating.
-    func startBGM(volume: Float = 0.45) {
+    /// Starts (or resumes) the looping BGM bed so it sits under the cues.
+    func startBGM() {
         guard !isMuted else { return }
         if bgmPlayer == nil { bgmPlayer = makePlayer(bgmResource) }
         guard let bgm = bgmPlayer else { return }
         bgm.numberOfLoops = -1
-        bgm.volume = volume
+        bgm.volume = bgmVolume
         if !bgm.isPlaying {
             bgm.currentTime = 0
             bgm.play()
