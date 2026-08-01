@@ -119,7 +119,7 @@ Two families of win condition — **race the clock** (Maverick / Juggernaut / Ti
 
 ## Stat allocation
 
-The vision is **manual point allocation** — the player chooses where level-up points go — because that is what makes the niche builds real (a glass-cannon healer that stacks Wit and gets two-shot; a Juggernaut that gambles into Luck). This **reverses the currently shipped model** (automatic class-weighted growth, no banked points — see [Progression → Levels](progression.md#levels)). Formalizing manual allocation (and how it coexists with class-weighted defaults) is its own decision, tracked in [Progression](progression.md).
+**Locked: manual point allocation.** A level grants two separate pools — **Stat Points** (allocated into the six stats here) and **Skill Points** (spent in the class skill tree; see [Abilities](abilities.md)). Manual Stat Points are what make the niche builds real (a glass-cannon healer that stacks Wit and gets two-shot; a Juggernaut that gambles into Luck). This **reverses the currently shipped model** (automatic class-weighted growth, no banked points — see [Progression → Levels](progression.md#levels)); how manual allocation coexists with any class-weighted default is a v1 implementation detail. The racial lean (a signed `+`/`−`, see [Characters](characters.md#familyclass-affinity)) folds in on top as a read-time modifier.
 
 ## v1 subset vs roadmap
 
