@@ -19,13 +19,13 @@ assets:
     kind: music
     engine: stable-audio-3-small-music
     prompt: >
-      Tense looping dungeon combat bed for a charming creature RPG, low brooding
-      drone, subtle soft hand percussion, faint eerie music-box bell motif,
-      cavernous underground atmosphere, restrained minor key, steady and
-      loopable, fully instrumental
-    negative_prompt: vocals, speech, sudden loud stingers, harsh noise, long silent intro, distortion
+      Driving dungeon battle loop for a creature RPG, steady pounding tribal war
+      drums, pulsing low bass ostinato, tense sustained strings, dark choral pad,
+      continuous full energy throughout, minor key, seamless loop, fully
+      instrumental
+    negative_prompt: vocals, speech, silence, sparse, ambient, slow quiet intro, harsh noise, distortion
     duration: 24
-    seeds: [4201, 4202]
+    seeds: [4210, 4211]
     variants_to_keep: 2
     license: Stability AI Community License
     params:
@@ -34,13 +34,13 @@ assets:
       apg: 1.0
     postprocess:
       - op: crop
-        start_seconds: 2
+        start_seconds: 4
         duration_seconds: 16
       - op: fade
-        in_ms: 400
-        out_ms: 600
+        in_ms: 300
+        out_ms: 500
       - op: peak_normalize
-        peak_db: -14
+        peak_db: -3
 
   # ---- Impacts & textures (model) ----
   - id: combat-hit
@@ -131,19 +131,32 @@ assets:
         peak_db: -4
 
   - id: victory-fanfare
-    kind: sfx
-    engine: procedural
-    preset: victory_jingle
-    duration: 1.6
-    seeds: [4501]
-    license: NOASSERTION
+    kind: music
+    engine: stable-audio-3-medium
+    prompt: >
+      Triumphant victory fanfare for a creature RPG win screen, immediate
+      celebratory hook from the very first beat, bright brass stabs, sparkling
+      glockenspiel and chimes, uplifting synth swells, punchy upbeat percussion,
+      joyful major key, cheerful and heroic, concise instrumental, clean studio
+      production
+    negative_prompt: vocals, speech, harsh noise, slow ambient intro, sad, minor key, distortion
+    duration: 8
+    seeds: [4510, 4511]
+    variants_to_keep: 2
+    license: Stability AI Community License
     params:
-      root_note: C5
-      tone: bell
-      brightness: 0.6
+      steps: 8
+      cfg: 1.0
+      apg: 1.0
     postprocess:
+      - op: crop
+        start_seconds: 0
+        duration_seconds: 6
+      - op: fade
+        in_ms: 10
+        out_ms: 500
       - op: peak_normalize
-        peak_db: -2
+        peak_db: -1
 
   - id: defeat-sting
     kind: sfx
