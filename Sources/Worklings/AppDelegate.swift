@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var logWorkMenuItem: NSMenuItem?
     private var dungeonMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
+    private var combatAudioMenuItem: NSMenuItem?
     private var connectedReposMenuItem: NSMenuItem?
     private var connectedReposMenu: NSMenu?
     private var connectClaudeCodeMenuItem: NSMenuItem?
@@ -199,6 +200,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dungeonItem.submenu = dungeonSubmenu
         menu.addItem(dungeonItem)
         dungeonMenuItem = dungeonItem
+
+        let audioItem = NSMenuItem(
+            title: "Combat Sound",
+            action: #selector(toggleCombatAudio),
+            keyEquivalent: ""
+        )
+        audioItem.target = self
+        audioItem.state = CombatAudio.shared.isMuted ? .off : .on
+        audioItem.toolTip = "Toggle the dungeon's music and sound effects."
+        menu.addItem(audioItem)
+        combatAudioMenuItem = audioItem
+
+        menu.addItem(makeCombatVolumeMenuItem())
 
         menu.addItem(.separator())
         let roamingItem = NSMenuItem(
@@ -657,6 +671,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc
     private func sleep() {
         petSession?.perform(.sleep)
+    }
+
+    @objc
+    private func toggleCombatAudio() {
+        CombatAudio.shared.isMuted.toggle()
+        combatAudioMenuItem?.state = CombatAudio.shared.isMuted ? .off : .on
+    }
+
+    /// A labelled volume slider hosted as a custom-view menu item, sitting under
+    /// the "Combat Sound" toggle so all audio controls live together.
+    private func makeCombatVolumeMenuItem() -> NSMenuItem {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 210, height: 26))
+
+        let label = NSTextField(labelWithString: "Volume")
+        label.font = .menuFont(ofSize: 12)
+        label.textColor = .secondaryLabelColor
+        label.frame = NSRect(x: 20, y: 4, width: 52, height: 18)
+        container.addSubview(label)
+
+        let slider = NSSlider(
+            value: Double(CombatAudio.shared.masterVolume),
+            minValue: 0, maxValue: 1,
+            target: self, action: #selector(changeCombatVolume(_:))
+        )
+        slider.isContinuous = true
+        slider.frame = NSRect(x: 74, y: 3, width: 118, height: 20)
+        container.addSubview(slider)
+
+        let item = NSMenuItem()
+        item.view = container
+        return item
+    }
+
+    @objc
+    private func changeCombatVolume(_ sender: NSSlider) {
+        CombatAudio.shared.masterVolume = Float(sender.doubleValue)
     }
 
     @objc
