@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var logWorkMenuItem: NSMenuItem?
     private var dungeonMenuItem: NSMenuItem?
     private var roamingMenuItem: NSMenuItem?
+    private var combatAudioMenuItem: NSMenuItem?
     private var connectedReposMenuItem: NSMenuItem?
     private var connectedReposMenu: NSMenu?
     private var connectClaudeCodeMenuItem: NSMenuItem?
@@ -199,6 +200,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dungeonItem.submenu = dungeonSubmenu
         menu.addItem(dungeonItem)
         dungeonMenuItem = dungeonItem
+
+        let audioItem = NSMenuItem(
+            title: "Combat Sound",
+            action: #selector(toggleCombatAudio),
+            keyEquivalent: ""
+        )
+        audioItem.target = self
+        audioItem.state = CombatAudio.shared.isMuted ? .off : .on
+        audioItem.toolTip = "Toggle the dungeon's music and sound effects."
+        menu.addItem(audioItem)
+        combatAudioMenuItem = audioItem
 
         menu.addItem(.separator())
         let roamingItem = NSMenuItem(
@@ -657,6 +669,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc
     private func sleep() {
         petSession?.perform(.sleep)
+    }
+
+    @objc
+    private func toggleCombatAudio() {
+        CombatAudio.shared.isMuted.toggle()
+        combatAudioMenuItem?.state = CombatAudio.shared.isMuted ? .off : .on
     }
 
     @objc

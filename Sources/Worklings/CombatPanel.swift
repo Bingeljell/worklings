@@ -86,6 +86,8 @@ final class CombatViewModel: ObservableObject {
         var hpChange: (side: CombatSide, amount: Int)?
         var defeats: CombatSide?
         var countdown: Int?
+        /// An optional one-shot sound cue to fire as this beat is applied.
+        var sound: CombatSound?
         var hold: Duration
     }
 
@@ -104,6 +106,7 @@ final class CombatViewModel: ObservableObject {
         petMaxHP = encounter.pet.maxHP
         foeHP = encounter.foe.currentHP
         foeMaxHP = foe.maxHP
+        CombatAudio.shared.startBGM()
         pump()
     }
 
@@ -163,9 +166,14 @@ final class CombatViewModel: ObservableObject {
         // "X attacks Y" line stays readable while 3-2-1 builds) and just idles the
         // creatures under the big number.
         if beat.countdown != nil {
+            CombatAudio.shared.play(.tick, volume: 0.5)
             petPose = restingPose
             foePose = .idle
             return
+        }
+
+        if let sound = beat.sound {
+            CombatAudio.shared.play(sound)
         }
 
         // Scene-setting narration goes to the centered banner, not a bubble.
@@ -245,6 +253,7 @@ final class CombatViewModel: ObservableObject {
                         foePose: petAttacking ? .hurt : .attack,
                         isCrit: outcome.didCrit,
                         hpChange: (defenderSide, -outcome.damage),
+                        sound: .hit,
                         hold: .milliseconds(1800)
                     )
                 )
@@ -255,6 +264,7 @@ final class CombatViewModel: ObservableObject {
                         text: announce,
                         petPose: petAttacking ? .strike : .idle,
                         foePose: petAttacking ? .idle : .attack,
+                        sound: .dodge,
                         hold: .milliseconds(1000)
                     )
                 )
@@ -281,6 +291,7 @@ final class CombatViewModel: ObservableObject {
                     petPose: .signature,
                     foePose: .hurt,
                     hpChange: (.foe, -outcome.damage),
+                    sound: .slam,
                     hold: .milliseconds(1900)
                 )
             )
@@ -304,6 +315,7 @@ final class CombatViewModel: ObservableObject {
                     text: "\(attacker) grabs \(target)! Its agility sags (−\(agilityLoss)).",
                     petPose: .hurt,
                     foePose: .attack,
+                    sound: .snare,
                     hold: .milliseconds(2000)
                 )
             ]
@@ -314,6 +326,7 @@ final class CombatViewModel: ObservableObject {
                     side: .foe,
                     text: "The \(who) blurs aside — your next blow will slip!",
                     foePose: .idle,
+                    sound: .dodge,
                     hold: .milliseconds(1800)
                 )
             ]
@@ -337,6 +350,7 @@ final class CombatViewModel: ObservableObject {
                     foePose: .attack,
                     isCrit: outcome.didCrit,
                     hpChange: (.pet, -outcome.damage),
+                    sound: .slam,
                     hold: .milliseconds(2200)
                 )
             ]
@@ -347,6 +361,7 @@ final class CombatViewModel: ObservableObject {
                     side: .foe,
                     text: "The \(who) hardens — its guard rises! (+\(guardGain))",
                     foePose: .idle,
+                    sound: .harden,
                     hold: .milliseconds(1800)
                 )
             ]
@@ -389,6 +404,9 @@ final class CombatViewModel: ObservableObject {
         )
         session.applyCombatResolution(resolution)
         outcome = resolution
+        // The bed drops out and a win/lose sting lands as the end screen appears.
+        CombatAudio.shared.stopBGM()
+        CombatAudio.shared.play(resolution.tier == .downed ? .defeat : .victory, volume: 0.9)
     }
 }
 
@@ -438,6 +456,7 @@ final class CombatPanelController {
 
     func dismiss() {
         let wasPresenting = panel != nil
+        CombatAudio.shared.stopBGM()
         panel?.orderOut(nil)
         panel = nil
         model = nil

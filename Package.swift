@@ -26,7 +26,16 @@ let package = Package(
                 .copy("../../assets/foes/mote-attack.png"),
                 .copy("../../assets/foes/mote-hurt.png"),
                 .copy("../../assets/dungeons/cache-warren-cave-backdrop.png"),
-                .copy("../../assets/dungeons/cache-warren-atmosphere-overlay.png")
+                .copy("../../assets/dungeons/cache-warren-atmosphere-overlay.png"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/dungeon-bgm/dungeon-bgm__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/combat-hit/combat-hit__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/combat-slam/combat-slam__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/combat-dodge/combat-dodge__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/countdown-tick/countdown-tick__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/victory-fanfare/victory-fanfare__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/defeat-sting/defeat-sting__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/foe-snare/foe-snare__v01.wav"),
+                .copy("../../assets/audio/dungeon/worklings-dungeon/foe-harden/foe-harden__v01.wav")
             ]
         ),
         .executableTarget(
