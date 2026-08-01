@@ -68,17 +68,17 @@ Family and class are **soft-coupled**: each family fits some classes better than
 - a **Primary** class — its natural best fit, where its stat lean and passive line up; and
 - a **Weak** class — its anti-fit, where they pull against it.
 
-The **other three classes are open** — fully valid choices the player picks freely. There is no separate bonus table: each family simply has one **fixed stat lean** (equal to its primary class's signature stat) and one **passive**, and that alone makes the primary shine, the weak class sag, and the middle three all viable. "Primary / weak" are *descriptions* of where the fixed lean lands, not extra machinery.
+The **other three classes are open** — neutral, fully valid picks. The trick that avoids a per-combo bonus table: each family has **one signed stat lean** — a small **`+` on its primary class's stat and a `−` on its weak class's stat** — plus **one passive**. That single signed lean yields three genuine tiers from one knob: the **Primary** rides the `+`, the **Weak** takes the `−` (a real but *mild* penalty — a tilt, never a lock), and the **middle three** are untouched (neutral trade-offs). Magnitudes stay small (held knobs), so a "weak" combo is a couple of points behind, never unplayable — a Glitchkin *can* be a Juggernaut, it's just no Relicborn.
 
-| Family | 🔒 Primary | 🔒 Weak | Open (player's pick) | Fixed lean · passive |
+| Family | 🔒 Primary | 🔒 Weak | Open (player's pick) | Signed lean · passive |
 | --- | --- | --- | --- | --- |
-| **Wildkin** | Wellspring | Juggernaut | Aegis · Maverick · Tinkerer | +Vitality · regrowth |
-| **Elemental** | Tinkerer | Aegis | Juggernaut · Maverick · Wellspring | +Wit · elemental burst |
-| **Relicborn** | Juggernaut | Maverick | Aegis · Tinkerer · Wellspring | +Power · machine armor/force |
-| **Glitchkin** | Maverick | Juggernaut | Aegis · Tinkerer · Wellspring | +Agility · evasion / phase |
-| **Bloomglass** | Aegis | Maverick | Wellspring · Tinkerer · Juggernaut | +Guard · ward / refraction |
+| **Wildkin** | Wellspring | Juggernaut | Aegis · Maverick · Tinkerer | +Vitality / −Power · **Regrowth** |
+| **Elemental** | Tinkerer | Aegis | Juggernaut · Maverick · Wellspring | +Wit / −Guard · **Overload** |
+| **Relicborn** | Juggernaut | Maverick | Aegis · Tinkerer · Wellspring | +Power / −Agility · **Relic Plating** |
+| **Glitchkin** | Maverick | Juggernaut | Aegis · Tinkerer · Wellspring | +Agility / −Power · **Phase Flicker** |
+| **Bloomglass** | Aegis | Maverick | Wellspring · Tinkerer · Juggernaut | +Guard / −Agility · **Refraction Ward** |
 
-Every class is the Primary of exactly one family, so no class lacks a natural home.
+Every class is the Primary of exactly one family (so no class lacks a home), and every family's `−` lands on a *different* class's signature stat, so "weak" always means something concrete.
 
 **Three flavours of damage** are what make this fit cleanly — "DPS" is not one class:
 
@@ -88,17 +88,29 @@ Every class is the Primary of exactly one family, so no class lacks a natural ho
 
 **Bloomglass** flexes its Aegis primary two ways — a mass that *soaks* damage or a mass of *healing* energy (Wellspring is its strongest open option).
 
-Weaknesses are first-pass and tunable. The passive column is a placeholder for the real passive design (below).
+Lean sizes and the weak-class penalty are held knobs. The passives are specced in [Family passives](#family-passives) below.
 
-### Open item, for the abilities round
-
-**Mage synergy is locked to Elemental only.** Glitchkin (spacetime magic) and Wildkin (ancient, long-accumulated Wit) are the two candidates for a *secondary* caster identity — but a "secondary mage" is expressed as a **passive**, so that call is deferred to passive design in [Abilities](abilities.md), not decided here. Until then, magic stays rare and native to one family: many things endure, but true magic is the Elementals' art.
+**Mage note (v1):** "Mage" is a *class* thing — **Tinkerer** (Wit → magic damage) is the mage, and **Wellspring** also runs on Wit (for healing); any family can pick either. Among the *families*, only **Elemental** carries a magic-boosting passive in v1 (Overload), because elemental magic is its identity. A Wit-flavoured passive for Glitchkin/Wildkin (a "secondary caster" race) is deferred, not a restriction on who can cast.
 
 ## Skills & abilities
 
-The **shape** is agreed; the rosters are the next design round (see [Abilities](abilities.md)). Two tracks, split by source:
+The v1 model is **locked** — full detail (currencies, skill tree, scaling, cost) lives in [Abilities](abilities.md). Two tracks, split by source:
 
-- **Class → active abilities** — the "extra button" you press. Level- and class-gated, unlocked by a points currency deliberately separate from stat growth (see [Progression](progression.md)). The five first abilities are drafted in [Abilities](abilities.md).
-- **Family → passive traits** — things that happen *because of what you are*, no button. The placeholders in the affinity table above (regrowth, evasion, ward…) become this track.
+- **Class → active abilities** — the "extra button." Level- and class-gated, unlocked/ranked with **Skill Points** (one of two level-granted pools; the other is **Stat Points** for manual stat allocation). Each class's first ability *replaces* the generic Signature. The five: Wellspring **Second Wind**, Juggernaut **Overbear**, Aegis **Bulwark**, Maverick **Flurry**, Tinkerer **Exploit**.
+- **Family → passive traits** — automatic, no button (below).
 
-Both ride the shared **status-effect** primitive already built for combat, and the **trigger-hook** layer designed in [Abilities](abilities.md). Their full rosters — which class/family gets what, at which level — will live in this document once designed.
+Both ride the shared **status-effect** primitive (built) and the **trigger-hook** layer (designed) — see [Abilities](abilities.md).
+
+### Family passives
+
+One automatic passive per family (v1) — the racial identity in a fight. It's what lets a family cover a gap so the player can go all-in on their class (a Relicborn Juggernaut solo-levels safely on Relic Plating; a Wildkin Aegis tanks *and* self-heals). Magnitudes held.
+
+| Family | Passive | Effect |
+| --- | --- | --- |
+| **Wildkin** | **Regrowth** | Small HP regen every round (nature sustain). |
+| **Elemental** | **Overload** | Chance on hit to add a small elemental proc (bonus magic damage). |
+| **Relicborn** | **Relic Plating** | Flat damage reduction — constructed durability. |
+| **Glitchkin** | **Phase Flicker** | Extra evasion, plus an occasional full dodge after being hit. |
+| **Bloomglass** | **Refraction Ward** | A small damage-absorbing shield that refreshes / reflects a portion. |
+
+A passive *line* (multiple, chosen with Skill Points) and race *actives* are deferred past v1.
