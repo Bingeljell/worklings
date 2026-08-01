@@ -107,7 +107,7 @@ This is a deliberate change from treating stat points as a spendable currency: a
 
 ## Stats
 
-The character sheet is battle-facing, sized for eventual PVE and PVP:
+The character sheet is battle-facing, sized for eventual PVE and PVP. The table below is the *ambient/day-one* meaning; the full **primary → derived-attribute** combat model (plus the classless sixth stat, Luck, resources, and the crit/defense model) lives in [Combat systems](combat-systems.md).
 
 | Stat | Battle meaning | Ambient meaning before battles exist |
 | --- | --- | --- |
