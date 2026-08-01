@@ -28,14 +28,52 @@ An unlocked ability becomes a choosable action at a [decision point](dungeons.md
 - **Scales** with the class's signature stat (the same stat the class already grows fastest), so investing in the class deepens the ability without a second number to balance.
 - **Deterministic** — resolves through the same seeded PRNG as the rest of combat, so it stays testable in `CompanionCore`.
 
-### The status-effect system these need
+### The status-effect system these need — *(built)*
 
 Several abilities (and [enemy abilities](dungeons.md#the-cache-warren)) apply **timed
 buffs/debuffs** rather than instant damage — Tinkerer's mark, Aegis's riposte window,
 Maverick's extra action. So abilities require a small **status-effect** primitive on the
 combat model: a named effect with a magnitude and a remaining-duration, applied to a
-combatant, ticked each round, and read by the formulas. This is a shared dependency worth
-building once — enemy telegraphs and boss phases use it too.
+combatant, ticked each round, and read by the formulas.
+
+**This shipped with the enemy abilities** (`StatusEffect` on `Combatant.statuses`, folded
+into `effectiveStats`, ticked per round, with a permanent option). Current kinds:
+`agilityDebuff`, `guardBuff`, `evasion`, `phasing`. The vocabulary grows *as needed* — the
+class abilities and family passives below will add `regen`, `shield`/absorb,
+`powerBuff`/`powerDebuff`, `guardDebuff` (Expose), `damageReflect` (Bulwark / Refraction),
+`critUp`, and possibly `stun` — each added the moment something needs it, never speculatively.
+
+### The trigger-hook layer these need — *(designed, not built)*
+
+Status effects cover *what* an effect does. Many passives and richer items fire **when
+something happens** — Glitchkin's Signal Surge on ability-use, Phase Flicker on being hit,
+Bloomglass's Starlit Mend at round-start, an on-crit item that Snares. These need a small
+**trigger-hook** layer: a lightweight in-combat event dispatch that passives, items, class
+abilities, and enemy behaviours can subscribe to, which then apply status effects (or
+damage) through the primitive above.
+
+- **Hook points** (first cut): `onRoundStart`, `onHit` (dealt), `onHurt` (taken),
+  `onAbilityUse`, `onLowHP`, `onKill`. These map cleanly onto the `CombatEvent` stream the
+  encounter already emits, so the layer is a subscriber over existing events, not a rewrite.
+- **Deterministic** — hooks resolve through the same seeded PRNG and fixed order as the
+  rest of combat, so triggered effects stay replayable and checkable in `CompanionCore`.
+- **Shared** — this is the second build-once primitive (after status effects). It's the
+  thing that makes *triggered* family passives and *on-effect* items possible at all; the
+  static passives (a permanent buff, e.g. Bloomglass Refraction Shell) need only the status
+  primitive and could ship first.
+
+Build order is settled: **lock the ability/passive rosters, then build the trigger-hook
+layer, then the passives and items that ride it.**
+
+### Active (class) vs passive (family)
+
+Abilities split by source, matching [Characters](characters.md#skills--abilities):
+
+- **Class → active abilities** — the "extra button": the five costed moves below.
+- **Family → passive traits** — automatic, no button: the affinity-table placeholders
+  (regrowth, evasion, ward…), built on the two primitives above.
+
+The two tracks are independent, and a level-up can advance either.
 
 ## First ability per class
 
@@ -76,3 +114,5 @@ knobs.
 2. **Cost model** — once-per-encounter charges (simpler) vs round cooldowns (more tactical)? Possibly per-ability.
 3. **Ability scaling** — always the class's signature stat, or does Wit universally drive ability potency (making Tinkerer the "caster"), with the signature stat as a secondary?
 4. **Tree shape** — how many abilities per class at the cap, and are they linear unlocks or branching?
+5. **Family passive roster** — one passive per family, or a small passive line unlocked by level like the class actives? The affinity table's placeholders (regrowth, elemental burst, machine armor, evasion/phase, ward/refraction) become this roster.
+6. **Secondary mage synergy** — Mage is currently native to Elemental only ([Characters](characters.md#familyclass-affinity)). Glitchkin (spacetime magic) and Wildkin (ancient Wit) are candidates for a Wit-flavoured *passive* that makes a secondary caster build synergise. Decide here, since it's expressed as a passive — keep magic rare, or grant one/both the synergy.
