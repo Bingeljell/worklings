@@ -29,7 +29,9 @@ final class CombatViewModel: ObservableObject {
     @Published private(set) var foeHP: Int
     @Published private(set) var foeMaxHP: Int
     @Published private(set) var awaitingDecision: DecisionReason?
-    @Published private(set) var outcome: EncounterResolution?
+    /// Set the instant this encounter reaches an ending, so the arena hands control
+    /// back to the delve (which shows the push prompt or the delve-end screen).
+    @Published private(set) var isFinished = false
     /// The pet's current pose, driven by the beat being revealed, so the sprite
     /// strikes, recoils, braces, and celebrates in time with the narration.
     @Published private(set) var petPose: WorklingSpriteFrame = .idle
@@ -65,6 +67,9 @@ final class CombatViewModel: ObservableObject {
     private let session: PetSession
     private let foe: Foe
     private var encounter: CombatEncounter
+    /// Called once, at the ending, with the result the delve records: whether the
+    /// pet won and the HP it walked out with (carried into the next encounter).
+    private let onComplete: (_ victory: Bool, _ petHPRemaining: Int) -> Void
     private var pumpTask: Task<Void, Never>?
 
     /// UI beats waiting to play, and how far through the engine log they've been
@@ -91,23 +96,27 @@ final class CombatViewModel: ObservableObject {
         var hold: Duration
     }
 
-    init(session: PetSession, foe: Foe, approach: Approach = .aggressive, seed: UInt64) {
+    /// Drives one encounter of a delve. The `encounter` is built by the `Delve`
+    /// (carrying HP + the per-encounter seed); this view model only animates it and
+    /// reports the ending through `onComplete`. Audio and the BGM bed are managed by
+    /// the owning `DelveViewModel`, which spans the whole delve.
+    init(
+        session: PetSession,
+        foe: Foe,
+        encounter: CombatEncounter,
+        onComplete: @escaping (_ victory: Bool, _ petHPRemaining: Int) -> Void
+    ) {
         self.session = session
         self.foe = foe
-        let pet = session.makePetCombatant()
-        self.encounter = CombatEncounter(
-            pet: pet, foe: foe, approach: approach,
-            rates: session.combatRates, seed: seed
-        )
-        petName = pet.name
+        self.encounter = encounter
+        self.onComplete = onComplete
+        petName = encounter.pet.name
         foeName = foe.name
         petFamily = session.state.family
         petHP = encounter.pet.currentHP
         petMaxHP = encounter.pet.maxHP
         foeHP = encounter.foe.currentHP
         foeMaxHP = foe.maxHP
-        CombatAudio.shared.play(.enter)
-        CombatAudio.shared.startBGM(boss: foe.name == CacheWarren.boss.name)
         pump()
     }
 
@@ -402,39 +411,131 @@ final class CombatViewModel: ObservableObject {
     }
 
     private func finish() {
-        let resolution = session.state.applyingOutcome(
-            of: encounter, foe: foe, rates: session.combatRates
+        isFinished = true
+        onComplete(encounter.status == .petVictory, encounter.pet.currentHP)
+    }
+}
+
+// MARK: - Delve coordinator
+
+/// Spans a whole delve: the briefing, each encounter in turn (carrying HP), the
+/// bank-vs-push beat between them, and the single write-back at the end. It owns
+/// the current encounter's `CombatViewModel` and the BGM bed, and drives the
+/// `Delve` engine from `CompanionCore`.
+@MainActor
+final class DelveViewModel: ObservableObject {
+    enum Phase: Equatable {
+        case briefing      // the opening narration
+        case fighting      // an encounter is playing
+        case pushChoice    // cleared a regular foe — bank or push
+        case ended         // the delve is over; the end screen shows
+    }
+
+    @Published private(set) var phase: Phase = .briefing
+    @Published private(set) var current: CombatViewModel?
+    @Published private(set) var resolution: DelveResolution?
+    /// The Approach the pet starts each encounter on, chosen in the briefing.
+    @Published var startingApproach: Approach = .aggressive
+
+    let session: PetSession
+    private var delve: Delve
+    /// The foe of the most recent encounter, for the push prompt and the end
+    /// screen's loser sprite.
+    private(set) var lastFoeName: String
+
+    init(session: PetSession, seed: UInt64) {
+        self.session = session
+        self.delve = Delve.cacheWarren(
+            pet: session.makePetCombatant(),
+            effectiveness: session.combatEffectiveness,
+            rates: session.combatRates,
+            baseSeed: seed
         )
-        session.applyCombatResolution(resolution)
-        outcome = resolution
-        // The bed drops out and a win/lose sting lands as the end screen appears.
+        self.lastFoeName = delve.currentFoe?.name ?? ""
+    }
+
+    // Briefing display
+    var previewFoeNames: [String] { delve.foes.map(\.name) }
+    var bossName: String { delve.boss.name }
+
+    // In-flight display
+    var progressText: String { "Encounter \(delve.encounterNumber) of \(delve.totalEncounters)" }
+    var carriedHP: Int { delve.carriedHP }
+    var nextIsBoss: Bool { delve.index + 1 == delve.foes.count }
+    var nextFoeName: String? {
+        let next = delve.index + 1
+        return next < delve.allFoes.count ? delve.allFoes[next].name : nil
+    }
+
+    func descend() {
+        delve.descend()
+        CombatAudio.shared.play(.enter)
+        CombatAudio.shared.startBGM(boss: false)
+        startEncounter()
+    }
+
+    private func startEncounter() {
+        guard let foe = delve.currentFoe,
+              let encounter = delve.makeEncounter(approach: startingApproach) else { return }
+        lastFoeName = foe.name
+        if delve.isBossEncounter { CombatAudio.shared.startBGM(boss: true) }
+        current = CombatViewModel(session: session, foe: foe, encounter: encounter) { [weak self] victory, hp in
+            self?.encounterEnded(victory: victory, hpRemaining: hp)
+        }
+        phase = .fighting
+    }
+
+    private func encounterEnded(victory: Bool, hpRemaining: Int) {
+        delve.recordOutcome(petVictory: victory, petHPRemaining: hpRemaining)
+        switch delve.status {
+        case .awaitingPushChoice: phase = .pushChoice
+        case .completed, .retreated: finishDelve()
+        case .briefing, .inEncounter: break
+        }
+    }
+
+    func bank() {
+        delve.bank()
+        finishDelve()
+    }
+
+    func pushDeeper() {
+        delve.pushDeeper()
+        startEncounter()
+    }
+
+    private func finishDelve() {
+        guard let res = delve.resolution(applyingTo: session.state) else { return }
+        session.applyDelveResolution(res)
+        resolution = res
         CombatAudio.shared.stopBGM()
-        CombatAudio.shared.play(resolution.tier == .downed ? .defeat : .victory, volume: 0.9)
+        CombatAudio.shared.play(res.tier == .downed ? .defeat : .victory, volume: 0.9)
+        phase = .ended
     }
 }
 
 // MARK: - Panel window
 
-/// Hosts the combat panel in its own floating window for the length of a fight,
-/// then tears it down. One fight at a time.
+/// Hosts the delve panel in its own floating window for the length of a delve,
+/// then tears it down. One delve at a time.
 @MainActor
 final class CombatPanelController {
     private var panel: NSPanel?
-    private var model: CombatViewModel?
+    private var delve: DelveViewModel?
     private var onDismiss: (() -> Void)?
 
     var isPresenting: Bool { panel != nil }
 
-    /// Opens the arena for one fight. `onDismiss` runs when it closes (however it
+    /// Opens the arena for a full delve. `onDismiss` runs when it closes (however it
     /// closes), so the caller can bring the desktop companion back.
-    func present(session: PetSession, foe: Foe, seed: UInt64, onDismiss: @escaping () -> Void) {
+    func present(session: PetSession, seed: UInt64, onDismiss: @escaping () -> Void) {
         dismiss()
         self.onDismiss = onDismiss
 
-        let model = CombatViewModel(session: session, foe: foe, seed: seed)
-        self.model = model
+        let delve = DelveViewModel(session: session, seed: seed)
+        self.delve = delve
 
-        let root = CombatPanelView(model: model, onClose: { [weak self] in self?.dismiss() })
+        let root = DelvePanelView(delve: delve, onClose: { [weak self] in self?.dismiss() })
         let hosting = NSHostingView(rootView: root)
 
         // No .closable — the in-panel Close/Return is the only exit, so the
@@ -463,7 +564,7 @@ final class CombatPanelController {
         if wasPresenting { CombatAudio.shared.play(.returnChime) }
         panel?.orderOut(nil)
         panel = nil
-        model = nil
+        delve = nil
         if wasPresenting {
             let callback = onDismiss
             onDismiss = nil
@@ -474,9 +575,180 @@ final class CombatPanelController {
 
 // MARK: - View
 
+/// The root of the delve panel: switches between the briefing, the current
+/// encounter's arena, and overlays the bank/push prompt and the end screen.
+struct DelvePanelView: View {
+    @ObservedObject var delve: DelveViewModel
+    var onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            switch delve.phase {
+            case .briefing:
+                BriefingView(delve: delve, onClose: onClose)
+            case .fighting, .pushChoice, .ended:
+                if let model = delve.current {
+                    CombatPanelView(model: model, onClose: onClose, progressText: delve.progressText)
+                } else {
+                    ArenaBackground()
+                }
+            }
+
+            if delve.phase == .pushChoice {
+                PushChoiceCard(delve: delve)
+                    .transition(.opacity)
+            }
+            if delve.phase == .ended, let res = delve.resolution {
+                DelveEndScreen(
+                    tier: res.tier,
+                    xpGained: Int(res.xpGained),
+                    bossDefeated: res.bossDefeated,
+                    banked: res.banked,
+                    petFamily: delve.session.state.family,
+                    foeName: delve.lastFoeName,
+                    onReturn: onClose
+                )
+            }
+        }
+        .frame(width: 600, height: 480)
+        .animation(.easeInOut(duration: 0.25), value: delve.phase)
+    }
+}
+
+/// The opening narration — storytelling that sets the vibe and hints at how to
+/// prep. This is where the player picks a starting Approach (the loadout beat
+/// proper lands with items, in Phase B) before descending.
+private struct BriefingView: View {
+    @ObservedObject var delve: DelveViewModel
+    var onClose: () -> Void
+
+    private let narration = """
+    The floor gives way to the buried strata of the machine you live in — the \
+    Cache Warren. Down here the clutter takes shape and bites back: a scurrying \
+    Scamp, a grabbing Snag, a flickering blur that won't hold still… and \
+    something heavy waiting at the very bottom. Pack for accuracy, or bring a \
+    ward — then descend.
+    """
+
+    var body: some View {
+        ZStack {
+            ArenaBackground()
+            Color.black.opacity(0.45)
+
+            VStack(spacing: 16) {
+                Text("The Cache Warren")
+                    .font(.system(size: 34, weight: .black, design: .rounded))
+                    .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+
+                Text(narration)
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 24)
+
+                foePreview
+
+                VStack(spacing: 6) {
+                    Text("Set your opening approach").font(.caption.bold()).foregroundStyle(.white.opacity(0.7))
+                    Picker("Approach", selection: $delve.startingApproach) {
+                        Text("Aggressive").tag(Approach.aggressive)
+                        Text("Careful").tag(Approach.careful)
+                        Text("Clever").tag(Approach.clever)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 320)
+                }
+
+                HStack(spacing: 14) {
+                    Button("Not now", action: onClose)
+                        .buttonStyle(.bordered)
+                    Button(action: { delve.descend() }) {
+                        Text("Descend").frame(width: 150)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+                .padding(.top, 4)
+            }
+            .padding(28)
+        }
+        .foregroundStyle(.white)
+    }
+
+    private var foePreview: some View {
+        HStack(spacing: 8) {
+            ForEach(delve.previewFoeNames, id: \.self) { name in
+                Text(name)
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(.white.opacity(0.12)))
+            }
+            Text("? ? ?")
+                .font(.caption2.bold())
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Capsule().fill(.orange.opacity(0.18)))
+                .help("Something waits at the bottom of the Warren.")
+        }
+    }
+}
+
+/// The press-your-luck beat between encounters: bank the run with what you've
+/// earned, or push deeper toward the boss at rising attrition.
+private struct PushChoiceCard: View {
+    @ObservedObject var delve: DelveViewModel
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+
+            VStack(spacing: 14) {
+                Text("The \(delve.lastFoeName) falls!")
+                    .font(.title2.bold())
+                    .foregroundStyle(.green)
+
+                Text("You're at \(delve.carriedHP) HP. Bank the delve, or press deeper?")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+
+                Group {
+                    if delve.nextIsBoss {
+                        Text("Something heavy stirs below…")
+                    } else if let next = delve.nextFoeName {
+                        Text("Ahead: the \(next).")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.6))
+
+                HStack(spacing: 14) {
+                    Button(action: { delve.bank() }) {
+                        Text("Bank & leave").frame(width: 140)
+                    }
+                    .buttonStyle(.bordered)
+                    Button(action: { delve.pushDeeper() }) {
+                        Text(delve.nextIsBoss ? "Face the boss" : "Push deeper").frame(width: 140)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .controlSize(.large)
+            }
+            .padding(28)
+            .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.5)))
+            .padding(40)
+        }
+        .foregroundStyle(.white)
+    }
+}
+
 struct CombatPanelView: View {
     @ObservedObject var model: CombatViewModel
     var onClose: () -> Void
+    /// Where in the delve this fight sits, e.g. "Encounter 2 of 4" — shown in the
+    /// header so the chain reads as a journey.
+    var progressText: String? = nil
 
     @State private var approach: Approach = .aggressive
     @State private var unleash = false
@@ -496,11 +768,6 @@ struct CombatPanelView: View {
         .frame(width: 600, height: 480)
         .background(stageBackground)
         .foregroundStyle(.white)
-        .overlay {
-            if let outcome = model.outcome {
-                EndScreen(outcome: outcome, model: model, onReturn: onClose)
-            }
-        }
     }
 
     private var stageBackground: some View {
@@ -511,6 +778,12 @@ struct CombatPanelView: View {
         HStack {
             Text("The Cache Warren")
                 .font(.title3.bold())
+            if let progressText {
+                Text(progressText)
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(0.6))
+                    .padding(.leading, 6)
+            }
             Spacer()
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.55))
@@ -559,8 +832,8 @@ struct CombatPanelView: View {
 
     private var controlBar: some View {
         Group {
-            if model.outcome != nil {
-                Color.clear.frame(height: 1) // the end screen takes over
+            if model.isFinished {
+                Color.clear.frame(height: 1) // the delve takes over (push prompt or end screen)
             } else if model.awaitingDecision != nil {
                 decisionControls
             } else {
@@ -628,12 +901,16 @@ private func exitBlurb(_ tier: ExitTier) -> String {
     }
 }
 
-/// The end-of-fight screen: the winner takes centre stage in its victory pose
+/// The end-of-delve screen: the winner takes centre stage in its victory pose
 /// (with a pop-in and sparkles), the loser vanishes in a puff of smoke, then the
-/// result and Return button fade in.
-private struct EndScreen: View {
-    let outcome: EncounterResolution
-    @ObservedObject var model: CombatViewModel
+/// result and Return button fade in. Driven by the finished `DelveResolution`.
+private struct DelveEndScreen: View {
+    let tier: ExitTier
+    let xpGained: Int
+    let bossDefeated: Bool
+    let banked: Bool
+    let petFamily: PetFamily
+    let foeName: String
     let onReturn: () -> Void
 
     @State private var titleShown = false
@@ -641,7 +918,14 @@ private struct EndScreen: View {
     @State private var winnerBob = false
     @State private var footerShown = false
 
-    private var won: Bool { outcome.tier != .downed }
+    private var won: Bool { tier != .downed }
+
+    /// The headline reflects *how* the delve ended, not just win/lose.
+    private var title: String {
+        if bossDefeated { return "Warren Cleared!" }
+        if banked { return "Delve Banked" }
+        return "Driven Back…"
+    }
 
     var body: some View {
         ZStack {
@@ -651,7 +935,7 @@ private struct EndScreen: View {
             Color.black.opacity(0.5)
 
             VStack(spacing: 18) {
-                Text(won ? "Victory!" : "Defeated…")
+                Text(title)
                     .font(.system(size: 46, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color.green : Color.orange)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
@@ -666,11 +950,11 @@ private struct EndScreen: View {
 
                 if footerShown {
                     VStack(spacing: 10) {
-                        Text("\(tierName(outcome.tier)) — \(exitBlurb(outcome.tier))")
+                        Text("\(tierName(tier)) — \(exitBlurb(tier))")
                             .font(.headline)
                             .foregroundStyle(.white.opacity(0.85))
-                        if outcome.xpGained > 0 {
-                            Label("+\(Int(outcome.xpGained)) XP", systemImage: "sparkles")
+                        if xpGained > 0 {
+                            Label("+\(xpGained) XP", systemImage: "sparkles")
                                 .font(.title3.bold())
                                 .foregroundStyle(.white)
                         }
@@ -691,9 +975,9 @@ private struct EndScreen: View {
     @ViewBuilder
     private var winner: some View {
         if won {
-            PetCombatSprite(family: model.petFamily, pose: .victory, size: 150)
+            PetCombatSprite(family: petFamily, pose: .victory, size: 150)
         } else {
-            FoeSprite(foeName: model.foeName, pose: .attack, size: 150)
+            FoeSprite(foeName: foeName, pose: .attack, size: 150)
         }
     }
 

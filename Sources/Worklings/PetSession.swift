@@ -205,6 +205,20 @@ final class PetSession: ObservableObject {
         persist()
     }
 
+    /// The condition→combat multiplier for the current state, fixed at delve entry
+    /// so mid-delve care changes don't alter a run in progress.
+    var combatEffectiveness: Double {
+        combatRates.combatEffectiveness(needs: state.needs)
+    }
+
+    /// Writes a finished **delve's** result back into the pet: the accrued XP (plus
+    /// any completion bonus) and the single exit-tier condition change computed once
+    /// at delve end, then persists.
+    func applyDelveResolution(_ resolution: DelveResolution) {
+        state = resolution.state
+        persist()
+    }
+
     private func persist() {
         guard persistenceEnabled else {
             return

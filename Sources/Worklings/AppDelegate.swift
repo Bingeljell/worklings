@@ -182,22 +182,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         logWorkMenuItem = logWorkItem
 
         menu.addItem(.separator())
-        // Interim entry until the delve chain lands: a per-foe picker so each
-        // encounter can be fought (and felt) on its own. The delve orchestration
-        // will later replace this with a single "descend" that runs the sequence.
-        let dungeonItem = NSMenuItem(title: "Enter the Cache Warren", action: nil, keyEquivalent: "")
-        let dungeonSubmenu = NSMenu(title: "Enter the Cache Warren")
-        for foe in [CacheWarren.mote, CacheWarren.snag, CacheWarren.flicker, CacheWarren.boss] {
-            let foeItem = NSMenuItem(
-                title: "Fight the \(foe.name)…",
-                action: #selector(enterDelveForFoe(_:)),
-                keyEquivalent: ""
-            )
-            foeItem.target = self
-            foeItem.representedObject = foe
-            dungeonSubmenu.addItem(foeItem)
-        }
-        dungeonItem.submenu = dungeonSubmenu
+        // A single "descend" that runs the whole Cache Warren delve — briefing,
+        // the encounter chain with press-your-luck between fights, then the exit.
+        let dungeonItem = NSMenuItem(
+            title: "Descend into the Cache Warren",
+            action: #selector(descendIntoCacheWarren),
+            keyEquivalent: ""
+        )
+        dungeonItem.target = self
         menu.addItem(dungeonItem)
         dungeonMenuItem = dungeonItem
 
@@ -385,22 +377,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func enterDelveForFoe(_ sender: NSMenuItem) {
-        guard let foe = sender.representedObject as? Foe else { return }
-        enterDelve(against: foe)
-    }
-
-    private func enterDelve(against foe: Foe) {
+    @objc private func descendIntoCacheWarren() {
         guard let petSession, petSession.canEnterDelve else { return }
         // Seed from the moment of entry so each delve plays out a little
-        // differently; the fight itself is deterministic from this seed.
+        // differently; the delve itself is deterministic from this seed.
         let seed = UInt64(bitPattern: Int64(Date().timeIntervalSinceReferenceDate.bitPattern))
         // The companion leaves the desktop (a smoke conceal) and reappears in the
-        // arena; bring it back when the fight ends, however it ends.
+        // arena; bring it back when the delve ends, however it ends.
         let wasVisible = companionController?.isVisible ?? false
         companionController?.hide()
         combatPanelController?.present(
-            session: petSession, foe: foe, seed: seed,
+            session: petSession, seed: seed,
             onDismiss: { [weak self] in
                 if wasVisible { self?.companionController?.show() }
             }
