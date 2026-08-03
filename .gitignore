@@ -14,3 +14,7 @@ xcuserdata/
 build/
 dist/
 *.dmg
+
+# Local-only redesign reference art (kept on disk, out of git to avoid repo bloat)
+assets/moss-fox-redesign-1Aug.png
+assets/redesigned_characters.png
