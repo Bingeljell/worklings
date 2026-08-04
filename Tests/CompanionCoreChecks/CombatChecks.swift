@@ -769,8 +769,14 @@ enum CombatChecks {
         let state = PetState.newPet(now: Date(timeIntervalSinceReferenceDate: 0))
             .applying(needs: fullHealth)
         let fromState = Combatant.pet(from: state, rates: rates)
+        // The convenience initializer reads the *effective* sheet, so gear is in
+        // the fight; building from `state.stats` would leave the starter item
+        // behind. See `ItemChecks` for the gear fold itself.
         let direct = Combatant.pet(
-            name: state.name, baseStats: state.stats, needs: state.needs, rates: rates
+            name: state.name,
+            baseStats: state.effectiveStats(),
+            needs: state.needs,
+            rates: rates
         )
         context.expectEqual(fromState, direct, "pet(from:) matches building from the parts")
         context.expectEqual(fromState.name, state.name, "the combatant takes the pet's name")

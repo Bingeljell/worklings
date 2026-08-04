@@ -82,10 +82,25 @@ extension Combatant {
     }
 
     /// Builds the pet's combatant straight from its live `PetState` — name, the
-    /// earned stat sheet, and current condition — so the app never has to
-    /// unpack the state itself.
-    public static func pet(from state: PetState, rates: PetCombatRates) -> Combatant {
-        pet(name: state.name, baseStats: state.stats, needs: state.needs, rates: rates)
+    /// stat sheet, and current condition — so the app never has to unpack the
+    /// state itself.
+    ///
+    /// Reads `effectiveStats`, not the persisted base, so equipped gear is in the
+    /// fight. Gear folds in *before* the condition multiplier, matching the design's
+    /// ladder (base → sheet → combat): a neglected Workling's gear is scaled down
+    /// along with everything else, so equipment raises the ceiling without letting
+    /// a player gear their way out of care.
+    public static func pet(
+        from state: PetState,
+        rates: PetCombatRates,
+        itemRates: ItemRates = ItemRates()
+    ) -> Combatant {
+        pet(
+            name: state.name,
+            baseStats: state.effectiveStats(rates: itemRates),
+            needs: state.needs,
+            rates: rates
+        )
     }
 
     /// Builds a foe from its stat block. Foe HP is authored directly (the

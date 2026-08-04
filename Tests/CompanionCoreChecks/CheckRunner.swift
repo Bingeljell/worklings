@@ -19,6 +19,7 @@ enum CheckRunner {
         PetPresentationChecks.run(context: &context)
         PetCareStatusChecks.run(context: &context)
         CombatChecks.run(context: &context)
+        ItemChecks.run(context: &context)
         DelveChecks.run(context: &context)
 
         guard context.failures.isEmpty else {
