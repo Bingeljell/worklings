@@ -2,7 +2,8 @@
 
 ## Status
 
-Design **finalized** (2026-08-03); execution deferred. Items are the
+Design **finalized** (2026-08-03); **first slice built** (2026-08-04) — see
+[As built](#as-built) for what shipped and what the code deliberately left out. Items are the
 [systems-ladder](progression.md#the-systems-ladder) step 5 (gear), specced here as a small
 **base set** to give delves something to drop and the [Character Screen](#where-items-live)
 something to equip. The model and the starter items are locked; **magnitudes remain knobs** —
@@ -131,9 +132,56 @@ alongside the dungeon knobs.
 4. **Starter item** — yes, one modest item (default Rubber Duck).
 5. **Where equipping lives** — the Character Screen (resolved).
 
+## As built
+
+The first slice (`Sources/CompanionCore/Items.swift`, plus `ownedItems` / `loadout` on
+`PetState`) implements the model above. Three deviations, each forced by something that
+doesn't exist yet rather than by a change of mind:
+
+- **Five items, not six.** The Lucky Green-Build Coin needs a Luck stat, and combat v1
+  defers Luck. The coin lands when `PetStatKind` grows a `luck` case.
+- **Two items are universal-only.** Attunement needs its family to exist; **Bloomglass**
+  and **Glitchkin** are design-stage, so the Dented Buckler (Guard) and Quickstep Charm
+  (Agility) read the universal base for everyone until those families ship. Attunement is
+  a soft nudge, so nothing is mis-modelled in the meantime — just unrewarded.
+- **The family lean isn't folded in.** It belongs at the same read-time step and lands
+  inside `PetStats.effective(...)` when it's built, without moving the seam.
+
+Two invariants are enforced on construction rather than trusted, so a hand-edited or
+future-written save is self-correcting: an item only ever sits in **its own slot**, and a
+loadout can only reference an item that is **actually owned**.
+
+Gear folds in **before** the condition multiplier (base → sheet → combat, as the ladder
+above shows), so a neglected Workling's equipment is scaled down with everything else —
+you can't gear your way out of care.
+
+**Where the loadout is chosen (for now):** the delve **briefing**, not the Character
+Screen — that screen isn't built yet, and the briefing's whole gameplay job is to set up
+this pick. The briefing prices each option inline (`+3 Power ✦`) so the choice is legible
+before the descent instead of inferred from how the fight went. Equipping moves to the
+Character Screen when it lands; the model doesn't change.
+
+**Drops, as built:** only a **boss clear** awards gear — one item, deterministic in the
+delve seed, drawn from what the pet doesn't yet own, and nil once the base set is
+complete. That makes the drop part of what banking forfeits, alongside the completion
+bonus, which is what gives press-your-luck its teeth. A real drop table (per-foe,
+per-delve, with rates) is content for later.
+
+**Starter on an existing save.** A save written before gear reads as the *starter*
+loadout rather than as an empty inventory — what a pet created today would get — so a
+pre-gear Workling isn't left with a gear UI it could never fill. Still zero migration:
+nothing persisted is rewritten.
+
 ## Open (balance-pass) knob
 
 - **Item power vs stat growth** — how large a base modifier (and its attunement rider) is
   "meaningful but not dominant" relative to a level-up's stat gain. Principle is locked:
   **gear is a nudge, not the dominant axis** — builds and levels still lead. The exact number
   waits until combat is playable.
+
+  **First-pass values (2026-08-04):** base modifier **+2**, attunement rider **+1**,
+  anchored to level-up growth (signature stat +3/level, others +1). So an unattuned item
+  is worth less than one level of signature growth and an attuned one is worth exactly
+  one; a full three-slot loadout lands near a level or two of progress spread across
+  three stats. Visible on the sheet, never eclipsing it. Held in `ItemRates` — retune
+  from real play without touching the mechanism.

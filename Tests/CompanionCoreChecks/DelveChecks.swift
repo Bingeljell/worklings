@@ -15,6 +15,80 @@ enum DelveChecks {
         checkDownedRetreatIsTierDownedNoXP(context: &context)
         checkConditionDeltaAppliedExactlyOnce(context: &context)
         checkEndToEndDelveReplaysIdentically(context: &context)
+        checkOnlyABossClearDropsGear(context: &context)
+        checkDropIsNeverADuplicateAndDriesUp(context: &context)
+    }
+
+    // MARK: Drops
+
+    /// Gear comes off the boss and nothing else — that, with the completion
+    /// bonus, is exactly what banking forfeits.
+    private static func checkOnlyABossClearDropsGear(context: inout CheckContext) {
+        var cleared = cacheWarren(seed: 11)
+        clearAll(&cleared, hpRemaining: 40)
+        let bossRun = cleared.resolution(applyingTo: neutralState())
+        context.expect(bossRun?.itemDropped != nil, "clearing the boss drops an item")
+        if let drop = bossRun?.itemDropped {
+            context.expect(
+                bossRun?.state.ownedItems.contains(drop) == true,
+                "the dropped item is in the inventory of the returned state"
+            )
+        }
+
+        var banked = cacheWarren(seed: 11)
+        clearAll(&banked, hpRemaining: 40, bankAfter: 1)
+        context.expectEqual(
+            banked.resolution(applyingTo: neutralState())?.itemDropped, nil,
+            "banking early forfeits the drop along with the completion bonus"
+        )
+
+        var downed = cacheWarren(seed: 11)
+        downed.descend()
+        downed.recordOutcome(petVictory: false, petHPRemaining: 0)
+        context.expectEqual(
+            downed.resolution(applyingTo: neutralState())?.itemDropped, nil,
+            "a retreat drops nothing"
+        )
+
+        // Same seed, same delve, same drop — a delve replays whole.
+        var replay = cacheWarren(seed: 11)
+        clearAll(&replay, hpRemaining: 40)
+        context.expectEqual(
+            replay.resolution(applyingTo: neutralState())?.itemDropped,
+            bossRun?.itemDropped,
+            "the drop is deterministic in the delve seed"
+        )
+    }
+
+    /// A drop always widens the loadout: never a duplicate, and nil rather than
+    /// a fake reward once the base set is complete.
+    private static func checkDropIsNeverADuplicateAndDriesUp(context: inout CheckContext) {
+        var delve = cacheWarren(seed: 7)
+        clearAll(&delve, hpRemaining: 40)
+
+        let owningMost = neutralState()
+            .acquiring(.crackedWhetstone)
+            .acquiring(.dentedBuckler)
+            .acquiring(.warmBackupCoal)
+            .acquiring(.quickstepCharm)
+        // The starter Rubber Duck plus those four is the whole set bar none.
+        let onlyOption = delve.resolution(applyingTo: owningMost)?.itemDropped
+        context.expect(
+            onlyOption == nil || !owningMost.ownedItems.contains(onlyOption!),
+            "a drop is never something already owned"
+        )
+
+        var complete = owningMost
+        for item in Item.allCases { complete = complete.acquiring(item) }
+        context.expectEqual(
+            delve.resolution(applyingTo: complete)?.itemDropped, nil,
+            "with the base set complete there is nothing left to drop"
+        )
+        context.expectEqual(
+            delve.resolution(applyingTo: complete)?.state.ownedItems.count,
+            Item.allCases.count,
+            "a dry drop leaves the inventory exactly as it was"
+        )
     }
 
     // MARK: Fixtures

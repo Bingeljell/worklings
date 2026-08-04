@@ -439,19 +439,25 @@ final class DelveViewModel: ObservableObject {
 
     let session: PetSession
     private var delve: Delve
+    private let seed: UInt64
     /// The foe of the most recent encounter, for the push prompt and the end
     /// screen's loser sprite.
     private(set) var lastFoeName: String
 
     init(session: PetSession, seed: UInt64) {
         self.session = session
-        self.delve = Delve.cacheWarren(
+        self.seed = seed
+        self.delve = Self.makeDelve(session: session, seed: seed)
+        self.lastFoeName = delve.currentFoe?.name ?? ""
+    }
+
+    private static func makeDelve(session: PetSession, seed: UInt64) -> Delve {
+        Delve.cacheWarren(
             pet: session.makePetCombatant(),
             effectiveness: session.combatEffectiveness,
             rates: session.combatRates,
             baseSeed: seed
         )
-        self.lastFoeName = delve.currentFoe?.name ?? ""
     }
 
     // Briefing display
@@ -468,6 +474,11 @@ final class DelveViewModel: ObservableObject {
     }
 
     func descend() {
+        // Rebuilt here, not at init: the briefing is where gear gets swapped, so
+        // the combatant has to be read from the pet as it stands at the moment it
+        // actually walks in. The delve built at init only ever backed the foe
+        // preview.
+        delve = Self.makeDelve(session: session, seed: seed)
         delve.descend()
         CombatAudio.shared.play(.enter)
         CombatAudio.shared.startBGM(boss: false)
@@ -604,6 +615,7 @@ struct DelvePanelView: View {
                     xpGained: Int(res.xpGained),
                     bossDefeated: res.bossDefeated,
                     banked: res.banked,
+                    itemDropped: res.itemDropped,
                     petFamily: delve.session.state.family,
                     foeName: delve.lastFoeName,
                     onReturn: onClose
@@ -616,8 +628,9 @@ struct DelvePanelView: View {
 }
 
 /// The opening narration — storytelling that sets the vibe and hints at how to
-/// prep. This is where the player picks a starting Approach (the loadout beat
-/// proper lands with items, in Phase B) before descending.
+/// prep — and the prep itself: the loadout and the starting Approach. The
+/// narration's one gameplay job is to make these two picks feel informed, so they
+/// sit on the same screen as the story that motivates them.
 private struct BriefingView: View {
     @ObservedObject var delve: DelveViewModel
     var onClose: () -> Void
@@ -635,9 +648,9 @@ private struct BriefingView: View {
             ArenaBackground()
             Color.black.opacity(0.45)
 
-            VStack(spacing: 16) {
+            VStack(spacing: 13) {
                 Text("The Cache Warren")
-                    .font(.system(size: 34, weight: .black, design: .rounded))
+                    .font(.system(size: 30, weight: .black, design: .rounded))
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
 
                 Text(narration)
@@ -649,7 +662,9 @@ private struct BriefingView: View {
 
                 foePreview
 
-                VStack(spacing: 6) {
+                LoadoutBar(session: delve.session)
+
+                VStack(spacing: 5) {
                     Text("Set your opening approach").font(.caption.bold()).foregroundStyle(.white.opacity(0.7))
                     Picker("Approach", selection: $delve.startingApproach) {
                         Text("Aggressive").tag(Approach.aggressive)
@@ -670,9 +685,10 @@ private struct BriefingView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                 }
-                .padding(.top, 4)
+                .padding(.top, 2)
             }
-            .padding(28)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 20)
         }
         .foregroundStyle(.white)
     }
@@ -691,6 +707,110 @@ private struct BriefingView: View {
                 .background(Capsule().fill(.orange.opacity(0.18)))
                 .help("Something waits at the bottom of the Warren.")
         }
+    }
+}
+
+/// The prep beat — the payoff of the briefing's narration. Three slots, each a
+/// menu over what the Workling actually owns, plus a running readout of what the
+/// picks are worth. The readout is the point: a loadout choice the player can't
+/// price is just a menu, so the stat delta is visible *before* the descent rather
+/// than inferred from how the fight went.
+private struct LoadoutBar: View {
+    @ObservedObject var session: PetSession
+
+    var body: some View {
+        VStack(spacing: 7) {
+            Text("Pack your loadout")
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.7))
+
+            HStack(spacing: 8) {
+                ForEach(ItemSlot.allCases, id: \.self) { slot in
+                    slotMenu(for: slot)
+                }
+            }
+
+            statLine
+        }
+    }
+
+    private func slotMenu(for slot: ItemSlot) -> some View {
+        let equipped = session.state.loadout[slot]
+        let owned = session.state.availableItems(for: slot)
+
+        return Menu {
+            ForEach(owned, id: \.self) { item in
+                Button(menuLabel(for: item)) { session.equip(item, in: slot) }
+            }
+            if !owned.isEmpty {
+                Divider()
+            }
+            Button("Leave empty") { session.equip(nil, in: slot) }
+        } label: {
+            VStack(spacing: 1) {
+                Text(slot.displayName.uppercased())
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.45))
+                Text(equipped?.displayName ?? "Empty")
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(equipped == nil ? 0.35 : 1))
+                    .lineLimit(1)
+            }
+            .frame(width: 112)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.white.opacity(equipped == nil ? 0.07 : 0.14))
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
+    }
+
+    /// What the whole loadout is worth, in the same stat vocabulary the sheet
+    /// uses. Ordered by `PetStatKind.allCases` so the line doesn't reshuffle as
+    /// items are swapped.
+    private var statLine: some View {
+        let modifiers = session.state.loadout.modifiers(
+            family: session.state.family,
+            rates: session.itemRates
+        )
+        let parts = PetStatKind.allCases.compactMap { stat -> String? in
+            guard let bonus = modifiers[stat], bonus > 0 else { return nil }
+            return "+\(bonus) \(stat.displayName)"
+        }
+        let attuned = session.state.loadout.equipped.filter {
+            session.itemRates.isAttuned($0, family: session.state.family)
+        }
+
+        return HStack(spacing: 6) {
+            if parts.isEmpty {
+                Text("Nothing equipped — you'll fight on your own numbers.")
+                    .foregroundStyle(.white.opacity(0.4))
+            } else {
+                Text(parts.joined(separator: " · "))
+                    .foregroundStyle(.green.opacity(0.85))
+                if !attuned.isEmpty {
+                    Text("✦ attuned")
+                        .foregroundStyle(.yellow.opacity(0.85))
+                        .help(
+                            attuned.map(\.displayName).joined(separator: ", ")
+                                + " suits a \(session.state.family.displayName) — a little extra."
+                        )
+                }
+            }
+        }
+        .font(.caption2.bold())
+    }
+
+    /// A menu row prices the item where the choice is made, and marks the
+    /// thematic match so attunement is discoverable rather than hidden arithmetic.
+    private func menuLabel(for item: Item) -> String {
+        let bonus = session.itemRates.modifier(for: item, family: session.state.family)
+        let mark = session.itemRates.isAttuned(item, family: session.state.family) ? " ✦" : ""
+        return "\(item.displayName)  +\(bonus) \(item.stat.displayName)\(mark)"
     }
 }
 
@@ -909,6 +1029,7 @@ private struct DelveEndScreen: View {
     let xpGained: Int
     let bossDefeated: Bool
     let banked: Bool
+    let itemDropped: Item?
     let petFamily: PetFamily
     let foeName: String
     let onReturn: () -> Void
@@ -957,6 +1078,17 @@ private struct DelveEndScreen: View {
                             Label("+\(xpGained) XP", systemImage: "sparkles")
                                 .font(.title3.bold())
                                 .foregroundStyle(.white)
+                        }
+                        if let itemDropped {
+                            // The reason to have pushed past the bank: the boss is
+                            // the only thing down here that widens the loadout.
+                            Label(
+                                "\(itemDropped.displayName) — +\(itemDropped.stat.displayName), \(itemDropped.slot.displayName)",
+                                systemImage: "shippingbox.fill"
+                            )
+                            .font(.callout.bold())
+                            .foregroundStyle(.yellow)
+                            .help(itemDropped.flavor)
                         }
                         Button(action: onReturn) {
                             Text("Return").frame(width: 160)

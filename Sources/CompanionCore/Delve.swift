@@ -198,6 +198,13 @@ public struct Delve: Equatable, Sendable {
         let bonus = bossDefeated ? rates.delveCompletionXP : 0
         let totalXP = accumulatedXP + bonus
 
+        // The boss is the capstone, so it's the only thing that drops gear: the
+        // completion bonus and the drop together are what banking forfeits, which
+        // is what gives the press-your-luck beat teeth. Restricting drops to items
+        // not yet owned means a delve always either widens the loadout or doesn't
+        // pretend to.
+        let drop = bossDefeated ? Self.drop(excluding: state.ownedItems, seed: baseSeed) : nil
+
         let delta = rates.exitConditionDelta(for: tier)
         // Fullness rises as hunger falls, so a Fullness gain is a hunger cut —
         // the same conversion the single-encounter write-back uses.
@@ -207,14 +214,30 @@ public struct Delve: Equatable, Sendable {
             happiness: state.needs.happiness + delta.happiness,
             trust: state.needs.trust + delta.trust
         )
+        var updated = state.applying(needs: updatedNeeds, addingXP: totalXP)
+        if let drop {
+            updated = updated.acquiring(drop)
+        }
         return DelveResolution(
-            state: state.applying(needs: updatedNeeds, addingXP: totalXP),
+            state: updated,
             tier: tier,
             xpGained: totalXP,
             clearedCount: clearedCount,
             bossDefeated: bossDefeated,
-            banked: !bossDefeated && tier != .downed
+            banked: !bossDefeated && tier != .downed,
+            itemDropped: drop
         )
+    }
+
+    /// Picks one item the pet doesn't already own, deterministically from the
+    /// delve's seed — so a replayed delve awards the same thing, the same way
+    /// every roll in it replays. Nil once the base set is complete; a real drop
+    /// table (per-foe, per-delve, with rates) is content for later.
+    private static func drop(excluding owned: [Item], seed: UInt64) -> Item? {
+        let candidates = Item.allCases.filter { !owned.contains($0) }
+        guard !candidates.isEmpty else { return nil }
+        var generator = SeededGenerator(seed: seed)
+        return candidates.randomElement(using: &generator)
     }
 
     // MARK: Internals
@@ -261,6 +284,9 @@ public struct DelveResolution: Equatable, Sendable {
     public let bossDefeated: Bool
     /// The player left voluntarily with a win (not a boss clear, not a retreat).
     public let banked: Bool
+    /// The gear the boss gave up, already added to `state`. Nil when the boss
+    /// wasn't beaten, or when there's nothing left in the base set to award.
+    public let itemDropped: Item?
 
     public init(
         state: PetState,
@@ -268,7 +294,8 @@ public struct DelveResolution: Equatable, Sendable {
         xpGained: Double,
         clearedCount: Int,
         bossDefeated: Bool,
-        banked: Bool
+        banked: Bool,
+        itemDropped: Item? = nil
     ) {
         self.state = state
         self.tier = tier
@@ -276,5 +303,6 @@ public struct DelveResolution: Equatable, Sendable {
         self.clearedCount = clearedCount
         self.bossDefeated = bossDefeated
         self.banked = banked
+        self.itemDropped = itemDropped
     }
 }
