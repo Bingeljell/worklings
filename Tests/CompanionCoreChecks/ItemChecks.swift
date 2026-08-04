@@ -190,6 +190,17 @@ enum ItemChecks {
         context.expect(mismatched.tool == nil,
                        "a mismatched stored slot is dropped on read, not honoured")
 
+        // Decoding is the one path that could smuggle a mismatch past the
+        // initializer, so it gets its own assertion rather than relying on
+        // `PetState` catching it downstream.
+        if let data = #"{"tool":"rubberDuck"}"#.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode(Loadout.self, from: data) {
+            context.expect(decoded.tool == nil,
+                           "a mismatched slot in a save is dropped on decode")
+        } else {
+            context.expect(false, "a partial loadout decodes")
+        }
+
         let placed = Loadout().equipping(.rubberDuck)
         context.expectEqual(placed.charm, .rubberDuck,
                             "an item lands in its own slot without being told which")

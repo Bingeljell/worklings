@@ -194,6 +194,20 @@ public struct Loadout: Codable, Equatable, Sendable {
         self.charm = charm?.slot == .charm ? charm : nil
     }
 
+    /// Decoding routes through the validating initializer rather than assigning
+    /// the stored properties directly, which synthesized `Decodable` would do —
+    /// otherwise a save is the one path that could smuggle an item into the wrong
+    /// slot. `PetState` re-checks this too, but a `Loadout` decoded on its own
+    /// should hold the same invariant.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            tool: try container.decodeIfPresent(Item.self, forKey: .tool),
+            ward: try container.decodeIfPresent(Item.self, forKey: .ward),
+            charm: try container.decodeIfPresent(Item.self, forKey: .charm)
+        )
+    }
+
     public subscript(slot: ItemSlot) -> Item? {
         switch slot {
         case .tool: tool
