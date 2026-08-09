@@ -473,6 +473,19 @@ final class DelveViewModel: ObservableObject {
         return next < delve.allFoes.count ? delve.allFoes[next].name : nil
     }
 
+    /// How many encounters still stand between here and the boss, so the choice
+    /// can say how far "deeper" actually is rather than leaving it as a mood.
+    var encountersRemaining: Int {
+        max(delve.allFoes.count - (delve.index + 1), 0)
+    }
+
+    /// Whether there is still gear in the Warren for this pet. Drops are boss-only
+    /// and never duplicate, so once the base set is complete there is nothing left
+    /// to forfeit — and the stakes line would be a lie.
+    var gearAwaitsAtTheBottom: Bool {
+        Item.allCases.contains { !session.state.ownedItems.contains($0) }
+    }
+
     func descend() {
         // Rebuilt here, not at init: the briefing is where gear gets swapped, so
         // the combatant has to be read from the pet as it stands at the moment it
@@ -663,6 +676,18 @@ private struct BriefingView: View {
 
                 foePreview
 
+                // Said before the descent, not discovered after it: the boss is
+                // the only thing down here that carries gear, and a player who
+                // banks early every time would otherwise never find that out.
+                if delve.gearAwaitsAtTheBottom {
+                    Label(
+                        "Only what waits at the bottom carries gear.",
+                        systemImage: "shippingbox.fill"
+                    )
+                    .font(.caption2.bold())
+                    .foregroundStyle(.yellow.opacity(0.8))
+                }
+
                 LoadoutBar(session: delve.session)
 
                 VStack(spacing: 5) {
@@ -823,11 +848,23 @@ private struct PushChoiceCard: View {
                     if delve.nextIsBoss {
                         Text("Something heavy stirs below…")
                     } else if let next = delve.nextFoeName {
-                        Text("Ahead: the \(next).")
+                        Text(
+                            "Ahead: the \(next)"
+                                + (delve.encountersRemaining > 1
+                                    ? ", and \(delve.encountersRemaining - 1) more before the bottom."
+                                    : ".")
+                        )
                     }
                 }
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
+
+                // What banking actually costs. Without this the press-your-luck
+                // beat is only half a decision: the XP you're protecting is
+                // visible, but the completion bonus and the gear you're giving up
+                // are invisible — and gear is boss-only, so a player who banks
+                // every time never learns it exists.
+                stakes
 
                 HStack(spacing: 14) {
                     Button(action: { delve.bank() }) {
@@ -846,6 +883,29 @@ private struct PushChoiceCard: View {
             .padding(40)
         }
         .foregroundStyle(.white)
+    }
+
+    /// The forfeit, stated plainly. Gear is only named while there is still gear
+    /// to win — once the base set is complete the boss has nothing left to drop,
+    /// and promising it would be a lie.
+    private var stakes: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9))
+            Text(
+                delve.gearAwaitsAtTheBottom
+                    ? "Bank and you keep your XP — but the completion bonus and the "
+                        + "Warren's gear are only at the bottom."
+                    : "Bank and you keep your XP — the completion bonus is only at the bottom."
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.center)
+        }
+        .font(.caption2)
+        .foregroundStyle(.orange.opacity(0.85))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.1)))
     }
 }
 
