@@ -319,22 +319,22 @@ private struct GearSlotButton: View {
     let slot: ItemSlot
     let pricing: GearPricing
 
+    @State private var isPicking = false
+
     private static let boxSize: CGFloat = 46
 
     var body: some View {
         let equipped = session.state.loadout[slot]
-        let owned = session.state.availableItems(for: slot)
         let tint = equipped.map { tierTint($0.tier) } ?? .secondary
 
-        Menu {
-            ForEach(owned, id: \.self) { item in
-                Button(pricing.menuLabel(for: item)) { session.equip(item, in: slot) }
-            }
-            if !owned.isEmpty {
-                Divider()
-            }
-            Button("Leave empty") { session.equip(nil, in: slot) }
-                .disabled(equipped == nil)
+        // A plain Button, *not* a Menu. On macOS a SwiftUI `Menu` label is backed
+        // by NSPopUpButton, which flattens the label down to a single image plus a
+        // single title and silently discards everything else — which is why this
+        // row rendered as an icon and the word TOOL no matter what was written
+        // into it. The picker moves into a popover, where it can also show what
+        // it's offering.
+        Button {
+            isPicking = true
         } label: {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -379,8 +379,10 @@ private struct GearSlotButton: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .popover(isPresented: $isPicking, arrowEdge: .trailing) {
+            GearSlotPicker(session: session, slot: slot, pricing: pricing, isPresented: $isPicking)
+        }
         .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
         .accessibilityLabel(
             equipped.map { "\(slot.displayName) slot, equipped: \($0.displayName), \(pricing.priceLabel(for: $0))" }
@@ -785,6 +787,111 @@ func tierTint(_ tier: ItemTier) -> Color {
     case .scavenged: .gray
     case .solid: .cyan
     case .prime: .yellow
+    }
+}
+
+/// The "what goes in this slot" picker, shown from a popover rather than a menu.
+///
+/// It exists as a real view because macOS flattens `Menu` labels *and* menu item
+/// content: a menu could only ever offer a line of text per item. In a popover the
+/// choice can be shown the same way the slot shows it — glyph, name, price, tier —
+/// so picking gear looks like the screen it's picked on.
+struct GearSlotPicker: View {
+    @ObservedObject var session: PetSession
+    let slot: ItemSlot
+    let pricing: GearPricing
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        let owned = session.state.availableItems(for: slot)
+        let equipped = session.state.loadout[slot]
+
+        VStack(alignment: .leading, spacing: 6) {
+            Text(slot.displayName.uppercased())
+                .font(.system(size: 9, weight: .heavy))
+                .foregroundStyle(.secondary)
+                .tracking(0.7)
+            Text(slot.fantasy)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 230, alignment: .leading)
+
+            Divider()
+
+            if owned.isEmpty {
+                Text("Nothing you carry fits here yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(owned, id: \.self) { item in
+                    row(for: item, isEquipped: item == equipped)
+                }
+            }
+
+            Divider()
+
+            Button {
+                session.equip(nil, in: slot)
+                isPresented = false
+            } label: {
+                Label("Leave empty", systemImage: "xmark.circle")
+                    .font(.caption)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(equipped == nil)
+            .foregroundStyle(equipped == nil ? .tertiary : .secondary)
+        }
+        .padding(12)
+        .frame(width: 258)
+    }
+
+    private func row(for item: Item, isEquipped: Bool) -> some View {
+        let tint = tierTint(item.tier)
+
+        return Button {
+            session.equip(item, in: slot)
+            isPresented = false
+        } label: {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6).fill(tint.opacity(0.18))
+                    Image(systemName: itemIcon(item))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 26, height: 26)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.displayName)
+                        .font(.caption.bold())
+                        .lineLimit(1)
+                    Text(pricing.priceLabel(for: item))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+                }
+
+                Spacer(minLength: 4)
+
+                if isEquipped {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(isEquipped ? AnyShapeStyle(.green.opacity(0.12)) : AnyShapeStyle(Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(item.flavor)
     }
 }
 

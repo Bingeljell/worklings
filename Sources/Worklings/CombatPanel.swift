@@ -782,6 +782,9 @@ private struct BriefingView: View {
 private struct LoadoutBar: View {
     @ObservedObject var session: PetSession
 
+    /// Which slot's picker is open, if any.
+    @State private var picking: ItemSlot?
+
     private var pricing: GearPricing { GearPricing(session: session) }
 
     var body: some View {
@@ -805,18 +808,12 @@ private struct LoadoutBar: View {
     /// a ghosted glyph when it isn't. Same visual language, dark-panel palette.
     private func slotMenu(for slot: ItemSlot) -> some View {
         let equipped = session.state.loadout[slot]
-        let owned = session.state.availableItems(for: slot)
         let tint = equipped.map { tierTint($0.tier) } ?? .white
 
-        return Menu {
-            ForEach(owned, id: \.self) { item in
-                Button(pricing.menuLabel(for: item)) { session.equip(item, in: slot) }
-            }
-            if !owned.isEmpty {
-                Divider()
-            }
-            Button("Leave empty") { session.equip(nil, in: slot) }
-                .disabled(equipped == nil)
+        // A Button, not a Menu: on macOS a `Menu` label is an NSPopUpButton title,
+        // which keeps one image and one string and drops the rest of the layout.
+        return Button {
+            picking = slot
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: equipped.map { itemIcon($0) } ?? emptySlotIcon(slot))
@@ -857,13 +854,27 @@ private struct LoadoutBar: View {
                     )
             )
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .fixedSize()
+        .popover(isPresented: pickerBinding(for: slot), arrowEdge: .bottom) {
+            GearSlotPicker(
+                session: session, slot: slot, pricing: pricing,
+                isPresented: pickerBinding(for: slot)
+            )
+        }
         .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
         .accessibilityLabel(
             equipped.map { "\(slot.displayName) slot, \($0.displayName)" }
                 ?? "\(slot.displayName) slot, empty"
+        )
+    }
+
+    /// One `@State` for which slot is open, projected per slot, so three popovers
+    /// can't fight over a single boolean.
+    private func pickerBinding(for slot: ItemSlot) -> Binding<Bool> {
+        Binding(
+            get: { picking == slot },
+            set: { picking = $0 ? slot : nil }
         )
     }
 
