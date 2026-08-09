@@ -266,7 +266,19 @@ private struct GearRail: View {
 /// backdrop, and the space it claims are already the final ones, so swapping in a
 /// live rotatable `SceneView` later is a change of contents, not of layout.
 private struct ModelBay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let family: PetFamily
+
+    /// Drives the breathing bob. Separate from the blink timeline because a bob
+    /// sampled at blink cadence would step rather than breathe.
+    @State private var breathing = false
+
+    /// How often the sprite is resampled. Fine enough that a blink can be short.
+    private static let tickSeconds: Double = 0.15
+    /// Ticks in one blink cycle — a single-tick blink roughly every three seconds,
+    /// rather than the desktop companion's half-open/half-shut alternation, which
+    /// reads as a strobe at this size.
+    private static let ticksPerBlinkCycle = 20
 
     var body: some View {
         ZStack {
@@ -282,13 +294,24 @@ private struct ModelBay: View {
                     )
                 )
 
+            // The contact shadow tightens as the Workling rises, which is what
+            // sells the bob as weight rather than the whole image sliding.
             Ellipse()
                 .fill(.black.opacity(0.28))
-                .frame(width: 96, height: 18)
+                .frame(width: breathing ? 88 : 96, height: 18)
                 .blur(radius: 5)
                 .offset(y: 58)
 
-            WorklingSprite(family: family, frame: .idle, size: 150)
+            TimelineView(.periodic(from: .now, by: Self.tickSeconds)) { context in
+                WorklingSprite(family: family, frame: frame(at: context.date), size: 150)
+            }
+            .offset(y: breathing ? -3 : 1)
+        }
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.1).repeatForever(autoreverses: true)) {
+                breathing = true
+            }
         }
         .frame(height: 190)
         .overlay(
@@ -296,6 +319,13 @@ private struct ModelBay: View {
                 .stroke(.white.opacity(0.09), lineWidth: 1)
         )
         .accessibilityLabel("\(family.displayName) Workling")
+    }
+
+    /// Idle, with an occasional blink. Reduce Motion holds the open-eyed frame.
+    private func frame(at date: Date) -> WorklingSpriteFrame {
+        guard !reduceMotion else { return .idle }
+        let tick = Int(date.timeIntervalSinceReferenceDate / Self.tickSeconds)
+        return tick % Self.ticksPerBlinkCycle == 0 ? .idleBlink : .idle
     }
 }
 
