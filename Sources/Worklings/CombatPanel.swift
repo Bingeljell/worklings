@@ -819,8 +819,8 @@ private struct LoadoutBar: View {
                 .disabled(equipped == nil)
         } label: {
             VStack(spacing: 3) {
-                Image(systemName: slotIcon(slot, filled: equipped != nil))
-                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: equipped.map { itemIcon($0) } ?? emptySlotIcon(slot))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(equipped == nil ? .white.opacity(0.3) : tint)
 
                 Text(slot.displayName.uppercased())
@@ -867,13 +867,6 @@ private struct LoadoutBar: View {
         )
     }
 
-    private func slotIcon(_ slot: ItemSlot, filled: Bool) -> String {
-        switch slot {
-        case .tool: filled ? "wrench.and.screwdriver.fill" : "wrench.and.screwdriver"
-        case .ward: filled ? "shield.fill" : "shield"
-        case .charm: filled ? "sparkles" : "sparkle"
-        }
-    }
 
     /// What the whole loadout is worth, in the same stat vocabulary the sheet
     /// uses.
@@ -1351,10 +1344,17 @@ private struct DropReveal: View {
             }
 
             HStack(spacing: 11) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: isHeadline ? 26 : 18))
-                    .foregroundStyle(tint)
-                    .shadow(color: tint.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
+                // The item's own glyph, not a generic crate — the reveal should say
+                // *what* fell out, at a glance, before the name is read.
+                ZStack {
+                    Circle().fill(tint.opacity(0.2))
+                    Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1)
+                    Image(systemName: itemIcon(item))
+                        .font(.system(size: isHeadline ? 24 : 17, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: isHeadline ? 48 : 36, height: isHeadline ? 48 : 36)
+                .shadow(color: tint.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {

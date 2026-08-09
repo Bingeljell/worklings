@@ -369,21 +369,21 @@ private struct GearSlotButton: View {
     @ViewBuilder
     private func itemWell(equipped: Item?, tint: Color) -> some View {
         ZStack {
-            if equipped == nil {
+            if let equipped {
+                Circle().fill(tint.opacity(0.22))
+                Circle().strokeBorder(tint.opacity(0.7), lineWidth: 1)
+                Image(systemName: itemIcon(equipped))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(tint)
+            } else {
                 Circle()
                     .strokeBorder(
                         .tertiary,
                         style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])
                     )
-                Image(systemName: emptyIcon)
+                Image(systemName: emptySlotIcon(slot))
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
-            } else {
-                Circle().fill(tint.opacity(0.22))
-                Circle().strokeBorder(tint.opacity(0.7), lineWidth: 1)
-                Image(systemName: filledIcon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(tint)
             }
         }
         .frame(width: 30, height: 30)
@@ -403,23 +403,6 @@ private struct GearSlotButton: View {
             )
     }
 
-    /// The slot's own glyph, shown while nothing fills it.
-    private var emptyIcon: String {
-        switch slot {
-        case .tool: "wrench.and.screwdriver"
-        case .ward: "shield"
-        case .charm: "sparkle"
-        }
-    }
-
-    /// The filled glyph — solid, so occupancy reads even in monochrome.
-    private var filledIcon: String {
-        switch slot {
-        case .tool: "wrench.and.screwdriver.fill"
-        case .ward: "shield.fill"
-        case .charm: "sparkles"
-        }
-    }
 }
 
 // MARK: - Character tab
@@ -633,58 +616,82 @@ private struct InventoryTabView: View {
     private func tile(for item: Item) -> some View {
         let isEquipped = session.state.loadout[item.slot] == item
 
+        let tint = tierTint(item.tier)
+
         return Button {
             session.equip(isEquipped ? nil : item, in: item.slot)
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(item.displayName)
-                        .font(.caption.bold())
-                        .lineLimit(1)
-                    Spacer(minLength: 2)
+            HStack(alignment: .top, spacing: 10) {
+                // The item's own glyph, sized to anchor the row. Without it every
+                // tile was an indistinguishable paragraph.
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.18))
+                    RoundedRectangle(cornerRadius: 8).strokeBorder(tint.opacity(0.5), lineWidth: 1)
+                    Image(systemName: itemIcon(item))
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 40, height: 40)
+                .overlay(alignment: .bottomTrailing) {
                     if isEquipped {
-                        Text("WORN")
-                            .font(.system(size: 8, weight: .heavy))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(.green.opacity(0.25)))
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.green)
+                            .background(Circle().fill(.background))
+                            .offset(x: 4, y: 4)
                     }
                 }
 
-                Text(pricing.priceLabel(for: item))
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.green)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(item.displayName)
+                            .font(.caption.bold())
+                            .lineLimit(1)
+                        Spacer(minLength: 2)
+                        if isEquipped {
+                            Text("WORN")
+                                .font(.system(size: 8, weight: .heavy))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(.green.opacity(0.25)))
+                        }
+                    }
 
-                Text(item.flavor)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(pricing.priceLabel(for: item))
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
 
-                HStack(spacing: 5) {
-                    // How deep it came from, which is the same thing as how good
-                    // it is — the one piece of an item's story the name alone
-                    // doesn't carry.
-                    Text(item.tier.displayName.uppercased())
-                        .font(.system(size: 8, weight: .heavy))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Capsule().fill(tierTint(item.tier).opacity(0.22)))
-                        .foregroundStyle(tierTint(item.tier))
-                    Text(item.slot.displayName.uppercased())
-                        .font(.system(size: 8, weight: .heavy))
+                    Text(item.flavor)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 5) {
+                        // How deep it came from, which is the same thing as how good
+                        // it is — the one piece of an item's story the name alone
+                        // doesn't carry.
+                        Text(item.tier.displayName.uppercased())
+                            .font(.system(size: 8, weight: .heavy))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(tint.opacity(0.22)))
+                            .foregroundStyle(tint)
+                        Text(item.slot.displayName.uppercased())
+                            .font(.system(size: 8, weight: .heavy))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(.quaternary.opacity(isEquipped ? 0.9 : 0.4))
+                    .fill(isEquipped ? AnyShapeStyle(tint.opacity(0.14)) : AnyShapeStyle(.quaternary.opacity(0.35)))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(.green.opacity(isEquipped ? 0.5 : 0), lineWidth: 1)
+                    .stroke(isEquipped ? .green.opacity(0.65) : tint.opacity(0.25), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -754,6 +761,51 @@ func tierTint(_ tier: ItemTier) -> Color {
     case .scavenged: .gray
     case .solid: .cyan
     case .prime: .yellow
+    }
+}
+
+/// One glyph per *item*, shared by the gear rail, the inventory, the briefing
+/// loadout bar, and the drop reveal.
+///
+/// Deliberately per-item rather than per-slot: a slot glyph makes every Tool look
+/// like every other Tool, which left the gear screens reading as rows of text with
+/// a decorative bullet. Each item is dual-coded to a work-artifact, so each one has
+/// an obvious symbol — the Rubber Duck listens, the Root-Cause Lens magnifies.
+///
+/// Lives in the app layer, not `CompanionCore`: the core is deliberately
+/// platform-portable and knows nothing about SF Symbols.
+func itemIcon(_ item: Item) -> String {
+    switch item {
+    // Power → Tool
+    case .chippedFile: "wrench.fill"
+    case .crackedWhetstone: "hammer.fill"
+    case .mastersHone: "bolt.fill"
+    // Guard → Ward
+    case .bentPotLid: "shield.lefthalf.filled"
+    case .dentedBuckler: "shield.fill"
+    case .failsafePlate: "lock.shield.fill"
+    // Vitality → Ward
+    case .coldCoffeeDregs: "cup.and.saucer.fill"
+    case .warmBackupCoal: "flame.fill"
+    case .everburningBackup: "flame.circle.fill"
+    // Wit → Charm
+    case .stickyNote: "note.text"
+    case .rubberDuck: "bird.fill"
+    case .rootCauseLens: "magnifyingglass.circle.fill"
+    // Agility → Charm
+    case .frayedLanyard: "link"
+    case .quickstepCharm: "hare.fill"
+    case .hotpathSigil: "bolt.horizontal.fill"
+    }
+}
+
+/// The glyph for an empty slot — the slot's own outline, so a gap still says what
+/// belongs in it.
+func emptySlotIcon(_ slot: ItemSlot) -> String {
+    switch slot {
+    case .tool: "wrench.and.screwdriver"
+    case .ward: "shield"
+    case .charm: "sparkle"
     }
 }
 
