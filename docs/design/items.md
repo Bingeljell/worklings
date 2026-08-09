@@ -229,6 +229,25 @@ loadout rather than as an empty inventory — what a pet created today would get
 pre-gear Workling isn't left with a gear UI it could never fill. Still zero migration:
 nothing persisted is rewritten.
 
+## Where this is heading — class item sets *(direction, not yet designed)*
+
+The catalogue is expected to grow **a lot**, and the intended shape is **a set of items per
+class** rather than more one-off stat sticks. The current 5×3 grid is the scaffolding for
+that: it exists to make the equip loop, the tier gradient, and the drop beat real while the
+content is small.
+
+**The fork to resolve before authoring class sets:** today's soft synergy attunes an item to
+a **family**, and that only works because the family→class→stat matrix is 1:1 — "suits a
+Relicborn" and "suits a Juggernaut" are currently the same sentence. Author gear *per class*
+and they stop being the same sentence: a Relicborn Maverick would carry Glitchkin-flavoured
+class gear while attuning to Relicborn items. So class sets either **replace** family
+attunement or **stack** with it as a second, separate rider. That is a deliberate decision,
+not something to let drift — and it is the reason the rider lives behind
+`ItemRates.modifier(for:family:)` rather than being inlined at each call site.
+
+Also queued for that pass: per-foe / per-delve **drop rates** (today every cleared encounter
+drops exactly one item of a fixed tier), and what a delve does once its tiers are exhausted.
+
 ## Open (balance-pass) knob
 
 - **Item power vs stat growth** — how large a base modifier (and its attunement rider) is
