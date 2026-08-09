@@ -64,6 +64,10 @@ final class CombatViewModel: ObservableObject {
     let foeName: String
     let petFamily: PetFamily
 
+    /// The tuning the fight is running on, so the decision controls can state what
+    /// each Approach does from the same numbers the resolver uses.
+    var rates: PetCombatRates { session.combatRates }
+
     private let session: PetSession
     private let foe: Foe
     private var encounter: CombatEncounter
@@ -523,6 +527,13 @@ final class DelveViewModel: ObservableObject {
 
     private func encounterEnded(victory: Bool, hpRemaining: Int) {
         delve.recordOutcome(petVictory: victory, petHPRemaining: hpRemaining)
+        // Bank the drop into the bag *here*, not at the delve write-back. The card
+        // that reveals it offers an Equip button, and equipping an unowned item is
+        // a no-op — so holding the grant until the run ended made that button dead
+        // for every drop except the boss's.
+        if let drop = delve.lastDrop {
+            session.acquire(drop)
+        }
         switch delve.status {
         case .awaitingPushChoice: phase = .pushChoice
         case .completed, .retreated: finishDelve()
@@ -713,6 +724,16 @@ private struct BriefingView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .frame(maxWidth: 320)
+
+                    // What the chosen Approach actually does, in the same breath as
+                    // choosing it. Three unexplained words asked the player to learn
+                    // the rules by losing to them.
+                    Text(delve.startingApproach.summary(rates: delve.session.combatRates))
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 340)
                 }
 
                 HStack(spacing: 14) {
@@ -779,9 +800,13 @@ private struct LoadoutBar: View {
         }
     }
 
+    /// Filled and empty read apart the same way they do on the Character screen —
+    /// tier-tinted well and border when something's in the slot, dashed outline and
+    /// a ghosted glyph when it isn't. Same visual language, dark-panel palette.
     private func slotMenu(for slot: ItemSlot) -> some View {
         let equipped = session.state.loadout[slot]
         let owned = session.state.availableItems(for: slot)
+        let tint = equipped.map { tierTint($0.tier) } ?? .white
 
         return Menu {
             ForEach(owned, id: \.self) { item in
@@ -791,27 +816,63 @@ private struct LoadoutBar: View {
                 Divider()
             }
             Button("Leave empty") { session.equip(nil, in: slot) }
+                .disabled(equipped == nil)
         } label: {
-            VStack(spacing: 1) {
+            VStack(spacing: 3) {
+                Image(systemName: slotIcon(slot, filled: equipped != nil))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(equipped == nil ? .white.opacity(0.3) : tint)
+
                 Text(slot.displayName.uppercased())
                     .font(.system(size: 9, weight: .heavy))
                     .foregroundStyle(.white.opacity(0.45))
                 Text(equipped?.displayName ?? "Empty")
                     .font(.caption.bold())
-                    .foregroundStyle(.white.opacity(equipped == nil ? 0.35 : 1))
+                    .foregroundStyle(.white.opacity(equipped == nil ? 0.3 : 1))
                     .lineLimit(1)
+
+                if let equipped {
+                    Text(pricing.priceLabel(for: equipped))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+                } else {
+                    Text("—")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.25))
+                }
             }
             .frame(width: 112)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(.white.opacity(equipped == nil ? 0.07 : 0.14))
+                    .fill(equipped == nil ? .white.opacity(0.04) : tint.opacity(0.16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(
+                                equipped == nil ? .white.opacity(0.2) : tint.opacity(0.6),
+                                style: equipped == nil
+                                    ? StrokeStyle(lineWidth: 1, dash: [4, 3])
+                                    : StrokeStyle(lineWidth: 1)
+                            )
+                    )
             )
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
         .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
+        .accessibilityLabel(
+            equipped.map { "\(slot.displayName) slot, \($0.displayName)" }
+                ?? "\(slot.displayName) slot, empty"
+        )
+    }
+
+    private func slotIcon(_ slot: ItemSlot, filled: Bool) -> String {
+        switch slot {
+        case .tool: filled ? "wrench.and.screwdriver.fill" : "wrench.and.screwdriver"
+        case .ward: filled ? "shield.fill" : "shield"
+        case .charm: filled ? "sparkles" : "sparkle"
+        }
     }
 
     /// What the whole loadout is worth, in the same stat vocabulary the sheet
@@ -914,9 +975,10 @@ private struct PushChoiceCard: View {
                 .font(.system(size: 9))
             Text(
                 delve.gearAwaitsAtTheBottom
-                    ? "Bank and you keep your XP — but the completion bonus and the "
-                        + "Warren's gear are only at the bottom."
-                    : "Bank and you keep your XP — the completion bonus is only at the bottom."
+                    ? "Bank and you keep your XP and everything you've picked up — but "
+                        + "the completion bonus and the Prime gear are only at the bottom."
+                    : "Bank and you keep your XP and everything you've picked up — the "
+                        + "completion bonus is only at the bottom."
             )
             .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.center)
@@ -1043,6 +1105,11 @@ struct CombatPanelView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+
+            Text(approach.summary(rates: model.rates))
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.55))
+                .fixedSize(horizontal: false, vertical: true)
 
             if model.signatureReady {
                 Toggle("Unleash the Signature", isOn: $unleash)
@@ -1235,10 +1302,11 @@ private struct DelveEndScreen: View {
 /// The drop beat: what the Warren gave up, what it's worth to *this* Workling,
 /// what it would replace, and the chance to put it on without leaving the screen.
 ///
-/// The item is already owned by the time this appears — the delve resolution
-/// banked it — so nothing here can fail. Equipping is the one action, and it
-/// closes the loop that otherwise sent the player to another window to make their
-/// prize do anything.
+/// The item is already in the bag by the time this appears — the encounter that
+/// dropped it banked it on the spot — so nothing here can fail and nothing here is
+/// required. Equipping now closes the loop that otherwise sent the player to
+/// another window to make their prize do anything; declining is a real, safe
+/// choice, and the card says so rather than leaving "did that work?" hanging.
 private struct DropReveal: View {
     /// Where the card is standing. `inline` sits inside the bank/push prompt
     /// between fights; `headline` is the end screen's capstone. Same content,
@@ -1377,24 +1445,54 @@ private struct DropReveal: View {
         }
     }
 
+    /// Equip and its inverse, plus the standing reassurance that the item is kept
+    /// either way. Both buttons do something real — "Keep in bag" takes the item
+    /// back off — so neither is a decorative acknowledgement.
     private var equipControl: some View {
-        Button {
-            session.equip(item, in: item.slot)
-        } label: {
-            Label(
-                isEquipped ? "Equipped" : "Equip \(item.slot.displayName)",
-                systemImage: isEquipped ? "checkmark.circle.fill" : "arrow.down.circle.fill"
-            )
-            .frame(width: 160)
+        VStack(spacing: 5) {
+            HStack(spacing: 8) {
+                equipButton
+
+                Button {
+                    session.equip(nil, in: item.slot)
+                } label: {
+                    Label("Keep in bag", systemImage: "shippingbox")
+                        .frame(width: 106)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isEquipped)
+                .help("Take it back off. It stays in your bag either way.")
+            }
+            .controlSize(.regular)
+
+            Text("Already in your bag — decide later if you'd rather.")
+                .font(.system(size: 9))
+                .foregroundStyle(.white.opacity(0.45))
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .disabled(isEquipped)
-        .help(
-            isEquipped
-                ? "\(item.displayName) is in your \(item.slot.displayName) slot."
-                : "Put it on now — or later, from the Character Screen."
+    }
+
+    /// Prominent while there's a decision to make, quiet once it's made.
+    @ViewBuilder
+    private var equipButton: some View {
+        let label = Label(
+            isEquipped ? "Equipped" : "Equip \(item.slot.displayName)",
+            systemImage: isEquipped ? "checkmark.circle.fill" : "arrow.down.circle.fill"
         )
+        .frame(width: 132)
+        let hint = isEquipped
+            ? "\(item.displayName) is in your \(item.slot.displayName) slot."
+            : "Put it on now — or later, from the Character screen."
+
+        if isEquipped {
+            Button { } label: { label }
+                .buttonStyle(.bordered)
+                .disabled(true)
+                .help(hint)
+        } else {
+            Button { session.equip(item, in: item.slot) } label: { label }
+                .buttonStyle(.borderedProminent)
+                .help(hint)
+        }
     }
 }
 

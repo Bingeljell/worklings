@@ -19,6 +19,56 @@ enum DelveChecks {
         checkDepthDecidesTheTier(context: &context)
         checkBankingKeepsWhatWasWonAndForfeitsTheDepth(context: &context)
         checkDropIsNeverADuplicateAndDriesUpPerTier(context: &context)
+        checkAMidDelveDropMustBeOwnedBeforeItCanBeEquipped(context: &context)
+    }
+
+    /// Why the app grants a drop the moment its encounter is cleared, rather than
+    /// waiting for the delve write-back.
+    ///
+    /// The card that reveals a mid-delve drop offers an Equip button, and equipping
+    /// is ownership-gated — so while the grant sat in `resolution(applyingTo:)`,
+    /// that button silently did nothing for every drop except the boss's, which was
+    /// the only one revealed after the write-back had run. The rule is pinned here
+    /// so the ordering can't quietly regress again.
+    private static func checkAMidDelveDropMustBeOwnedBeforeItCanBeEquipped(
+        context: inout CheckContext
+    ) {
+        var delve = cacheWarren(seed: 11)
+        delve.descend()
+        delve.recordOutcome(petVictory: true, petHPRemaining: 40)
+
+        guard let drop = delve.lastDrop else {
+            context.expect(false, "the first cleared encounter yields a drop"); return
+        }
+        context.expectEqual(
+            delve.status, .awaitingPushChoice,
+            "the drop is revealed while the delve is still running"
+        )
+
+        // Ungranted: equipping is a no-op. This is the bug, reproduced.
+        let ungranted = neutralState()
+        context.expect(
+            !ungranted.ownedItems.contains(drop),
+            "the drop isn't owned yet at the moment its card appears"
+        )
+        context.expectEqual(
+            ungranted.equipping(drop).loadout[drop.slot],
+            ungranted.loadout[drop.slot],
+            "equipping an unowned drop changes nothing — a dead button"
+        )
+
+        // Granted first: equipping works, which is what the app now does on clear.
+        let granted = ungranted.acquiring(drop)
+        context.expectEqual(
+            granted.equipping(drop).loadout[drop.slot], drop,
+            "a drop acquired on clear can be equipped straight from its card"
+        )
+
+        // And the write-back re-acquiring it stays harmless.
+        context.expectEqual(
+            granted.acquiring(drop).ownedItems.count, granted.ownedItems.count,
+            "the delve write-back re-acquiring the same drop is idempotent"
+        )
     }
 
     // MARK: Drops
