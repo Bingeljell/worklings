@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var companionController: CompanionPanelController?
     private var combatPanelController: CombatPanelController?
+    private var characterWindowController: CharacterWindowController?
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
     private var activityInboxMonitor: ActivityInboxMonitor?
@@ -56,9 +57,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let petSession = PetSession()
         #endif
         let companionController = CompanionPanelController(session: petSession)
+        let characterWindowController = CharacterWindowController(session: petSession)
         self.petSession = petSession
         self.companionController = companionController
         self.combatPanelController = CombatPanelController()
+        self.characterWindowController = characterWindowController
+
+        // Clicking the Workling opens its Character Screen — one window, whether
+        // you got there by the pet or by the menu, so the two can't disagree.
+        companionController.onClick = { [weak characterWindowController] in
+            characterWindowController?.toggle()
+        }
 
         #if DEBUG
         let idleThreshold = ProcessInfo.processInfo.environment["WORKLINGS_IDLE_THRESHOLD_SECONDS"]
@@ -121,6 +130,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         warningMenuItem = warningItem
 
         menu.addItem(.separator())
+
+        // The hub, reachable two ways: here, and by clicking the Workling itself.
+        let characterItem = NSMenuItem(
+            title: "Character Screen",
+            action: #selector(openCharacterScreen),
+            keyEquivalent: ""
+        )
+        characterItem.target = self
+        characterItem.toolTip = "Gear, stats, and care — or just click your Workling."
+        menu.addItem(characterItem)
+
         menu.addItem(makeFamilyMenuItem())
 
         let renameItem = NSMenuItem(
@@ -182,22 +202,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         logWorkMenuItem = logWorkItem
 
         menu.addItem(.separator())
-        // Interim entry until the delve chain lands: a per-foe picker so each
-        // encounter can be fought (and felt) on its own. The delve orchestration
-        // will later replace this with a single "descend" that runs the sequence.
-        let dungeonItem = NSMenuItem(title: "Enter the Cache Warren", action: nil, keyEquivalent: "")
-        let dungeonSubmenu = NSMenu(title: "Enter the Cache Warren")
-        for foe in [CacheWarren.mote, CacheWarren.snag, CacheWarren.flicker, CacheWarren.boss] {
-            let foeItem = NSMenuItem(
-                title: "Fight the \(foe.name)…",
-                action: #selector(enterDelveForFoe(_:)),
-                keyEquivalent: ""
-            )
-            foeItem.target = self
-            foeItem.representedObject = foe
-            dungeonSubmenu.addItem(foeItem)
-        }
-        dungeonItem.submenu = dungeonSubmenu
+        // A single "descend" that runs the whole Cache Warren delve — briefing,
+        // the encounter chain with press-your-luck between fights, then the exit.
+        let dungeonItem = NSMenuItem(
+            title: "Descend into the Cache Warren",
+            action: #selector(descendIntoCacheWarren),
+            keyEquivalent: ""
+        )
+        dungeonItem.target = self
         menu.addItem(dungeonItem)
         dungeonMenuItem = dungeonItem
 
@@ -273,6 +285,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #if DEBUG
         menu.addItem(.separator())
         menu.addItem(makeSimulateActivityMenuItem())
+
+        let forgetGearItem = NSMenuItem(
+            title: "Forget Acquired Gear",
+            action: #selector(forgetAcquiredGear),
+            keyEquivalent: ""
+        )
+        forgetGearItem.target = self
+        forgetGearItem.toolTip =
+            "Debug: drop back to the starter item so boss drops can be earned again. "
+            + "Keeps name, needs, XP, class, and family."
+        menu.addItem(forgetGearItem)
         #endif
 
         menu.addItem(.separator())
@@ -385,22 +408,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func enterDelveForFoe(_ sender: NSMenuItem) {
-        guard let foe = sender.representedObject as? Foe else { return }
-        enterDelve(against: foe)
+    #if DEBUG
+    @objc private func forgetAcquiredGear() {
+        petSession?.debugForgetAcquiredItems()
+    }
+    #endif
+
+    @objc private func openCharacterScreen() {
+        characterWindowController?.present()
     }
 
-    private func enterDelve(against foe: Foe) {
+    @objc private func descendIntoCacheWarren() {
         guard let petSession, petSession.canEnterDelve else { return }
         // Seed from the moment of entry so each delve plays out a little
-        // differently; the fight itself is deterministic from this seed.
+        // differently; the delve itself is deterministic from this seed.
         let seed = UInt64(bitPattern: Int64(Date().timeIntervalSinceReferenceDate.bitPattern))
         // The companion leaves the desktop (a smoke conceal) and reappears in the
-        // arena; bring it back when the fight ends, however it ends.
+        // arena; bring it back when the delve ends, however it ends.
         let wasVisible = companionController?.isVisible ?? false
         companionController?.hide()
         combatPanelController?.present(
-            session: petSession, foe: foe, seed: seed,
+            session: petSession, seed: seed,
             onDismiss: { [weak self] in
                 if wasVisible { self?.companionController?.show() }
             }

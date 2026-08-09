@@ -25,6 +25,7 @@ final class PetSession: ObservableObject {
     /// The combat tuning the dungeon reads. One instance, shared by the entry
     /// gate and any running encounter, so eligibility and the fight agree.
     let combatRates = PetCombatRates()
+    let itemRates = ItemRates()
 
     init(now: Date = Date(), rates: PetSimulationRates = PetSimulationRates()) {
         brain = PetBrain(rates: rates)
@@ -180,6 +181,36 @@ final class PetSession: ObservableObject {
         persist()
     }
 
+    // MARK: - Gear
+
+    /// Equips `item` in `slot`, or empties the slot when it's nil. A no-op if the
+    /// item isn't owned or doesn't belong there — `PetState` enforces both, so
+    /// this only has to notice that nothing moved.
+    func equip(_ item: Item?, in slot: ItemSlot) {
+        let updated = state.equipping(item, in: slot)
+        guard updated != state else {
+            return
+        }
+
+        state = updated
+        persist()
+    }
+
+    #if DEBUG
+    /// Debug-only: hands back every acquired item so the drop beat can be earned
+    /// again. Drops are scarce by design (boss clears only, never a duplicate),
+    /// which makes the reveal nearly impossible to iterate on otherwise.
+    func debugForgetAcquiredItems() {
+        let updated = state.forgettingAcquiredItems()
+        guard updated != state else {
+            return
+        }
+
+        state = updated
+        persist()
+    }
+    #endif
+
     // MARK: - Dungeon
 
     /// Why the pet can't delve right now, or `nil` if it can. Drives the entry
@@ -192,15 +223,29 @@ final class PetSession: ObservableObject {
         combatRates.canEnterDelve(state)
     }
 
-    /// The pet's combatant for a fresh fight, built from the live sheet and
-    /// condition.
+    /// The pet's combatant for a fresh fight, built from the live sheet
+    /// (gear folded in) and condition.
     func makePetCombatant() -> Combatant {
-        Combatant.pet(from: state, rates: combatRates)
+        Combatant.pet(from: state, rates: combatRates, itemRates: itemRates)
     }
 
     /// Writes a finished encounter's result back into the pet: XP and the
     /// exit-tier condition change, then persists.
     func applyCombatResolution(_ resolution: EncounterResolution) {
+        state = resolution.state
+        persist()
+    }
+
+    /// The condition→combat multiplier for the current state, fixed at delve entry
+    /// so mid-delve care changes don't alter a run in progress.
+    var combatEffectiveness: Double {
+        combatRates.combatEffectiveness(needs: state.needs)
+    }
+
+    /// Writes a finished **delve's** result back into the pet: the accrued XP (plus
+    /// any completion bonus) and the single exit-tier condition change computed once
+    /// at delve end, then persists.
+    func applyDelveResolution(_ resolution: DelveResolution) {
         state = resolution.state
         persist()
     }

@@ -29,7 +29,9 @@ final class CombatViewModel: ObservableObject {
     @Published private(set) var foeHP: Int
     @Published private(set) var foeMaxHP: Int
     @Published private(set) var awaitingDecision: DecisionReason?
-    @Published private(set) var outcome: EncounterResolution?
+    /// Set the instant this encounter reaches an ending, so the arena hands control
+    /// back to the delve (which shows the push prompt or the delve-end screen).
+    @Published private(set) var isFinished = false
     /// The pet's current pose, driven by the beat being revealed, so the sprite
     /// strikes, recoils, braces, and celebrates in time with the narration.
     @Published private(set) var petPose: WorklingSpriteFrame = .idle
@@ -65,6 +67,9 @@ final class CombatViewModel: ObservableObject {
     private let session: PetSession
     private let foe: Foe
     private var encounter: CombatEncounter
+    /// Called once, at the ending, with the result the delve records: whether the
+    /// pet won and the HP it walked out with (carried into the next encounter).
+    private let onComplete: (_ victory: Bool, _ petHPRemaining: Int) -> Void
     private var pumpTask: Task<Void, Never>?
 
     /// UI beats waiting to play, and how far through the engine log they've been
@@ -91,23 +96,27 @@ final class CombatViewModel: ObservableObject {
         var hold: Duration
     }
 
-    init(session: PetSession, foe: Foe, approach: Approach = .aggressive, seed: UInt64) {
+    /// Drives one encounter of a delve. The `encounter` is built by the `Delve`
+    /// (carrying HP + the per-encounter seed); this view model only animates it and
+    /// reports the ending through `onComplete`. Audio and the BGM bed are managed by
+    /// the owning `DelveViewModel`, which spans the whole delve.
+    init(
+        session: PetSession,
+        foe: Foe,
+        encounter: CombatEncounter,
+        onComplete: @escaping (_ victory: Bool, _ petHPRemaining: Int) -> Void
+    ) {
         self.session = session
         self.foe = foe
-        let pet = session.makePetCombatant()
-        self.encounter = CombatEncounter(
-            pet: pet, foe: foe, approach: approach,
-            rates: session.combatRates, seed: seed
-        )
-        petName = pet.name
+        self.encounter = encounter
+        self.onComplete = onComplete
+        petName = encounter.pet.name
         foeName = foe.name
         petFamily = session.state.family
         petHP = encounter.pet.currentHP
         petMaxHP = encounter.pet.maxHP
         foeHP = encounter.foe.currentHP
         foeMaxHP = foe.maxHP
-        CombatAudio.shared.play(.enter)
-        CombatAudio.shared.startBGM(boss: foe.name == CacheWarren.boss.name)
         pump()
     }
 
@@ -402,39 +411,167 @@ final class CombatViewModel: ObservableObject {
     }
 
     private func finish() {
-        let resolution = session.state.applyingOutcome(
-            of: encounter, foe: foe, rates: session.combatRates
+        isFinished = true
+        onComplete(encounter.status == .petVictory, encounter.pet.currentHP)
+    }
+}
+
+// MARK: - Delve coordinator
+
+/// Spans a whole delve: the briefing, each encounter in turn (carrying HP), the
+/// bank-vs-push beat between them, and the single write-back at the end. It owns
+/// the current encounter's `CombatViewModel` and the BGM bed, and drives the
+/// `Delve` engine from `CompanionCore`.
+@MainActor
+final class DelveViewModel: ObservableObject {
+    enum Phase: Equatable {
+        case briefing      // the opening narration
+        case fighting      // an encounter is playing
+        case pushChoice    // cleared a regular foe — bank or push
+        case ended         // the delve is over; the end screen shows
+    }
+
+    @Published private(set) var phase: Phase = .briefing
+    @Published private(set) var current: CombatViewModel?
+    @Published private(set) var resolution: DelveResolution?
+    /// The Approach the pet starts each encounter on, chosen in the briefing.
+    @Published var startingApproach: Approach = .aggressive
+
+    let session: PetSession
+    private var delve: Delve
+    private let seed: UInt64
+    /// The foe of the most recent encounter, for the push prompt and the end
+    /// screen's loser sprite.
+    private(set) var lastFoeName: String
+
+    init(session: PetSession, seed: UInt64) {
+        self.session = session
+        self.seed = seed
+        self.delve = Self.makeDelve(session: session, seed: seed)
+        self.lastFoeName = delve.currentFoe?.name ?? ""
+    }
+
+    private static func makeDelve(session: PetSession, seed: UInt64) -> Delve {
+        Delve.cacheWarren(
+            pet: session.makePetCombatant(),
+            effectiveness: session.combatEffectiveness,
+            rates: session.combatRates,
+            baseSeed: seed,
+            // Drops are decided per encounter now, so the delve has to know what's
+            // already owned going in — it can't wait for the write-back to filter.
+            ownedItems: session.state.ownedItems
         )
-        session.applyCombatResolution(resolution)
-        outcome = resolution
-        // The bed drops out and a win/lose sting lands as the end screen appears.
+    }
+
+    // Briefing display
+    var previewFoeNames: [String] { delve.foes.map(\.name) }
+    var bossName: String { delve.boss.name }
+
+    // In-flight display
+    var progressText: String { "Encounter \(delve.encounterNumber) of \(delve.totalEncounters)" }
+    var carriedHP: Int { delve.carriedHP }
+    var nextIsBoss: Bool { delve.index + 1 == delve.foes.count }
+    var nextFoeName: String? {
+        let next = delve.index + 1
+        return next < delve.allFoes.count ? delve.allFoes[next].name : nil
+    }
+
+    /// How many encounters still stand between here and the boss, so the choice
+    /// can say how far "deeper" actually is rather than leaving it as a mood.
+    var encountersRemaining: Int {
+        max(delve.allFoes.count - (delve.index + 1), 0)
+    }
+
+    /// Whether the mini-boss still has something to give this pet. Only Prime
+    /// gear comes off the boss, and never a duplicate, so once the Prime set is
+    /// complete there is nothing down there to forfeit — and the stakes line
+    /// promising it would be a lie.
+    var gearAwaitsAtTheBottom: Bool {
+        Item.all(in: .prime).contains { !session.state.ownedItems.contains($0) }
+    }
+
+    /// What the encounter just cleared gave up, for the bank/push card. The reward
+    /// lands where the fight was won rather than being held back to the end
+    /// screen — which is the point of paying out per encounter at all.
+    var lastDrop: Item? { delve.lastDrop }
+
+    /// Everything won this run, for the end screen's tally.
+    var allDrops: [Item] { delve.drops }
+
+    func descend() {
+        // Rebuilt here, not at init: the briefing is where gear gets swapped, so
+        // the combatant has to be read from the pet as it stands at the moment it
+        // actually walks in. The delve built at init only ever backed the foe
+        // preview.
+        delve = Self.makeDelve(session: session, seed: seed)
+        delve.descend()
+        CombatAudio.shared.play(.enter)
+        CombatAudio.shared.startBGM(boss: false)
+        startEncounter()
+    }
+
+    private func startEncounter() {
+        guard let foe = delve.currentFoe,
+              let encounter = delve.makeEncounter(approach: startingApproach) else { return }
+        lastFoeName = foe.name
+        if delve.isBossEncounter { CombatAudio.shared.startBGM(boss: true) }
+        current = CombatViewModel(session: session, foe: foe, encounter: encounter) { [weak self] victory, hp in
+            self?.encounterEnded(victory: victory, hpRemaining: hp)
+        }
+        phase = .fighting
+    }
+
+    private func encounterEnded(victory: Bool, hpRemaining: Int) {
+        delve.recordOutcome(petVictory: victory, petHPRemaining: hpRemaining)
+        switch delve.status {
+        case .awaitingPushChoice: phase = .pushChoice
+        case .completed, .retreated: finishDelve()
+        case .briefing, .inEncounter: break
+        }
+    }
+
+    func bank() {
+        delve.bank()
+        finishDelve()
+    }
+
+    func pushDeeper() {
+        delve.pushDeeper()
+        startEncounter()
+    }
+
+    private func finishDelve() {
+        guard let res = delve.resolution(applyingTo: session.state) else { return }
+        session.applyDelveResolution(res)
+        resolution = res
         CombatAudio.shared.stopBGM()
-        CombatAudio.shared.play(resolution.tier == .downed ? .defeat : .victory, volume: 0.9)
+        CombatAudio.shared.play(res.tier == .downed ? .defeat : .victory, volume: 0.9)
+        phase = .ended
     }
 }
 
 // MARK: - Panel window
 
-/// Hosts the combat panel in its own floating window for the length of a fight,
-/// then tears it down. One fight at a time.
+/// Hosts the delve panel in its own floating window for the length of a delve,
+/// then tears it down. One delve at a time.
 @MainActor
 final class CombatPanelController {
     private var panel: NSPanel?
-    private var model: CombatViewModel?
+    private var delve: DelveViewModel?
     private var onDismiss: (() -> Void)?
 
     var isPresenting: Bool { panel != nil }
 
-    /// Opens the arena for one fight. `onDismiss` runs when it closes (however it
+    /// Opens the arena for a full delve. `onDismiss` runs when it closes (however it
     /// closes), so the caller can bring the desktop companion back.
-    func present(session: PetSession, foe: Foe, seed: UInt64, onDismiss: @escaping () -> Void) {
+    func present(session: PetSession, seed: UInt64, onDismiss: @escaping () -> Void) {
         dismiss()
         self.onDismiss = onDismiss
 
-        let model = CombatViewModel(session: session, foe: foe, seed: seed)
-        self.model = model
+        let delve = DelveViewModel(session: session, seed: seed)
+        self.delve = delve
 
-        let root = CombatPanelView(model: model, onClose: { [weak self] in self?.dismiss() })
+        let root = DelvePanelView(delve: delve, onClose: { [weak self] in self?.dismiss() })
         let hosting = NSHostingView(rootView: root)
 
         // No .closable — the in-panel Close/Return is the only exit, so the
@@ -463,7 +600,7 @@ final class CombatPanelController {
         if wasPresenting { CombatAudio.shared.play(.returnChime) }
         panel?.orderOut(nil)
         panel = nil
-        model = nil
+        delve = nil
         if wasPresenting {
             let callback = onDismiss
             onDismiss = nil
@@ -474,9 +611,330 @@ final class CombatPanelController {
 
 // MARK: - View
 
+/// The root of the delve panel: switches between the briefing, the current
+/// encounter's arena, and overlays the bank/push prompt and the end screen.
+struct DelvePanelView: View {
+    @ObservedObject var delve: DelveViewModel
+    var onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            switch delve.phase {
+            case .briefing:
+                BriefingView(delve: delve, onClose: onClose)
+            case .fighting, .pushChoice, .ended:
+                if let model = delve.current {
+                    CombatPanelView(model: model, onClose: onClose, progressText: delve.progressText)
+                } else {
+                    ArenaBackground()
+                }
+            }
+
+            if delve.phase == .pushChoice {
+                PushChoiceCard(delve: delve)
+                    .transition(.opacity)
+            }
+            if delve.phase == .ended, let res = delve.resolution {
+                DelveEndScreen(
+                    session: delve.session,
+                    tier: res.tier,
+                    xpGained: Int(res.xpGained),
+                    bossDefeated: res.bossDefeated,
+                    banked: res.banked,
+                    bossDrop: res.bossDrop,
+                    shallowDrops: res.shallowDrops,
+                    petFamily: delve.session.state.family,
+                    foeName: delve.lastFoeName,
+                    onReturn: onClose
+                )
+            }
+        }
+        .frame(width: 600, height: 480)
+        .animation(.easeInOut(duration: 0.25), value: delve.phase)
+    }
+}
+
+/// The opening narration — storytelling that sets the vibe and hints at how to
+/// prep — and the prep itself: the loadout and the starting Approach. The
+/// narration's one gameplay job is to make these two picks feel informed, so they
+/// sit on the same screen as the story that motivates them.
+private struct BriefingView: View {
+    @ObservedObject var delve: DelveViewModel
+    var onClose: () -> Void
+
+    private let narration = """
+    The floor gives way to the buried strata of the machine you live in — the \
+    Cache Warren. Down here the clutter takes shape and bites back: a scurrying \
+    Scamp, a grabbing Snag, a flickering blur that won't hold still… and \
+    something heavy waiting at the very bottom. Pack for accuracy, or bring a \
+    ward — then descend.
+    """
+
+    var body: some View {
+        ZStack {
+            ArenaBackground()
+            Color.black.opacity(0.45)
+
+            VStack(spacing: 13) {
+                Text("The Cache Warren")
+                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+
+                Text(narration)
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 24)
+
+                foePreview
+
+                // Said before the descent, not discovered after it: the boss is
+                // the only thing down here that carries gear, and a player who
+                // banks early every time would otherwise never find that out.
+                if delve.gearAwaitsAtTheBottom {
+                    Label(
+                        "Only what waits at the bottom carries gear.",
+                        systemImage: "shippingbox.fill"
+                    )
+                    .font(.caption2.bold())
+                    .foregroundStyle(.yellow.opacity(0.8))
+                }
+
+                LoadoutBar(session: delve.session)
+
+                VStack(spacing: 5) {
+                    Text("Set your opening approach").font(.caption.bold()).foregroundStyle(.white.opacity(0.7))
+                    Picker("Approach", selection: $delve.startingApproach) {
+                        Text("Aggressive").tag(Approach.aggressive)
+                        Text("Careful").tag(Approach.careful)
+                        Text("Clever").tag(Approach.clever)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 320)
+                }
+
+                HStack(spacing: 14) {
+                    Button("Not now", action: onClose)
+                        .buttonStyle(.bordered)
+                    Button(action: { delve.descend() }) {
+                        Text("Descend").frame(width: 150)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+                .padding(.top, 2)
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 20)
+        }
+        .foregroundStyle(.white)
+    }
+
+    private var foePreview: some View {
+        HStack(spacing: 8) {
+            ForEach(delve.previewFoeNames, id: \.self) { name in
+                Text(name)
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(.white.opacity(0.12)))
+            }
+            Text("? ? ?")
+                .font(.caption2.bold())
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Capsule().fill(.orange.opacity(0.18)))
+                .help("Something waits at the bottom of the Warren.")
+        }
+    }
+}
+
+/// The prep beat — the payoff of the briefing's narration. Three slots, each a
+/// menu over what the Workling actually owns, plus a running readout of what the
+/// picks are worth. The readout is the point: a loadout choice the player can't
+/// price is just a menu, so the stat delta is visible *before* the descent rather
+/// than inferred from how the fight went.
+///
+/// This is the *quick* prep, kept on the briefing where the narration motivates
+/// it; the Character Screen is gear's actual home. Both price items through
+/// `GearPricing`, so the two can only ever say the same thing.
+private struct LoadoutBar: View {
+    @ObservedObject var session: PetSession
+
+    private var pricing: GearPricing { GearPricing(session: session) }
+
+    var body: some View {
+        VStack(spacing: 7) {
+            Text("Pack your loadout")
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.7))
+
+            HStack(spacing: 8) {
+                ForEach(ItemSlot.allCases, id: \.self) { slot in
+                    slotMenu(for: slot)
+                }
+            }
+
+            statLine
+        }
+    }
+
+    private func slotMenu(for slot: ItemSlot) -> some View {
+        let equipped = session.state.loadout[slot]
+        let owned = session.state.availableItems(for: slot)
+
+        return Menu {
+            ForEach(owned, id: \.self) { item in
+                Button(pricing.menuLabel(for: item)) { session.equip(item, in: slot) }
+            }
+            if !owned.isEmpty {
+                Divider()
+            }
+            Button("Leave empty") { session.equip(nil, in: slot) }
+        } label: {
+            VStack(spacing: 1) {
+                Text(slot.displayName.uppercased())
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.45))
+                Text(equipped?.displayName ?? "Empty")
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(equipped == nil ? 0.35 : 1))
+                    .lineLimit(1)
+            }
+            .frame(width: 112)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.white.opacity(equipped == nil ? 0.07 : 0.14))
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
+    }
+
+    /// What the whole loadout is worth, in the same stat vocabulary the sheet
+    /// uses.
+    private var statLine: some View {
+        let parts = pricing.statLineParts(for: session.state.loadout)
+        let attunement = pricing.attunementExplanation(for: session.state.loadout)
+
+        return HStack(spacing: 6) {
+            if parts.isEmpty {
+                Text("Nothing equipped — you'll fight on your own numbers.")
+                    .foregroundStyle(.white.opacity(0.4))
+            } else {
+                Text(parts.joined(separator: " · "))
+                    .foregroundStyle(.green.opacity(0.85))
+                if let attunement {
+                    Text("✦ attuned")
+                        .foregroundStyle(.yellow.opacity(0.85))
+                        .help(attunement)
+                }
+            }
+        }
+        .font(.caption2.bold())
+    }
+}
+
+/// The press-your-luck beat between encounters: bank the run with what you've
+/// earned, or push deeper toward the boss at rising attrition.
+private struct PushChoiceCard: View {
+    @ObservedObject var delve: DelveViewModel
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+
+            VStack(spacing: 14) {
+                Text("The \(delve.lastFoeName) falls!")
+                    .font(.title2.bold())
+                    .foregroundStyle(.green)
+
+                Text("You're at \(delve.carriedHP) HP. Bank the delve, or press deeper?")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+
+                // The fight's own reward, paid where it was won. Holding this back
+                // to the end screen is what made the shallow encounters feel like
+                // unpaid toll.
+                if let drop = delve.lastDrop {
+                    DropReveal(session: delve.session, item: drop, style: .inline)
+                }
+
+                Group {
+                    if delve.nextIsBoss {
+                        Text("Something heavy stirs below…")
+                    } else if let next = delve.nextFoeName {
+                        Text(
+                            "Ahead: the \(next)"
+                                + (delve.encountersRemaining > 1
+                                    ? ", and \(delve.encountersRemaining - 1) more before the bottom."
+                                    : ".")
+                        )
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.6))
+
+                // What banking actually costs. Without this the press-your-luck
+                // beat is only half a decision: the XP you're protecting is
+                // visible, but the completion bonus and the gear you're giving up
+                // are invisible — and gear is boss-only, so a player who banks
+                // every time never learns it exists.
+                stakes
+
+                HStack(spacing: 14) {
+                    Button(action: { delve.bank() }) {
+                        Text("Bank & leave").frame(width: 140)
+                    }
+                    .buttonStyle(.bordered)
+                    Button(action: { delve.pushDeeper() }) {
+                        Text(delve.nextIsBoss ? "Face the boss" : "Push deeper").frame(width: 140)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .controlSize(.large)
+            }
+            .padding(28)
+            .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.5)))
+            .padding(40)
+        }
+        .foregroundStyle(.white)
+    }
+
+    /// The forfeit, stated plainly. Gear is only named while there is still gear
+    /// to win — once the base set is complete the boss has nothing left to drop,
+    /// and promising it would be a lie.
+    private var stakes: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9))
+            Text(
+                delve.gearAwaitsAtTheBottom
+                    ? "Bank and you keep your XP — but the completion bonus and the "
+                        + "Warren's gear are only at the bottom."
+                    : "Bank and you keep your XP — the completion bonus is only at the bottom."
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.center)
+        }
+        .font(.caption2)
+        .foregroundStyle(.orange.opacity(0.85))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.1)))
+    }
+}
+
 struct CombatPanelView: View {
     @ObservedObject var model: CombatViewModel
     var onClose: () -> Void
+    /// Where in the delve this fight sits, e.g. "Encounter 2 of 4" — shown in the
+    /// header so the chain reads as a journey.
+    var progressText: String? = nil
 
     @State private var approach: Approach = .aggressive
     @State private var unleash = false
@@ -496,11 +954,6 @@ struct CombatPanelView: View {
         .frame(width: 600, height: 480)
         .background(stageBackground)
         .foregroundStyle(.white)
-        .overlay {
-            if let outcome = model.outcome {
-                EndScreen(outcome: outcome, model: model, onReturn: onClose)
-            }
-        }
     }
 
     private var stageBackground: some View {
@@ -511,6 +964,12 @@ struct CombatPanelView: View {
         HStack {
             Text("The Cache Warren")
                 .font(.title3.bold())
+            if let progressText {
+                Text(progressText)
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(0.6))
+                    .padding(.leading, 6)
+            }
             Spacer()
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.white.opacity(0.55))
@@ -559,8 +1018,8 @@ struct CombatPanelView: View {
 
     private var controlBar: some View {
         Group {
-            if model.outcome != nil {
-                Color.clear.frame(height: 1) // the end screen takes over
+            if model.isFinished {
+                Color.clear.frame(height: 1) // the delve takes over (push prompt or end screen)
             } else if model.awaitingDecision != nil {
                 decisionControls
             } else {
@@ -628,20 +1087,38 @@ private func exitBlurb(_ tier: ExitTier) -> String {
     }
 }
 
-/// The end-of-fight screen: the winner takes centre stage in its victory pose
+/// The end-of-delve screen: the winner takes centre stage in its victory pose
 /// (with a pop-in and sparkles), the loser vanishes in a puff of smoke, then the
-/// result and Return button fade in.
-private struct EndScreen: View {
-    let outcome: EncounterResolution
-    @ObservedObject var model: CombatViewModel
+/// result and Return button fade in. Driven by the finished `DelveResolution`.
+private struct DelveEndScreen: View {
+    @ObservedObject var session: PetSession
+    let tier: ExitTier
+    let xpGained: Int
+    let bossDefeated: Bool
+    let banked: Bool
+    /// The mini-boss's Prime item — the capstone the screen headlines.
+    let bossDrop: Item?
+    /// What was picked up on the way down, already granted and already shown at
+    /// each bank/push prompt; tallied here rather than re-revealed.
+    let shallowDrops: [Item]
+    let petFamily: PetFamily
+    let foeName: String
     let onReturn: () -> Void
 
     @State private var titleShown = false
     @State private var winnerScale: CGFloat = 0.4
     @State private var winnerBob = false
     @State private var footerShown = false
+    @State private var dropShown = false
 
-    private var won: Bool { outcome.tier != .downed }
+    private var won: Bool { tier != .downed }
+
+    /// The headline reflects *how* the delve ended, not just win/lose.
+    private var title: String {
+        if bossDefeated { return "Warren Cleared!" }
+        if banked { return "Delve Banked" }
+        return "Driven Back…"
+    }
 
     var body: some View {
         ZStack {
@@ -651,7 +1128,7 @@ private struct EndScreen: View {
             Color.black.opacity(0.5)
 
             VStack(spacing: 18) {
-                Text(won ? "Victory!" : "Defeated…")
+                Text(title)
                     .font(.system(size: 46, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color.green : Color.orange)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
@@ -666,19 +1143,49 @@ private struct EndScreen: View {
 
                 if footerShown {
                     VStack(spacing: 10) {
-                        Text("\(tierName(outcome.tier)) — \(exitBlurb(outcome.tier))")
+                        Text("\(tierName(tier)) — \(exitBlurb(tier))")
                             .font(.headline)
                             .foregroundStyle(.white.opacity(0.85))
-                        if outcome.xpGained > 0 {
-                            Label("+\(Int(outcome.xpGained)) XP", systemImage: "sparkles")
+                        if xpGained > 0 {
+                            Label("+\(xpGained) XP", systemImage: "sparkles")
                                 .font(.title3.bold())
                                 .foregroundStyle(.white)
                         }
-                        Button(action: onReturn) {
-                            Text("Return").frame(width: 160)
+                        // The reason to have pushed past the bank: the boss is the
+                        // only thing down here that widens the loadout. It gets
+                        // its own staged beat rather than a line of text, and the
+                        // Return button waits for it — a drop the player dismissed
+                        // before seeing is the whole gamble going unwitnessed.
+                        if dropShown {
+                            if let bossDrop {
+                                DropReveal(session: session, item: bossDrop)
+                                    .transition(
+                                        .scale(scale: 0.7).combined(with: .opacity)
+                                    )
+                            }
+                            if !shallowDrops.isEmpty {
+                                // Already revealed one at a time between fights, so
+                                // this is a receipt, not a second reveal.
+                                Label(
+                                    shallowDrops.count == 1
+                                        ? "1 more piece recovered on the way down"
+                                        : "\(shallowDrops.count) more pieces recovered on the way down",
+                                    systemImage: "bag.fill"
+                                )
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.55))
+                                .help(shallowDrops.map(\.displayName).joined(separator: ", "))
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+
+                        if dropShown {
+                            Button(action: onReturn) {
+                                Text("Return").frame(width: 160)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .transition(.opacity)
+                        }
                     }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
@@ -691,9 +1198,9 @@ private struct EndScreen: View {
     @ViewBuilder
     private var winner: some View {
         if won {
-            PetCombatSprite(family: model.petFamily, pose: .victory, size: 150)
+            PetCombatSprite(family: petFamily, pose: .victory, size: 150)
         } else {
-            FoeSprite(foeName: model.foeName, pose: .attack, size: 150)
+            FoeSprite(foeName: foeName, pose: .attack, size: 150)
         }
     }
 
@@ -708,7 +1215,186 @@ private struct EndScreen: View {
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             withAnimation(.easeOut(duration: 0.35)) { footerShown = true }
+
+            // With no drop there's nothing to wait for, so Return arrives with the
+            // rest of the footer. With one, it lands a beat later — after the
+            // victory fanfare has thinned out — so the item has the stage alone.
+            guard bossDrop != nil else {
+                withAnimation(.easeOut(duration: 0.25)) { dropShown = true }
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(700))
+            CombatAudio.shared.play(.crit, volume: 0.55)
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.62)) {
+                dropShown = true
+            }
         }
+    }
+}
+
+/// The drop beat: what the Warren gave up, what it's worth to *this* Workling,
+/// what it would replace, and the chance to put it on without leaving the screen.
+///
+/// The item is already owned by the time this appears — the delve resolution
+/// banked it — so nothing here can fail. Equipping is the one action, and it
+/// closes the loop that otherwise sent the player to another window to make their
+/// prize do anything.
+private struct DropReveal: View {
+    /// Where the card is standing. `inline` sits inside the bank/push prompt
+    /// between fights; `headline` is the end screen's capstone. Same content,
+    /// different weight — the boss's Prime item has earned the bigger frame.
+    enum Style {
+        case inline
+        case headline
+    }
+
+    @ObservedObject var session: PetSession
+    let item: Item
+    var style: Style = .headline
+
+    @State private var shimmer = false
+
+    private var isHeadline: Bool { style == .headline }
+
+    /// Prime gear is the reason to have walked past the bank prompt, so it reads
+    /// hotter than the junk from the shallow fights. Shared with the inventory so
+    /// a tier looks the same wherever it's named.
+    private var tint: Color { tierTint(item.tier) }
+
+    private var pricing: GearPricing { GearPricing(session: session) }
+
+    private var swap: GearSwap {
+        session.state.loadout.swap(
+            to: item,
+            family: session.state.family,
+            rates: session.itemRates
+        )
+    }
+
+    private var isEquipped: Bool { session.state.loadout[item.slot] == item }
+
+    var body: some View {
+        VStack(spacing: isHeadline ? 9 : 6) {
+            if isHeadline {
+                Text("THE WARREN YIELDS")
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(tint.opacity(0.75))
+                    .tracking(1.4)
+            }
+
+            HStack(spacing: 11) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: isHeadline ? 26 : 18))
+                    .foregroundStyle(tint)
+                    .shadow(color: tint.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(item.displayName)
+                            .font(.system(size: isHeadline ? 16 : 13, weight: .bold, design: .rounded))
+                        tierBadge
+                        Text(item.slot.displayName.uppercased())
+                            .font(.system(size: 8, weight: .heavy))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(.white.opacity(0.15)))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+
+                    Text(pricing.priceLabel(for: item))
+                        .font(.system(size: isHeadline ? 12 : 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+
+                    if isHeadline {
+                        Text(item.flavor)
+                            .font(.caption2.italic())
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            comparison
+
+            equipControl
+        }
+        .padding(.horizontal, isHeadline ? 16 : 12)
+        .padding(.vertical, isHeadline ? 12 : 9)
+        .frame(maxWidth: isHeadline ? 400 : 340)
+        .background(
+            RoundedRectangle(cornerRadius: 13)
+                .fill(.black.opacity(0.4))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 13)
+                        .stroke(tint.opacity(0.35), lineWidth: 1)
+                )
+        )
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                shimmer = true
+            }
+        }
+        .help(isHeadline ? item.flavor : "\(item.flavor)\n\n\(item.tier.displayName) gear.")
+    }
+
+    private var tierBadge: some View {
+        Text(item.tier.displayName.uppercased())
+            .font(.system(size: 8, weight: .heavy))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(tint.opacity(0.25)))
+            .foregroundStyle(tint)
+    }
+
+    /// What putting it on would actually cost. Mono-stat, slot-bound items mean a
+    /// swap usually moves two different stats in opposite directions, so a bare
+    /// "+2 Agility" would be a half-truth whenever the slot is occupied.
+    @ViewBuilder
+    private var comparison: some View {
+        let swap = swap
+
+        if isEquipped {
+            Text("Equipped.")
+                .font(.caption2.bold())
+                .foregroundStyle(.green.opacity(0.9))
+        } else if swap.fillsEmptySlot {
+            Text("Your \(item.slot.displayName) slot is empty — pure gain.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.6))
+        } else if let outgoing = swap.outgoing, let lost = swap.lost {
+            HStack(spacing: 5) {
+                Text("Replaces \(outgoing.displayName)")
+                    .foregroundStyle(.white.opacity(0.6))
+                Text("−\(lost.amount) \(lost.stat.displayName)")
+                    .foregroundStyle(.red.opacity(0.85))
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.35))
+                Text("+\(swap.gained.amount) \(swap.gained.stat.displayName)")
+                    .foregroundStyle(.green.opacity(0.9))
+            }
+            .font(.caption2.bold())
+        }
+    }
+
+    private var equipControl: some View {
+        Button {
+            session.equip(item, in: item.slot)
+        } label: {
+            Label(
+                isEquipped ? "Equipped" : "Equip \(item.slot.displayName)",
+                systemImage: isEquipped ? "checkmark.circle.fill" : "arrow.down.circle.fill"
+            )
+            .frame(width: 160)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+        .disabled(isEquipped)
+        .help(
+            isEquipped
+                ? "\(item.displayName) is in your \(item.slot.displayName) slot."
+                : "Put it on now — or later, from the Character Screen."
+        )
     }
 }
 

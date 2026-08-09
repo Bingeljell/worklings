@@ -18,7 +18,10 @@ To keep track of the progress, you can see the [changelog](docs/changelog.md) - 
 
 The biggest arc yet — **Worklings now fights.**
 
-- **⚔️ Dungeon combat (the Cache Warren).** Your Workling can leave the desktop and delve into a dungeon: a turn-based auto-battler arena where it faces off against foes one beat at a time. You steer with an **Approach** and the occasional decision (Brace the incoming Slam? Unleash into an opening?) while the pet acts on its own. Four foes with genuinely different mechanics — the **Dungeon Scamp** (warm-up), **Snag** (grabs and snares your agility), **Flicker** (blurs and phases out of the way), and the **Monolith** mini-boss (telegraphed slams and hardening armour) — with impact juice (shake, crits, floating damage), a 3-2-1 countdown, and a victory/defeat screen. Enter from the paw menu.
+- **🗺️ The delve, end to end.** A dungeon run is now a journey, not a single fight: a narration briefing that sets the vibe, a **loadout** you pack before descending, a four-encounter chain, and a **bank-or-push** prompt after every win — leave with what you've earned, or press deeper toward the mini-boss at rising risk. Every cleared encounter drops gear; only the boss carries the best of it.
+- **🎒 Gear.** Three functional slots — **Tool**, **Ward**, **Charm** (never a human armour paper-doll; Worklings are creatures) — and fifteen items across three tiers, from Scavenged junk to boss-only **Prime**. Items are universal (any build can wear anything) with a soft **family attunement** rider, and they fold into your stats at read-time, so gear never rewrites what you've earned.
+- **🪟 The Character Screen.** Click your Workling for its hub: a model bay and gear rail beside **Character**, **Inventory**, **Skills**, and **Care** tabs. The stat table shows base, gear, and total side by side, and an "in the arena" readout of what actually walks into a fight.
+- **⚔️ Dungeon combat (the Cache Warren).** A turn-based auto-battler arena where your Workling faces off against foes one beat at a time. You steer with an **Approach** and the occasional decision (Brace the incoming Slam? Unleash into an opening?) while the pet acts on its own. Four foes with genuinely different mechanics — the **Dungeon Scamp** (warm-up), **Snag** (grabs and snares your agility), **Flicker** (blurs and phases out of the way), and the **Monolith** mini-boss (telegraphed slams and hardening armour) — with impact juice (shake, crits, floating damage), a 3-2-1 countdown, and a victory/defeat screen. Enter from the paw menu.
 - **🔊 Full combat audio.** A driving dungeon soundtrack (plus a separate boss theme), a distinct cue for every action — hit, crit, slam, dodge, snare, telegraph — and a victory fanfare, all behind a mute toggle and a volume slider.
 - **🐾 Five creature families.** Wildkin, Elemental, and Relicborn are joined by two new design-stage families — **Glitchkin** (signal, speed, unstable reality) and **Bloomglass** (starlight, crystal, celestial calm) — rounding the roster to five, each with its own critter catalogue and a new premium art direction in the works.
 - **🧬 Deep RPG systems (design locked, building toward it).** Five classes, a six-stat combat model with a classless **Luck** stat for high-variance builds, **soft race↔class affinity** (each family leans toward one class and away from another, but any family can still be any class), per-class **abilities**, family **passives**, and Energy/Mana resources — the foundation for gear, skill trees, and eventually multiplayer. See the [design docs](docs/design/).
@@ -73,8 +76,8 @@ The current experimental build includes:
 - versioned local JSON persistence;
 - automatic copy-forward of a legacy Build Companion save;
 - hover summaries for relevant needs;
-- a clickable care card with Feed, Play, Pet, and Sleep actions;
-- XP, levels, and five class-weighted stats earned from care and real work activity, with a Choose Class menu and a Stats tab on the care card;
+- a Character Screen opened by clicking Pixel — gear slots, stats, inventory, and Feed, Play, Pet, and Sleep actions;
+- XP, levels, and five class-weighted stats earned from care and real work activity, with a Choose Class menu and a Character tab showing base, gear, and total side by side;
 - menu-bar wake, tuck-away, care, and quit controls;
 - Worklings-branded app, DMG, checksum, and release-verification scripts;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
@@ -108,8 +111,8 @@ The first build may take a moment. Pixel appears as a floating desktop companion
 ### Interacting with Pixel
 
 - Hover over Pixel for a short natural-language status summary.
-- Click Pixel to open the care card.
-- Drag Pixel to reposition it without opening the card.
+- Click Pixel to open its Character Screen; click again to put it away.
+- Drag Pixel to reposition it without opening the screen.
 - Use Feed, Play, Pet, and Sleep to affect its needs.
 - Use the paw menu to inspect state, tuck Pixel away, wake it, or quit.
 - Use **Let Pixel Roam** in the paw menu to opt into idle movement; pause it from the same control.
@@ -137,7 +140,7 @@ The check runner is used because a minimal Apple Command Line Tools installation
 
 Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
 
-The current prerelease is [`v0.1.0-alpha.8`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.8) — distinct foe abilities and full combat audio. Earlier alphas remain available on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
+The current prerelease is [`v0.1.0-alpha.9`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.9) — the full delve journey, gear and item tiers, and the Character Screen. Earlier alphas remain available on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
 
 To install a packaged alpha:
 

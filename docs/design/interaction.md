@@ -1,6 +1,6 @@
 # Pet Interaction Model
 
-How you read and care for a Workling. Information reveals progressively — the pet itself, then hover, then the care card, then the menu bar — so Pixel feels like a companion, not a monitoring dashboard.
+How you read and care for a Workling. Information reveals progressively — the pet itself, then hover, then the Character Screen, then the menu bar — so Pixel feels like a companion, not a monitoring dashboard.
 
 Everything below describes implemented behavior unless marked deferred. Values are **Fullness-first**: higher always means better, matching the [Pet Brain](pet-brain.md).
 
@@ -19,34 +19,47 @@ A small name pill sits below the pet at all times — not just after opening the
 
 Hover for ~500ms and a small read-only summary appears: natural language ("Pixel is hungry and getting tired"), at most two conditions, no numbers. It dismisses when the pointer leaves, never steals focus or blocks dragging, and stays inside the display. The same summary is exposed to accessibility tools without hovering.
 
-## 3. Care card
+## 3. Character Screen
 
-Click opens it; drag moves the pet and never opens it. One card at a time; Escape or an outside click closes it; opening it never moves the pet; care actions update it live and leave it open.
+Click opens it; drag moves the pet and never opens it. A second click puts it away. It is a **resizable floating window**, not a popover — the home-base hub between idle companion and dungeon, and the destination the click gesture earned once there was more to show than four meters.
 
-A segmented control splits the card into two tabs, so the condition layer and the progression layer never compete for the same space:
+*(This replaces the old care card. That card was a 330pt popover with Condition and Stats tabs; its condition half is now the Care tab and its stats half is now the Character tab. Care data deliberately lives in exactly one place — the standing rule is that it must never be triplicated across a popover, the pet, and this screen.)*
 
 ```text
-┌────────────────────────────┐
-│ Pixel              Hungry  │
-│  [ Condition ] [ Stats ]   │
-│                            │
-│ Fullness   ██░░░░░░░░  18  │
-│ Energy     ████░░░░░░  38  │
-│ Happiness  ██████░░░░  64  │
-│ Trust      ███████░░░  71  │
-│                            │
-│ [ Feed ] [ Play ] [ Pet ]  │
-│          [ Sleep ]         │
-│                            │
-│ ♥ Berries · ♥ Puzzle       │
-└────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ Pixel ✎   Level 4 Wellspring          [Wildkin] [Hungry] │
+├──────────────────┬───────────────────────────────────────┤
+│                  │ [Character] [Inventory] [Skills][Care]│
+│   ┌──────────┐   │                                       │
+│   │  model   │   │          BASE   GEAR   TOTAL          │
+│   │   bay    │   │ Vitality   12     —      12           │
+│   └──────────┘   │ Power      10    +3      13           │
+│                  │ Guard  ★    9     —       9           │
+│ 🔧 TOOL      +3P │ Agility     8     —       8           │
+│ 🛡 WARD    Empty │ Wit         7    +2       9           │
+│ ✨ CHARM     +2W │                                       │
+│                  │ IN THE ARENA                          │
+│ +3 Power · +2 Wit│ [Max HP][Strike][Crit][Condition]     │
+│      ✦ attuned   │                                       │
+└──────────────────┴───────────────────────────────────────┘
 ```
 
-The **Stats** tab shows level, class, and role; an XP bar labelled with the actual current/required numbers, not just a bar; and all five stats, with the active class's signature stat marked with a star. It's the natural home for abilities and gear once those exist.
+The **left rail is not a tab.** The Workling and what it's wearing stay on screen while you browse the inventory that fills them — equipping is the thing this screen exists to make tactile, so the result of a click must be visible in the same glance.
+
+- **Model bay** — Phase 1 is a static render. The frame, backdrop, and claimed space are already final, so swapping in a live rotatable `SceneView` later changes contents, not layout.
+- **Gear slots** — Tool / Ward / Charm, each a menu over what the Workling actually owns, each priced inline. Empty slots still state what they're *for*.
+- **Character tab** — level, class, role, a labelled XP bar, and the stat table as **three columns: base, gear, total**. Showing only one of those rungs would hide either what the gear bought or what it cost; the signature stat carries a star. Below it, "in the arena" reports what actually walks into a fight — Max HP, Strike, Crit, Condition — read off the *same* `Combatant` the resolver builds, so the screen cannot drift from the fight.
+- **Inventory tab** — everything owned, worn or not. An item knows its own slot, so a click equips and a second click removes; there is no slot to choose.
+- **Skills tab** — the class, its role, and its signature stat. The ability tree is designed but unbuilt, and the tab says so plainly rather than mocking up a tree that can't be clicked.
+- **Care tab** — the four meters and every care action, unchanged.
 
 Every meter is a wellbeing measure: longer bar, better pet. Natural language may still call the Workling "hungry" — that's flavour, not a different scale.
 
 A pencil icon beside the name opens an inline editor; the confirm control disables on an invalid draft (empty, or over 24 characters) rather than accepting a submission and rejecting it after the fact.
+
+The window is **free-resize with no cap** — it is nearly all vector UI, and the one stretchable element is exactly the part that becomes live 3D, so there is nothing here that resizing can pixelate. (The dungeon arena takes the opposite answer; see [dungeons](dungeons.md).) Its size and position persist across closes.
+
+Gear is also editable in the delve **briefing**, which keeps its own compact prep bar: that is the *quick* prep, sitting where the narration motivates it. Both surfaces price items through one shared vocabulary, so they can only ever say the same thing.
 
 ## 4. Menu bar
 
@@ -57,7 +70,7 @@ The reliable fallback: wake, tuck away, persistence warnings, quit, the checked 
 An explicit opt-in. Pixel occasionally wanders within the current display — needs and relationship state never change from movement.
 
 - Stays fully inside the visible frame, reflects inward off edges, never crosses displays.
-- Pauses instantly for hover, the care card, dragging, tuck-away, or Reduce Motion.
+- Pauses instantly for hover, dragging, tuck-away, or Reduce Motion. The Character Screen is its own window rather than a popover anchored to the pet, so roaming continues while it's open.
 - Walks with the walking frames, faces its direction of travel, and never flips text.
 - A drag that ends off-frame is clamped back in; roaming then resumes.
 
@@ -65,7 +78,7 @@ Mood, personality, and activity context will drive movement later; today's patte
 
 ## Click versus drag
 
-Movement, not timing, tells them apart: within click tolerance → card on release; beyond it → drag, click suppressed. AppKit owns the tracking; SwiftUI only presents content.
+Movement, not timing, tells them apart: within click tolerance → Character Screen on release; beyond it → drag, click suppressed. AppKit owns the tracking; SwiftUI only presents content.
 
 ## Urgency
 

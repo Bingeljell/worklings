@@ -129,6 +129,18 @@ public struct PetState: Codable, Equatable, Sendable {
     /// milestone commit is worth less than the first). Same day-scoped
     /// semantics as `dailyXP`; the two are updated together.
     public let dailyEventCount: DailyTally<[String: Int]>
+    /// Every item the Workling owns, in the order acquired. Duplicates are
+    /// collapsed — an item is a thing you have or don't, not a stack.
+    public let ownedItems: [Item]
+    /// What's currently equipped, one item per slot. Only ever *which* items —
+    /// their stat effect is computed at read-time by `effectiveStats(rates:)`, so
+    /// no gear change ever rewrites a persisted stat.
+    public let loadout: Loadout
+
+    /// A new Workling starts with one modest item so the gear UI is never empty
+    /// on first look, and it starts equipped so the effect is visible without a
+    /// first trip through the inventory. Which item is a knob.
+    public static let starterItem: Item = .rubberDuck
 
     public init(
         schemaVersion: Int = PetState.currentSchemaVersion,
@@ -143,7 +155,9 @@ public struct PetState: Codable, Equatable, Sendable {
         petClass: PetClass = .wellspring,
         stats: PetStats = PetStats(),
         dailyXP: DailyTally<[String: Double]> = DailyTally(value: [:]),
-        dailyEventCount: DailyTally<[String: Int]> = DailyTally(value: [:])
+        dailyEventCount: DailyTally<[String: Int]> = DailyTally(value: [:]),
+        ownedItems: [Item] = [PetState.starterItem],
+        loadout: Loadout = Loadout().equipping(PetState.starterItem)
     ) {
         self.schemaVersion = schemaVersion
         self.name = name
@@ -158,12 +172,26 @@ public struct PetState: Codable, Equatable, Sendable {
         self.stats = stats
         self.dailyXP = dailyXP
         self.dailyEventCount = dailyEventCount
+
+        // Owning an item is a yes/no, so a repeated entry is collapsed rather
+        // than stacked — first-acquired order is kept so the inventory reads as
+        // a history.
+        var seen: Set<Item> = []
+        self.ownedItems = ownedItems.filter { seen.insert($0).inserted }
+        // You can only wear what you own. Enforcing it here means no caller can
+        // construct a state that equips a phantom item, however the fields were
+        // written — including by a hand-edited save.
+        let owned = seen
+        self.loadout = ItemSlot.allCases.reduce(Loadout.empty) { partial, slot in
+            guard let item = loadout[slot], owned.contains(item) else { return partial }
+            return partial.equipping(item, in: slot)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, name, family, needs, preferences, lastUpdatedAt
         case lastWorkLogAt, workLog, totalXP, petClass, stats, dailyXP
-        case dailyEventCount
+        case dailyEventCount, ownedItems, loadout
     }
 
     /// The pre-v2 flat daily fields, read only to fold a v1 save into the
@@ -198,6 +226,17 @@ public struct PetState: Codable, Equatable, Sendable {
             forKey: .dailyEventCount
         ) ?? DailyTally(value: [:])
 
+        // Gear is additive to the schema, so an older save simply has no item
+        // fields. It reads as the *starter* loadout rather than as nothing —
+        // exactly what a pet created today would get — so a save that predates
+        // gear isn't left with an empty inventory it can never fill. Same
+        // posture as `stats`, which defaults to a starting sheet rather than
+        // zeroes. Still zero migration: nothing persisted is rewritten.
+        let ownedItems = try container.decodeIfPresent([Item].self, forKey: .ownedItems)
+            ?? [PetState.starterItem]
+        let loadout = try container.decodeIfPresent(Loadout.self, forKey: .loadout)
+            ?? Loadout().equipping(PetState.starterItem)
+
         self.init(
             schemaVersion: try container.decode(Int.self, forKey: .schemaVersion),
             name: try container.decode(String.self, forKey: .name),
@@ -211,7 +250,9 @@ public struct PetState: Codable, Equatable, Sendable {
             petClass: try container.decodeIfPresent(PetClass.self, forKey: .petClass) ?? .wellspring,
             stats: try container.decodeIfPresent(PetStats.self, forKey: .stats) ?? PetStats(),
             dailyXP: dailyXP,
-            dailyEventCount: dailyEventCount
+            dailyEventCount: dailyEventCount,
+            ownedItems: ownedItems,
+            loadout: loadout
         )
     }
 
@@ -247,7 +288,9 @@ public struct PetState: Codable, Equatable, Sendable {
         family: PetFamily? = nil,
         petClass: PetClass? = nil,
         needs: PetNeeds? = nil,
-        totalXP: Double? = nil
+        totalXP: Double? = nil,
+        ownedItems: [Item]? = nil,
+        loadout: Loadout? = nil
     ) -> PetState {
         PetState(
             schemaVersion: schemaVersion ?? self.schemaVersion,
@@ -262,7 +305,9 @@ public struct PetState: Codable, Equatable, Sendable {
             petClass: petClass ?? self.petClass,
             stats: stats,
             dailyXP: dailyXP,
-            dailyEventCount: dailyEventCount
+            dailyEventCount: dailyEventCount,
+            ownedItems: ownedItems ?? self.ownedItems,
+            loadout: loadout ?? self.loadout
         )
     }
 
@@ -290,6 +335,74 @@ public struct PetState: Codable, Equatable, Sendable {
     /// growth follows the new class's signature stat.
     public func selectingClass(_ petClass: PetClass) -> PetState {
         replacing(petClass: petClass)
+    }
+
+    // MARK: - Gear
+
+    /// Adds an item to the inventory. Acquiring one already owned is a no-op —
+    /// items are owned or not, never stacked — so a repeated drop is harmless.
+    public func acquiring(_ item: Item) -> PetState {
+        guard !ownedItems.contains(item) else { return self }
+        return replacing(ownedItems: ownedItems + [item])
+    }
+
+    /// Equips `item` in `slot`, or empties the slot when it's nil. Returns the
+    /// state unchanged if the item isn't owned or doesn't belong in that slot,
+    /// so a caller can attempt an equip without pre-validating it.
+    public func equipping(_ item: Item?, in slot: ItemSlot) -> PetState {
+        if let item, !ownedItems.contains(item) { return self }
+        let updated = loadout.equipping(item, in: slot)
+        guard updated != loadout else { return self }
+        return replacing(loadout: updated)
+    }
+
+    /// Equips `item` into the slot it belongs to.
+    public func equipping(_ item: Item) -> PetState {
+        equipping(item, in: item.slot)
+    }
+
+    public func clearingSlot(_ slot: ItemSlot) -> PetState {
+        equipping(nil, in: slot)
+    }
+
+    /// Puts the inventory back to what a brand-new Workling carries: the starter
+    /// item, equipped, and nothing else.
+    ///
+    /// This exists because drops are deliberately scarce — only a boss clear
+    /// awards one, and only an item not already owned — so the whole gear loop can
+    /// be *earned* out in four delves and then never seen again. That is right for
+    /// play and wrong for testing it. Everything except gear (name, needs, XP,
+    /// class, family) is preserved, so a reset costs no progress.
+    public func forgettingAcquiredItems() -> PetState {
+        replacing(
+            ownedItems: [Self.starterItem],
+            loadout: Loadout().equipping(Self.starterItem)
+        )
+    }
+
+    /// The stat sheet everything downstream should read: the persisted base with
+    /// equipped gear folded in. Combat builds its combatant from this, and the
+    /// stats panel shows it — so the numbers a player sees and the numbers that
+    /// fight are the same numbers.
+    public func effectiveStats(rates: ItemRates = ItemRates()) -> PetStats {
+        stats.effective(loadout: loadout, family: family, rates: rates)
+    }
+
+    /// The owned items that fit `slot`, **best tier first** — with three tiers of
+    /// everything, acquisition order would bury a hard-won Prime item under the
+    /// junk that dropped before it. Ties break on the stat's declaration order so
+    /// the list is stable rather than dependent on what dropped when.
+    public func availableItems(for slot: ItemSlot) -> [Item] {
+        ownedItems
+            .filter { $0.slot == slot }
+            .sorted { lhs, rhs in
+                if lhs.tier != rhs.tier { return lhs.tier > rhs.tier }
+                return statOrder(lhs) < statOrder(rhs)
+            }
+    }
+
+    private func statOrder(_ item: Item) -> Int {
+        PetStatKind.allCases.firstIndex(of: item.stat) ?? 0
     }
 
     public static let maximumNameLength = 24

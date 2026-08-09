@@ -126,6 +126,67 @@ repair. Every magnitude stays inside the **reversible-neglect envelope** — a d
 delve leaves the pet drained and shaken, never broken, and care always restores it. This
 coupling is the tuning's sharpest edge and needs real playtesting.
 
+## The delve as a journey — encounter & delve UX
+
+The sections above spec the **combat engine**; this one specs the **experience wrapped
+around it** — how a delve reads as a journey with anticipation and agency, not just a
+chain of fights. Locked 2026-08-03. The combat model, Approach, and decision points are
+unchanged; this layer is the shell they run inside.
+
+**The five beats of a delve:**
+
+1. **Briefing (narration, not a mechanic)** — a delve opens with a bit of **storytelling**:
+   *"An amazing dungeon looms. If this is the Cache Warren, expect nimble Motes, a grabbing
+   Snag, an evasive Flicker… and something heavy at the bottom. You may want to pack for
+   accuracy — or bring a Ward."* The tone is flavor and anticipation; the **known-vs-unknown
+   is light spice** ("we don't quite know what's down there"), not a depth-gated reveal
+   system. The briefing's **one gameplay job is to set up the loadout choice** (beat 2) — it
+   tells the player what *kind* of prep this delve rewards.
+2. **Prep / loadout (the real player option)** — off the briefing, the player picks a
+   **loadout** (equipped gear — see [Items](items.md#where-items-live)) and a **starting
+   Approach**. This is where the briefing pays off: a defensive-sounding delve invites heavy
+   **Ward** gear; a "slippery, lucky" one invites stacking **Luck**/accuracy. *(Downstream of
+   the combat engine — the gear stats only bite once combat reads them.)* Prep is fed by the
+   **Character Screen** (the same gear slots).
+3. **Fight** — the pet fights **autonomously** on the current Approach and **uses its own
+   abilities** ([abilities.md](abilities.md)); the player is hands-off between decisions.
+4. **Steer** — at [decision points](#the-players-input-strategy-at-decision-points) the
+   player gives **broad guidance** (re-choose the Approach, spend the Unleash) — steering,
+   never micromanagement.
+5. **Bank or push (press-your-luck)** — after each cleared encounter the player chooses to
+   **bank** (exit safely, keep everything earned so far, forfeit the completion bonus) or
+   **push deeper** toward the boss at rising **attrition** risk. A **Downed** exit still
+   loses half, so pushing is a genuine gamble. A little "we don't know exactly what's next"
+   is what gives this beat its tension.
+
+**Rewards map onto press-your-luck with zero rework.** The existing split —
+[per-encounter XP + a delve-completion bonus](#rewards) — already encodes the gamble:
+banking keeps the per-encounter XP (and any drops) earned so far but forfeits the
+completion bonus + ability point + best drop, which remain the **boss capstone**. Pushing
+risks a Downed exit (half XP, no bonus). No new reward system is needed — banking is just a
+*voluntary* early exit alongside the existing Downed exit.
+
+**Not included (deliberately):** active **scouting**, a separate ceremonial **pre-fight
+beat** (the Approach is set at prep and re-chosen at decision points), and any **systemic
+info-reveal engine** — the briefing is narration, kept deliberately light. A **branching
+node map** (route forks) was considered and rejected for v1 in favor of the linear backbone
++ press-your-luck; it stays a possible later layer. **Solo is fully viable**; multiplayer
+(later) is where group composition is meant to matter (the one-stat-per-class, TTK-route
+design enables it).
+
+## One dungeon now, many later
+
+**Direction:** eventually Worklings has **multiple dungeon encounters, each with its own
+vibe and its own entry button** (the Cache Warren is explicitly *"the first dungeon's
+setting, not the world's"*). **But the immediate goal is to get ONE dungeon — the Cache
+Warren — actually playable**, built on the discussions above: the real combat engine, a few
+**items** as loadout, and enough of the **journey** (briefing narration → loadout → the
+encounter chain → press-your-luck → rewards) that a user can *experience* a delve end to
+end. Breadth (more dungeons, per-dungeon buttons) comes after the first one proves the loop.
+The [vertical-slice build notes](#what-a-first-playable-encounter-needs) below are the
+starting point; this first playable dungeon widens that slice just far enough to feel like a
+delve, not the whole system at once.
+
 ## The Cache Warren
 
 *Setting — the **first** dungeon's, not the world's. Worklings is a broad universe, and

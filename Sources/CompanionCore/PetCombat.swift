@@ -54,6 +54,13 @@ public struct PetCombatRates: Equatable, Sendable {
     /// If any need is at or below this, the pet refuses to delve — "fights below
     /// its sheet, or refuses to fight."
     public let refusalNeedThreshold: Double
+    /// Share of max HP the pet regains between encounters within a delve, before
+    /// being scaled by condition effectiveness — a rested, happy Workling recovers
+    /// more mid-delve. The attrition pressure across a delve chain.
+    public let interEncounterRegenFraction: Double
+    /// Bonus XP for completing a full delve (clearing the mini-boss), on top of the
+    /// per-encounter kill XP. Forfeited when the player banks early.
+    public let delveCompletionXP: Double
 
     public init(
         baseHP: Double = 20,
@@ -75,7 +82,9 @@ public struct PetCombatRates: Equatable, Sendable {
         lowHPEventThreshold: Double = 0.3,
         carefulBraceThreshold: Double = 0.5,
         delveGateLevel: Int = 3,
-        refusalNeedThreshold: Double = 10
+        refusalNeedThreshold: Double = 10,
+        interEncounterRegenFraction: Double = 0.3,
+        delveCompletionXP: Double = 50
     ) {
         self.baseHP = max(baseHP, 0)
         self.vitalityToHP = max(vitalityToHP, 0)
@@ -97,6 +106,8 @@ public struct PetCombatRates: Equatable, Sendable {
         self.carefulBraceThreshold = min(max(carefulBraceThreshold, 0), 1)
         self.delveGateLevel = max(delveGateLevel, 1)
         self.refusalNeedThreshold = min(max(refusalNeedThreshold, 0), 100)
+        self.interEncounterRegenFraction = min(max(interEncounterRegenFraction, 0), 1)
+        self.delveCompletionXP = max(delveCompletionXP, 0)
     }
 
     /// The condition→combat multiplier: full condition fights at 100%, neglect
