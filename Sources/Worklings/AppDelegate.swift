@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var companionController: CompanionPanelController?
     private var combatPanelController: CombatPanelController?
+    private var characterWindowController: CharacterWindowController?
     private var petSession: PetSession?
     private var presenceMonitor: PresenceMonitor?
     private var activityInboxMonitor: ActivityInboxMonitor?
@@ -56,9 +57,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let petSession = PetSession()
         #endif
         let companionController = CompanionPanelController(session: petSession)
+        let characterWindowController = CharacterWindowController(session: petSession)
         self.petSession = petSession
         self.companionController = companionController
         self.combatPanelController = CombatPanelController()
+        self.characterWindowController = characterWindowController
+
+        // Clicking the Workling opens its Character Screen — one window, whether
+        // you got there by the pet or by the menu, so the two can't disagree.
+        companionController.onClick = { [weak characterWindowController] in
+            characterWindowController?.toggle()
+        }
 
         #if DEBUG
         let idleThreshold = ProcessInfo.processInfo.environment["WORKLINGS_IDLE_THRESHOLD_SECONDS"]
@@ -121,6 +130,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         warningMenuItem = warningItem
 
         menu.addItem(.separator())
+
+        // The hub, reachable two ways: here, and by clicking the Workling itself.
+        let characterItem = NSMenuItem(
+            title: "Character Screen",
+            action: #selector(openCharacterScreen),
+            keyEquivalent: ""
+        )
+        characterItem.target = self
+        characterItem.toolTip = "Gear, stats, and care — or just click your Workling."
+        menu.addItem(characterItem)
+
         menu.addItem(makeFamilyMenuItem())
 
         let renameItem = NSMenuItem(
@@ -375,6 +395,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             dungeonMenuItem.isEnabled = false
             dungeonMenuItem.toolTip = "\(state.name) needs care before delving."
         }
+    }
+
+    @objc private func openCharacterScreen() {
+        characterWindowController?.present()
     }
 
     @objc private func descendIntoCacheWarren() {

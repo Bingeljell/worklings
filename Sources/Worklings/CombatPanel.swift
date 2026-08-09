@@ -715,8 +715,14 @@ private struct BriefingView: View {
 /// picks are worth. The readout is the point: a loadout choice the player can't
 /// price is just a menu, so the stat delta is visible *before* the descent rather
 /// than inferred from how the fight went.
+///
+/// This is the *quick* prep, kept on the briefing where the narration motivates
+/// it; the Character Screen is gear's actual home. Both price items through
+/// `GearPricing`, so the two can only ever say the same thing.
 private struct LoadoutBar: View {
     @ObservedObject var session: PetSession
+
+    private var pricing: GearPricing { GearPricing(session: session) }
 
     var body: some View {
         VStack(spacing: 7) {
@@ -740,7 +746,7 @@ private struct LoadoutBar: View {
 
         return Menu {
             ForEach(owned, id: \.self) { item in
-                Button(menuLabel(for: item)) { session.equip(item, in: slot) }
+                Button(pricing.menuLabel(for: item)) { session.equip(item, in: slot) }
             }
             if !owned.isEmpty {
                 Divider()
@@ -770,20 +776,10 @@ private struct LoadoutBar: View {
     }
 
     /// What the whole loadout is worth, in the same stat vocabulary the sheet
-    /// uses. Ordered by `PetStatKind.allCases` so the line doesn't reshuffle as
-    /// items are swapped.
+    /// uses.
     private var statLine: some View {
-        let modifiers = session.state.loadout.modifiers(
-            family: session.state.family,
-            rates: session.itemRates
-        )
-        let parts = PetStatKind.allCases.compactMap { stat -> String? in
-            guard let bonus = modifiers[stat], bonus > 0 else { return nil }
-            return "+\(bonus) \(stat.displayName)"
-        }
-        let attuned = session.state.loadout.equipped.filter {
-            session.itemRates.isAttuned($0, family: session.state.family)
-        }
+        let parts = pricing.statLineParts(for: session.state.loadout)
+        let attunement = pricing.attunementExplanation(for: session.state.loadout)
 
         return HStack(spacing: 6) {
             if parts.isEmpty {
@@ -792,25 +788,14 @@ private struct LoadoutBar: View {
             } else {
                 Text(parts.joined(separator: " · "))
                     .foregroundStyle(.green.opacity(0.85))
-                if !attuned.isEmpty {
+                if let attunement {
                     Text("✦ attuned")
                         .foregroundStyle(.yellow.opacity(0.85))
-                        .help(
-                            attuned.map(\.displayName).joined(separator: ", ")
-                                + " suits a \(session.state.family.displayName) — a little extra."
-                        )
+                        .help(attunement)
                 }
             }
         }
         .font(.caption2.bold())
-    }
-
-    /// A menu row prices the item where the choice is made, and marks the
-    /// thematic match so attunement is discoverable rather than hidden arithmetic.
-    private func menuLabel(for item: Item) -> String {
-        let bonus = session.itemRates.modifier(for: item, family: session.state.family)
-        let mark = session.itemRates.isAttuned(item, family: session.state.family) ? " ✦" : ""
-        return "\(item.displayName)  +\(bonus) \(item.stat.displayName)\(mark)"
     }
 }
 

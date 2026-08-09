@@ -2,7 +2,7 @@
 
 The Pet Brain is the Workling's life simulation — the **condition layer** from the [progression design](progression.md). It runs entirely locally, works without any integration, and is deterministic: the same state and the same clock always produce the same pet.
 
-Pixel is the current test Workling and can appear as the Wildkin moss-fox, Elemental ember-newt, or Relicborn keyback pangolin. Changing family never resets care progress. Renaming is the same shape of change: `PetState.renamed(to:)` trims the input, rejects anything empty or over `PetState.maximumNameLength` (24 characters) by leaving the pet unchanged, and otherwise preserves every other field exactly like family selection does. The paw menu's "Rename…" opens a system alert; the care card's pencil icon next to the name opens an inline editor — both call the same `PetSession.rename(to:)`.
+Pixel is the current test Workling and can appear as the Wildkin moss-fox, Elemental ember-newt, or Relicborn keyback pangolin. Changing family never resets care progress. Renaming is the same shape of change: `PetState.renamed(to:)` trims the input, rejects anything empty or over `PetState.maximumNameLength` (24 characters) by leaving the pet unchanged, and otherwise preserves every other field exactly like family selection does. The paw menu's "Rename…" opens a system alert; the Character Screen's pencil icon next to the name opens an inline editor — both call the same `PetSession.rename(to:)`.
 
 ## Who owns what
 
@@ -90,7 +90,7 @@ Every event gets a visible reaction, so its effect is never invisible — includ
 
 These values are alpha tuning. In debug builds only, three environment variables make manual testing practical without waiting on real clocks: `WORKLINGS_IDLE_THRESHOLD_SECONDS` shortens how long counts as "away," `WORKLINGS_PRESENCE_POLL_SECONDS` shortens how often presence is checked, and `WORKLINGS_DEBUG_RATE_SCALE` multiplies every per-hour need rate so a few real seconds can stand in for hours. The paw menu's **Simulate Activity** submenu fires any event by hand and shows the live context. All of this is compiled out of release builds.
 
-**Run a Full Day, Sped Up** is a scripted rehearsal at the top of that same submenu: `dailyWake` → `workStarted` → (11 simulated minutes later) `workEnded` → `workLogged` → `taskCompleted` → `milestone`, paced about 1.5 real seconds apart so reactions and XP are visible one at a time instead of all at once. Every step's timestamp is anchored backward from the moment the script starts, not forward from it, so the pet's `lastUpdatedAt` never lands in the future — a forward-anchored script would leave real-time condition decay frozen until wall-clock time caught up to the simulated end point. The `workStarted`→`workEnded` gap is deliberately just past Focus Session's minimum qualifying duration so that XP grant actually fires. Open the care card's Stats tab before running it to watch XP and stats move live.
+**Run a Full Day, Sped Up** is a scripted rehearsal at the top of that same submenu: `dailyWake` → `workStarted` → (11 simulated minutes later) `workEnded` → `workLogged` → `taskCompleted` → `milestone`, paced about 1.5 real seconds apart so reactions and XP are visible one at a time instead of all at once. Every step's timestamp is anchored backward from the moment the script starts, not forward from it, so the pet's `lastUpdatedAt` never lands in the future — a forward-anchored script would leave real-time condition decay frozen until wall-clock time caught up to the simulated end point. The `workStarted`→`workEnded` gap is deliberately just past Focus Session's minimum qualifying duration so that XP grant actually fires. Open the Character Screen's Character tab before running it to watch XP and stats move live.
 
 The live presence source keeps a genuine absence alive by quietly re-touching the context roughly every 15 seconds, without repeating the "Oh, you're away…" reaction — so the two-tier rate above sees the absence's real duration rather than losing track of it. The 30-minute expiry is a fallback for abnormal termination only (a crash, a `workStarted` whose `workEnded` never arrives), not the everyday path.
 
@@ -111,7 +111,7 @@ There is no user-chosen point value — every credited log grants the same fixed
 - A cooldown between credited logs.
 - A hard daily cap on how many logs are ever credited.
 
-Both are checked before the action is even available — Log Work is disabled with an explanation exactly like Feed at zero hunger, never silently clicked and rejected. `PetBrain.workLogAvailability` is the single source of truth both the menu and the care card read.
+Both are checked before the action is even available — Log Work is disabled with an explanation exactly like Feed at zero hunger, never silently clicked and rejected. `PetBrain.workLogAvailability` is the single source of truth both the menu and the Character Screen's Care tab read.
 
 The daily cap is tracked on the save (`lastWorkLogAt` plus the `workLog` daily tally) but never proactively reset: a stale count from a previous day is simply ignored once the tally's stored date no longer matches today, so there is no day-rollover code path to get wrong. `workLog` and the per-source `dailyXP` ledger share one `DailyTally` type — the single place that "valid only today" bookkeeping lives.
 

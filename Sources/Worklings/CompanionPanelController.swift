@@ -50,7 +50,6 @@ final class CompanionPanelController {
     private let session: PetSession
     private let motionState = CompanionMotionState()
     private let hoverSummaryController: HoverSummaryPanelController
-    private let carePopoverController: CarePopoverController
     private var hostingView: CompanionHostingView<WorklingPetView>?
     private var hoverTask: Task<Void, Never>?
     private var roamingTask: Task<Void, Never>?
@@ -63,6 +62,12 @@ final class CompanionPanelController {
 
     private(set) var isVisible = false
 
+    /// What clicking the Workling does. The gesture used to open a small transient
+    /// care popover; its destination is now the Character Screen, which owns care
+    /// as a tab. The controller doesn't own that window — the app delegate does,
+    /// since the menu opens the same one — so the click is handed up as intent.
+    var onClick: (() -> Void)?
+
     var isRoamingAvailable: Bool {
         !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
@@ -70,7 +75,6 @@ final class CompanionPanelController {
     init(session: PetSession) {
         self.session = session
         hoverSummaryController = HoverSummaryPanelController()
-        carePopoverController = CarePopoverController(session: session)
         panel = CompanionPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -108,7 +112,6 @@ final class CompanionPanelController {
         isUserDragging = false
         motionState.stopWalking()
         hideHoverSummary()
-        carePopoverController.close()
 
         guard shouldAnimateTransitions else {
             finishTransitionImmediately(petVisible: false)
@@ -131,7 +134,6 @@ final class CompanionPanelController {
 
         motionState.stopWalking()
         hideHoverSummary()
-        carePopoverController.close()
         startTransition(.familySwap, targetFamily: family)
     }
 
@@ -160,7 +162,7 @@ final class CompanionPanelController {
             rootView: WorklingPetView(session: session, motion: motionState)
         )
         hostingView.onClick = { [weak self] in
-            self?.toggleCareCard()
+            self?.handleClick()
         }
         hostingView.onHoverChanged = { [weak self] isInside in
             self?.setPointerInside(isInside)
@@ -184,7 +186,7 @@ final class CompanionPanelController {
             motionState.stopWalking()
         }
 
-        guard isInside, !carePopoverController.isShown else {
+        guard isInside else {
             hideHoverSummary()
             return
         }
@@ -193,8 +195,7 @@ final class CompanionPanelController {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled,
                   let self,
-                  self.isPointerInside,
-                  !self.carePopoverController.isShown else {
+                  self.isPointerInside else {
                 return
             }
 
@@ -205,13 +206,13 @@ final class CompanionPanelController {
         }
     }
 
-    private func toggleCareCard() {
-        guard !motionState.isTransitioning, let hostingView else {
+    private func handleClick() {
+        guard !motionState.isTransitioning else {
             return
         }
 
         hideHoverSummary()
-        carePopoverController.toggle(relativeTo: hostingView)
+        onClick?()
     }
 
     private func hideHoverSummary() {
@@ -228,7 +229,6 @@ final class CompanionPanelController {
         isUserDragging = true
         motionState.stopWalking()
         hideHoverSummary()
-        carePopoverController.close()
     }
 
     private func finishUserDrag() {
@@ -294,7 +294,6 @@ final class CompanionPanelController {
             && !motionState.isTransitioning
             && !isPointerInside
             && !isUserDragging
-            && !carePopoverController.isShown
     }
 
     private func performRoamingStep(_ intent: PetRoamingIntent) async {

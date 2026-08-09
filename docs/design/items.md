@@ -91,11 +91,12 @@ reachable and nothing is ever hard-locked. On top of that, each stat-item carrie
 
 ## Where items live
 
-Equipping lives in the **[Character Screen](../design/)** — the floating hub window opened by
-clicking the Workling — in its gear slots + inventory, alongside the Stats and Skills tabs.
-*(This resolves the earlier "where equipping lives" open question; see the character-screen
-design decision.)* The 3D model bay shows the equipped Workling; the slot UI is the paper-doll
-frame these three functional slots fill.
+Equipping lives in the **[Character Screen](interaction.md#3-character-screen)** — the floating
+hub window opened by clicking the Workling — in its gear slots + inventory, alongside the
+Character, Skills, and Care tabs. *(This resolves the earlier "where equipping lives" open
+question.)* The model bay shows the equipped Workling; the slot rail is the paper-doll frame
+these three functional slots fill, and it stays visible beside the inventory so a click's
+result is legible in the same glance.
 
 ## Where items come from
 
@@ -155,11 +156,19 @@ Gear folds in **before** the condition multiplier (base → sheet → combat, as
 above shows), so a neglected Workling's equipment is scaled down with everything else —
 you can't gear your way out of care.
 
-**Where the loadout is chosen (for now):** the delve **briefing**, not the Character
-Screen — that screen isn't built yet, and the briefing's whole gameplay job is to set up
-this pick. The briefing prices each option inline (`+3 Power ✦`) so the choice is legible
-before the descent instead of inferred from how the fight went. Equipping moves to the
-Character Screen when it lands; the model doesn't change.
+**Where the loadout is chosen:** both the **[Character Screen](interaction.md#3-character-screen)**
+and the delve **briefing**, deliberately.
+
+The Character Screen is gear's home — the persistent rail of three slots beside the model
+bay, an Inventory tab holding everything owned, and a stat table that shows the gear
+column next to the base one. The briefing keeps its own compact prep bar because that is
+where the narration *motivates* the pick; sending a player to another window mid-descent
+would break the beat the briefing exists to create.
+
+Two surfaces pricing the same items is a drift risk, so they don't each do it: a single
+`GearPricing` owns the vocabulary (`+3 Power ✦`, the loadout total line, the attunement
+tooltip) on top of the one `ItemRates` that owns the arithmetic. The screens differ in
+chrome and in nothing else.
 
 **Drops, as built:** only a **boss clear** awards gear — one item, deterministic in the
 delve seed, drawn from what the pet doesn't yet own, and nil once the base set is

@@ -1,17 +1,16 @@
 import CompanionCore
 import SwiftUI
 
-private enum CareCardTab: String, CaseIterable {
-    case condition = "Condition"
-    case stats = "Stats"
-}
-
-struct PetCareCardView: View {
+/// Care, as a tab of the Character Screen.
+///
+/// This was the standalone care popover. It folded in here rather than being
+/// duplicated: the design's standing rule is that care data must not be
+/// triplicated across a popover, the roaming pet, and this screen, so there is
+/// exactly one place to read needs and exactly one place to act on them. The
+/// stats it used to carry live in the Character tab now, which is why only the
+/// condition half made the journey.
+struct CareTabView: View {
     @ObservedObject var session: PetSession
-    @State private var isEditingName = false
-    @State private var draftName = ""
-    @State private var selectedTab: CareCardTab = .condition
-    @FocusState private var nameFieldIsFocused: Bool
 
     private var state: PetState {
         session.state
@@ -27,173 +26,16 @@ struct PetCareCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header
-
-            Picker("", selection: $selectedTab) {
-                ForEach(CareCardTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .accessibilityLabel("Care card section")
-
-            switch selectedTab {
-            case .condition:
-                needs
-                actions
-                preferences
-            case .stats:
-                statsTab
-            }
-
-            if let warning = session.persistenceWarning {
-                Label(warning, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
-        .padding(20)
-        .frame(width: 330)
-        .background(.regularMaterial)
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                if isEditingName {
-                    nameEditor
-                } else {
-                    Text(state.name)
-                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                    Button {
-                        draftName = state.name
-                        isEditingName = true
-                        nameFieldIsFocused = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Rename \(state.name).")
-                }
-
-                Spacer()
-                Text(presentation.moodLabel)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(.purple.opacity(0.15), in: Capsule())
-            }
-
             Text(presentation.thought ?? status.hoverSummary)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            needs
+            actions
+            preferences
         }
-    }
-
-    private var nameEditor: some View {
-        HStack(spacing: 6) {
-            TextField("Name", text: $draftName)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .focused($nameFieldIsFocused)
-                .onSubmit(commitRename)
-                .frame(maxWidth: 140)
-
-            Button {
-                commitRename()
-            } label: {
-                Image(systemName: "checkmark.circle.fill")
-            }
-            .buttonStyle(.borderless)
-            .disabled(!PetState.isValidName(draftName))
-
-            Button {
-                isEditingName = false
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-            }
-            .buttonStyle(.borderless)
-        }
-    }
-
-    private func commitRename() {
-        guard PetState.isValidName(draftName) else {
-            return
-        }
-        session.rename(to: draftName)
-        isEditingName = false
-    }
-
-    private var statsTab: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            levelSummary
-
-            VStack(spacing: 8) {
-                ForEach(PetStatKind.allCases, id: \.self) { stat in
-                    statRow(for: stat)
-                }
-            }
-
-            Text("Abilities and gear are on the way.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var levelSummary: some View {
-        let progress = PetProgressionCurve.progress(forTotalXP: state.totalXP)
-        let levelLabel = PetPresentation.levelClassLabel(for: state)
-
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(levelLabel)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                Spacer()
-                Text(state.petClass.role)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            ProgressView(value: progress.fraction)
-                .tint(.yellow)
-            Text("\(Int(progress.xpIntoLevel)) / \(Int(progress.xpForLevel)) XP to next level")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(PetPresentation.learningRateLabel(for: state))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "\(levelLabel), \(state.petClass.role), "
-            + "\(Int(progress.xpIntoLevel)) of \(Int(progress.xpForLevel)) XP to next level, "
-            + PetPresentation.learningRateLabel(for: state)
-        )
-    }
-
-    private func statRow(for stat: PetStatKind) -> some View {
-        let isSignature = state.petClass.signatureStat == stat
-        let value = state.stats.value(for: stat)
-
-        return HStack(spacing: 6) {
-            Text(stat.displayName)
-                .font(.caption)
-                .fontWeight(isSignature ? .bold : .regular)
-            if isSignature {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.yellow)
-            }
-            Spacer()
-            Text("\(value)")
-                .font(.system(.caption, design: .monospaced))
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            isSignature ? "\(stat.displayName), signature stat, \(value)" : "\(stat.displayName), \(value)"
-        )
+        .frame(maxWidth: 420, alignment: .leading)
     }
 
     private var needs: some View {

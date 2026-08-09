@@ -73,8 +73,8 @@ The current experimental build includes:
 - versioned local JSON persistence;
 - automatic copy-forward of a legacy Build Companion save;
 - hover summaries for relevant needs;
-- a clickable care card with Feed, Play, Pet, and Sleep actions;
-- XP, levels, and five class-weighted stats earned from care and real work activity, with a Choose Class menu and a Stats tab on the care card;
+- a Character Screen opened by clicking Pixel — gear slots, stats, inventory, and Feed, Play, Pet, and Sleep actions;
+- XP, levels, and five class-weighted stats earned from care and real work activity, with a Choose Class menu and a Character tab showing base, gear, and total side by side;
 - menu-bar wake, tuck-away, care, and quit controls;
 - Worklings-branded app, DMG, checksum, and release-verification scripts;
 - dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
@@ -108,8 +108,8 @@ The first build may take a moment. Pixel appears as a floating desktop companion
 ### Interacting with Pixel
 
 - Hover over Pixel for a short natural-language status summary.
-- Click Pixel to open the care card.
-- Drag Pixel to reposition it without opening the card.
+- Click Pixel to open its Character Screen; click again to put it away.
+- Drag Pixel to reposition it without opening the screen.
 - Use Feed, Play, Pet, and Sleep to affect its needs.
 - Use the paw menu to inspect state, tuck Pixel away, wake it, or quit.
 - Use **Let Pixel Roam** in the paw menu to opt into idle movement; pause it from the same control.
