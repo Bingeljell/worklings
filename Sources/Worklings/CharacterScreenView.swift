@@ -238,6 +238,12 @@ private struct GearRail: View {
                 Text("Nothing equipped")
                     .foregroundStyle(.secondary)
             } else {
+                // Labelled, because an unheaded "+2 Wit" under three slots reads as
+                // a stray number rather than the sum of what's in them.
+                Text("GEAR TOTAL")
+                    .font(.system(size: 8, weight: .heavy))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.8)
                 Text(parts.joined(separator: " · "))
                     .foregroundStyle(.green)
                     .multilineTextAlignment(.center)
@@ -297,15 +303,23 @@ private struct ModelBay: View {
 /// that fits. The slot's fantasy rides along in the tooltip so an empty slot still
 /// tells you what it's *for*.
 ///
-/// Filled and empty are meant to be told apart **at a glance, without reading** —
-/// an occupied slot gets a solid tier-tinted well with a tier-tinted item icon and
-/// a stat price; an empty one is a dashed outline around a faded slot glyph and
-/// the word Empty. The earlier version separated the two states by a text colour
-/// and a background opacity, which is not a difference you can see.
+/// The layout is the RPG paper-doll one: a labelled row per slot with a real
+/// **square slot box** on the right, because that is the shape people already read
+/// as "gear goes here". An empty box is a recessed dashed well; a filled one is a
+/// tier-tinted plate carrying the item's glyph, ringed in green with a corner
+/// check. Naming the item and its stat under the label answers the other half —
+/// previously the rail showed a bare "+2 Wit" total with nothing saying *which*
+/// item was providing it.
+///
+/// The box is deliberately sized and shaped for a real item image to drop into
+/// later; the glyph inside is the placeholder, and swapping it for art is a change
+/// of contents, not of layout.
 private struct GearSlotButton: View {
     @ObservedObject var session: PetSession
     let slot: ItemSlot
     let pricing: GearPricing
+
+    private static let boxSize: CGFloat = 46
 
     var body: some View {
         let equipped = session.state.loadout[slot]
@@ -322,85 +336,95 @@ private struct GearSlotButton: View {
             Button("Leave empty") { session.equip(nil, in: slot) }
                 .disabled(equipped == nil)
         } label: {
-            HStack(spacing: 10) {
-                itemWell(equipped: equipped, tint: tint)
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Image(systemName: emptySlotIcon(slot))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(slot.displayName.uppercased())
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundStyle(.secondary)
+                            .tracking(0.7)
+                    }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(slot.displayName.uppercased())
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundStyle(.secondary)
-                        .tracking(0.6)
+                    // Which item this is. The whole point of the row.
                     Text(equipped?.displayName ?? "Empty")
                         .font(.caption.bold())
                         .foregroundStyle(equipped == nil ? .tertiary : .primary)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    if let equipped {
+                        HStack(spacing: 4) {
+                            Text(pricing.priceLabel(for: equipped))
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.green)
+                            Text(equipped.tier.displayName.uppercased())
+                                .font(.system(size: 8, weight: .heavy))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(tint.opacity(0.22)))
+                                .foregroundStyle(tint)
+                        }
+                    }
                 }
 
                 Spacer(minLength: 4)
 
-                if let equipped {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(pricing.priceLabel(for: equipped))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.green)
-                        Text(equipped.tier.displayName.uppercased())
-                            .font(.system(size: 8, weight: .heavy))
-                            .foregroundStyle(tint)
-                    }
-                }
+                slotBox(equipped: equipped, tint: tint)
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .background(background(filled: equipped != nil, tint: tint))
+            .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
         .accessibilityLabel(
-            equipped.map { "\(slot.displayName) slot, \($0.displayName), \(pricing.priceLabel(for: $0))" }
+            equipped.map { "\(slot.displayName) slot, equipped: \($0.displayName), \(pricing.priceLabel(for: $0))" }
                 ?? "\(slot.displayName) slot, empty"
         )
     }
 
-    /// The icon plate. Filled shows the item's own stat glyph on a tinted disc;
-    /// empty shows the slot's outline glyph in a dashed ring — the standard "this
-    /// goes here, and nothing is here" affordance.
+    /// The slot box itself — the thing you can read across the room. Empty is a
+    /// recessed dashed well holding a ghosted slot glyph; equipped is a tinted
+    /// plate with a green ring and a corner check, so occupancy survives being
+    /// glanced at, screenshotted, or seen by someone who can't separate the tier
+    /// colours.
     @ViewBuilder
-    private func itemWell(equipped: Item?, tint: Color) -> some View {
+    private func slotBox(equipped: Item?, tint: Color) -> some View {
         ZStack {
             if let equipped {
-                Circle().fill(tint.opacity(0.22))
-                Circle().strokeBorder(tint.opacity(0.7), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 9).fill(tint.opacity(0.2))
+                RoundedRectangle(cornerRadius: 9)
+                    .strokeBorder(.green.opacity(0.8), lineWidth: 2)
                 Image(systemName: itemIcon(equipped))
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(tint)
             } else {
-                Circle()
-                    .strokeBorder(
-                        .tertiary,
-                        style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])
-                    )
-                Image(systemName: emptySlotIcon(slot))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .frame(width: 30, height: 30)
-    }
-
-    private func background(filled: Bool, tint: Color) -> some View {
-        RoundedRectangle(cornerRadius: 9)
-            .fill(filled ? AnyShapeStyle(tint.opacity(0.12)) : AnyShapeStyle(Color.clear))
-            .overlay(
+                RoundedRectangle(cornerRadius: 9).fill(.black.opacity(0.22))
                 RoundedRectangle(cornerRadius: 9)
                     .strokeBorder(
-                        filled ? AnyShapeStyle(tint.opacity(0.45)) : AnyShapeStyle(.tertiary),
-                        style: filled
-                            ? StrokeStyle(lineWidth: 1)
-                            : StrokeStyle(lineWidth: 1, dash: [4, 3])
+                        .tertiary,
+                        style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
                     )
-            )
+                Image(systemName: emptySlotIcon(slot))
+                    .font(.system(size: 16))
+                    .foregroundStyle(.quaternary)
+            }
+        }
+        .frame(width: Self.boxSize, height: Self.boxSize)
+        .overlay(alignment: .topTrailing) {
+            if equipped != nil {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.green)
+                    .background(Circle().fill(.background))
+                    .offset(x: 5, y: -5)
+            }
+        }
     }
 
 }
