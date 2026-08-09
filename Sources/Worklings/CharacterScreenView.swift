@@ -541,6 +541,15 @@ private struct InventoryTabView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 190, maximum: 280), spacing: 10)]
 
+    /// Best first, then by slot, so a hard-won Prime item isn't buried under the
+    /// junk that happened to drop before it.
+    private var sortedItems: [Item] {
+        session.state.ownedItems.sorted { lhs, rhs in
+            if lhs.tier != rhs.tier { return lhs.tier > rhs.tier }
+            return lhs.slot.displayName < rhs.slot.displayName
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Click an item to equip it; click it again to take it off.")
@@ -554,7 +563,7 @@ private struct InventoryTabView: View {
                     .padding(.vertical, 20)
             } else {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-                    ForEach(session.state.ownedItems, id: \.self) { item in
+                    ForEach(sortedItems, id: \.self) { item in
                         tile(for: item)
                     }
                 }
@@ -593,9 +602,20 @@ private struct InventoryTabView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(item.slot.displayName.uppercased())
-                    .font(.system(size: 8, weight: .heavy))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    // How deep it came from, which is the same thing as how good
+                    // it is — the one piece of an item's story the name alone
+                    // doesn't carry.
+                    Text(item.tier.displayName.uppercased())
+                        .font(.system(size: 8, weight: .heavy))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(tierTint(item.tier).opacity(0.22)))
+                        .foregroundStyle(tierTint(item.tier))
+                    Text(item.slot.displayName.uppercased())
+                        .font(.system(size: 8, weight: .heavy))
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
@@ -667,6 +687,16 @@ private struct SkillsTabView: View {
 }
 
 // MARK: - Shared
+
+/// One colour per tier, shared by the inventory and the drop reveal so "Prime"
+/// looks the same wherever it's named.
+func tierTint(_ tier: ItemTier) -> Color {
+    switch tier {
+    case .scavenged: .gray
+    case .solid: .cyan
+    case .prime: .yellow
+    }
+}
 
 private func sectionTitle(_ text: String) -> some View {
     Text(text.uppercased())

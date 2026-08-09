@@ -70,17 +70,17 @@ enum CharacterSheetChecks {
         context.expectEqual(power.base, 10, "the Power row keeps the persisted base")
         context.expectEqual(
             power.gearBonus,
-            itemRates.baseModifier,
+            itemRates.solidModifier,
             "the Power row reports the whetstone's modifier separately"
         )
         context.expectEqual(
             power.effective,
-            10 + itemRates.baseModifier,
+            10 + itemRates.solidModifier,
             "the Power row's effective value is base plus gear"
         )
         context.expectEqual(
             equipped.gearPointTotal,
-            itemRates.baseModifier,
+            itemRates.solidModifier,
             "one equipped item totals its own modifier and nothing else"
         )
 

@@ -10,6 +10,7 @@ import Foundation
 enum ItemChecks {
     static func run(context: inout CheckContext) {
         checkEveryItemIsMonoStatAndSlotted(context: &context)
+        checkDeeperTiersAreWorthStrictlyMore(context: &context)
         checkAttunementReadsALargerModifier(context: &context)
         checkFoldAddsToEffectiveNeverToBase(context: &context)
         checkEmptyLoadoutIsAnIdentityFold(context: &context)
@@ -67,7 +68,7 @@ enum ItemChecks {
         context.expectEqual(swap.gained.stat, .power, "the gain is the incoming item's stat")
         context.expectEqual(
             swap.gained.amount,
-            rates.baseModifier,
+            rates.solidModifier,
             "the gain is what the incoming item is worth"
         )
     }
@@ -99,7 +100,7 @@ enum ItemChecks {
         let intoEmpty = Loadout.empty.swap(to: .rubberDuck, family: .wildkin, rates: rates)
         context.expectEqual(
             intoEmpty.netOnGainedStat,
-            rates.baseModifier,
+            rates.solidModifier,
             "with nothing to give up the net is the whole gain"
         )
     }
@@ -112,12 +113,12 @@ enum ItemChecks {
 
         context.expectEqual(
             attuned.gained.amount,
-            rates.baseModifier + rates.attunementBonus,
+            rates.solidModifier + rates.attunementBonus,
             "a Relicborn's whetstone swap carries the attunement rider"
         )
         context.expectEqual(
             plain.gained.amount,
-            rates.baseModifier,
+            rates.solidModifier,
             "the same swap on a Wildkin is the universal base"
         )
     }
@@ -153,23 +154,69 @@ enum ItemChecks {
 
     // MARK: Catalogue
 
-    /// Every v1 item is exactly one slot and one primary stat, and each of the
-    /// five stats has an item — the shape the design locked, before any numbers.
+    /// The catalogue is a grid: every primary stat, at every tier, exactly once.
+    /// A hole in it would mean an encounter at some depth has nothing to award, or
+    /// a stat that can never be geared.
     private static func checkEveryItemIsMonoStatAndSlotted(context: inout CheckContext) {
         let stats = Set(Item.allCases.map(\.stat))
         context.expectEqual(
             stats, Set(PetStatKind.allCases),
-            "every primary stat has exactly one base item"
+            "every primary stat is represented"
         )
         context.expectEqual(
-            Item.allCases.count, PetStatKind.allCases.count,
-            "the base set is one item per stat, no more"
+            Item.allCases.count,
+            PetStatKind.allCases.count * ItemTier.allCases.count,
+            "the catalogue is one item per stat per tier, no more"
         )
+        for tier in ItemTier.allCases {
+            context.expectEqual(
+                Set(Item.all(in: tier).map(\.stat)),
+                Set(PetStatKind.allCases),
+                "\(tier.displayName) covers every stat, so any depth can drop for any build"
+            )
+        }
         for slot in ItemSlot.allCases {
             let members = Item.all(in: slot)
             context.expect(
                 !members.isEmpty && members.allSatisfy { $0.slot == slot },
                 "\(slot.displayName) lists only items that belong to it"
+            )
+        }
+        // A tier is only meaningful if it's a like-for-like upgrade: the three
+        // versions of a stat must share a slot, or "better Tool" would sometimes
+        // mean "different slot entirely".
+        for stat in PetStatKind.allCases {
+            let family = Item.allCases.filter { $0.stat == stat }
+            context.expectEqual(
+                Set(family.map(\.slot)).count, 1,
+                "\(stat.displayName)'s tiers all compete for the same slot"
+            )
+            context.expectEqual(
+                Set(family.map(\.tier)).count, family.count,
+                "\(stat.displayName) has each tier exactly once"
+            )
+        }
+    }
+
+    /// Depth has to pay. A deeper tier is worth strictly more, or "push deeper"
+    /// is a worse deal than banking and the whole press-your-luck beat inverts.
+    private static func checkDeeperTiersAreWorthStrictlyMore(context: inout CheckContext) {
+        context.expect(
+            rates.scavengedModifier < rates.solidModifier,
+            "Solid beats Scavenged"
+        )
+        context.expect(
+            rates.solidModifier < rates.primeModifier,
+            "Prime beats Solid — the boss is worth the risk"
+        )
+        context.expect(
+            ItemTier.scavenged < ItemTier.solid && ItemTier.solid < ItemTier.prime,
+            "the tier ordering matches what the tiers are worth"
+        )
+        for tier in ItemTier.allCases {
+            context.expect(
+                rates.baseModifier(for: tier) > 0,
+                "\(tier.displayName) gear is worth something"
             )
         }
     }
@@ -181,12 +228,12 @@ enum ItemChecks {
         let attuned = rates.modifier(for: whetstone, family: .relicborn)
         let plain = rates.modifier(for: whetstone, family: .wildkin)
 
-        context.expectEqual(attuned, rates.baseModifier + rates.attunementBonus,
+        context.expectEqual(attuned, rates.solidModifier + rates.attunementBonus,
                             "an attuned family reads base + rider")
-        context.expectEqual(plain, rates.baseModifier,
+        context.expectEqual(plain, rates.solidModifier,
                             "a non-attuned family reads the universal base")
         context.expect(attuned > plain, "attunement is a real advantage")
-        context.expect(rates.attunementBonus < rates.baseModifier,
+        context.expect(rates.attunementBonus < rates.solidModifier,
                        "the rider is smaller than the base — synergy nudges, it doesn't gate")
         context.expect(rates.isAttuned(whetstone, family: .relicborn),
                        "the attunement flag agrees with the modifier")
@@ -197,7 +244,7 @@ enum ItemChecks {
         for item in [Item.dentedBuckler, .quickstepCharm] {
             let readings = PetFamily.allCases.map { rates.modifier(for: item, family: $0) }
             context.expect(
-                readings.allSatisfy { $0 == rates.baseModifier },
+                readings.allSatisfy { $0 == rates.solidModifier },
                 "\(item.displayName) is universal-only until its family ships"
             )
         }
@@ -215,7 +262,7 @@ enum ItemChecks {
                             "equipping never rewrites the persisted base stats")
         context.expectEqual(
             geared.effectiveStats(rates: rates).power,
-            flatStats.power + rates.baseModifier + rates.attunementBonus,
+            flatStats.power + rates.solidModifier + rates.attunementBonus,
             "the attuned Power item shows up in effective Power"
         )
         context.expectEqual(
@@ -253,11 +300,11 @@ enum ItemChecks {
             .equipping(.quickstepCharm)    // Charm, +Agility
         let sheet = flatStats.effective(loadout: full, family: .wildkin, rates: rates)
 
-        context.expectEqual(sheet.power, flatStats.power + rates.baseModifier,
+        context.expectEqual(sheet.power, flatStats.power + rates.solidModifier,
                             "the Tool's Power lands")
-        context.expectEqual(sheet.defense, flatStats.defense + rates.baseModifier,
+        context.expectEqual(sheet.defense, flatStats.defense + rates.solidModifier,
                             "the Ward's Guard lands")
-        context.expectEqual(sheet.agility, flatStats.agility + rates.baseModifier,
+        context.expectEqual(sheet.agility, flatStats.agility + rates.solidModifier,
                             "the Charm's Agility lands")
         context.expectEqual(sheet.vitality, flatStats.vitality,
                             "an unrepresented stat is untouched by a full loadout")
@@ -272,7 +319,7 @@ enum ItemChecks {
                             "swapping the Ward drops the previous item's Guard")
         context.expectEqual(
             coalSheet.vitality,
-            flatStats.vitality + rates.baseModifier + rates.attunementBonus,
+            flatStats.vitality + rates.solidModifier + rates.attunementBonus,
             "the new Ward's Vitality takes its place, at the attuned rate"
         )
     }

@@ -456,7 +456,10 @@ final class DelveViewModel: ObservableObject {
             pet: session.makePetCombatant(),
             effectiveness: session.combatEffectiveness,
             rates: session.combatRates,
-            baseSeed: seed
+            baseSeed: seed,
+            // Drops are decided per encounter now, so the delve has to know what's
+            // already owned going in — it can't wait for the write-back to filter.
+            ownedItems: session.state.ownedItems
         )
     }
 
@@ -479,12 +482,21 @@ final class DelveViewModel: ObservableObject {
         max(delve.allFoes.count - (delve.index + 1), 0)
     }
 
-    /// Whether there is still gear in the Warren for this pet. Drops are boss-only
-    /// and never duplicate, so once the base set is complete there is nothing left
-    /// to forfeit — and the stakes line would be a lie.
+    /// Whether the mini-boss still has something to give this pet. Only Prime
+    /// gear comes off the boss, and never a duplicate, so once the Prime set is
+    /// complete there is nothing down there to forfeit — and the stakes line
+    /// promising it would be a lie.
     var gearAwaitsAtTheBottom: Bool {
-        Item.allCases.contains { !session.state.ownedItems.contains($0) }
+        Item.all(in: .prime).contains { !session.state.ownedItems.contains($0) }
     }
+
+    /// What the encounter just cleared gave up, for the bank/push card. The reward
+    /// lands where the fight was won rather than being held back to the end
+    /// screen — which is the point of paying out per encounter at all.
+    var lastDrop: Item? { delve.lastDrop }
+
+    /// Everything won this run, for the end screen's tally.
+    var allDrops: [Item] { delve.drops }
 
     func descend() {
         // Rebuilt here, not at init: the briefing is where gear gets swapped, so
@@ -629,7 +641,8 @@ struct DelvePanelView: View {
                     xpGained: Int(res.xpGained),
                     bossDefeated: res.bossDefeated,
                     banked: res.banked,
-                    itemDropped: res.itemDropped,
+                    bossDrop: res.bossDrop,
+                    shallowDrops: res.shallowDrops,
                     petFamily: delve.session.state.family,
                     foeName: delve.lastFoeName,
                     onReturn: onClose
@@ -843,6 +856,13 @@ private struct PushChoiceCard: View {
                     .font(.callout)
                     .foregroundStyle(.white.opacity(0.85))
                     .multilineTextAlignment(.center)
+
+                // The fight's own reward, paid where it was won. Holding this back
+                // to the end screen is what made the shallow encounters feel like
+                // unpaid toll.
+                if let drop = delve.lastDrop {
+                    DropReveal(session: delve.session, item: drop, style: .inline)
+                }
 
                 Group {
                     if delve.nextIsBoss {
@@ -1076,7 +1096,11 @@ private struct DelveEndScreen: View {
     let xpGained: Int
     let bossDefeated: Bool
     let banked: Bool
-    let itemDropped: Item?
+    /// The mini-boss's Prime item — the capstone the screen headlines.
+    let bossDrop: Item?
+    /// What was picked up on the way down, already granted and already shown at
+    /// each bank/push prompt; tallied here rather than re-revealed.
+    let shallowDrops: [Item]
     let petFamily: PetFamily
     let foeName: String
     let onReturn: () -> Void
@@ -1132,11 +1156,26 @@ private struct DelveEndScreen: View {
                         // its own staged beat rather than a line of text, and the
                         // Return button waits for it — a drop the player dismissed
                         // before seeing is the whole gamble going unwitnessed.
-                        if let itemDropped, dropShown {
-                            DropReveal(session: session, item: itemDropped)
-                                .transition(
-                                    .scale(scale: 0.7).combined(with: .opacity)
+                        if dropShown {
+                            if let bossDrop {
+                                DropReveal(session: session, item: bossDrop)
+                                    .transition(
+                                        .scale(scale: 0.7).combined(with: .opacity)
+                                    )
+                            }
+                            if !shallowDrops.isEmpty {
+                                // Already revealed one at a time between fights, so
+                                // this is a receipt, not a second reveal.
+                                Label(
+                                    shallowDrops.count == 1
+                                        ? "1 more piece recovered on the way down"
+                                        : "\(shallowDrops.count) more pieces recovered on the way down",
+                                    systemImage: "bag.fill"
                                 )
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.55))
+                                .help(shallowDrops.map(\.displayName).joined(separator: ", "))
+                            }
                         }
 
                         if dropShown {
@@ -1180,7 +1219,7 @@ private struct DelveEndScreen: View {
             // With no drop there's nothing to wait for, so Return arrives with the
             // rest of the footer. With one, it lands a beat later — after the
             // victory fanfare has thinned out — so the item has the stage alone.
-            guard itemDropped != nil else {
+            guard bossDrop != nil else {
                 withAnimation(.easeOut(duration: 0.25)) { dropShown = true }
                 return
             }
@@ -1201,10 +1240,26 @@ private struct DelveEndScreen: View {
 /// closes the loop that otherwise sent the player to another window to make their
 /// prize do anything.
 private struct DropReveal: View {
+    /// Where the card is standing. `inline` sits inside the bank/push prompt
+    /// between fights; `headline` is the end screen's capstone. Same content,
+    /// different weight — the boss's Prime item has earned the bigger frame.
+    enum Style {
+        case inline
+        case headline
+    }
+
     @ObservedObject var session: PetSession
     let item: Item
+    var style: Style = .headline
 
     @State private var shimmer = false
+
+    private var isHeadline: Bool { style == .headline }
+
+    /// Prime gear is the reason to have walked past the bank prompt, so it reads
+    /// hotter than the junk from the shallow fights. Shared with the inventory so
+    /// a tier looks the same wherever it's named.
+    private var tint: Color { tierTint(item.tier) }
 
     private var pricing: GearPricing { GearPricing(session: session) }
 
@@ -1219,22 +1274,25 @@ private struct DropReveal: View {
     private var isEquipped: Bool { session.state.loadout[item.slot] == item }
 
     var body: some View {
-        VStack(spacing: 9) {
-            Text("THE WARREN YIELDS")
-                .font(.system(size: 9, weight: .heavy))
-                .foregroundStyle(.yellow.opacity(0.75))
-                .tracking(1.4)
+        VStack(spacing: isHeadline ? 9 : 6) {
+            if isHeadline {
+                Text("THE WARREN YIELDS")
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(tint.opacity(0.75))
+                    .tracking(1.4)
+            }
 
             HStack(spacing: 11) {
                 Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.yellow)
-                    .shadow(color: .yellow.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
+                    .font(.system(size: isHeadline ? 26 : 18))
+                    .foregroundStyle(tint)
+                    .shadow(color: tint.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(item.displayName)
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .font(.system(size: isHeadline ? 16 : 13, weight: .bold, design: .rounded))
+                        tierBadge
                         Text(item.slot.displayName.uppercased())
                             .font(.system(size: 8, weight: .heavy))
                             .padding(.horizontal, 5)
@@ -1244,12 +1302,14 @@ private struct DropReveal: View {
                     }
 
                     Text(pricing.priceLabel(for: item))
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .font(.system(size: isHeadline ? 12 : 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(.green)
 
-                    Text(item.flavor)
-                        .font(.caption2.italic())
-                        .foregroundStyle(.white.opacity(0.55))
+                    if isHeadline {
+                        Text(item.flavor)
+                            .font(.caption2.italic())
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -1259,15 +1319,15 @@ private struct DropReveal: View {
 
             equipControl
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: 400)
+        .padding(.horizontal, isHeadline ? 16 : 12)
+        .padding(.vertical, isHeadline ? 12 : 9)
+        .frame(maxWidth: isHeadline ? 400 : 340)
         .background(
             RoundedRectangle(cornerRadius: 13)
                 .fill(.black.opacity(0.4))
                 .overlay(
                     RoundedRectangle(cornerRadius: 13)
-                        .stroke(.yellow.opacity(0.35), lineWidth: 1)
+                        .stroke(tint.opacity(0.35), lineWidth: 1)
                 )
         )
         .onAppear {
@@ -1275,6 +1335,16 @@ private struct DropReveal: View {
                 shimmer = true
             }
         }
+        .help(isHeadline ? item.flavor : "\(item.flavor)\n\n\(item.tier.displayName) gear.")
+    }
+
+    private var tierBadge: some View {
+        Text(item.tier.displayName.uppercased())
+            .font(.system(size: 8, weight: .heavy))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(tint.opacity(0.25)))
+            .foregroundStyle(tint)
     }
 
     /// What putting it on would actually cost. Mono-stat, slot-bound items mean a

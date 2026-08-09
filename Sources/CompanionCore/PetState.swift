@@ -388,9 +388,21 @@ public struct PetState: Codable, Equatable, Sendable {
         stats.effective(loadout: loadout, family: family, rates: rates)
     }
 
-    /// Which items are owned but not currently equipped, grouped for a picker.
+    /// The owned items that fit `slot`, **best tier first** — with three tiers of
+    /// everything, acquisition order would bury a hard-won Prime item under the
+    /// junk that dropped before it. Ties break on the stat's declaration order so
+    /// the list is stable rather than dependent on what dropped when.
     public func availableItems(for slot: ItemSlot) -> [Item] {
-        ownedItems.filter { $0.slot == slot }
+        ownedItems
+            .filter { $0.slot == slot }
+            .sorted { lhs, rhs in
+                if lhs.tier != rhs.tier { return lhs.tier > rhs.tier }
+                return statOrder(lhs) < statOrder(rhs)
+            }
+    }
+
+    private func statOrder(_ item: Item) -> Int {
+        PetStatKind.allCases.firstIndex(of: item.stat) ?? 0
     }
 
     public static let maximumNameLength = 24

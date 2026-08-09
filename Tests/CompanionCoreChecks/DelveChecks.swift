@@ -15,79 +15,144 @@ enum DelveChecks {
         checkDownedRetreatIsTierDownedNoXP(context: &context)
         checkConditionDeltaAppliedExactlyOnce(context: &context)
         checkEndToEndDelveReplaysIdentically(context: &context)
-        checkOnlyABossClearDropsGear(context: &context)
-        checkDropIsNeverADuplicateAndDriesUp(context: &context)
+        checkEveryClearedEncounterPaysOut(context: &context)
+        checkDepthDecidesTheTier(context: &context)
+        checkBankingKeepsWhatWasWonAndForfeitsTheDepth(context: &context)
+        checkDropIsNeverADuplicateAndDriesUpPerTier(context: &context)
     }
 
     // MARK: Drops
 
-    /// Gear comes off the boss and nothing else — that, with the completion
-    /// bonus, is exactly what banking forfeits.
-    private static func checkOnlyABossClearDropsGear(context: inout CheckContext) {
-        var cleared = cacheWarren(seed: 11)
-        clearAll(&cleared, hpRemaining: 40)
-        let bossRun = cleared.resolution(applyingTo: neutralState())
-        context.expect(bossRun?.itemDropped != nil, "clearing the boss drops an item")
-        if let drop = bossRun?.itemDropped {
-            context.expect(
-                bossRun?.state.ownedItems.contains(drop) == true,
-                "the dropped item is in the inventory of the returned state"
-            )
-        }
+    /// Every fight pays. The old model dropped once, at the bottom, which made the
+    /// three encounters above the boss feel like unpaid toll — this is the check
+    /// that pins the fix.
+    private static func checkEveryClearedEncounterPaysOut(context: inout CheckContext) {
+        var delve = cacheWarren(seed: 11)
+        clearAll(&delve, hpRemaining: 40)
 
-        var banked = cacheWarren(seed: 11)
-        clearAll(&banked, hpRemaining: 40, bankAfter: 1)
         context.expectEqual(
-            banked.resolution(applyingTo: neutralState())?.itemDropped, nil,
-            "banking early forfeits the drop along with the completion bonus"
+            delve.drops.count, delve.clearedCount,
+            "a full clear yields one item per encounter cleared"
+        )
+        guard let res = delve.resolution(applyingTo: neutralState()) else {
+            context.expect(false, "a completed delve resolves"); return
+        }
+        context.expect(
+            res.itemsDropped.allSatisfy { res.state.ownedItems.contains($0) },
+            "every dropped item is in the inventory of the returned state"
+        )
+        context.expectEqual(
+            res.bossDrop, res.itemsDropped.last,
+            "the boss's own reward is the last thing won"
+        )
+        context.expectEqual(
+            res.shallowDrops.count, res.itemsDropped.count - 1,
+            "the shallow drops are everything before the boss's"
+        )
+
+        // Same seed, same delve, same spoils — a delve replays whole.
+        var replay = cacheWarren(seed: 11)
+        clearAll(&replay, hpRemaining: 40)
+        context.expectEqual(
+            replay.drops, delve.drops,
+            "the drops are deterministic in the delve seed"
         )
 
         var downed = cacheWarren(seed: 11)
         downed.descend()
         downed.recordOutcome(petVictory: false, petHPRemaining: 0)
-        context.expectEqual(
-            downed.resolution(applyingTo: neutralState())?.itemDropped, nil,
-            "a retreat drops nothing"
-        )
-
-        // Same seed, same delve, same drop — a delve replays whole.
-        var replay = cacheWarren(seed: 11)
-        clearAll(&replay, hpRemaining: 40)
-        context.expectEqual(
-            replay.resolution(applyingTo: neutralState())?.itemDropped,
-            bossRun?.itemDropped,
-            "the drop is deterministic in the delve seed"
+        context.expect(
+            downed.drops.isEmpty,
+            "losing the first fight clears nothing, so it wins nothing"
         )
     }
 
-    /// A drop always widens the loadout: never a duplicate, and nil rather than
-    /// a fake reward once the base set is complete.
-    private static func checkDropIsNeverADuplicateAndDriesUp(context: inout CheckContext) {
-        var delve = cacheWarren(seed: 7)
-        clearAll(&delve, hpRemaining: 40)
+    /// Depth is the reward curve: the boss pays Prime, the encounter above it
+    /// Solid, everything shallower Scavenged. If this inverts, pushing deeper
+    /// becomes a worse deal than banking.
+    private static func checkDepthDecidesTheTier(context: inout CheckContext) {
+        let delve = cacheWarren(seed: 3)
+        context.expectEqual(delve.dropTier(forEncounterAt: 0), .scavenged, "the first fight is Scavenged")
+        context.expectEqual(delve.dropTier(forEncounterAt: 1), .scavenged, "the second is Scavenged")
+        context.expectEqual(delve.dropTier(forEncounterAt: 2), .solid, "the last regular fight is Solid")
+        context.expectEqual(delve.dropTier(forEncounterAt: 3), .prime, "the mini-boss is Prime")
 
-        let owningMost = neutralState()
-            .acquiring(.crackedWhetstone)
-            .acquiring(.dentedBuckler)
-            .acquiring(.warmBackupCoal)
-            .acquiring(.quickstepCharm)
-        // The starter Rubber Duck plus those four is the whole set bar none.
-        let onlyOption = delve.resolution(applyingTo: owningMost)?.itemDropped
+        var run = cacheWarren(seed: 3)
+        clearAll(&run, hpRemaining: 40)
+        context.expectEqual(
+            run.drops.map(\.tier),
+            [.scavenged, .scavenged, .solid, .prime],
+            "a full clear's spoils follow the depth curve"
+        )
         context.expect(
-            onlyOption == nil || !owningMost.ownedItems.contains(onlyOption!),
-            "a drop is never something already owned"
+            run.drops.last?.tier == .prime,
+            "the only Prime item in the run comes off the boss"
+        )
+    }
+
+    /// Banking keeps the gear from fights you actually won — taking it back would
+    /// make the shallow encounters worthless again. What banking costs is the
+    /// *depth*: the completion bonus and the boss's Prime item.
+    private static func checkBankingKeepsWhatWasWonAndForfeitsTheDepth(
+        context: inout CheckContext
+    ) {
+        var banked = cacheWarren(seed: 11)
+        clearAll(&banked, hpRemaining: 40, bankAfter: 2)
+
+        context.expectEqual(banked.drops.count, 2, "two cleared encounters, two items kept")
+        context.expect(
+            banked.drops.allSatisfy { $0.tier == .scavenged },
+            "banking early means only shallow gear"
+        )
+        guard let res = banked.resolution(applyingTo: neutralState()) else {
+            context.expect(false, "a banked delve resolves"); return
+        }
+        context.expect(res.banked, "leaving early is a bank")
+        context.expectEqual(res.bossDrop, nil, "banking forfeits the boss's Prime item")
+        context.expect(
+            res.itemsDropped.allSatisfy { res.state.ownedItems.contains($0) },
+            "the gear won on the way down is kept"
+        )
+    }
+
+    /// A drop always widens the loadout: never a duplicate, and — critically —
+    /// **no cross-tier fallback**. A boss handing out Scavenged junk because the
+    /// Prime set is complete would read as a bug, and an early fight paying Prime
+    /// because the Scavenged set is done would gut the reason to push.
+    private static func checkDropIsNeverADuplicateAndDriesUpPerTier(
+        context: inout CheckContext
+    ) {
+        var fresh = cacheWarren(seed: 7)
+        clearAll(&fresh, hpRemaining: 40)
+        context.expectEqual(
+            Set(fresh.drops).count, fresh.drops.count,
+            "no item drops twice in the same run"
         )
 
-        var complete = owningMost
+        // Owning every Scavenged item dries up the shallow fights and nothing else.
+        var shallowDry = cacheWarren(seed: 7, owning: Item.all(in: .scavenged))
+        clearAll(&shallowDry, hpRemaining: 40)
+        context.expect(
+            shallowDry.drops.allSatisfy { $0.tier != .scavenged },
+            "an exhausted tier drops nothing rather than a duplicate"
+        )
+        context.expectEqual(
+            shallowDry.drops.map(\.tier), [.solid, .prime],
+            "the deeper tiers still pay, and never fill in for the dry one"
+        )
+
+        var allOwned = cacheWarren(seed: 7, owning: Item.allCases)
+        clearAll(&allOwned, hpRemaining: 40)
+        context.expect(allOwned.drops.isEmpty, "with everything owned there is nothing to drop")
+
+        // Resolved against a state that really does own everything, so "unchanged"
+        // is a meaningful claim rather than an artefact of the fixture.
+        var complete = neutralState()
         for item in Item.allCases { complete = complete.acquiring(item) }
         context.expectEqual(
-            delve.resolution(applyingTo: complete)?.itemDropped, nil,
-            "with the base set complete there is nothing left to drop"
-        )
-        context.expectEqual(
-            delve.resolution(applyingTo: complete)?.state.ownedItems.count,
+            allOwned.resolution(applyingTo: complete)?.state.ownedItems.count,
             Item.allCases.count,
-            "a dry drop leaves the inventory exactly as it was"
+            "a dry delve leaves the inventory exactly as it was"
         )
     }
 
@@ -108,8 +173,11 @@ enum DelveChecks {
         Combatant.pet(name: "Champ", baseStats: championStats, needs: fullHealth, rates: rates)
     }
 
-    private static func cacheWarren(seed: UInt64) -> Delve {
-        Delve.cacheWarren(pet: champion(), effectiveness: 1.0, rates: rates, baseSeed: seed)
+    private static func cacheWarren(seed: UInt64, owning owned: [Item] = []) -> Delve {
+        Delve.cacheWarren(
+            pet: champion(), effectiveness: 1.0, rates: rates, baseSeed: seed,
+            ownedItems: owned
+        )
     }
 
     // A neutral state to receive the write-back — needs at 50 so tier deltas stay

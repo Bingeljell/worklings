@@ -39,6 +39,10 @@ public struct Delve: Equatable, Sendable {
     private let effectiveness: Double
     private let rates: PetCombatRates
     private let baseSeed: UInt64
+    /// What the pet already owns, fixed at entry. Drops are chosen against this so
+    /// a delve never awards a duplicate — the delve has to know it up front
+    /// because drops are now decided per encounter, not once at the end.
+    private let ownedAtEntry: [Item]
 
     // MARK: Running state
 
@@ -51,6 +55,15 @@ public struct Delve: Equatable, Sendable {
     public private(set) var accumulatedXP: Double
     /// How many encounters have been cleared.
     public private(set) var clearedCount: Int
+    /// Gear won so far this delve, in the order it was won. Kept on a bank and on
+    /// a retreat alike: those encounters were genuinely cleared, and taking the
+    /// spoils back would make the shallow fights worthless again — which is the
+    /// problem per-encounter drops exist to solve.
+    public private(set) var drops: [Item]
+    /// What the encounter just cleared gave up, or nil if it gave up nothing (its
+    /// tier is exhausted). Distinct from `drops.last`, which would keep reporting
+    /// an older prize through a dry encounter and credit the wrong fight.
+    public private(set) var lastDrop: Item?
     public private(set) var status: Status
 
     // MARK: Init
@@ -61,7 +74,8 @@ public struct Delve: Equatable, Sendable {
         boss: Foe,
         effectiveness: Double,
         rates: PetCombatRates,
-        baseSeed: UInt64
+        baseSeed: UInt64,
+        ownedItems: [Item] = []
     ) {
         self.foes = foes
         self.boss = boss
@@ -71,10 +85,13 @@ public struct Delve: Equatable, Sendable {
         self.effectiveness = min(max(effectiveness, 0), 1)
         self.rates = rates
         self.baseSeed = baseSeed
+        self.ownedAtEntry = ownedItems
         self.index = 0
         self.carriedHP = pet.currentHP
         self.accumulatedXP = 0
         self.clearedCount = 0
+        self.drops = []
+        self.lastDrop = nil
         self.status = .briefing
     }
 
@@ -85,11 +102,13 @@ public struct Delve: Equatable, Sendable {
         pet: Combatant,
         effectiveness: Double,
         rates: PetCombatRates,
-        baseSeed: UInt64
+        baseSeed: UInt64,
+        ownedItems: [Item] = []
     ) -> Delve {
         Delve(
             pet: pet, foes: CacheWarren.encounters, boss: CacheWarren.boss,
-            effectiveness: effectiveness, rates: rates, baseSeed: baseSeed
+            effectiveness: effectiveness, rates: rates, baseSeed: baseSeed,
+            ownedItems: ownedItems
         )
     }
 
@@ -151,6 +170,10 @@ public struct Delve: Equatable, Sendable {
         }
         accumulatedXP += foe.rewardXP
         clearedCount += 1
+        lastDrop = dropForClearedEncounter()
+        if let lastDrop {
+            drops.append(lastDrop)
+        }
         if isBossEncounter {
             status = .completed(currentExitTier(victory: true))
         } else {
@@ -198,13 +221,10 @@ public struct Delve: Equatable, Sendable {
         let bonus = bossDefeated ? rates.delveCompletionXP : 0
         let totalXP = accumulatedXP + bonus
 
-        // The boss is the capstone, so it's the only thing that drops gear: the
-        // completion bonus and the drop together are what banking forfeits, which
-        // is what gives the press-your-luck beat teeth. Restricting drops to items
-        // not yet owned means a delve always either widens the loadout or doesn't
-        // pretend to.
-        let drop = bossDefeated ? Self.drop(excluding: state.ownedItems, seed: baseSeed) : nil
-
+        // Every cleared encounter has already yielded its own gear; what banking
+        // forfeits is the *depth* — the completion bonus and the Prime item only
+        // the mini-boss carries. That keeps press-your-luck teeth without making
+        // the first three fights pay nothing.
         let delta = rates.exitConditionDelta(for: tier)
         // Fullness rises as hunger falls, so a Fullness gain is a hunger cut —
         // the same conversion the single-encounter write-back uses.
@@ -215,7 +235,7 @@ public struct Delve: Equatable, Sendable {
             trust: state.needs.trust + delta.trust
         )
         var updated = state.applying(needs: updatedNeeds, addingXP: totalXP)
-        if let drop {
+        for drop in drops {
             updated = updated.acquiring(drop)
         }
         return DelveResolution(
@@ -225,18 +245,40 @@ public struct Delve: Equatable, Sendable {
             clearedCount: clearedCount,
             bossDefeated: bossDefeated,
             banked: !bossDefeated && tier != .downed,
-            itemDropped: drop
+            itemsDropped: drops
         )
     }
 
-    /// Picks one item the pet doesn't already own, deterministically from the
-    /// delve's seed — so a replayed delve awards the same thing, the same way
-    /// every roll in it replays. Nil once the base set is complete; a real drop
-    /// table (per-foe, per-delve, with rates) is content for later.
-    private static func drop(excluding owned: [Item], seed: UInt64) -> Item? {
-        let candidates = Item.allCases.filter { !owned.contains($0) }
+    /// The tier an encounter at `index` pays out. Depth *is* the reward curve:
+    /// the mini-boss gives Prime, the last regular encounter before it gives
+    /// Solid, and everything shallower gives Scavenged. Expressed relative to the
+    /// end of the chain so a longer or shorter dungeon keeps the same shape.
+    public func dropTier(forEncounterAt index: Int) -> ItemTier {
+        let stepsFromBottom = (allFoes.count - 1) - index
+        switch stepsFromBottom {
+        case ..<1: return .prime
+        case 1: return .solid
+        default: return .scavenged
+        }
+    }
+
+    /// The item the just-cleared encounter yields: one of its tier that the pet
+    /// doesn't already own and hasn't already won this run, chosen
+    /// deterministically from the encounter's seed — so a replayed delve awards
+    /// the same things, the same way every roll in it replays.
+    ///
+    /// Nil when that tier is exhausted. Deliberately *not* falling back to another
+    /// tier: a boss that hands out Scavenged junk because you own all the Prime
+    /// gear reads as a bug, and an early fight that pays Prime because the
+    /// Scavenged set is complete would gut the reason to push. A real drop table
+    /// (per-foe rates, generated affixes) is the later answer to running dry.
+    private func dropForClearedEncounter() -> Item? {
+        let tier = dropTier(forEncounterAt: index)
+        let candidates = Item.all(in: tier).filter {
+            !ownedAtEntry.contains($0) && !drops.contains($0)
+        }
         guard !candidates.isEmpty else { return nil }
-        var generator = SeededGenerator(seed: seed)
+        var generator = SeededGenerator(seed: encounterSeed)
         return candidates.randomElement(using: &generator)
     }
 
@@ -284,9 +326,10 @@ public struct DelveResolution: Equatable, Sendable {
     public let bossDefeated: Bool
     /// The player left voluntarily with a win (not a boss clear, not a retreat).
     public let banked: Bool
-    /// The gear the boss gave up, already added to `state`. Nil when the boss
-    /// wasn't beaten, or when there's nothing left in the base set to award.
-    public let itemDropped: Item?
+    /// Every piece of gear won on the way down, in the order it was won, already
+    /// added to `state`. Empty when nothing dropped — which now only happens when
+    /// the pet already owns everything at the tiers it reached.
+    public let itemsDropped: [Item]
 
     public init(
         state: PetState,
@@ -295,7 +338,7 @@ public struct DelveResolution: Equatable, Sendable {
         clearedCount: Int,
         bossDefeated: Bool,
         banked: Bool,
-        itemDropped: Item? = nil
+        itemsDropped: [Item] = []
     ) {
         self.state = state
         self.tier = tier
@@ -303,6 +346,19 @@ public struct DelveResolution: Equatable, Sendable {
         self.clearedCount = clearedCount
         self.bossDefeated = bossDefeated
         self.banked = banked
-        self.itemDropped = itemDropped
+        self.itemsDropped = itemsDropped
+    }
+
+    /// The mini-boss's own reward — the deepest, best thing recovered — which the
+    /// end screen headlines. Nil unless the boss actually fell.
+    public var bossDrop: Item? {
+        guard bossDefeated else { return nil }
+        return itemsDropped.last
+    }
+
+    /// What was picked up before the boss, for the end screen's summary line.
+    public var shallowDrops: [Item] {
+        guard bossDrop != nil else { return itemsDropped }
+        return itemsDropped.dropLast()
     }
 }

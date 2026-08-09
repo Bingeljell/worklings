@@ -52,6 +52,48 @@ public enum ItemSlot: String, CaseIterable, Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - Tiers
+
+/// How good a piece of gear is, which is the same question as **how deep you had
+/// to go for it**.
+///
+/// Tiers exist because a delve that pays out once, at the very bottom, asks four
+/// fights of a player and answers with a single item that might not even suit
+/// their build. Every encounter now yields something, and the depth decides what:
+/// the shallow fights hand over scavenged junk, the last regular encounter
+/// something solid, and the mini-boss the genuinely good stuff. The gradient *is*
+/// the reward for pushing.
+public enum ItemTier: String, CaseIterable, Codable, Equatable, Sendable, Comparable {
+    /// Off the early encounters — real, but barely.
+    case scavenged
+    /// The workaday tier; the original base set, and what a new Workling starts with.
+    case solid
+    /// Boss-only. The reason to walk past the bank prompt.
+    case prime
+
+    public var displayName: String {
+        switch self {
+        case .scavenged: "Scavenged"
+        case .solid: "Solid"
+        case .prime: "Prime"
+        }
+    }
+
+    /// Ordering by worth, so surfaces can sort an inventory best-first and the
+    /// drop logic can talk about "deeper" without a lookup table.
+    private var rank: Int {
+        switch self {
+        case .scavenged: 0
+        case .solid: 1
+        case .prime: 2
+        }
+    }
+
+    public static func < (lhs: ItemTier, rhs: ItemTier) -> Bool {
+        lhs.rank < rhs.rank
+    }
+}
+
 // MARK: - The base item set
 
 /// The v1 base items: one favouring each primary stat, dual-coded to
@@ -67,38 +109,77 @@ public enum ItemSlot: String, CaseIterable, Codable, Equatable, Sendable {
 /// absent: Luck is the classless sixth stat and combat v1 defers it, so the coin
 /// ships whenever `PetStatKind` grows a `luck` case, not before.
 public enum Item: String, CaseIterable, Codable, Equatable, Sendable {
+    // Power → Tool
+    case chippedFile
     case crackedWhetstone
+    case mastersHone
+    // Guard → Ward
+    case bentPotLid
     case dentedBuckler
+    case failsafePlate
+    // Vitality → Ward
+    case coldCoffeeDregs
     case warmBackupCoal
+    case everburningBackup
+    // Wit → Charm
+    case stickyNote
     case rubberDuck
+    case rootCauseLens
+    // Agility → Charm
+    case frayedLanyard
     case quickstepCharm
+    case hotpathSigil
 
     public var displayName: String {
         switch self {
+        case .chippedFile: "Chipped File"
         case .crackedWhetstone: "Cracked Whetstone"
+        case .mastersHone: "Master's Hone"
+        case .bentPotLid: "Bent Pot Lid"
         case .dentedBuckler: "Dented Buckler"
+        case .failsafePlate: "Failsafe Plate"
+        case .coldCoffeeDregs: "Cold Coffee Dregs"
         case .warmBackupCoal: "Warm Backup-Coal"
+        case .everburningBackup: "Everburning Backup"
+        case .stickyNote: "Sticky Note"
         case .rubberDuck: "Rubber Duck"
+        case .rootCauseLens: "Root-Cause Lens"
+        case .frayedLanyard: "Frayed Lanyard"
         case .quickstepCharm: "Quickstep Charm"
+        case .hotpathSigil: "Hotpath Sigil"
         }
     }
 
+    /// The stat an item favours fixes its slot, so a tier is always a
+    /// like-for-like upgrade: a better Tool competes with your current Tool.
     public var slot: ItemSlot {
-        switch self {
-        case .crackedWhetstone: .tool
-        case .dentedBuckler, .warmBackupCoal: .ward
-        case .rubberDuck, .quickstepCharm: .charm
+        switch stat {
+        case .power: .tool
+        case .defense, .vitality: .ward
+        case .wit, .agility: .charm
         }
     }
 
     /// The single primary stat this item nudges.
     public var stat: PetStatKind {
         switch self {
-        case .crackedWhetstone: .power
-        case .dentedBuckler: .defense
-        case .warmBackupCoal: .vitality
-        case .rubberDuck: .wit
-        case .quickstepCharm: .agility
+        case .chippedFile, .crackedWhetstone, .mastersHone: .power
+        case .bentPotLid, .dentedBuckler, .failsafePlate: .defense
+        case .coldCoffeeDregs, .warmBackupCoal, .everburningBackup: .vitality
+        case .stickyNote, .rubberDuck, .rootCauseLens: .wit
+        case .frayedLanyard, .quickstepCharm, .hotpathSigil: .agility
+        }
+    }
+
+    /// How deep you had to go to get it, and therefore how much it's worth.
+    public var tier: ItemTier {
+        switch self {
+        case .chippedFile, .bentPotLid, .coldCoffeeDregs, .stickyNote, .frayedLanyard:
+            .scavenged
+        case .crackedWhetstone, .dentedBuckler, .warmBackupCoal, .rubberDuck, .quickstepCharm:
+            .solid
+        case .mastersHone, .failsafePlate, .everburningBackup, .rootCauseLens, .hotpathSigil:
+            .prime
         }
     }
 
@@ -112,23 +193,38 @@ public enum Item: String, CaseIterable, Codable, Equatable, Sendable {
     /// ship. Attunement is soft anyway — a nudge, never a gate — so their absence
     /// costs correctness nothing.
     public var attunedFamily: PetFamily? {
-        switch self {
-        case .crackedWhetstone: .relicborn  // Power → Juggernaut
-        case .rubberDuck: .elemental        // Wit → Tinkerer
-        case .warmBackupCoal: .wildkin      // Vitality → Wellspring
-        case .dentedBuckler: nil            // Guard → Bloomglass, not yet a family
-        case .quickstepCharm: nil           // Agility → Glitchkin, not yet a family
+        switch stat {
+        case .power: .relicborn     // Juggernaut
+        case .wit: .elemental       // Tinkerer
+        case .vitality: .wildkin    // Wellspring
+        case .defense: nil          // Bloomglass, not yet a family
+        case .agility: nil          // Glitchkin, not yet a family
         }
     }
 
     public var flavor: String {
         switch self {
+        case .chippedFile: "It takes more passes. It still takes."
         case .crackedWhetstone: "A worn edge still bites."
+        case .mastersHone: "Edges leave it hungry."
+        case .bentPotLid: "Held wrong, it still holds."
         case .dentedBuckler: "It has taken worse hits than you have."
+        case .failsafePlate: "Nothing gets through it without filing a report."
+        case .coldCoffeeDregs: "Bitter. Still fuel."
         case .warmBackupCoal: "A little reserve, banked against a bad day."
+        case .everburningBackup: "It outlived the outage that took everything else."
+        case .stickyNote: "Someone wrote the answer down. It was you."
         case .rubberDuck: "The oldest debugging tool there is; it listens."
+        case .rootCauseLens: "It shows you the actual problem, not the loud one."
+        case .frayedLanyard: "Light enough to forget you're wearing it."
         case .quickstepCharm: "Always half a step ahead."
+        case .hotpathSigil: "The shortest way, already known."
         }
+    }
+
+    /// Every item of a given tier — what a drop at a given depth chooses from.
+    public static func all(in tier: ItemTier) -> [Item] {
+        allCases.filter { $0.tier == tier }
     }
 
     /// Every item that fits a slot, in declaration order — what a slot picker
@@ -145,26 +241,49 @@ public enum Item: String, CaseIterable, Codable, Equatable, Sendable {
 ///
 /// The locked principle is that **gear is a nudge, not the dominant axis** —
 /// builds and levels still lead. The defaults anchor to level-up growth, which
-/// gives a class's signature stat +3 and every other stat +1 per level: an
-/// unattuned item is worth less than one level of signature growth, and an
-/// attuned one is worth exactly one. A full three-slot loadout therefore lands
-/// near a level or two of progress, spread across three different stats — visible
-/// on the sheet, never eclipsing it.
+/// gives a class's signature stat +3 and every other stat +1 per level: a Solid
+/// item is worth less than one level of signature growth unattuned, and exactly
+/// one attuned. Scavenged sits below that (a level of *incidental* growth), and
+/// Prime above it — a boss item should be felt, since four fights and a declined
+/// bank prompt is what it costs. Even a full Prime loadout is about three levels
+/// of growth spread over three stats, so the ceiling stays a nudge.
 public struct ItemRates: Equatable, Sendable {
-    /// Stat points every build reads from an equipped item.
-    public let baseModifier: Int
+    /// Stat points an equipped **Scavenged** item is worth to any build.
+    public let scavengedModifier: Int
+    /// Stat points an equipped **Solid** item is worth — the original base number,
+    /// which the whole "gear is a nudge" anchoring was set against.
+    public let solidModifier: Int
+    /// Stat points an equipped **Prime** item is worth. Boss-only, so it is
+    /// allowed to be worth walking past the bank prompt for.
+    public let primeModifier: Int
     /// Extra points on top when the wearer's family attunes to the item.
     public let attunementBonus: Int
 
-    public init(baseModifier: Int = 2, attunementBonus: Int = 1) {
-        self.baseModifier = max(baseModifier, 0)
+    public init(
+        scavengedModifier: Int = 1,
+        solidModifier: Int = 2,
+        primeModifier: Int = 4,
+        attunementBonus: Int = 1
+    ) {
+        self.scavengedModifier = max(scavengedModifier, 0)
+        self.solidModifier = max(solidModifier, 0)
+        self.primeModifier = max(primeModifier, 0)
         self.attunementBonus = max(attunementBonus, 0)
     }
 
-    /// What `item` is worth to a member of `family` — the universal base, plus the
-    /// attunement rider when the family matches.
+    /// The universal base for a tier, before attunement.
+    public func baseModifier(for tier: ItemTier) -> Int {
+        switch tier {
+        case .scavenged: scavengedModifier
+        case .solid: solidModifier
+        case .prime: primeModifier
+        }
+    }
+
+    /// What `item` is worth to a member of `family` — its tier's universal base,
+    /// plus the attunement rider when the family matches.
     public func modifier(for item: Item, family: PetFamily) -> Int {
-        baseModifier + (item.attunedFamily == family ? attunementBonus : 0)
+        baseModifier(for: item.tier) + (item.attunedFamily == family ? attunementBonus : 0)
     }
 
     /// Whether this pairing reads the attunement rider — for a surface that wants

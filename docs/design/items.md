@@ -63,8 +63,31 @@ are held as knobs — the point is the shape (a small mono-stat nudge), not the 
 | **Warm Backup-Coal** | Ward | + Vitality | **Wildkin** *(Wellspring)* | A little reserve, banked against a bad day. |
 | **Lucky Green-Build Coin** | Charm | + Luck | **— none —** | It passed on the first try. Nobody knows why. |
 
+### Tiers — depth is the reward curve
+
+Each stat-item above exists at **three tiers**, because a delve that paid out once, at the
+very bottom, asked four fights of a player and answered with a single item that might not
+even suit their build. Every encounter now yields something, and **how deep you had to go
+decides what**:
+
+| Tier | Dropped by | Worth (knob) | The five |
+| --- | --- | ---: | --- |
+| **Scavenged** | the early encounters | +1 | Chipped File, Bent Pot Lid, Cold Coffee Dregs, Sticky Note, Frayed Lanyard |
+| **Solid** | the last regular encounter | +2 | the original base set above |
+| **Prime** | **the mini-boss only** | +4 | Master's Hone, Failsafe Plate, Everburning Backup, Root-Cause Lens, Hotpath Sigil |
+
+The three tiers of a stat always share a **slot**, so a tier is a like-for-like upgrade: a
+better Tool competes with your current Tool. The gradient *is* the reward for pushing — and
+the reason the bank prompt is a real question, since Prime gear exists nowhere else.
+
+**No cross-tier fallback.** When a tier is exhausted its encounters drop nothing rather than
+substituting another tier: a boss handing out Scavenged junk reads as a bug, and an early
+fight paying Prime because the Scavenged set is complete would gut the reason to push. Running
+dry is the honest signal that this dungeon has given what it has; a real drop table (per-foe
+rates, more items, generated affixes) is the later answer.
+
 These stay intentionally **mono-stat, primaries only** — they teach the equip loop and make
-the Stats tab matter without a rarity or affix system, and they touch **primary** stats
+the Stats tab matter without an affix system, and they touch **primary** stats
 (not derived attributes), keeping the [two-layer stat model](combat-systems.md) clean. Richer
 items (multi-stat, on-hit / proc effects, set bonuses, derived-stat gear) are a later layer
 that slots into the same read-time model. *(Note: the Luck item and the six-stat spread assume
@@ -135,16 +158,19 @@ alongside the dungeon knobs.
 
 ## As built
 
-The first slice (`Sources/CompanionCore/Items.swift`, plus `ownedItems` / `loadout` on
-`PetState`) implements the model above. Three deviations, each forced by something that
-doesn't exist yet rather than by a change of mind:
+`Sources/CompanionCore/Items.swift` (plus `ownedItems` / `loadout` on `PetState`)
+implements the model above. Existing raw values were preserved when the catalogue grew to
+three tiers, so the ten new items are purely additive — an old save reads back unchanged.
+Three deviations, each forced by something that doesn't exist yet rather than by a change
+of mind:
 
-- **Five items, not six.** The Lucky Green-Build Coin needs a Luck stat, and combat v1
-  defers Luck. The coin lands when `PetStatKind` grows a `luck` case.
-- **Two items are universal-only.** Attunement needs its family to exist; **Bloomglass**
-  and **Glitchkin** are design-stage, so the Dented Buckler (Guard) and Quickstep Charm
-  (Agility) read the universal base for everyone until those families ship. Attunement is
-  a soft nudge, so nothing is mis-modelled in the meantime — just unrewarded.
+- **Five stats, not six — so fifteen items, not eighteen.** The Lucky Green-Build Coin
+  needs a Luck stat, and combat v1 defers Luck. The coin (and its tiers) land when
+  `PetStatKind` grows a `luck` case.
+- **Two stat-lines are universal-only.** Attunement needs its family to exist;
+  **Bloomglass** and **Glitchkin** are design-stage, so every Guard and Agility item reads
+  the universal base for everyone until those families ship. Attunement is a soft nudge,
+  so nothing is mis-modelled in the meantime — just unrewarded.
 - **The family lean isn't folded in.** It belongs at the same read-time step and lands
   inside `PetStats.effective(...)` when it's built, without moving the seam.
 
@@ -170,18 +196,27 @@ Two surfaces pricing the same items is a drift risk, so they don't each do it: a
 tooltip) on top of the one `ItemRates` that owns the arithmetic. The screens differ in
 chrome and in nothing else.
 
-**Drops, as built:** only a **boss clear** awards gear — one item, deterministic in the
-delve seed, drawn from what the pet doesn't yet own, and nil once the base set is
-complete. That makes the drop part of what banking forfeits, alongside the completion
-bonus, which is what gives press-your-luck its teeth. A real drop table (per-foe,
-per-delve, with rates) is content for later.
+**Drops, as built:** **every cleared encounter** awards one item of its depth's tier —
+deterministic in the delve seed, never something already owned, never twice in a run,
+and nil rather than a substitute once that tier is exhausted.
 
-**The drop beat.** The rarest thing in a delve gets a staged reveal on the end screen
-rather than a line of text: the item card lands a beat after the victory fanfare thins
-out, and **Return waits for it** — a drop dismissed before it was seen is the whole
-gamble going unwitnessed. The card carries the name, slot, price (`+3 Power ✦`), flavour,
-and an **Equip** button, so a prize doesn't require a trip to another window to do
-anything.
+Gear won on the way down is **kept on a bank and on a retreat alike**: those encounters
+were genuinely cleared, and clawing the spoils back would make the shallow fights
+worthless again, which is the exact problem per-encounter drops exist to solve. What
+banking forfeits is the **depth** — the completion bonus and the boss's Prime item. That
+keeps press-your-luck teeth without charging four fights for one payout.
+
+**The drop beat.** A reward is shown where it was won. Each encounter's item appears
+**inside the bank/push prompt** — the compact card, priced and equippable on the spot —
+so the decision to push is made with the last payout visible. The boss's Prime item gets
+the **end screen's staged reveal**: it lands a beat after the victory fanfare thins out,
+and **Return waits for it** — a drop dismissed before it was seen is the whole gamble
+going unwitnessed. Everything picked up on the way down is tallied there as a receipt
+rather than revealed twice.
+
+Both cards carry the name, tier, slot, price (`+3 Power ✦`), and an **Equip** button, so a
+prize doesn't require a trip to another window to do anything. Tier has one colour
+everywhere it's named — grey, cyan, gold.
 
 It also states **what equipping would cost**, via `Loadout.swap(to:family:rates:)`
 (`GearSwap`). Because items are mono-stat *and* slot-bound, a swap usually moves two
