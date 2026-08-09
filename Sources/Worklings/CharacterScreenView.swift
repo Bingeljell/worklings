@@ -296,6 +296,12 @@ private struct ModelBay: View {
 /// One gear slot: what's in it, what that's worth, and a menu of everything owned
 /// that fits. The slot's fantasy rides along in the tooltip so an empty slot still
 /// tells you what it's *for*.
+///
+/// Filled and empty are meant to be told apart **at a glance, without reading** —
+/// an occupied slot gets a solid tier-tinted well with a tier-tinted item icon and
+/// a stat price; an empty one is a dashed outline around a faded slot glyph and
+/// the word Empty. The earlier version separated the two states by a text colour
+/// and a background opacity, which is not a difference you can see.
 private struct GearSlotButton: View {
     @ObservedObject var session: PetSession
     let slot: ItemSlot
@@ -304,6 +310,7 @@ private struct GearSlotButton: View {
     var body: some View {
         let equipped = session.state.loadout[slot]
         let owned = session.state.availableItems(for: slot)
+        let tint = equipped.map { tierTint($0.tier) } ?? .secondary
 
         Menu {
             ForEach(owned, id: \.self) { item in
@@ -313,52 +320,104 @@ private struct GearSlotButton: View {
                 Divider()
             }
             Button("Leave empty") { session.equip(nil, in: slot) }
+                .disabled(equipped == nil)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 15))
-                    .frame(width: 22)
-                    .foregroundStyle(equipped == nil ? .secondary : .primary)
+                itemWell(equipped: equipped, tint: tint)
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(slot.displayName.uppercased())
                         .font(.system(size: 9, weight: .heavy))
                         .foregroundStyle(.secondary)
+                        .tracking(0.6)
                     Text(equipped?.displayName ?? "Empty")
                         .font(.caption.bold())
-                        .foregroundStyle(equipped == nil ? .secondary : .primary)
+                        .foregroundStyle(equipped == nil ? .tertiary : .primary)
                         .lineLimit(1)
                 }
 
                 Spacer(minLength: 4)
 
                 if let equipped {
-                    Text(pricing.priceLabel(for: equipped))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.green)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(pricing.priceLabel(for: equipped))
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.green)
+                        Text(equipped.tier.displayName.uppercased())
+                            .font(.system(size: 8, weight: .heavy))
+                            .foregroundStyle(tint)
+                    }
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 9)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(.quaternary.opacity(equipped == nil ? 0.4 : 0.9))
-            )
+            .background(background(filled: equipped != nil, tint: tint))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
         .accessibilityLabel(
-            "\(slot.displayName) slot, \(equipped?.displayName ?? "empty")"
+            equipped.map { "\(slot.displayName) slot, \($0.displayName), \(pricing.priceLabel(for: $0))" }
+                ?? "\(slot.displayName) slot, empty"
         )
     }
 
-    private var icon: String {
+    /// The icon plate. Filled shows the item's own stat glyph on a tinted disc;
+    /// empty shows the slot's outline glyph in a dashed ring — the standard "this
+    /// goes here, and nothing is here" affordance.
+    @ViewBuilder
+    private func itemWell(equipped: Item?, tint: Color) -> some View {
+        ZStack {
+            if equipped == nil {
+                Circle()
+                    .strokeBorder(
+                        .tertiary,
+                        style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])
+                    )
+                Image(systemName: emptyIcon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            } else {
+                Circle().fill(tint.opacity(0.22))
+                Circle().strokeBorder(tint.opacity(0.7), lineWidth: 1)
+                Image(systemName: filledIcon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+        }
+        .frame(width: 30, height: 30)
+    }
+
+    private func background(filled: Bool, tint: Color) -> some View {
+        RoundedRectangle(cornerRadius: 9)
+            .fill(filled ? AnyShapeStyle(tint.opacity(0.12)) : AnyShapeStyle(Color.clear))
+            .overlay(
+                RoundedRectangle(cornerRadius: 9)
+                    .strokeBorder(
+                        filled ? AnyShapeStyle(tint.opacity(0.45)) : AnyShapeStyle(.tertiary),
+                        style: filled
+                            ? StrokeStyle(lineWidth: 1)
+                            : StrokeStyle(lineWidth: 1, dash: [4, 3])
+                    )
+            )
+    }
+
+    /// The slot's own glyph, shown while nothing fills it.
+    private var emptyIcon: String {
+        switch slot {
+        case .tool: "wrench.and.screwdriver"
+        case .ward: "shield"
+        case .charm: "sparkle"
+        }
+    }
+
+    /// The filled glyph — solid, so occupancy reads even in monochrome.
+    private var filledIcon: String {
         switch slot {
         case .tool: "wrench.and.screwdriver.fill"
         case .ward: "shield.fill"
-        case .charm: "sparkle"
+        case .charm: "sparkles"
         }
     }
 }
