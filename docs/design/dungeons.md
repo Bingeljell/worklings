@@ -75,7 +75,10 @@ multiplier** (below) before it hits the table.
 An encounter runs **n turns**, and the player steers it at **decision points** rather
 than every turn. This cadence is the core lever the whole encounter is designed around.
 
-- **Approach** — the standing strategy the Workling fights on *between* decisions: **Aggressive** (bias Strike), **Careful** (bias Brace), or **Clever** (hold for the Signature opening). The Workling acts automatically on the current Approach, so a hands-off player still gets a coherent fight.
+- **Approach** — the standing strategy the Workling fights on *between* decisions. The Workling acts automatically on the current Approach, so a hands-off player still gets a coherent fight:
+  - **Aggressive** — Strike every round.
+  - **Careful** — below `carefulBraceThreshold` HP, *alternate* Brace and Strike until back above `carefulResumeThreshold`. The alternation is load-bearing: bracing every round meant the pet could neither out-heal nor out-damage whatever put it there, so a dip became an unwinnable fight the player only watched. The two thresholds are hysteresis, so recovery isn't instantly undone.
+  - **Clever** — Strike, holding the Signature until the foe drops below `cleverFinisherThreshold`, then spend it unprompted. Without that rule Clever resolved identically to Aggressive.
 - **Decision points** — moments where the player can *re-choose* the Approach or spend a one-off action (notably **Unleash** the Signature). They fire on a mix of:
   - **Cadence** — every **3 turns**, a steady "reassess" beat.
   - **Events** — a triggered moment: the Workling drops below **30%** HP; the foe winds up a heavy move; an **opening** appears (a foe over-extends — the window to Unleash); the fight changes phase (boss only).
@@ -376,7 +379,11 @@ noted, not being tuned yet.** Enemy-ability, [ability](abilities.md#knobs), and
 | `critPerAgility` | 0.01 | More crits; Agility/Maverick spikier. |
 | `critMultiplier` | 1.5 | Bigger crit payoff. |
 | `braceMitigation` | ×0.5 dmg | How much Brace rewards patience. |
-| `braceRegen` | 2 HP | Sustain from defending. |
+| `braceRegen` | 2 HP (floor) | Minimum sustain from defending, whatever the pool. |
+| `braceRegenFraction` | 8% of max HP | Sustain from defending, scaled to the pool so a flat number doesn't decay into nothing. |
+| `carefulBraceThreshold` | 40% HP | When Careful enters its defensive band. |
+| `carefulResumeThreshold` | 60% HP | When Careful leaves it. The gap is hysteresis — a single threshold latched the pet into Brace permanently. |
+| `cleverFinisherThreshold` | foe at 35% HP | When Clever spends the Signature it's been holding. |
 | `signatureMultiplier` | 1.5 | Power of the once-per-encounter Unleash. |
 | `decisionCadence` | every 3 turns | Less frequent = more hands-off, fewer choices. |
 | `lowHPEvent` | 30% | When the "faltering" decision point fires. |

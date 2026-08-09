@@ -41,6 +41,220 @@ enum CombatChecks {
         checkOutcomeStaysInsideTheReversibleEnvelope(context: &context)
         checkPetCombatantBuildsFromState(context: &context)
         checkDelveEntryEligibility(context: &context)
+        checkBraceRegenScalesWithPool(context: &context)
+        checkCarefulResumesStrikingAfterRecovering(context: &context)
+        checkCarefulNeverStopsFightingOutright(context: &context)
+        checkCleverHoldsTheSignatureForTheFinish(context: &context)
+        checkApproachesDiffer(context: &context)
+        checkApproachSummariesAreDistinct(context: &context)
+    }
+
+    private static func bracedCount(in log: [CombatEvent]) -> Int {
+        log.reduce(0) { count, event in
+            if case .braced = event { return count + 1 }
+            return count
+        }
+    }
+
+    private static func petStrikeCount(in log: [CombatEvent], petName: String) -> Int {
+        log.reduce(0) { count, event in
+            if case let .struck(attacker, _, _) = event, attacker == petName { return count + 1 }
+            return count
+        }
+    }
+
+    private static func checkBraceRegenScalesWithPool(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        context.expectEqual(
+            rates.braceRegenAmount(maxHP: 10), rates.braceRegen,
+            "a tiny pool falls back to the flat brace floor"
+        )
+        context.expectEqual(
+            rates.braceRegenAmount(maxHP: 200), 16,
+            "a large pool regains the fraction, not the flat floor"
+        )
+        context.expect(
+            rates.braceRegenAmount(maxHP: 200) > rates.braceRegenAmount(maxHP: 50),
+            "brace regen grows with the HP pool"
+        )
+    }
+
+    /// The hysteresis gap, stated directly: entering the Brace latch and leaving
+    /// it are deliberately different thresholds.
+    private static func checkCarefulResumesStrikingAfterRecovering(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        context.expect(
+            rates.carefulResumeThreshold > rates.carefulBraceThreshold,
+            "Careful resumes striking at a higher mark than it starts bracing at"
+        )
+        // Even a hand-built inversion cannot reintroduce the one-way latch.
+        let inverted = PetCombatRates(carefulBraceThreshold: 0.6, carefulResumeThreshold: 0.2)
+        context.expect(
+            inverted.carefulResumeThreshold >= inverted.carefulBraceThreshold,
+            "an inverted pair is clamped so the latch can never come back"
+        )
+    }
+
+    /// The regression this whole change exists for. A Careful pet taken under its
+    /// brace threshold by a heavy foe used to latch into Brace and never strike
+    /// again — an unwinnable fight that read as the boss attacking unopposed.
+    private static func checkCarefulNeverStopsFightingOutright(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: CacheWarren.monolith,
+            approach: .careful, rates: rates, seed: 11
+        )
+        encounter.runToCompletion()
+
+        let braces = bracedCount(in: encounter.log)
+        let strikes = petStrikeCount(in: encounter.log, petName: encounter.pet.name)
+        context.expect(braces > 0, "a Careful pet against a Monolith does brace")
+        context.expect(
+            strikes > 0,
+            "a Careful pet keeps striking — it never latches into Brace forever"
+        )
+
+        // The sharper form: no unbroken run of Braces long enough to be a latch.
+        var longestBraceRun = 0
+        var run = 0
+        for event in encounter.log {
+            switch event {
+            case .braced:
+                run += 1
+                longestBraceRun = max(longestBraceRun, run)
+            case .struck(let attacker, _, _) where attacker == encounter.pet.name:
+                run = 0
+            case .signature:
+                run = 0
+            default:
+                break
+            }
+        }
+        // Inside the hurt band Brace and Strike alternate, so a run can only
+        // lengthen when a telegraph queues a guaranteed Brace on top — a
+        // deliberate answer to a wind-up, and still bounded. Before the fix this
+        // ran to 27 and only stopped because the pet died.
+        context.expect(
+            longestBraceRun <= 3,
+            "a Careful pet never braces indefinitely without hitting back "
+                + "(longest run was \(longestBraceRun))"
+        )
+    }
+
+    /// A long, harmless punching bag: enough HP that a fight against it certainly
+    /// crosses the Clever finisher threshold, and too weak to end the fight early.
+    private static func finisherTestFoe() -> Foe {
+        Foe(
+            name: "Sandbag", maxHP: 120,
+            stats: CombatStats(power: 1, defense: 0, agility: 1, wit: 1),
+            behavior: .mindless,
+            rewardXP: 0
+        )
+    }
+
+    /// Clever's reason to exist: the Signature is held, then spent once the foe is
+    /// inside finishing range. Before this it returned `.strike`, making it an
+    /// exact duplicate of Aggressive.
+    private static func checkCleverHoldsTheSignatureForTheFinish(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        var encounter = CombatEncounter(
+            pet: aegisPet(rates), foe: finisherTestFoe(),
+            approach: .clever, rates: rates, seed: 7
+        )
+
+        // While the foe is healthy the Signature stays in hand.
+        encounter.step()
+        context.expect(
+            encounter.signatureReady,
+            "Clever holds the Signature while the foe is still healthy"
+        )
+
+        encounter.runToCompletion()
+        context.expect(
+            logContainsSignature(encounter.log),
+            "Clever spends the held Signature before the fight ends"
+        )
+
+        // And it lands inside finishing range, not at full health. Replayed a step
+        // at a time so the foe's HP can be sampled the moment before it fires.
+        var replay = CombatEncounter(
+            pet: aegisPet(rates), foe: finisherTestFoe(),
+            approach: .clever, rates: rates, seed: 7
+        )
+        var foeHPBeforeSignature: Double?
+        for _ in 0..<200 {
+            let before = replay.foe.hpFraction
+            let logLength = replay.log.count
+            switch replay.status {
+            case .ongoing: replay.step()
+            case .awaitingDecision: replay.decide(approach: .clever, unleash: false)
+            case .petVictory, .petDefeat: break
+            }
+            if replay.status == .petVictory || replay.status == .petDefeat { break }
+            if foeHPBeforeSignature == nil,
+               logContainsSignature(Array(replay.log.dropFirst(logLength))) {
+                foeHPBeforeSignature = before
+            }
+        }
+        if let fraction = foeHPBeforeSignature {
+            context.expect(
+                fraction <= rates.cleverFinisherThreshold + 0.001,
+                "Clever's Signature lands inside finishing range, not at full foe HP "
+                    + "(fired at \(fraction))"
+            )
+        } else {
+            context.expect(false, "expected to observe Clever's Signature firing")
+        }
+    }
+
+    /// The three Approaches must actually resolve differently from one seed.
+    /// Clever and Aggressive were byte-identical before this — three buttons, two
+    /// behaviours.
+    ///
+    /// Each separation needs a fight that can express it: Careful only diverges
+    /// against something that can actually hurt the pet into its band, and Clever
+    /// only against something that survives long enough to reach finishing range.
+    /// So both foes are exercised rather than one.
+    private static func checkApproachesDiffer(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        func fight(_ approach: Approach, _ foe: Foe) -> [CombatEvent] {
+            var encounter = CombatEncounter(
+                pet: aegisPet(rates), foe: foe, approach: approach, rates: rates, seed: 99
+            )
+            encounter.runToCompletion()
+            return encounter.log
+        }
+
+        // A Monolith drives the pet into the Careful band.
+        let heavy = CacheWarren.monolith
+        context.expect(
+            fight(.aggressive, heavy) != fight(.careful, heavy),
+            "Aggressive and Careful fight differently under real pressure"
+        )
+        context.expect(
+            fight(.careful, heavy) != fight(.clever, heavy),
+            "Careful and Clever fight differently under real pressure"
+        )
+
+        // A long fight against something harmless reaches Clever's finisher.
+        let bag = finisherTestFoe()
+        context.expect(
+            fight(.aggressive, bag) != fight(.clever, bag),
+            "Aggressive and Clever fight differently once finishing range is reached"
+        )
+    }
+
+    private static func checkApproachSummariesAreDistinct(context: inout CheckContext) {
+        let rates = PetCombatRates()
+        let summaries = Approach.allCases.map { $0.summary(rates: rates) }
+        context.expectEqual(
+            Set(summaries).count, Approach.allCases.count,
+            "every Approach explains itself differently"
+        )
+        context.expect(
+            summaries.allSatisfy { !$0.isEmpty },
+            "every Approach has a summary"
+        )
     }
 
     private static func midHealthPet() -> PetState {
