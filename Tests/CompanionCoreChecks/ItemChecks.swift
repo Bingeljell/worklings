@@ -20,6 +20,106 @@ enum ItemChecks {
         checkPreGearSaveReadsAsStarterLoadout(context: &context)
         checkGearRoundTripsThroughCoding(context: &context)
         checkCombatantFightsWithGearScaledByCondition(context: &context)
+        checkSwapIntoEmptySlotIsPureGain(context: &context)
+        checkSwapReportsBothSidesOfACrossStatTrade(context: &context)
+        checkSwapNetsOutWhenBothItemsShareAStat(context: &context)
+        checkSwapReadsTheWearersAttunement(context: &context)
+        checkForgettingGearKeepsEverythingElse(context: &context)
+    }
+
+    /// The debug reset gives back the *starter* state, not an empty one, and
+    /// touches nothing outside gear — a reset that quietly cost XP or needs would
+    /// make every drop test start from a different pet.
+    private static func checkForgettingGearKeepsEverythingElse(context: inout CheckContext) {
+        let rich = state(
+            owning: Item.allCases,
+            loadout: Loadout(tool: .crackedWhetstone, ward: .dentedBuckler, charm: .quickstepCharm)
+        )
+        let reset = rich.forgettingAcquiredItems()
+
+        context.expectEqual(
+            reset.ownedItems,
+            [PetState.starterItem],
+            "forgetting gear leaves exactly the starter item"
+        )
+        context.expectEqual(
+            reset.loadout,
+            Loadout().equipping(PetState.starterItem),
+            "the starter item comes back equipped, so the gear UI is never empty"
+        )
+        context.expectEqual(reset.name, rich.name, "forgetting gear keeps the name")
+        context.expectEqual(reset.totalXP, rich.totalXP, "forgetting gear keeps XP")
+        context.expectEqual(reset.stats, rich.stats, "forgetting gear keeps base stats")
+        context.expectEqual(reset.needs, rich.needs, "forgetting gear keeps needs")
+        context.expectEqual(reset.petClass, rich.petClass, "forgetting gear keeps the class")
+        context.expectEqual(reset.family, rich.family, "forgetting gear keeps the family")
+    }
+
+    // MARK: Swapping
+
+    /// An empty slot has nothing to give up, so the swap is one-sided — the case
+    /// the drop screen presents as pure upside.
+    private static func checkSwapIntoEmptySlotIsPureGain(context: inout CheckContext) {
+        let swap = Loadout.empty.swap(to: .crackedWhetstone, family: .wildkin, rates: rates)
+
+        context.expect(swap.fillsEmptySlot, "an empty slot reports itself as empty")
+        context.expect(swap.lost == nil, "an empty slot gives nothing up")
+        context.expectEqual(swap.gained.stat, .power, "the gain is the incoming item's stat")
+        context.expectEqual(
+            swap.gained.amount,
+            rates.baseModifier,
+            "the gain is what the incoming item is worth"
+        )
+    }
+
+    /// The case a single "+2" would hide: mono-stat items mean a swap usually
+    /// moves two *different* stats in opposite directions, and both halves have
+    /// to survive into the comparison.
+    private static func checkSwapReportsBothSidesOfACrossStatTrade(context: inout CheckContext) {
+        // Both are Charms: the duck gives Wit, the charm gives Agility.
+        let worn = Loadout(charm: .rubberDuck)
+        let swap = worn.swap(to: .quickstepCharm, family: .wildkin, rates: rates)
+
+        context.expectEqual(swap.outgoing, .rubberDuck, "the swap names what's coming off")
+        context.expectEqual(swap.gained.stat, .agility, "the gain is Agility")
+        context.expectEqual(swap.lost?.stat, .wit, "the loss is the Wit the duck provided")
+        context.expect(!swap.fillsEmptySlot, "an occupied slot is not reported as empty")
+        context.expect(!swap.isNoOp, "swapping to a different item is not a no-op")
+    }
+
+    /// When both items touch the same stat the two deltas *do* collapse to one
+    /// number, and re-equipping what's already worn nets to zero.
+    private static func checkSwapNetsOutWhenBothItemsShareAStat(context: inout CheckContext) {
+        let worn = Loadout(charm: .rubberDuck)
+        let sameItem = worn.swap(to: .rubberDuck, family: .wildkin, rates: rates)
+
+        context.expect(sameItem.isNoOp, "re-equipping the worn item is a no-op")
+        context.expectEqual(sameItem.netOnGainedStat, 0, "a no-op swap nets zero")
+
+        let intoEmpty = Loadout.empty.swap(to: .rubberDuck, family: .wildkin, rates: rates)
+        context.expectEqual(
+            intoEmpty.netOnGainedStat,
+            rates.baseModifier,
+            "with nothing to give up the net is the whole gain"
+        )
+    }
+
+    /// The comparison is priced for *this* wearer — the same drop is worth more
+    /// to the family it attunes to, and the swap has to say so.
+    private static func checkSwapReadsTheWearersAttunement(context: inout CheckContext) {
+        let attuned = Loadout.empty.swap(to: .crackedWhetstone, family: .relicborn, rates: rates)
+        let plain = Loadout.empty.swap(to: .crackedWhetstone, family: .wildkin, rates: rates)
+
+        context.expectEqual(
+            attuned.gained.amount,
+            rates.baseModifier + rates.attunementBonus,
+            "a Relicborn's whetstone swap carries the attunement rider"
+        )
+        context.expectEqual(
+            plain.gained.amount,
+            rates.baseModifier,
+            "the same swap on a Wildkin is the universal base"
+        )
     }
 
     // MARK: Fixtures

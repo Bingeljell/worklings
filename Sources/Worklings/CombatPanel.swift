@@ -611,6 +611,7 @@ struct DelvePanelView: View {
             }
             if delve.phase == .ended, let res = delve.resolution {
                 DelveEndScreen(
+                    session: delve.session,
                     tier: res.tier,
                     xpGained: Int(res.xpGained),
                     bossDefeated: res.bossDefeated,
@@ -1010,6 +1011,7 @@ private func exitBlurb(_ tier: ExitTier) -> String {
 /// (with a pop-in and sparkles), the loser vanishes in a puff of smoke, then the
 /// result and Return button fade in. Driven by the finished `DelveResolution`.
 private struct DelveEndScreen: View {
+    @ObservedObject var session: PetSession
     let tier: ExitTier
     let xpGained: Int
     let bossDefeated: Bool
@@ -1023,6 +1025,7 @@ private struct DelveEndScreen: View {
     @State private var winnerScale: CGFloat = 0.4
     @State private var winnerBob = false
     @State private var footerShown = false
+    @State private var dropShown = false
 
     private var won: Bool { tier != .downed }
 
@@ -1064,22 +1067,26 @@ private struct DelveEndScreen: View {
                                 .font(.title3.bold())
                                 .foregroundStyle(.white)
                         }
-                        if let itemDropped {
-                            // The reason to have pushed past the bank: the boss is
-                            // the only thing down here that widens the loadout.
-                            Label(
-                                "\(itemDropped.displayName) — +\(itemDropped.stat.displayName), \(itemDropped.slot.displayName)",
-                                systemImage: "shippingbox.fill"
-                            )
-                            .font(.callout.bold())
-                            .foregroundStyle(.yellow)
-                            .help(itemDropped.flavor)
+                        // The reason to have pushed past the bank: the boss is the
+                        // only thing down here that widens the loadout. It gets
+                        // its own staged beat rather than a line of text, and the
+                        // Return button waits for it — a drop the player dismissed
+                        // before seeing is the whole gamble going unwitnessed.
+                        if let itemDropped, dropShown {
+                            DropReveal(session: session, item: itemDropped)
+                                .transition(
+                                    .scale(scale: 0.7).combined(with: .opacity)
+                                )
                         }
-                        Button(action: onReturn) {
-                            Text("Return").frame(width: 160)
+
+                        if dropShown {
+                            Button(action: onReturn) {
+                                Text("Return").frame(width: 160)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .transition(.opacity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
                     }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
@@ -1109,7 +1116,155 @@ private struct DelveEndScreen: View {
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             withAnimation(.easeOut(duration: 0.35)) { footerShown = true }
+
+            // With no drop there's nothing to wait for, so Return arrives with the
+            // rest of the footer. With one, it lands a beat later — after the
+            // victory fanfare has thinned out — so the item has the stage alone.
+            guard itemDropped != nil else {
+                withAnimation(.easeOut(duration: 0.25)) { dropShown = true }
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(700))
+            CombatAudio.shared.play(.crit, volume: 0.55)
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.62)) {
+                dropShown = true
+            }
         }
+    }
+}
+
+/// The drop beat: what the Warren gave up, what it's worth to *this* Workling,
+/// what it would replace, and the chance to put it on without leaving the screen.
+///
+/// The item is already owned by the time this appears — the delve resolution
+/// banked it — so nothing here can fail. Equipping is the one action, and it
+/// closes the loop that otherwise sent the player to another window to make their
+/// prize do anything.
+private struct DropReveal: View {
+    @ObservedObject var session: PetSession
+    let item: Item
+
+    @State private var shimmer = false
+
+    private var pricing: GearPricing { GearPricing(session: session) }
+
+    private var swap: GearSwap {
+        session.state.loadout.swap(
+            to: item,
+            family: session.state.family,
+            rates: session.itemRates
+        )
+    }
+
+    private var isEquipped: Bool { session.state.loadout[item.slot] == item }
+
+    var body: some View {
+        VStack(spacing: 9) {
+            Text("THE WARREN YIELDS")
+                .font(.system(size: 9, weight: .heavy))
+                .foregroundStyle(.yellow.opacity(0.75))
+                .tracking(1.4)
+
+            HStack(spacing: 11) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(.yellow)
+                    .shadow(color: .yellow.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(item.displayName)
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                        Text(item.slot.displayName.uppercased())
+                            .font(.system(size: 8, weight: .heavy))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(.white.opacity(0.15)))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+
+                    Text(pricing.priceLabel(for: item))
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+
+                    Text(item.flavor)
+                        .font(.caption2.italic())
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            comparison
+
+            equipControl
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: 400)
+        .background(
+            RoundedRectangle(cornerRadius: 13)
+                .fill(.black.opacity(0.4))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 13)
+                        .stroke(.yellow.opacity(0.35), lineWidth: 1)
+                )
+        )
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                shimmer = true
+            }
+        }
+    }
+
+    /// What putting it on would actually cost. Mono-stat, slot-bound items mean a
+    /// swap usually moves two different stats in opposite directions, so a bare
+    /// "+2 Agility" would be a half-truth whenever the slot is occupied.
+    @ViewBuilder
+    private var comparison: some View {
+        let swap = swap
+
+        if isEquipped {
+            Text("Equipped.")
+                .font(.caption2.bold())
+                .foregroundStyle(.green.opacity(0.9))
+        } else if swap.fillsEmptySlot {
+            Text("Your \(item.slot.displayName) slot is empty — pure gain.")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.6))
+        } else if let outgoing = swap.outgoing, let lost = swap.lost {
+            HStack(spacing: 5) {
+                Text("Replaces \(outgoing.displayName)")
+                    .foregroundStyle(.white.opacity(0.6))
+                Text("−\(lost.amount) \(lost.stat.displayName)")
+                    .foregroundStyle(.red.opacity(0.85))
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.35))
+                Text("+\(swap.gained.amount) \(swap.gained.stat.displayName)")
+                    .foregroundStyle(.green.opacity(0.9))
+            }
+            .font(.caption2.bold())
+        }
+    }
+
+    private var equipControl: some View {
+        Button {
+            session.equip(item, in: item.slot)
+        } label: {
+            Label(
+                isEquipped ? "Equipped" : "Equip \(item.slot.displayName)",
+                systemImage: isEquipped ? "checkmark.circle.fill" : "arrow.down.circle.fill"
+            )
+            .frame(width: 160)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+        .disabled(isEquipped)
+        .help(
+            isEquipped
+                ? "\(item.displayName) is in your \(item.slot.displayName) slot."
+                : "Put it on now — or later, from the Character Screen."
+        )
     }
 }
 

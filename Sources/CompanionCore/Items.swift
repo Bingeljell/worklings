@@ -261,6 +261,91 @@ public struct Loadout: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - Swapping one item for another
+
+/// What equipping an item would actually change, given what's already in its
+/// slot.
+///
+/// A drop that only announces itself ("Quickstep Charm, +2 Agility") asks the
+/// player to remember what's in that slot and do the subtraction. Since items are
+/// mono-stat and slot-bound, the honest answer is usually **two** numbers moving
+/// in different directions — gaining Agility while losing the Wit the Rubber Duck
+/// was providing — which is exactly the comparison a single "+2" hides.
+public struct GearSwap: Equatable, Sendable {
+    /// One stat moving by one amount — the two halves of a swap, kept as data so
+    /// a surface can style a gain and a loss differently.
+    public struct StatDelta: Equatable, Sendable {
+        public let stat: PetStatKind
+        public let amount: Int
+
+        public init(stat: PetStatKind, amount: Int) {
+            self.stat = stat
+            self.amount = amount
+        }
+    }
+
+    public let incoming: Item
+    /// What's currently in the slot, if anything.
+    public let outgoing: Item?
+    /// What the incoming item is worth to this wearer.
+    public let gained: StatDelta
+    /// What the outgoing item was worth, and would stop providing. Nil when the
+    /// slot is empty — the case where a drop is pure upside.
+    public let lost: StatDelta?
+
+    public init(
+        incoming: Item,
+        outgoing: Item?,
+        gained: StatDelta,
+        lost: StatDelta?
+    ) {
+        self.incoming = incoming
+        self.outgoing = outgoing
+        self.gained = gained
+        self.lost = lost
+    }
+
+    /// Whether the slot was empty, so equipping costs nothing.
+    public var fillsEmptySlot: Bool { outgoing == nil }
+
+    /// Whether the swap is the same item coming back — nothing moves.
+    public var isNoOp: Bool { incoming == outgoing }
+
+    /// The net change *on the incoming item's own stat*. Meaningful only when
+    /// both items touch the same stat; otherwise the two deltas are the story and
+    /// this is just the gain.
+    public var netOnGainedStat: Int {
+        guard let lost, lost.stat == gained.stat else { return gained.amount }
+        return gained.amount - lost.amount
+    }
+}
+
+extension Loadout {
+    /// What equipping `item` would do to this loadout, for the wearer's family.
+    /// The slot is the item's own — an item always knows where it goes.
+    public func swap(
+        to item: Item,
+        family: PetFamily,
+        rates: ItemRates = ItemRates()
+    ) -> GearSwap {
+        let outgoing = self[item.slot]
+        return GearSwap(
+            incoming: item,
+            outgoing: outgoing,
+            gained: GearSwap.StatDelta(
+                stat: item.stat,
+                amount: rates.modifier(for: item, family: family)
+            ),
+            lost: outgoing.map {
+                GearSwap.StatDelta(
+                    stat: $0.stat,
+                    amount: rates.modifier(for: $0, family: family)
+                )
+            }
+        )
+    }
+}
+
 // MARK: - The read-time fold
 
 extension PetStats {

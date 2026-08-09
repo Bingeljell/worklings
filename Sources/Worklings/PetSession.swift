@@ -196,6 +196,21 @@ final class PetSession: ObservableObject {
         persist()
     }
 
+    #if DEBUG
+    /// Debug-only: hands back every acquired item so the drop beat can be earned
+    /// again. Drops are scarce by design (boss clears only, never a duplicate),
+    /// which makes the reveal nearly impossible to iterate on otherwise.
+    func debugForgetAcquiredItems() {
+        let updated = state.forgettingAcquiredItems()
+        guard updated != state else {
+            return
+        }
+
+        state = updated
+        persist()
+    }
+    #endif
+
     // MARK: - Dungeon
 
     /// Why the pet can't delve right now, or `nil` if it can. Drives the entry

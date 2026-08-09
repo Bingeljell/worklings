@@ -176,6 +176,19 @@ complete. That makes the drop part of what banking forfeits, alongside the compl
 bonus, which is what gives press-your-luck its teeth. A real drop table (per-foe,
 per-delve, with rates) is content for later.
 
+**The drop beat.** The rarest thing in a delve gets a staged reveal on the end screen
+rather than a line of text: the item card lands a beat after the victory fanfare thins
+out, and **Return waits for it** — a drop dismissed before it was seen is the whole
+gamble going unwitnessed. The card carries the name, slot, price (`+3 Power ✦`), flavour,
+and an **Equip** button, so a prize doesn't require a trip to another window to do
+anything.
+
+It also states **what equipping would cost**, via `Loadout.swap(to:family:rates:)`
+(`GearSwap`). Because items are mono-stat *and* slot-bound, a swap usually moves two
+different stats in opposite directions — gaining Agility while losing the Wit the Rubber
+Duck was providing — so a bare "+2 Agility" would be a half-truth whenever the slot is
+occupied. An empty slot is reported as exactly that: pure gain.
+
 **Starter on an existing save.** A save written before gear reads as the *starter*
 loadout rather than as an empty inventory — what a pet created today would get — so a
 pre-gear Workling isn't left with a gear UI it could never fill. Still zero migration:

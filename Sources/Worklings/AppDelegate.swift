@@ -285,6 +285,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #if DEBUG
         menu.addItem(.separator())
         menu.addItem(makeSimulateActivityMenuItem())
+
+        let forgetGearItem = NSMenuItem(
+            title: "Forget Acquired Gear",
+            action: #selector(forgetAcquiredGear),
+            keyEquivalent: ""
+        )
+        forgetGearItem.target = self
+        forgetGearItem.toolTip =
+            "Debug: drop back to the starter item so boss drops can be earned again. "
+            + "Keeps name, needs, XP, class, and family."
+        menu.addItem(forgetGearItem)
         #endif
 
         menu.addItem(.separator())
@@ -396,6 +407,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             dungeonMenuItem.toolTip = "\(state.name) needs care before delving."
         }
     }
+
+    #if DEBUG
+    @objc private func forgetAcquiredGear() {
+        petSession?.debugForgetAcquiredItems()
+    }
+    #endif
 
     @objc private func openCharacterScreen() {
         characterWindowController?.present()

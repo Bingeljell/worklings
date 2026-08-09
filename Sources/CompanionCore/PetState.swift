@@ -365,6 +365,21 @@ public struct PetState: Codable, Equatable, Sendable {
         equipping(nil, in: slot)
     }
 
+    /// Puts the inventory back to what a brand-new Workling carries: the starter
+    /// item, equipped, and nothing else.
+    ///
+    /// This exists because drops are deliberately scarce — only a boss clear
+    /// awards one, and only an item not already owned — so the whole gear loop can
+    /// be *earned* out in four delves and then never seen again. That is right for
+    /// play and wrong for testing it. Everything except gear (name, needs, XP,
+    /// class, family) is preserved, so a reset costs no progress.
+    public func forgettingAcquiredItems() -> PetState {
+        replacing(
+            ownedItems: [Self.starterItem],
+            loadout: Loadout().equipping(Self.starterItem)
+        )
+    }
+
     /// The stat sheet everything downstream should read: the persisted base with
     /// equipped gear folded in. Combat builds its combatant from this, and the
     /// stats panel shows it — so the numbers a player sees and the numbers that
