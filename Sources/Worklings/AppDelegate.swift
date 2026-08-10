@@ -473,6 +473,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .wildkin: "Wildkin — Moss-Fox"
         case .elemental: "Elemental — Ember-Newt"
         case .relicborn: "Relicborn — Keyback Pangolin"
+        case .glitchkin: "Glitchkin — Sparktail (no art yet)"
+        case .bloomglass: "Bloomglass — Starpetal Fawn (no art yet)"
         }
     }
 

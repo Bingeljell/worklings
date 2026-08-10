@@ -19,8 +19,15 @@ The five families form five thematic lanes — nature, elements, machinery, ener
 | **Wildkin** | Nature | Creatures shaped by living ecosystems and natural magic. | Moss-fox |
 | **Elemental** | Elements | Creatures whose elemental affinity is part of their anatomy. | Ember-newt |
 | **Relicborn** | Machinery | Creatures bonded to ancient mechanisms, relics, or rune-powered artifacts. | Keyback pangolin |
-| **Glitchkin** | Energy | Creatures born in the seams between systems — signal, speed, and unstable reality. | — *(design-stage; no art yet)* |
-| **Bloomglass** | Cosmos | Creatures of celestial stillness — starlight, crystal, and refracted moonlight. | — *(design-stage; no art yet)* |
+| **Glitchkin** | Energy | Creatures born in the seams between systems — signal, speed, and unstable reality. | — *(selectable; art pending)* |
+| **Bloomglass** | Cosmos | Creatures of celestial stillness — starlight, crystal, and refracted moonlight. | — *(selectable; art pending)* |
+
+All five families now exist in code (`PetFamily`). Glitchkin and Bloomglass are
+selectable; only their **art** is outstanding, so they render the placeholder glyph until
+their sheets are baked (`PetFamily.hasArt` marks them). Their stat lean and passive remain
+designed-not-built, the same as the other three families'. Their arrival is what unblocks
+the two stats — Guard and Agility — whose [item attunement](items.md#family-attunement--the-soft-synergy-layer) had no
+family to point at.
 
 ### Species
 
