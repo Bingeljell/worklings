@@ -103,6 +103,13 @@ reachable and nothing is ever hard-locked. On top of that, each stat-item carrie
 
 - The mapping is exact because the family→class→stat matrix is 1:1 — Power/**Relicborn**,
   Wit/**Elemental**, Guard/**Bloomglass**, Agility/**Glitchkin**, Vitality/**Wildkin**.
+  **All five now resolve in code**: Guard and Agility read universal-only until Bloomglass
+  and Glitchkin landed in `PetFamily`, and closed the moment they did.
+- **Attunement is keyed on family, and that is the seam to watch.** While family→class→stat
+  stays 1:1, keying on **class** instead is behaviour-preserving — the same items attune to
+  the same pets. It stops being behaviour-preserving the moment per-class item sets are
+  authored, so the family-vs-class decision wants settling *before* that content lands.
+  `Item.attunedFamily` is the single point of change.
 - A matching family reads a **slightly larger** modifier at the effective-stat step; everyone
   else gets the universal base. The rider is **soft** (small magnitude, a nudge not a gate) —
   it rewards thematic pairing without punishing off-theme builds.
