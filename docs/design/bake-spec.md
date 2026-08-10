@@ -304,6 +304,81 @@ camera decision reversible — without it, "re-bake at 22°" is archaeology acro
 }
 ```
 
+## 9. Foe pose sheets
+
+Foes do **not** use the Workling 4×5 pose sheet. They have three poses — `idle`,
+`attack`, `hurt` — delivered as **one file per pose**, and each file is either a single
+still or an animation sheet.
+
+| | Single still | Animation sheet |
+| --- | --- | --- |
+| Layout | one cell | **4 columns, row-major**, filled left-to-right, top-to-bottom |
+| Size | `cell × cell` | `(4 × cell) × (rows × cell)` |
+| Example | 512×512 | 8 frames → 2048×1024 |
+
+Cell size is read off the sheet's own width (`width / 4`), so any cell size works. **New
+foe art uses the 512px cell** (§5). Everything in §2–§4 applies unchanged — same camera,
+same lighting, same ortho scale, same ground-contact line — so a foe's size relative to a
+Workling comes out physically true. Snag is **0.95 BU** (§1).
+
+### Filenames
+
+```
+assets/foes/<base>-idle.png
+assets/foes/<base>-attack.png
+assets/foes/<base>-hurt.png
+```
+
+`<base>` is lowercase and matches the entry in `FoeSpriteAsset.resourceBase(for:)`.
+Registered today: `mote` (display name "Dungeon Scamp"), `snag` ("Snag").
+
+### Frame count is declared, not inferred
+
+The frame count lives in `FoeSpriteAsset.frameCount(foe:pose:)`, not in the file. A 4×4
+sheet is square and therefore indistinguishable from a single still, so inferring it from
+the image would be a guess that silently breaks at 16 frames. Adding an animated pose is
+one line there.
+
+### Playback
+
+- **12 fps** (`FoeSprite.frameDuration`). Slow enough to read as hand-animated next to
+  the pixel art, fast enough that an 8-frame swing lands inside a combat beat.
+- **A pose plays once and holds its last frame.** It restarts from frame 0 every time the
+  foe enters that pose, rather than joining a free-running loop mid-swing.
+- **`idle` is the exception — it loops.**
+
+> The consequence worth designing around: **the last frame of an animated pose is what
+> the foe sits on for the rest of the beat.** Author it as a settle that reads held, not
+> as the end of a follow-through.
+
+### Recommended attack breakdown — 8 frames
+
+8 frames at 12fps is 0.67s, which fits comfortably inside a combat beat.
+
+| Frames | Beat | Notes |
+| --- | --- | --- |
+| 0–1 | **Anticipation** | Wind back *away* from the pet. The clearest read in the whole swing; don't rush it |
+| 2 | **Contact** | The extreme. One frame only — impact reads as a snap, not a hold |
+| 3–4 | **Follow-through** | Overshoot past the contact pose, then start back |
+| 5–7 | **Recovery** | Settle toward neutral; **frame 7 should read as a held pose** |
+
+For Snag specifically — a knot of tangled thorny threads that *grabs* rather than strikes
+— the anticipation is the tendrils gathering/coiling inward and the contact is them
+lashing outward. It has a Snare (an Agility debuff), so the silhouette wants to read as
+*seizing*, not punching.
+
+### Dropping a new foe in
+
+1. Bake the three PNGs to `assets/foes/`.
+2. Add them to `Package.swift` `resources:` — `.copy("../../assets/foes/snag-idle.png")`
+   and the other two. **A `.copy` of a missing file fails the build**, which is why the
+   entries are not pre-added for art that doesn't exist yet.
+3. Register the base name in `FoeSpriteAsset.resourceBase(for:)` if it isn't already.
+4. Declare any multi-frame pose in `FoeSpriteAsset.frameCount(foe:pose:)`.
+
+Until step 1 lands, `hasArt` is false and the foe renders the existing placeholder — a
+registered-but-unbaked foe degrades rather than breaks.
+
 ## Open
 
 - **The angle itself.** −18° / +35° is the working default, inside the recommended
