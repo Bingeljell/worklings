@@ -469,13 +469,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func familySelectionTitle(for family: PetFamily) -> String {
-        switch family {
+        let name = switch family {
         case .wildkin: "Wildkin — Moss-Fox"
         case .elemental: "Elemental — Ember-Newt"
         case .relicborn: "Relicborn — Keyback Pangolin"
-        case .glitchkin: "Glitchkin — Sparktail (no art yet)"
-        case .bloomglass: "Bloomglass — Starpetal Fawn (no art yet)"
+        case .glitchkin: "Glitchkin — Sparktail"
+        case .bloomglass: "Bloomglass — Starpetal Fawn"
         }
+        // A family exists mechanically before its sprite sheet is baked, so the
+        // menu says so rather than quietly offering a placeholder-glyph pet.
+        return family.hasArt ? name : "\(name) (coming soon)"
     }
 
     private func makeClassMenuItem() -> NSMenuItem {
