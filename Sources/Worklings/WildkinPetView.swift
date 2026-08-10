@@ -115,7 +115,9 @@ struct WorklingPetView: View {
 
 struct SmokeEffectSprite: View {
     private static let resourceName = "worklings-smoke-effects"
-    private static let sourceCellSize: CGFloat = 256
+    /// Same 4-column contract as the Workling sheets; cell size is read from the
+    /// sheet so a higher-resolution re-bake needs no code change.
+    private static let columnCount: CGFloat = 4
 
     let frameIndex: Int
     var size: CGFloat = 196
@@ -156,19 +158,25 @@ struct SmokeEffectSprite: View {
     }
 
     private var frameImage: CGImage? {
-        Self.spriteSheet?.cropping(
+        guard let spriteSheet = Self.spriteSheet else { return nil }
+        let cell = CGFloat(spriteSheet.width) / Self.columnCount
+        return spriteSheet.cropping(
             to: CGRect(
-                x: CGFloat(frameIndex % 4) * Self.sourceCellSize,
-                y: CGFloat(frameIndex / 4) * Self.sourceCellSize,
-                width: Self.sourceCellSize,
-                height: Self.sourceCellSize
+                x: CGFloat(frameIndex % 4) * cell,
+                y: CGFloat(frameIndex / 4) * cell,
+                width: cell,
+                height: cell
             )
         )
     }
 }
 
 struct WorklingSprite: View {
-    private static let sourceCellSize: CGFloat = 256
+    /// Sheets are a fixed 4-column grid, so the cell size falls out of the sheet's
+    /// own width rather than a baked constant. A 1024-wide sheet reads 256px cells,
+    /// a 2048-wide one reads 512px — which is what lets a higher-resolution re-bake
+    /// drop in one family at a time without touching this view.
+    private static let columnCount: CGFloat = 4
 
     let family: PetFamily
     let frame: WorklingSpriteFrame
@@ -233,12 +241,14 @@ struct WorklingSprite: View {
     }
 
     private var frameImage: CGImage? {
-        spriteSheet?.cropping(
+        guard let spriteSheet else { return nil }
+        let cell = CGFloat(spriteSheet.width) / Self.columnCount
+        return spriteSheet.cropping(
             to: CGRect(
-                x: CGFloat(frame.column) * Self.sourceCellSize,
-                y: CGFloat(frame.row) * Self.sourceCellSize,
-                width: Self.sourceCellSize,
-                height: Self.sourceCellSize
+                x: CGFloat(frame.column) * cell,
+                y: CGFloat(frame.row) * cell,
+                width: cell,
+                height: cell
             )
         )
     }
@@ -248,6 +258,9 @@ struct WorklingSprite: View {
         case .wildkin: Self.wildkinSpriteSheet
         case .elemental: Self.elementalSpriteSheet
         case .relicborn: Self.relicbornSpriteSheet
+        // Design-stage families: no art yet, so they fall through to the
+        // placeholder glyph until their sheets are baked.
+        case .glitchkin, .bloomglass: nil
         }
     }
 }
