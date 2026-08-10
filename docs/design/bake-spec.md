@@ -1,0 +1,255 @@
+# 3D → Sprite Bake Spec
+
+The authoring contract for generating Workling and foe sprites from Blender. Everything
+here is a **parameter**, not a baked-in authoring choice: the camera is a turntable and
+the framing is derived, so changing the angle later is a re-render, not a re-author.
+
+Companion docs: [Characters](characters.md) for the roster and the pose contract,
+[Sprite prompts](sprite-prompts.md) for the interim image-model prompts this pipeline
+eventually replaces.
+
+## 1. World scale
+
+One number everything else derives from:
+
+> **1.00 Blender Unit = the height of a standard Workling, nose-to-ground in idle.**
+
+Build every family rig to exactly 1.0 BU tall. Size differences between creatures are
+expressed by **building the model bigger**, never by moving the camera or changing the
+ortho scale.
+
+| Creature | Height (BU) |
+| --- | --- |
+| Workling (all five families) | 1.00 |
+| Mote | 0.35 |
+| Flicker | 0.70 |
+| Snag | 0.95 |
+| Monolith (boss) | 1.80 |
+
+## 2. Camera
+
+Never rotate the camera directly — Euler order will diverge across rigs. Use a turntable:
+
+```
+Empty (plain axes), named CAM_TARGET, at (0, 0, 0.5)   ← mid-body of a 1.0 BU creature
+└── Camera (child of CAM_TARGET)
+      local location  = (0, -6, 0)
+      local rotation  = (90°, 0°, 0°)      ← set once, never touched again
+      type            = Orthographic
+      Orthographic Scale = 1.5
+```
+
+The **only** two knobs, both on `CAM_TARGET`:
+
+| Knob | Blender field | Value |
+| --- | --- | --- |
+| Elevation — the 3/4 down-angle | `CAM_TARGET` rotation **X** | **−18°** |
+| Azimuth — the 3/4 side-turn | `CAM_TARGET` rotation **Z** | **+35°** |
+
+Orthographic, not perspective: a perspective lens makes the Strike lunge read subtly
+larger than the idle, and you will fight that forever. Ortho also means the ortho scale
+is a single global constant, which is what makes the framing contract in §4 automatic.
+
+**Ortho Scale = 1.5 is global.** Same value for every pose, every family, every foe.
+Never re-frame a shot.
+
+### Facing
+
+Existing sheets face **left**. All three current anchors carry asymmetric accessories
+(the moss-fox's bell, the pangolin's back key, the newt's tail ember), so a horizontal
+mirror puts them on the wrong side. Bake both facings rather than flipping in code:
+
+- `face-left` → `CAM_TARGET` Z = **+35°**
+- `face-right` → `CAM_TARGET` Z = **−35°**
+
+Same pose data, one extra render pass, no extra authoring.
+
+## 3. Lighting
+
+Three **Sun** lamps (not points — sun lamps light identically wherever in frame the pose
+sits), all parented to `CAM_TARGET` so they follow the angle if it ever changes.
+
+| Lamp | Azimuth (rel. camera) | Elevation | Strength | Role |
+| --- | --- | --- | --- | --- |
+| **Key** | −35° | 50° | 1.0 | The upper-left key light the existing sprites read as |
+| **Fill** | +110° | 15° | 0.20 | Lifts the shadow side, keeps the silhouette readable |
+| **Rim** | +160° | 60° | 0.60 | The "gentle rim light" that separates from a dark dungeon |
+
+Render settings:
+
+- **Film → Transparent: ON.** No ground plane, no baked shadow.
+- **View transform: Standard.** Not Filmic/AgX — those desaturate, and the palettes are
+  hand-picked in `assets/worklings-<family>-spritesheet.png`. Match the existing sheets.
+- **Colour: sRGB, straight alpha, 8-bit PNG.**
+
+### Contact shadow
+
+The sprite carries **no shadow**. The game draws a contact ellipse under the sprite at
+runtime, so it can move and scale per encounter. This is what lets a 3/4 angle read as a
+place while the sprite itself stays a clean transparent cutout.
+
+If you want a shape-matched shadow later, render it as a **separate pass to its own PNG**
+— never composite it into the cell.
+
+## 4. Framing contract
+
+Because the camera is fixed and ortho, all of this is automatic. It only breaks if you
+**translate the object** between poses — so pose the bones, never the object.
+
+At the 512px cell (§5), with Ortho Scale 1.5:
+
+- **341 px per Blender Unit.** A standard 1.0 BU Workling is **341px tall in a 512px
+  cell** — 67% of cell height.
+- **Ground contact sits at y = 488** (24px above the cell bottom).
+- **Root/hips centre at x = 256.**
+- **Safe margin: 16px.** Nothing may enter the outer 16px of any cell.
+
+Frame once for the **widest** pose in the set — Strike's forward lunge and Victory's
+raised paw — and let the quiet poses sit in empty space. Do not tighten the frame on
+idle; a sheet that re-frames per pose visibly breathes in game.
+
+The Monolith at 1.8 BU renders 614px and overflows a 512 cell. **Bosses bake into a
+1024px double cell**, same camera, same ortho scale, so their size relative to a Workling
+is physically true rather than art-directed.
+
+## 5. Output — the 1080p update
+
+**This supersedes the previous 256px cell.** The dungeon stage bakes once at a ceiling
+that serves a 1080p fullscreen stage (and downsamples cleanly to the 720p window), so the
+old 256px cell is roughly half the resolution needed.
+
+| | Old | **New** |
+| --- | --- | --- |
+| Cell | 256 × 256 | **512 × 512** |
+| Sheet (4×5 grid) | 1024 × 1280 | **2048 × 2560** |
+| Render size (per pose) | 1024² | **2048²** |
+| Downsample | 4× Lanczos | **4× Lanczos** |
+
+Render each pose at **2048², downscale to 512²** with Lanczos. The 4× supersample is what
+produces the clean pixel-cluster read without dither noise.
+
+The app no longer hardcodes the cell size — `WorklingSprite` derives it from the sheet's
+own width (`sheet.width / 4`), so **1024-wide and 2048-wide sheets both work**. Families
+can be re-baked one at a time; nothing has to land as a big-bang swap.
+
+### Grid layout
+
+Fixed 4-column × 5-row grid, matching `WorklingSpriteFrame` in
+`Sources/Worklings/WildkinPetView.swift`:
+
+| Row | Col 0 | Col 1 | Col 2 | Col 3 |
+| --- | --- | --- | --- | --- |
+| **0** | idle | idleBlink | walkContact | walkPassing |
+| **1** | walkContactOpposite | walkPassingOpposite | happy | caredFor |
+| **2** | hungry | sleepy | sad | wary |
+| **3** | strike | hurt | lowHP | victory |
+| **4** | downed | brace | signature | *(unused)* |
+
+### Naming
+
+Name renders with a **frame index from day one**, even though every pose is a single
+still today:
+
+```
+wildkin_strike_face-left_0000.png
+```
+
+The whole point of moving to 3D is that Strike becomes a 6-frame loop later. The index
+costs nothing now; retrofitting it across five families of assets costs a lot.
+
+### Weight
+
+Commit the **assembled sheets only**. Keep `.blend` files and per-pose intermediate
+renders out of git (or under LFS) — the repo's history is already heavy, and a 2048×2560
+RGBA sheet is roughly 4× the old one.
+
+## 6. Rig requirements
+
+Rigify is overkill. A hand-built metarig:
+
+- spine ×3, neck, head
+- 4 legs on **IK** (paws planted for Brace, off-ground mid-lunge for Strike)
+- tail ×3–5 — the moss-fox tail and the newt's ember tail carry a lot of the silhouette
+- ear bones ×2
+- **one accessory bone** — bell / back-key / ember orb — so it swings independently
+- **face on shape keys, not bones**: `blink`, `happy`, `sad`, `wary`, `hurt`, `exhausted`
+
+### The one constraint that matters
+
+**Identical bone names and shape-key names across all five family rigs.**
+
+Then each pose is authored **once** as a Blender pose asset (Asset Browser) and applied to
+every family. The pose contract is 19 poses × 5 families = 95 authoring jobs with
+divergent naming, or **19 with shared naming**. This is free if decided before rig #1 and
+expensive after.
+
+## 7. The poses
+
+19 total: the 12 base poses (shipped) plus the 7 combat poses. Reads are the contract —
+each must be distinguishable from every other at cell size.
+
+### Base (12)
+
+| Pose | Read |
+| --- | --- |
+| **idle** | Neutral standing, weight settled, alert but calm |
+| **idleBlink** | Identical to idle, eyes closed — the only difference |
+| **walkContact** / **walkPassing** | Two-frame walk cycle, lead leg forward |
+| **walkContactOpposite** / **walkPassingOpposite** | The same cycle on the opposite legs |
+| **happy** | Bright and up — ears up, tail up, open expression |
+| **caredFor** | Softer than happy — contented, eyes half-closed, settled |
+| **hungry** | Drooping, looking up/off expectantly, one paw raised |
+| **sleepy** | Heavy-lidded, head low, mid-yawn or about to be |
+| **sad** | Ears flat, head and tail down, closed posture |
+| **wary** | Low crouch, head forward, alert and suspicious — tense, not scared |
+
+### Combat (7)
+
+| Pose | Read |
+| --- | --- |
+| **strike** | Mid-lunge, body stretched forward, front paw/claw landing, fierce |
+| **hurt** | Recoiling back, head turned aside, off-balance, wincing |
+| **lowHP** | Hunched, staggering, breathing hard — combat exhaustion, *not* sleep |
+| **victory** | Chest up, one paw raised high, joyful and heroic — more than happy |
+| **downed** | Collapsed on its side, limbs splayed, eyes shut — defeated, *not* asleep |
+| **brace** | Defensive crouch behind a raised guard (paw/tail/scaled back), focused |
+| **signature** | Charging a special: heroic stance, building energy, family-coloured aura |
+
+The signature aura is family-coloured: Wildkin swirling green nature-glow, Elemental
+flaring orange fire, Relicborn radiant cyan rune-light, Glitchkin unstable violet-white
+signal static, Bloomglass pale refracted starlight.
+
+Two pairs are the ones that go wrong most often and are worth checking side by side:
+**sleepy vs downed** and **lowHP vs sad**.
+
+## 8. Manifest
+
+Commit `assets/bake-manifest.json` **before rendering anything**. It is what makes the
+camera decision reversible — without it, "re-bake at 22°" is archaeology across five
+`.blend` files.
+
+```json
+{
+  "version": 1,
+  "world": { "unit": "1.0 BU = standard Workling height" },
+  "camera": { "type": "ortho", "elevationDeg": -18, "azimuthDeg": 35, "orthoScale": 1.5,
+              "targetHeightBU": 0.5 },
+  "lighting": { "rigVersion": 1, "keyAzimuthDeg": -35, "keyElevationDeg": 50,
+                "fillStrength": 0.2, "rimStrength": 0.6, "viewTransform": "Standard" },
+  "render": { "renderPx": 2048, "cellPx": 512, "columns": 4, "rows": 5,
+              "downsample": "lanczos", "alpha": "straight" },
+  "framing": { "pxPerBU": 341, "groundContactY": 488, "safeMarginPx": 16 },
+  "heightsBU": { "workling": 1.0, "mote": 0.35, "flicker": 0.7, "snag": 0.95,
+                 "monolith": 1.8 },
+  "facings": ["face-left", "face-right"]
+}
+```
+
+## Open
+
+- **The angle itself.** −18° / +35° is the working default, inside the recommended
+  15–25° band. It is deliberately not locked; the turntable rig and this manifest are
+  what keep it a cheap parameter rather than an expensive commitment. Bake one character
+  at 0° / −18° / −35° elevation and compare three stills before locking.
+- **Animation.** Everything is single-frame today. The frame index in the naming
+  convention is the only concession made in advance.

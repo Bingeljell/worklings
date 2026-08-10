@@ -28,8 +28,9 @@ Square composition.
 
 ### Technical / delivery notes
 
-- The app crops sprites from a **4-column grid of 256×256 px cells** (`WildkinPetView.WorklingSpriteFrame`; the original sheets were 1024×768, twelve frames). Generate large (e.g. 1024²) and downscale to a clean 256² cell.
-- The seven combat poses extend each sheet to a **4×5 grid (1024×1280)**. Row index 3 is Strike, Hurt, Low-HP, Victory; row index 4 is Downed, Brace, Signature, unused. Deliver individual transparent PNGs for iteration or an assembled sheet matching that fixed layout.
+- The app crops sprites from a **4-column grid** and derives the cell size from the sheet's own width, so 256px-cell and 512px-cell sheets both work and families can be re-baked one at a time.
+- **New art targets a 512×512 cell** — a 4×5 sheet is **2048×2560**. Generate at 2048² and downscale to a clean 512². (The shipped sheets are still the old 256px cell / 1024×1280; they keep working.) Full rationale and the 1080p math live in the [bake spec](bake-spec.md#5-output--the-1080p-update).
+- Row index 3 is Strike, Hurt, Low-HP, Victory; row index 4 is Downed, Brace, Signature, unused. Deliver individual transparent PNGs for iteration or an assembled sheet matching that fixed layout.
 - **Match each family's existing palette exactly** — pull colors from `assets/worklings-<family>-spritesheet.png`.
 - Keep proportions and accessories identical to the anchor across all poses (same bell, same key, same ember orb, etc.).
 
