@@ -1158,6 +1158,22 @@ private func exitBlurb(_ tier: ExitTier) -> String {
     }
 }
 
+/// A VStack or an HStack, chosen at runtime — for content that has to lie down
+/// flat when the screen is short on height.
+private struct AdaptiveStack<Content: View>: View {
+    let horizontal: Bool
+    var spacing: CGFloat
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if horizontal {
+            HStack(spacing: spacing) { content }
+        } else {
+            VStack(spacing: spacing) { content }
+        }
+    }
+}
+
 /// The end-of-delve screen: the winner takes centre stage in its victory pose
 /// (with a pop-in and sparkles), the loser vanishes in a puff of smoke, then the
 /// result and Return button fade in. Driven by the finished `DelveResolution`.
@@ -1191,6 +1207,12 @@ private struct DelveEndScreen: View {
         return "Driven Back…"
     }
 
+    /// Whether the tall boss-drop card is on screen. The victor and the headline
+    /// give up room to it: at 480pt of panel, the full-size celebration plus a
+    /// drop card overflowed the frame and took the Return button off the bottom
+    /// edge with it — leaving no way out of a won delve but quitting the app.
+    private var compact: Bool { dropShown && bossDrop != nil }
+
     var body: some View {
         ZStack {
             // Opaque so the busy arena (HP bars, the other fighter) is fully
@@ -1198,9 +1220,41 @@ private struct DelveEndScreen: View {
             ArenaBackground()
             Color.black.opacity(0.5)
 
-            VStack(spacing: 18) {
+            // Centred while it fits, scrollable the moment it doesn't. The
+            // sizing below is tuned to fit; this is the guarantee that a taller
+            // future card can't stranded the player again.
+            GeometryReader { geo in
+                ScrollView(.vertical) {
+                    content
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geo.size.height)
+                }
+            }
+
+            // A visible exit from the moment there is a result, independent of
+            // the staged drop reveal below.
+            if footerShown {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button("Leave", action: onReturn)
+                            .buttonStyle(.plain)
+                            .font(.caption.bold())
+                            .foregroundStyle(.white.opacity(0.5))
+                            .padding(12)
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
+            }
+        }
+        .onAppear(perform: runSequence)
+    }
+
+    private var content: some View {
+            VStack(spacing: compact ? 10 : 18) {
                 Text(title)
-                    .font(.system(size: 46, weight: .black, design: .rounded))
+                    .font(.system(size: compact ? 34 : 46, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color.green : Color.orange)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
                     .scaleEffect(titleShown ? 1 : 0.5)
@@ -1210,17 +1264,21 @@ private struct DelveEndScreen: View {
                     .scaleEffect(winnerScale)
                     .offset(y: winnerBob ? -6 : 0)
                     .overlay { if won { Sparkles() } }
-                    .frame(height: 180)
+                    .frame(height: compact ? 92 : 180)
 
                 if footerShown {
                     VStack(spacing: 10) {
-                        Text("\(tierName(tier)) — \(exitBlurb(tier))")
-                            .font(.headline)
-                            .foregroundStyle(.white.opacity(0.85))
-                        if xpGained > 0 {
-                            Label("+\(xpGained) XP", systemImage: "sparkles")
-                                .font(.title3.bold())
-                                .foregroundStyle(.white)
+                        // Side by side once the drop card needs the height; the
+                        // tier and the XP are one thought either way.
+                        AdaptiveStack(horizontal: compact, spacing: compact ? 12 : 10) {
+                            Text("\(tierName(tier)) — \(exitBlurb(tier))")
+                                .font(compact ? .subheadline : .headline)
+                                .foregroundStyle(.white.opacity(0.85))
+                            if xpGained > 0 {
+                                Label("+\(xpGained) XP", systemImage: "sparkles")
+                                    .font(compact ? .subheadline.bold() : .title3.bold())
+                                    .foregroundStyle(.white)
+                            }
                         }
                         // The reason to have pushed past the bank: the boss is the
                         // only thing down here that widens the loadout. It gets
@@ -1255,6 +1313,9 @@ private struct DelveEndScreen: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
+                            // Return and Esc both leave: the delve is over, so
+                            // there is nothing here to confirm or protect.
+                            .keyboardShortcut(.defaultAction)
                             .transition(.opacity)
                         }
                     }
@@ -1262,8 +1323,6 @@ private struct DelveEndScreen: View {
                 }
             }
             .padding(28)
-        }
-        .onAppear(perform: runSequence)
     }
 
     @ViewBuilder
