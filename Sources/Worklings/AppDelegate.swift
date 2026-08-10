@@ -441,15 +441,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func makeChoiceMenuItem<Choice: CaseIterable & RawRepresentable>(
         title: String,
         action: Selector,
-        titleFor: (Choice) -> String
+        titleFor: (Choice) -> String,
+        isEnabled: (Choice) -> Bool = { _ in true }
     ) -> (parent: NSMenuItem, items: [NSMenuItem]) where Choice.RawValue == String {
         let parentItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: title)
+        // AppKit's automatic validation would re-enable anything with a target and
+        // an action, which is exactly what `isEnabled` is here to override.
+        submenu.autoenablesItems = false
 
         let items = Choice.allCases.map { choice in
             let item = NSMenuItem(title: titleFor(choice), action: action, keyEquivalent: "")
             item.target = self
             item.representedObject = choice.rawValue
+            item.isEnabled = isEnabled(choice)
             submenu.addItem(item)
             return item
         }
@@ -462,7 +467,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let (parent, items) = makeChoiceMenuItem(
             title: "Choose Workling",
             action: #selector(selectFamily(_:)),
-            titleFor: familySelectionTitle(for:)
+            titleFor: familySelectionTitle(for:),
+            // A family with no sprite sheet is listed but not pickable: the lane
+            // stays visible so the roster reads as five, and it un-greys on its
+            // own the moment its art is baked.
+            isEnabled: \.hasArt
         )
         familyMenuItems = items
         return parent
@@ -538,7 +547,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc
     private func selectFamily(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
-              let family = PetFamily(rawValue: rawValue) else {
+              let family = PetFamily(rawValue: rawValue),
+              // The menu already greys these out; this keeps the invariant true
+              // rather than merely unreachable through the UI.
+              family.hasArt else {
             return
         }
         if let companionController {
