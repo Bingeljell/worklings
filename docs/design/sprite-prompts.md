@@ -90,8 +90,59 @@ rendering style. Scale the boss larger than a Workling cell.
 | **Snag** | grabber | `Subject: a lurking creature formed from a knot of tangled dark thorny threads and roots, snagging barbed tendrils reaching outward, a single glaring eye deep in the tangle, muted greens and browns.` |
 | **Monolith** | mini-boss | `Subject: a massive slow ancient golem built of stacked cracked stone and obsidian slabs like a looming monolith, dim runes barely glowing in its seams, dust and moss of ages, heavy and immovable, quietly menacing. Render larger and more imposing than a small creature.` |
 
+## C. 3D concept renders
+
+The prompt sets above target the **2D pixel-art** interim path. The foe concepts now being
+generated are **3D renders** feeding the [bake pipeline](bake-spec.md) instead, so they
+need their own style block. Same subjects, different rendering idiom.
+
+### Global 3D style block
+
+```
+Stylized 3D creature render for a game bestiary. Single subject, full body,
+centered, 3/4 front-side view facing left, slight downward camera angle (~18°).
+Soft studio key light from the upper-left, gentle fill, subtle rim light,
+soft ambient occlusion. Matte materials, no glossy highlights. Clean fully
+transparent background, no ground plane, no cast shadow, no text, no border.
+Square composition, high resolution.
+```
+
+### Snag — grabber *(regenerate)*
+
+The first pass came back as a stone gorilla: a coherent animal body in pale stone, which
+is **Monolith's material and Monolith's read**. Snag has to be the opposite of a golem —
+organic, tangled, low and wide, and barely a body at all. The prompt below is written to
+fight that specific failure, which is why it carries explicit exclusions.
+
+```
+Subject: a lurking grabber creature with no true body, formed from a dense knot
+of tangled dark thorny vines, brambles, roots and frayed cord wound into a low,
+wide, crouching mass — clearly wider than it is tall, hugging the ground.
+
+Four or five barbed tendrils uncoil out of the tangle and reach forward toward
+the viewer, hooked and grasping, tapering to sharp thorn tips; two more anchor
+down into the ground like roots taking hold. Open gaps and negative space
+between the coils, so the shape reads as a snarl rather than a solid lump.
+
+A single large glowing amber eye sits deep inside the knot, half-buried in
+shadow between the coils — the only bright point in the whole design.
+
+Muted mossy greens and wet dark browns, near-black in the interior of the
+tangle, damp bark and dead-leaf texture, a few pale snapped thorns catching the
+light. Menacing, patient, waiting to seize something.
+
+No face, no skull, no snout, no eyes other than the single one, no arms or legs,
+no stone, no rock, no armor, no gorilla or bear or any recognizable animal
+anatomy. The silhouette must read as a mass of reaching thorns.
+```
+
+**The silhouette test**: fill the render with flat black. It should still read as *tangle
+with things reaching out of it*. If the black shape reads as an animal, it has failed
+regardless of how good the texture is.
+
 ## Notes for iteration
 
 - These target the **current** hand-authored aesthetic. Once the 3D→2D pipeline exists, the Workling poses get regenerated from one rig per family — this prompt set is the interim.
+- **Silhouettes must not collide.** Each foe in a delve chain has to be identifiable as a black shape at cell size: Mote a tiny blob, Flicker thin and spindly, Snag low and wide and radial, Monolith a tall rectangle. Two grey stone masses in one bestiary is the failure this rule exists to catch.
 - Character consistency across poses is the known weak spot of image models; if a pose drifts, regenerate with the anchor emphasized, or fix by hand.
 - Ask and I'll expand any row into a fully-assembled, copy-paste prompt for all three families at once.
