@@ -39,16 +39,31 @@ public struct PetCombatRates: Equatable, Sendable {
     /// Damage multiplier applied to a Strike that lands on a Bracing target,
     /// e.g. 0.5 halves it. The patient option's payoff.
     public let braceMitigation: Double
-    /// Flat HP a Bracing combatant regains that round.
+    /// Floor on the HP a Bracing combatant regains that round, whatever its size.
     public let braceRegen: Int
+    /// Share of max HP a Brace restores, so the patient option keeps paying as the
+    /// numbers grow. A flat regen is a rounding error against a late-game HP pool,
+    /// which is what turned Careful into a death spiral: the pet stopped attacking
+    /// and could not heal its way back out either.
+    public let braceRegenFraction: Double
     /// Damage multiplier on the once-per-encounter Signature, which always hits.
     public let signatureMultiplier: Double
     /// Rounds between the steady "reassess" decision points.
     public let decisionCadenceRounds: Int
     /// HP fraction below which the "faltering" decision point fires (once).
     public let lowHPEventThreshold: Double
-    /// HP fraction below which a Careful Approach chooses Brace over Strike.
+    /// HP fraction below which a Careful Approach starts choosing Brace over Strike.
     public let carefulBraceThreshold: Double
+    /// HP fraction a Careful Approach must climb back **above** before it resumes
+    /// Striking. The gap between this and `carefulBraceThreshold` is deliberate
+    /// hysteresis: with a single threshold a hurt pet latched into Brace forever,
+    /// never damaged the foe, and never healed enough to unlatch — a fight it could
+    /// only lose slowly, which read as the foe attacking unopposed.
+    public let carefulResumeThreshold: Double
+    /// Foe HP fraction at or below which a Clever Approach spends the Signature it
+    /// has been holding. Clever's whole idea is saving the big hit for the right
+    /// moment; without this it was a byte-for-byte copy of Aggressive.
+    public let cleverFinisherThreshold: Double
     /// The level a Workling must reach before the first dungeon unlocks.
     public let delveGateLevel: Int
     /// If any need is at or below this, the pet refuses to delve — "fights below
@@ -77,10 +92,13 @@ public struct PetCombatRates: Equatable, Sendable {
         combatEffectivenessFloor: Double = 0.5,
         braceMitigation: Double = 0.5,
         braceRegen: Int = 2,
+        braceRegenFraction: Double = 0.08,
         signatureMultiplier: Double = 1.5,
         decisionCadenceRounds: Int = 3,
         lowHPEventThreshold: Double = 0.3,
-        carefulBraceThreshold: Double = 0.5,
+        carefulBraceThreshold: Double = 0.4,
+        carefulResumeThreshold: Double = 0.6,
+        cleverFinisherThreshold: Double = 0.35,
         delveGateLevel: Int = 3,
         refusalNeedThreshold: Double = 10,
         interEncounterRegenFraction: Double = 0.3,
@@ -100,10 +118,16 @@ public struct PetCombatRates: Equatable, Sendable {
         self.combatEffectivenessFloor = min(max(combatEffectivenessFloor, 0), 1)
         self.braceMitigation = min(max(braceMitigation, 0), 1)
         self.braceRegen = max(braceRegen, 0)
+        self.braceRegenFraction = min(max(braceRegenFraction, 0), 1)
         self.signatureMultiplier = max(signatureMultiplier, 1)
         self.decisionCadenceRounds = max(decisionCadenceRounds, 1)
         self.lowHPEventThreshold = min(max(lowHPEventThreshold, 0), 1)
-        self.carefulBraceThreshold = min(max(carefulBraceThreshold, 0), 1)
+        let brace = min(max(carefulBraceThreshold, 0), 1)
+        self.carefulBraceThreshold = brace
+        // Resume can never sit below the brace threshold, or the hysteresis
+        // inverts and the latch comes back.
+        self.carefulResumeThreshold = min(max(carefulResumeThreshold, brace), 1)
+        self.cleverFinisherThreshold = min(max(cleverFinisherThreshold, 0), 1)
         self.delveGateLevel = max(delveGateLevel, 1)
         self.refusalNeedThreshold = min(max(refusalNeedThreshold, 0), 100)
         self.interEncounterRegenFraction = min(max(interEncounterRegenFraction, 0), 1)
@@ -121,6 +145,13 @@ public struct PetCombatRates: Equatable, Sendable {
     /// the condition needs — see the closed loop in the dungeon design.
     public func maxHP(vitality: Int) -> Int {
         Int((baseHP + Double(vitality) * vitalityToHP).rounded())
+    }
+
+    /// What a Brace restores to a combatant of this size: a share of its max HP,
+    /// never less than the flat floor. Scaling with the pool is what keeps Bracing
+    /// a real option rather than a slower way to lose.
+    public func braceRegenAmount(maxHP: Int) -> Int {
+        max(braceRegen, Int((Double(max(maxHP, 0)) * braceRegenFraction).rounded()))
     }
 
     /// The base damage of a Strike before variance and crit, floored at 1 so a

@@ -26,6 +26,54 @@ enum ItemChecks {
         checkSwapNetsOutWhenBothItemsShareAStat(context: &context)
         checkSwapReadsTheWearersAttunement(context: &context)
         checkForgettingGearKeepsEverythingElse(context: &context)
+        checkSimulationTicksNeverTouchGear(context: &context)
+    }
+
+    /// The simulation is allowed to move needs, XP, stats and tallies — and
+    /// nothing else. It used to rebuild the whole `PetState` field by field, so
+    /// every field it didn't know about fell back to the memberwise default: a
+    /// Workling handed back every item it had ever won on the next needs tick,
+    /// seconds after the drop card said the gear was its. Gear survived exactly
+    /// as long as nothing happened.
+    private static func checkSimulationTicksNeverTouchGear(context: inout CheckContext) {
+        let brain = PetBrain()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let earned = state(
+            owning: [PetState.starterItem, .mastersHone, .failsafePlate],
+            loadout: Loadout(tool: .mastersHone, ward: .failsafePlate)
+        )
+
+        // A long enough gap that needs genuinely move — a no-op tick would pass
+        // this for the wrong reason.
+        let ticked = brain.advance(earned, to: start.addingTimeInterval(6 * 3600))
+
+        context.expectEqual(
+            ticked.ownedItems,
+            earned.ownedItems,
+            "a needs tick keeps every owned item"
+        )
+        context.expectEqual(
+            ticked.loadout,
+            earned.loadout,
+            "a needs tick keeps the loadout equipped"
+        )
+
+        // The same hole, on the other write path: an activity event grants XP.
+        let observed = brain.observe(
+            ManualActivitySource.event(.workLogged, at: start),
+            on: earned,
+            at: start
+        ).state
+        context.expectEqual(
+            observed.ownedItems,
+            earned.ownedItems,
+            "an XP-granting event keeps every owned item"
+        )
+        context.expectEqual(
+            observed.loadout,
+            earned.loadout,
+            "an XP-granting event keeps the loadout equipped"
+        )
     }
 
     /// The debug reset gives back the *starter* state, not an empty one, and

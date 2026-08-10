@@ -288,7 +288,13 @@ public struct PetState: Codable, Equatable, Sendable {
         family: PetFamily? = nil,
         petClass: PetClass? = nil,
         needs: PetNeeds? = nil,
+        lastUpdatedAt: Date? = nil,
+        lastWorkLogAt: Date? = nil,
+        workLog: DailyTally<Int>? = nil,
         totalXP: Double? = nil,
+        stats: PetStats? = nil,
+        dailyXP: DailyTally<[String: Double]>? = nil,
+        dailyEventCount: DailyTally<[String: Int]>? = nil,
         ownedItems: [Item]? = nil,
         loadout: Loadout? = nil
     ) -> PetState {
@@ -298,16 +304,46 @@ public struct PetState: Codable, Equatable, Sendable {
             family: family ?? self.family,
             needs: needs ?? self.needs,
             preferences: preferences,
-            lastUpdatedAt: lastUpdatedAt,
-            lastWorkLogAt: lastWorkLogAt,
-            workLog: workLog,
+            lastUpdatedAt: lastUpdatedAt ?? self.lastUpdatedAt,
+            lastWorkLogAt: lastWorkLogAt ?? self.lastWorkLogAt,
+            workLog: workLog ?? self.workLog,
             totalXP: totalXP ?? self.totalXP,
             petClass: petClass ?? self.petClass,
-            stats: stats,
-            dailyXP: dailyXP,
-            dailyEventCount: dailyEventCount,
+            stats: stats ?? self.stats,
+            dailyXP: dailyXP ?? self.dailyXP,
+            dailyEventCount: dailyEventCount ?? self.dailyEventCount,
             ownedItems: ownedItems ?? self.ownedItems,
             loadout: loadout ?? self.loadout
+        )
+    }
+
+    /// The simulation's write-back: everything `PetBrain` moves on a tick, on a
+    /// copy that carries every other field forward untouched.
+    ///
+    /// This exists so the brain never builds a `PetState` from scratch. It used
+    /// to, and the memberwise initialiser's defaults quietly made that a *reset*
+    /// of anything it forgot to pass — which is exactly how every piece of gear
+    /// won in a delve was handed back on the next needs tick, seconds after the
+    /// drop card said it was yours.
+    func advanced(
+        needs: PetNeeds,
+        at now: Date,
+        lastWorkLogAt: Date? = nil,
+        workLog: DailyTally<Int>? = nil,
+        totalXP: Double? = nil,
+        stats: PetStats? = nil,
+        dailyXP: DailyTally<[String: Double]>? = nil,
+        dailyEventCount: DailyTally<[String: Int]>? = nil
+    ) -> PetState {
+        replacing(
+            needs: needs,
+            lastUpdatedAt: now,
+            lastWorkLogAt: lastWorkLogAt,
+            workLog: workLog,
+            totalXP: totalXP,
+            stats: stats,
+            dailyXP: dailyXP,
+            dailyEventCount: dailyEventCount
         )
     }
 

@@ -64,6 +64,10 @@ final class CombatViewModel: ObservableObject {
     let foeName: String
     let petFamily: PetFamily
 
+    /// The tuning the fight is running on, so the decision controls can state what
+    /// each Approach does from the same numbers the resolver uses.
+    var rates: PetCombatRates { session.combatRates }
+
     private let session: PetSession
     private let foe: Foe
     private var encounter: CombatEncounter
@@ -523,6 +527,13 @@ final class DelveViewModel: ObservableObject {
 
     private func encounterEnded(victory: Bool, hpRemaining: Int) {
         delve.recordOutcome(petVictory: victory, petHPRemaining: hpRemaining)
+        // Bank the drop into the bag *here*, not at the delve write-back. The card
+        // that reveals it offers an Equip button, and equipping an unowned item is
+        // a no-op — so holding the grant until the run ended made that button dead
+        // for every drop except the boss's.
+        if let drop = delve.lastDrop {
+            session.acquire(drop)
+        }
         switch delve.status {
         case .awaitingPushChoice: phase = .pushChoice
         case .completed, .retreated: finishDelve()
@@ -713,6 +724,16 @@ private struct BriefingView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .frame(maxWidth: 320)
+
+                    // What the chosen Approach actually does, in the same breath as
+                    // choosing it. Three unexplained words asked the player to learn
+                    // the rules by losing to them.
+                    Text(delve.startingApproach.summary(rates: delve.session.combatRates))
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 340)
                 }
 
                 HStack(spacing: 14) {
@@ -761,6 +782,9 @@ private struct BriefingView: View {
 private struct LoadoutBar: View {
     @ObservedObject var session: PetSession
 
+    /// Which slot's picker is open, if any.
+    @State private var picking: ItemSlot?
+
     private var pricing: GearPricing { GearPricing(session: session) }
 
     var body: some View {
@@ -779,40 +803,81 @@ private struct LoadoutBar: View {
         }
     }
 
+    /// Filled and empty read apart the same way they do on the Character screen —
+    /// tier-tinted well and border when something's in the slot, dashed outline and
+    /// a ghosted glyph when it isn't. Same visual language, dark-panel palette.
     private func slotMenu(for slot: ItemSlot) -> some View {
         let equipped = session.state.loadout[slot]
-        let owned = session.state.availableItems(for: slot)
+        let tint = equipped.map { tierTint($0.tier) } ?? .white
 
-        return Menu {
-            ForEach(owned, id: \.self) { item in
-                Button(pricing.menuLabel(for: item)) { session.equip(item, in: slot) }
-            }
-            if !owned.isEmpty {
-                Divider()
-            }
-            Button("Leave empty") { session.equip(nil, in: slot) }
+        // A Button, not a Menu: on macOS a `Menu` label is an NSPopUpButton title,
+        // which keeps one image and one string and drops the rest of the layout.
+        return Button {
+            picking = slot
         } label: {
-            VStack(spacing: 1) {
+            VStack(spacing: 3) {
+                Image(systemName: equipped.map { itemIcon($0) } ?? emptySlotIcon(slot))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(equipped == nil ? .white.opacity(0.3) : tint)
+
                 Text(slot.displayName.uppercased())
                     .font(.system(size: 9, weight: .heavy))
                     .foregroundStyle(.white.opacity(0.45))
                 Text(equipped?.displayName ?? "Empty")
                     .font(.caption.bold())
-                    .foregroundStyle(.white.opacity(equipped == nil ? 0.35 : 1))
+                    .foregroundStyle(.white.opacity(equipped == nil ? 0.3 : 1))
                     .lineLimit(1)
+
+                if let equipped {
+                    Text(pricing.priceLabel(for: equipped))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+                } else {
+                    Text("—")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.25))
+                }
             }
             .frame(width: 112)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(.white.opacity(equipped == nil ? 0.07 : 0.14))
+                    .fill(equipped == nil ? .white.opacity(0.04) : tint.opacity(0.16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(
+                                equipped == nil ? .white.opacity(0.2) : tint.opacity(0.6),
+                                style: equipped == nil
+                                    ? StrokeStyle(lineWidth: 1, dash: [4, 3])
+                                    : StrokeStyle(lineWidth: 1)
+                            )
+                    )
             )
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .fixedSize()
+        .popover(isPresented: pickerBinding(for: slot), arrowEdge: .bottom) {
+            GearSlotPicker(
+                session: session, slot: slot, pricing: pricing,
+                isPresented: pickerBinding(for: slot)
+            )
+        }
         .help(equipped.map { "\($0.flavor)\n\n\(slot.fantasy)" } ?? slot.fantasy)
+        .accessibilityLabel(
+            equipped.map { "\(slot.displayName) slot, \($0.displayName)" }
+                ?? "\(slot.displayName) slot, empty"
+        )
     }
+
+    /// One `@State` for which slot is open, projected per slot, so three popovers
+    /// can't fight over a single boolean.
+    private func pickerBinding(for slot: ItemSlot) -> Binding<Bool> {
+        Binding(
+            get: { picking == slot },
+            set: { picking = $0 ? slot : nil }
+        )
+    }
+
 
     /// What the whole loadout is worth, in the same stat vocabulary the sheet
     /// uses.
@@ -847,6 +912,22 @@ private struct PushChoiceCard: View {
         ZStack {
             Color.black.opacity(0.55)
 
+            // Same guarantee as the end screen: this card's height depends on
+            // whether a drop card is in it, and the panel's is fixed. It fits
+            // today — but Bank and Push are the buttons that must never be the
+            // thing that falls off the bottom edge.
+            GeometryReader { geo in
+                ScrollView(.vertical) {
+                    card
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geo.size.height)
+                }
+            }
+        }
+        .foregroundStyle(.white)
+    }
+
+    private var card: some View {
             VStack(spacing: 14) {
                 Text("The \(delve.lastFoeName) falls!")
                     .font(.title2.bold())
@@ -901,8 +982,6 @@ private struct PushChoiceCard: View {
             .padding(28)
             .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.5)))
             .padding(40)
-        }
-        .foregroundStyle(.white)
     }
 
     /// The forfeit, stated plainly. Gear is only named while there is still gear
@@ -914,9 +993,10 @@ private struct PushChoiceCard: View {
                 .font(.system(size: 9))
             Text(
                 delve.gearAwaitsAtTheBottom
-                    ? "Bank and you keep your XP — but the completion bonus and the "
-                        + "Warren's gear are only at the bottom."
-                    : "Bank and you keep your XP — the completion bonus is only at the bottom."
+                    ? "Bank and you keep your XP and everything you've picked up — but "
+                        + "the completion bonus and the Prime gear are only at the bottom."
+                    : "Bank and you keep your XP and everything you've picked up — the "
+                        + "completion bonus is only at the bottom."
             )
             .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.center)
@@ -1044,6 +1124,11 @@ struct CombatPanelView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
+            Text(approach.summary(rates: model.rates))
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.55))
+                .fixedSize(horizontal: false, vertical: true)
+
             if model.signatureReady {
                 Toggle("Unleash the Signature", isOn: $unleash)
                     .font(.caption)
@@ -1087,6 +1172,22 @@ private func exitBlurb(_ tier: ExitTier) -> String {
     }
 }
 
+/// A VStack or an HStack, chosen at runtime — for content that has to lie down
+/// flat when the screen is short on height.
+private struct AdaptiveStack<Content: View>: View {
+    let horizontal: Bool
+    var spacing: CGFloat
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if horizontal {
+            HStack(spacing: spacing) { content }
+        } else {
+            VStack(spacing: spacing) { content }
+        }
+    }
+}
+
 /// The end-of-delve screen: the winner takes centre stage in its victory pose
 /// (with a pop-in and sparkles), the loser vanishes in a puff of smoke, then the
 /// result and Return button fade in. Driven by the finished `DelveResolution`.
@@ -1120,6 +1221,12 @@ private struct DelveEndScreen: View {
         return "Driven Back…"
     }
 
+    /// Whether the tall boss-drop card is on screen. The victor and the headline
+    /// give up room to it: at 480pt of panel, the full-size celebration plus a
+    /// drop card overflowed the frame and took the Return button off the bottom
+    /// edge with it — leaving no way out of a won delve but quitting the app.
+    private var compact: Bool { dropShown && bossDrop != nil }
+
     var body: some View {
         ZStack {
             // Opaque so the busy arena (HP bars, the other fighter) is fully
@@ -1127,9 +1234,41 @@ private struct DelveEndScreen: View {
             ArenaBackground()
             Color.black.opacity(0.5)
 
-            VStack(spacing: 18) {
+            // Centred while it fits, scrollable the moment it doesn't. The
+            // sizing below is tuned to fit; this is the guarantee that a taller
+            // future card can't stranded the player again.
+            GeometryReader { geo in
+                ScrollView(.vertical) {
+                    content
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geo.size.height)
+                }
+            }
+
+            // A visible exit from the moment there is a result, independent of
+            // the staged drop reveal below.
+            if footerShown {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button("Leave", action: onReturn)
+                            .buttonStyle(.plain)
+                            .font(.caption.bold())
+                            .foregroundStyle(.white.opacity(0.5))
+                            .padding(12)
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
+            }
+        }
+        .onAppear(perform: runSequence)
+    }
+
+    private var content: some View {
+            VStack(spacing: compact ? 10 : 18) {
                 Text(title)
-                    .font(.system(size: 46, weight: .black, design: .rounded))
+                    .font(.system(size: compact ? 34 : 46, weight: .black, design: .rounded))
                     .foregroundStyle(won ? Color.green : Color.orange)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
                     .scaleEffect(titleShown ? 1 : 0.5)
@@ -1139,17 +1278,21 @@ private struct DelveEndScreen: View {
                     .scaleEffect(winnerScale)
                     .offset(y: winnerBob ? -6 : 0)
                     .overlay { if won { Sparkles() } }
-                    .frame(height: 180)
+                    .frame(height: compact ? 92 : 180)
 
                 if footerShown {
                     VStack(spacing: 10) {
-                        Text("\(tierName(tier)) — \(exitBlurb(tier))")
-                            .font(.headline)
-                            .foregroundStyle(.white.opacity(0.85))
-                        if xpGained > 0 {
-                            Label("+\(xpGained) XP", systemImage: "sparkles")
-                                .font(.title3.bold())
-                                .foregroundStyle(.white)
+                        // Side by side once the drop card needs the height; the
+                        // tier and the XP are one thought either way.
+                        AdaptiveStack(horizontal: compact, spacing: compact ? 12 : 10) {
+                            Text("\(tierName(tier)) — \(exitBlurb(tier))")
+                                .font(compact ? .subheadline : .headline)
+                                .foregroundStyle(.white.opacity(0.85))
+                            if xpGained > 0 {
+                                Label("+\(xpGained) XP", systemImage: "sparkles")
+                                    .font(compact ? .subheadline.bold() : .title3.bold())
+                                    .foregroundStyle(.white)
+                            }
                         }
                         // The reason to have pushed past the bank: the boss is the
                         // only thing down here that widens the loadout. It gets
@@ -1184,6 +1327,9 @@ private struct DelveEndScreen: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
+                            // Return and Esc both leave: the delve is over, so
+                            // there is nothing here to confirm or protect.
+                            .keyboardShortcut(.defaultAction)
                             .transition(.opacity)
                         }
                     }
@@ -1191,8 +1337,6 @@ private struct DelveEndScreen: View {
                 }
             }
             .padding(28)
-        }
-        .onAppear(perform: runSequence)
     }
 
     @ViewBuilder
@@ -1235,10 +1379,11 @@ private struct DelveEndScreen: View {
 /// The drop beat: what the Warren gave up, what it's worth to *this* Workling,
 /// what it would replace, and the chance to put it on without leaving the screen.
 ///
-/// The item is already owned by the time this appears — the delve resolution
-/// banked it — so nothing here can fail. Equipping is the one action, and it
-/// closes the loop that otherwise sent the player to another window to make their
-/// prize do anything.
+/// The item is already in the bag by the time this appears — the encounter that
+/// dropped it banked it on the spot — so nothing here can fail and nothing here is
+/// required. Equipping now closes the loop that otherwise sent the player to
+/// another window to make their prize do anything; declining is a real, safe
+/// choice, and the card says so rather than leaving "did that work?" hanging.
 private struct DropReveal: View {
     /// Where the card is standing. `inline` sits inside the bank/push prompt
     /// between fights; `headline` is the end screen's capstone. Same content,
@@ -1283,10 +1428,17 @@ private struct DropReveal: View {
             }
 
             HStack(spacing: 11) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: isHeadline ? 26 : 18))
-                    .foregroundStyle(tint)
-                    .shadow(color: tint.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
+                // The item's own glyph, not a generic crate — the reveal should say
+                // *what* fell out, at a glance, before the name is read.
+                ZStack {
+                    Circle().fill(tint.opacity(0.2))
+                    Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1)
+                    Image(systemName: itemIcon(item))
+                        .font(.system(size: isHeadline ? 24 : 17, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: isHeadline ? 48 : 36, height: isHeadline ? 48 : 36)
+                .shadow(color: tint.opacity(shimmer ? 0.7 : 0.2), radius: shimmer ? 9 : 3)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -1377,24 +1529,54 @@ private struct DropReveal: View {
         }
     }
 
+    /// Equip and its inverse, plus the standing reassurance that the item is kept
+    /// either way. Both buttons do something real — "Keep in bag" takes the item
+    /// back off — so neither is a decorative acknowledgement.
     private var equipControl: some View {
-        Button {
-            session.equip(item, in: item.slot)
-        } label: {
-            Label(
-                isEquipped ? "Equipped" : "Equip \(item.slot.displayName)",
-                systemImage: isEquipped ? "checkmark.circle.fill" : "arrow.down.circle.fill"
-            )
-            .frame(width: 160)
+        VStack(spacing: 5) {
+            HStack(spacing: 8) {
+                equipButton
+
+                Button {
+                    session.equip(nil, in: item.slot)
+                } label: {
+                    Label("Keep in bag", systemImage: "shippingbox")
+                        .frame(width: 106)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isEquipped)
+                .help("Take it back off. It stays in your bag either way.")
+            }
+            .controlSize(.regular)
+
+            Text("Already in your bag — decide later if you'd rather.")
+                .font(.system(size: 9))
+                .foregroundStyle(.white.opacity(0.45))
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .disabled(isEquipped)
-        .help(
-            isEquipped
-                ? "\(item.displayName) is in your \(item.slot.displayName) slot."
-                : "Put it on now — or later, from the Character Screen."
+    }
+
+    /// Prominent while there's a decision to make, quiet once it's made.
+    @ViewBuilder
+    private var equipButton: some View {
+        let label = Label(
+            isEquipped ? "Equipped" : "Equip \(item.slot.displayName)",
+            systemImage: isEquipped ? "checkmark.circle.fill" : "arrow.down.circle.fill"
         )
+        .frame(width: 132)
+        let hint = isEquipped
+            ? "\(item.displayName) is in your \(item.slot.displayName) slot."
+            : "Put it on now — or later, from the Character screen."
+
+        if isEquipped {
+            Button { } label: { label }
+                .buttonStyle(.bordered)
+                .disabled(true)
+                .help(hint)
+        } else {
+            Button { session.equip(item, in: item.slot) } label: { label }
+                .buttonStyle(.borderedProminent)
+                .help(hint)
+        }
     }
 }
 

@@ -526,20 +526,18 @@ public struct PetBrain: Sendable {
         dailyXP: DailyTally<[String: Double]>? = nil,
         dailyEventCount: DailyTally<[String: Int]>? = nil
     ) -> PetState {
-        PetState(
-            schemaVersion: state.schemaVersion,
-            name: state.name,
-            family: state.family,
+        // Delegated rather than rebuilt field by field: a `PetState(...)` here
+        // silently *reset* every field the brain doesn't know about, gear
+        // included, to the memberwise defaults.
+        state.advanced(
             needs: needs,
-            preferences: state.preferences,
-            lastUpdatedAt: now,
-            lastWorkLogAt: lastWorkLogAt ?? state.lastWorkLogAt,
-            workLog: workLog ?? state.workLog,
-            totalXP: totalXP ?? state.totalXP,
-            petClass: state.petClass,
-            stats: stats ?? state.stats,
-            dailyXP: dailyXP ?? state.dailyXP,
-            dailyEventCount: dailyEventCount ?? state.dailyEventCount
+            at: now,
+            lastWorkLogAt: lastWorkLogAt,
+            workLog: workLog,
+            totalXP: totalXP,
+            stats: stats,
+            dailyXP: dailyXP,
+            dailyEventCount: dailyEventCount
         )
     }
 }

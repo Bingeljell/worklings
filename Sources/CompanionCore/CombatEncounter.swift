@@ -1,8 +1,30 @@
 /// The standing strategy the pet fights on between decisions.
 public enum Approach: Equatable, Hashable, Sendable, CaseIterable {
-    case aggressive  // bias Strike
-    case careful     // Brace when hurt, else Strike
-    case clever      // Strike, holding the Signature for a chosen moment
+    /// Strike every round. No self-preservation, no held resources.
+    case aggressive
+    /// Brace while hurt, Strike once recovered. The thresholds are hysteretic —
+    /// see `PetCombatRates.carefulResumeThreshold`.
+    case careful
+    /// Strike, holding the Signature until the foe is inside finishing range, then
+    /// spending it unprompted.
+    case clever
+
+    /// One line on what this Approach actually does, so a surface never has to
+    /// restate the rules and drift from them.
+    public func summary(rates: PetCombatRates) -> String {
+        func percent(_ fraction: Double) -> String { "\(Int((fraction * 100).rounded()))%" }
+        switch self {
+        case .aggressive:
+            return "Strikes every round. No guard, no hedging."
+        case .careful:
+            return "Below \(percent(rates.carefulBraceThreshold)) HP, alternates Brace "
+                + "and Strike — a braced round halves incoming damage and heals — "
+                + "until back above \(percent(rates.carefulResumeThreshold))."
+        case .clever:
+            return "Strikes, holding the Signature until the foe is under "
+                + "\(percent(rates.cleverFinisherThreshold)) HP, then unleashes it."
+        }
+    }
 }
 
 /// One thing the pet can do on its turn.
@@ -90,6 +112,13 @@ public struct CombatEncounter: Equatable, Sendable {
     private var hardenPhasesApplied: Int
     /// A one-shot guaranteed Brace queued from a telegraph decision.
     private var pendingBrace: Bool
+    /// Whether a Careful pet is currently latched into Bracing. Held as state, not
+    /// re-derived each round, because the threshold to *enter* the latch and the
+    /// one to leave it deliberately differ.
+    private var carefulBracing: Bool
+    /// Whether the last Careful action inside the hurt band was a Brace, so the
+    /// band alternates Brace/Strike rather than bracing forever.
+    private var carefulBracedLastRound: Bool
 
     public init(
         pet: Combatant,
@@ -117,6 +146,8 @@ public struct CombatEncounter: Equatable, Sendable {
         self.slamTelegraphPending = false
         self.hardenPhasesApplied = 0
         self.pendingBrace = false
+        self.carefulBracing = false
+        self.carefulBracedLastRound = false
         self.log = [.encounterBegan(pet: pet.name, foe: self.foe.name)]
 
         // Blur is a passive: an evasive foe carries its evasion for the whole
@@ -240,8 +271,30 @@ public struct CombatEncounter: Equatable, Sendable {
         case .aggressive:
             return .strike
         case .careful:
-            return pet.hpFraction < rates.carefulBraceThreshold ? .brace : .strike
+            // Enter the hurt band when low, leave it only once genuinely recovered
+            // — two thresholds, so it isn't a one-way door.
+            if carefulBracing {
+                carefulBracing = pet.hpFraction <= rates.carefulResumeThreshold
+            } else {
+                carefulBracing = pet.hpFraction < rates.carefulBraceThreshold
+            }
+            guard carefulBracing else {
+                carefulBracedLastRound = false
+                return .strike
+            }
+            // Inside the band, Brace and Strike *alternate*. Bracing every round
+            // was the actual death spiral: against anything that outdamages the
+            // regen the pet could neither heal out of the band nor hurt what was
+            // holding it there, so the fight became unwinnable the moment it
+            // dipped — and unwatchable, since the foe was the only one acting.
+            carefulBracedLastRound.toggle()
+            return carefulBracedLastRound ? .brace : .strike
         case .clever:
+            // The held Signature, spent the moment the foe is inside finishing
+            // range — the "chosen moment" the Approach is named for, chosen for you.
+            if signatureAvailable, foe.hpFraction <= rates.cleverFinisherThreshold {
+                return .signature
+            }
             return .strike
         }
     }
@@ -254,8 +307,9 @@ public struct CombatEncounter: Equatable, Sendable {
             )
             log.append(.struck(attacker: pet.name, defender: foe.name, outcome: outcome))
         case .brace:
-            pet.heal(rates.braceRegen)
-            log.append(.braced(who: pet.name, regen: rates.braceRegen))
+            let regen = rates.braceRegenAmount(maxHP: pet.maxHP)
+            pet.heal(regen)
+            log.append(.braced(who: pet.name, regen: regen))
         case .signature:
             signatureAvailable = false
             let outcome = CombatResolver.resolveSignature(

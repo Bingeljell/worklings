@@ -183,6 +183,23 @@ final class PetSession: ObservableObject {
 
     // MARK: - Gear
 
+    /// Takes an item into the bag. Called the moment a delve encounter yields it,
+    /// so the drop is genuinely owned while its card is on screen — otherwise the
+    /// card's Equip button silently does nothing, because `PetState.equipping`
+    /// refuses to equip what isn't owned.
+    ///
+    /// The delve's write-back re-acquires every drop at the end, which stays
+    /// correct: `PetState.acquiring` is idempotent.
+    func acquire(_ item: Item) {
+        let updated = state.acquiring(item)
+        guard updated != state else {
+            return
+        }
+
+        state = updated
+        persist()
+    }
+
     /// Equips `item` in `slot`, or empties the slot when it's nil. A no-op if the
     /// item isn't owned or doesn't belong there — `PetState` enforces both, so
     /// this only has to notice that nothing moved.
