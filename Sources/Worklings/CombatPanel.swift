@@ -912,6 +912,22 @@ private struct PushChoiceCard: View {
         ZStack {
             Color.black.opacity(0.55)
 
+            // Same guarantee as the end screen: this card's height depends on
+            // whether a drop card is in it, and the panel's is fixed. It fits
+            // today — but Bank and Push are the buttons that must never be the
+            // thing that falls off the bottom edge.
+            GeometryReader { geo in
+                ScrollView(.vertical) {
+                    card
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geo.size.height)
+                }
+            }
+        }
+        .foregroundStyle(.white)
+    }
+
+    private var card: some View {
             VStack(spacing: 14) {
                 Text("The \(delve.lastFoeName) falls!")
                     .font(.title2.bold())
@@ -966,8 +982,6 @@ private struct PushChoiceCard: View {
             .padding(28)
             .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.5)))
             .padding(40)
-        }
-        .foregroundStyle(.white)
     }
 
     /// The forfeit, stated plainly. Gear is only named while there is still gear
