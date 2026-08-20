@@ -31,9 +31,10 @@ enum DungeonStageScene {
         // Depth bands, near (party) to far (back wall) — see the "Reading this"
         // notes in the blocking diagram for what each one stands in for.
         scene.rootNode.addChildNode(band(
-            10, 0.3, 4, at: 0, -0.15, 5,
+            22, 0.3, 9, at: 0, -0.15, 7,
             color: NSColor(calibratedRed: 0.42, green: 0.34, blue: 0.24, alpha: 1)
-        )) // party floor
+        )) // party floor — oversized on purpose, so it reaches past frame edges
+           // however the shot ends up panned/rotated rather than getting cropped
         scene.rootNode.addChildNode(band(
             10, 0.1, 3, at: 0, -0.35, 1.5,
             color: NSColor(calibratedWhite: 0.03, alpha: 1)
@@ -46,12 +47,6 @@ enum DungeonStageScene {
             10, 5, 0.3, at: 0, 2.2, -4,
             color: NSColor(calibratedRed: 0.12, green: 0.13, blue: 0.15, alpha: 1)
         )) // back wall
-        for side: CGFloat in [-1, 1] {
-            scene.rootNode.addChildNode(band(
-                0.3, 5, 10, at: side * 5, 2.2, 1,
-                color: NSColor(calibratedWhite: 0.07, alpha: 1)
-            )) // side walls, just enough to frame the shot
-        }
 
         // A real baked sprite, billboarded, standing on the foe platform — the
         // actual "flat foe in a live 3D stage" question this tool exists to test.
@@ -63,6 +58,21 @@ enum DungeonStageScene {
         foeNode.position = SCNVector3(0, 1.5, -2)
         foeNode.constraints = [SCNBillboardConstraint()]
         scene.rootNode.addChildNode(foeNode)
+
+        // A placeholder party billboard — same sprite, tinted blue so it
+        // reads as "the other side," bigger and further forward since it's
+        // meant to sit closer to camera on the party floor. Judging a
+        // two-rank standoff composition needs both anchors on screen at
+        // once, not just the foe half.
+        let partyPlane = SCNPlane(width: 2.8, height: 2.8)
+        partyPlane.firstMaterial?.diffuse.contents = loadStageImage("mote-idle") ?? NSColor.systemBlue
+        partyPlane.firstMaterial?.multiply.contents = NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1)
+        partyPlane.firstMaterial?.isDoubleSided = true
+        partyPlane.firstMaterial?.lightingModel = .constant
+        let partyNode = SCNNode(geometry: partyPlane)
+        partyNode.position = SCNVector3(-3, 1.9, 8.5)
+        partyNode.constraints = [SCNBillboardConstraint()]
+        scene.rootNode.addChildNode(partyNode)
 
         // Key light — warm, low angle, upper-left, matching the blocking diagram.
         let key = SCNLight()
@@ -96,8 +106,8 @@ enum DungeonStageScene {
 
     /// A starting guess at the elevated-3/4 angle — a baseline to drag from,
     /// not the answer. Must be added to the scene graph (not just passed as
-    /// `pointOfView`) for `allowsCameraControl`'s drag/scroll manipulator to
-    /// actually take hold of it.
+    /// `pointOfView`) for `OrbitCamera`'s hand-rolled manipulator to actually
+    /// take hold of it.
     static func makeCameraNode(in scene: SCNScene) -> SCNNode {
         let camera = SCNCamera()
         camera.fieldOfView = 32
@@ -134,16 +144,24 @@ private struct OrbitCamera {
     /// bottom edge instead points into the bottom-left corner.
     var rollDegrees: Double = 0
 
+    /// Pure function of (target, azimuth, elevation, radius) — safe to read
+    /// for display at any time, not just after `apply(to:)` has run.
+    var computedPosition: SCNVector3 {
+        let az = azimuthDegrees * .pi / 180
+        let el = max(min(elevationDegrees, 85), -10) * .pi / 180
+        let r = max(3, min(30, radius))
+        return SCNVector3(
+            target.x + CGFloat(r * cos(el) * sin(az)),
+            target.y + CGFloat(r * sin(el)),
+            target.z + CGFloat(r * cos(el) * cos(az))
+        )
+    }
+
     mutating func apply(to node: SCNNode) {
         elevationDegrees = max(min(elevationDegrees, 85), -10)
         radius = max(3, min(30, radius))
         rollDegrees = max(min(rollDegrees, 45), -45)
-        let az = azimuthDegrees * .pi / 180
-        let el = elevationDegrees * .pi / 180
-        let x = target.x + CGFloat(radius * cos(el) * sin(az))
-        let y = target.y + CGFloat(radius * sin(el))
-        let z = target.z + CGFloat(radius * cos(el) * cos(az))
-        node.position = SCNVector3(x, y, z)
+        node.position = computedPosition
         node.look(at: target)
         // look(at:) always levels the horizon, so roll has to be applied after,
         // as an extra rotation around the camera's own local forward axis.
@@ -210,7 +228,19 @@ private struct OrbitInputCatcher: NSViewRepresentable {
 
         override var acceptsFirstResponder: Bool { true }
 
+        // A parameter field grabbing focus mid-drag (or right after one ends)
+        // could leave lastPoint/lastPanPoint stale — the next unrelated mouse
+        // event would then measure its delta against a far-away anchor from a
+        // previous drag, producing one huge, wild-looking rotation. Clearing
+        // both whenever this view loses focus closes that off.
+        override func resignFirstResponder() -> Bool {
+            lastPoint = nil
+            lastPanPoint = nil
+            return super.resignFirstResponder()
+        }
+
         override func mouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self)
             lastPoint = event.locationInWindow
         }
 
@@ -219,7 +249,13 @@ private struct OrbitInputCatcher: NSViewRepresentable {
             if let last = lastPoint {
                 // AppKit's window coordinates are bottom-left-origin; flip dy so
                 // "drag down" reads as positive, matching SwiftUI's convention.
-                onDrag?(p.x - last.x, -(p.y - last.y))
+                let dx = p.x - last.x
+                let dy = -(p.y - last.y)
+                // Belt-and-braces against any stale anchor slipping through:
+                // a single mouse-move event this large isn't a real drag.
+                if abs(dx) < 250, abs(dy) < 250 {
+                    onDrag?(dx, dy)
+                }
             }
             lastPoint = p
         }
@@ -231,13 +267,18 @@ private struct OrbitInputCatcher: NSViewRepresentable {
         // Right-drag (or two-finger secondary-click drag on a trackpad) pans
         // instead of orbiting — composing where things sit in frame.
         override func rightMouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self)
             lastPanPoint = event.locationInWindow
         }
 
         override func rightMouseDragged(with event: NSEvent) {
             let p = event.locationInWindow
             if let last = lastPanPoint {
-                onPan?(p.x - last.x, -(p.y - last.y))
+                let dx = p.x - last.x
+                let dy = -(p.y - last.y)
+                if abs(dx) < 250, abs(dy) < 250 {
+                    onPan?(dx, dy)
+                }
             }
             lastPanPoint = p
         }
@@ -252,11 +293,55 @@ private struct OrbitInputCatcher: NSViewRepresentable {
     }
 }
 
+/// `TextField(value:format:)` commits its binding on every keystroke, not on
+/// Return/blur — so typing over an old value without first clearing it edits
+/// in place (e.g. "70" + typing "61.1" over it can land on something like
+/// "661.1"), and each half-typed digit moves the camera immediately. Once a
+/// stray intermediate number lands past the clamp range, it just pegs at the
+/// boundary and further digits look like "it keeps moving ahead" instead of
+/// settling back on the value you meant to re-enter. This edits a local
+/// string and only writes through to `orbit` on Return or losing focus, so
+/// mid-edit keystrokes never touch the camera.
+private struct CommitField: View {
+    let label: String
+    @Binding var value: Double
+    @State private var text: String = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text(label).foregroundStyle(.secondary)
+            TextField("", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 56)
+                .focused($isFocused)
+                .onSubmit { commit() }
+                .onChange(of: isFocused) { _, focused in
+                    if !focused { commit() }
+                }
+                .onAppear { text = formatted(value) }
+                .onChange(of: value) { _, newValue in
+                    if !isFocused { text = formatted(newValue) }
+                }
+        }
+    }
+
+    private func commit() {
+        if let parsed = Double(text) {
+            value = parsed
+        }
+        text = formatted(value)
+    }
+
+    private func formatted(_ v: Double) -> String {
+        String(format: "%.2f", v)
+    }
+}
+
 struct DungeonStageCameraToolView: View {
     @State private var scene = DungeonStageScene.build()
     @State private var cameraNode: SCNNode
     @State private var orbit = OrbitCamera()
-    @State private var readout = "Drag to orbit · right-drag to pan · scroll to dolly · space to read"
 
     init() {
         let scene = DungeonStageScene.build()
@@ -289,18 +374,30 @@ struct DungeonStageCameraToolView: View {
             .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(readout)
+                Text("Drag to orbit · right-drag to pan · scroll to dolly")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.7))
+                Text(liveSummary)
                     .font(.system(.caption, design: .monospaced))
                 parameterFields
-                Button("Read Camera (copies to clipboard)") { captureCamera() }
-                    .keyboardShortcut(.space, modifiers: [])
+                HStack(spacing: 8) {
+                    Button("Copy to Clipboard") { copyToClipboard() }
+                        .keyboardShortcut(.space, modifiers: [])
+                    Button("Reset") { reset() }
+                        .keyboardShortcut("r", modifiers: [.command])
+                }
             }
             .padding(10)
             .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
             .foregroundStyle(.white)
             .padding(12)
         }
-        .frame(minWidth: 720, minHeight: 520)
+        // Locked to 16:9 — the numbers you dial in here are only meaningful
+        // against a fixed frame shape. A resizable window let the same
+        // camera transform read as a different composition depending on
+        // whatever size the window happened to be, which is very likely why
+        // retyping saved numbers didn't reproduce what was found earlier.
+        .frame(width: 1280, height: 720)
         .onAppear { orbit.apply(to: cameraNode) }
     }
 
@@ -329,12 +426,7 @@ struct DungeonStageCameraToolView: View {
     }
 
     private func numberField(_ label: String, _ value: Binding<Double>) -> some View {
-        HStack(spacing: 3) {
-            Text(label).foregroundStyle(.secondary)
-            TextField("", value: value, format: .number.precision(.fractionLength(2)))
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 56)
-        }
+        CommitField(label: label, value: value)
     }
 
     private func doubleBinding(_ keyPath: WritableKeyPath<OrbitCamera, Double>) -> Binding<Double> {
@@ -351,19 +443,36 @@ struct DungeonStageCameraToolView: View {
         )
     }
 
-    private func captureCamera() {
-        let p = cameraNode.position
+    /// Always derived fresh from `orbit`, never a stale snapshot — typing a
+    /// value into any field (or dragging) shows up here immediately.
+    private var liveSummary: String {
+        let p = orbit.computedPosition
         let t = orbit.target
-        let text = String(
+        return String(
             format: "position   x %.2f   y %.2f   z %.2f\ntarget     x %.2f   y %.2f   z %.2f"
                 + "\nazimuth %.1f°   elevation %.1f°   radius %.2f   roll %.1f°",
             Double(p.x), Double(p.y), Double(p.z),
             Double(t.x), Double(t.y), Double(t.z),
             orbit.azimuthDegrees, orbit.elevationDegrees, orbit.radius, orbit.rollDegrees
         )
-        readout = text
+    }
+
+    private func copyToClipboard() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        NSPasteboard.general.setString(liveSummary, forType: .string)
+    }
+
+    /// Back to the tool's original starting guess — a clean slate when a
+    /// stray edit leaves the camera somewhere odd. Swaps in a genuinely new
+    /// camera node rather than just mutating the existing one's properties:
+    /// `SceneView`'s `pointOfView` parameter is the same object reference
+    /// either way, so an in-place mutation isn't guaranteed to be noticed:
+    /// a fresh node identity is unambiguous.
+    private func reset() {
+        cameraNode.removeFromParentNode()
+        orbit = OrbitCamera()
+        cameraNode = DungeonStageScene.makeCameraNode(in: scene)
+        orbit.apply(to: cameraNode)
     }
 }
 
@@ -381,11 +490,16 @@ final class DungeonStageCameraToolWindowController {
     private func makeWindow() -> NSWindow {
         let hosting = NSHostingController(rootView: DungeonStageCameraToolView())
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Dungeon Stage Camera Tool — grey blockout, not real art"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.title = "Dungeon Stage Camera Tool — grey blockout, not real art, 16:9"
+        // Deliberately not .resizable — the view inside is a fixed 1280×720,
+        // and letting the window resize independently would just reintroduce
+        // the "same numbers, different framing" problem this fixes.
+        window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 900, height: 640))
         window.setFrameAutosaveName("DungeonStageCameraToolWindow")
+        // Re-asserted after the autosave name: a saved frame from before this
+        // became a fixed 16:9 window could otherwise restore a stale size.
+        window.setContentSize(NSSize(width: 1280, height: 720))
         if window.frame.origin == .zero { window.center() }
         return window
     }
