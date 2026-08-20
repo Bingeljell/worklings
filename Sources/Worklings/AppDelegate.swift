@@ -308,6 +308,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "Debug: orbit a blockout stage to find a dungeon's camera angle and framing. "
             + "No real art."
         menu.addItem(stageSpikeItem)
+
+        let grantXPItem = NSMenuItem(
+            title: "Grant 1000 XP",
+            action: #selector(grantDebugXP),
+            keyEquivalent: ""
+        )
+        grantXPItem.target = self
+        grantXPItem.toolTip = "Debug: clears the delve level gate without grinding."
+        menu.addItem(grantXPItem)
         #endif
 
         menu.addItem(.separator())
@@ -429,6 +438,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let controller = dungeonStageCameraToolWindowController ?? DungeonStageCameraToolWindowController()
         dungeonStageCameraToolWindowController = controller
         controller.present()
+    }
+
+    @objc private func grantDebugXP() {
+        petSession?.debugGrantXP(1000)
     }
     #endif
 

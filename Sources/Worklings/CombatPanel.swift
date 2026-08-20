@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import CompanionCore
 import Foundation
+import SceneKit
 import SwiftUI
 
 /// Which side of the arena a bit of speech belongs above.
@@ -588,7 +589,7 @@ final class CombatPanelController {
         // No .closable — the in-panel Close/Return is the only exit, so the
         // dismiss path (and the companion's return) always runs.
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720),
             styleMask: [.titled, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -660,7 +661,7 @@ struct DelvePanelView: View {
                 )
             }
         }
-        .frame(width: 600, height: 480)
+        .frame(width: 1280, height: 720)
         .animation(.easeInOut(duration: 0.25), value: delve.phase)
     }
 }
@@ -1031,7 +1032,7 @@ struct CombatPanelView: View {
             arena
             controlBar
         }
-        .frame(width: 600, height: 480)
+        .frame(width: 1280, height: 720)
         .background(stageBackground)
         .foregroundStyle(.white)
     }
@@ -1613,68 +1614,28 @@ private struct Sparkles: View {
 /// translucent atmosphere layer over it for parallax life, and a faint darkening
 /// so the fighters and text read on top. Falls back to a gradient if the art is
 /// missing.
+/// The live 3D stage — room geometry + the Cache Warren's locked camera, per
+/// `docs/design/dungeons.md`'s "The battle stage — camera & staging" (found
+/// with the Dungeon Stage Camera Tool). Room-only for now: party and foe
+/// still render as the flat SwiftUI views below, not scene billboards yet.
 private struct ArenaBackground: View {
+    private static let scene = DungeonStageScene.build()
+    private static let cameraNode = DungeonStageScene.makeCamera(
+        position: SCNVector3(14.96, 17.22, 16.02),
+        lookingAt: SCNVector3(-3.60, -0.63, 5.16),
+        in: scene
+    )
+
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.11, green: 0.10, blue: 0.17), Color(red: 0.05, green: 0.05, blue: 0.09)],
-                startPoint: .top, endPoint: .bottom
-            )
-            if let backdrop = DungeonArtAsset.caveBackdrop {
-                Image(decorative: backdrop, scale: 1, orientation: .up)
-                    .resizable()
-                    .scaledToFill()
-            }
-            if let atmosphere = DungeonArtAsset.atmosphere {
-                AtmosphereDrift(image: atmosphere)
-                    .allowsHitTesting(false)
-            }
+            SceneView(scene: Self.scene, pointOfView: Self.cameraNode, options: [])
+                .ignoresSafeArea()
             LinearGradient(
                 colors: [.black.opacity(0.42), .black.opacity(0.14), .black.opacity(0.34)],
                 startPoint: .top, endPoint: .bottom
             )
         }
         .clipped()
-    }
-}
-
-/// Scrolls the seamless, horizontally-tileable atmosphere overlay to give the
-/// air a slow drift. Two copies chase each other so it loops without a seam.
-private struct AtmosphereDrift: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let image: CGImage
-
-    private static let pointsPerSecond = 10.0
-
-    var body: some View {
-        GeometryReader { geo in
-            let tileWidth = max(geo.size.height * CGFloat(image.width) / CGFloat(image.height), 1)
-            if reduceMotion {
-                tile(tileWidth, geo.size.height)
-            } else {
-                TimelineView(.animation) { context in
-                    let elapsed = context.date.timeIntervalSinceReferenceDate
-                    let phase = CGFloat((elapsed * Self.pointsPerSecond)
-                        .truncatingRemainder(dividingBy: Double(tileWidth)))
-                    HStack(spacing: 0) {
-                        tile(tileWidth, geo.size.height)
-                        tile(tileWidth, geo.size.height)
-                    }
-                    .offset(x: -phase)
-                    .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
-                    .clipped()
-                }
-            }
-        }
-    }
-
-    private func tile(_ width: CGFloat, _ height: CGFloat) -> some View {
-        // The overlay is a pale haze; keep it very faint so it drifts as
-        // atmosphere without washing the cave out or flattening the fighters.
-        Image(decorative: image, scale: 1, orientation: .up)
-            .resizable()
-            .frame(width: width, height: height)
-            .opacity(0.14)
     }
 }
 
@@ -2005,12 +1966,6 @@ private enum FoeSpriteAsset {
     private static func load(_ resourceName: String) -> CGImage? {
         bundledCGImage(resourceName)
     }
-}
-
-/// The dungeon's background art, loaded once.
-private enum DungeonArtAsset {
-    static let caveBackdrop = bundledCGImage("cache-warren-cave-backdrop")
-    static let atmosphere = bundledCGImage("cache-warren-atmosphere-overlay")
 }
 
 /// Loads a bundled PNG as a `CGImage`, from the app bundle or the SwiftPM module

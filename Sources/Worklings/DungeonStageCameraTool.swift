@@ -4,54 +4,20 @@ import SceneKit
 import simd
 import SwiftUI
 
-/// A dev tool, **not** wired into real gameplay: a grey blockout of a battle
-/// stage (party floor → arena gap → foe platform → back wall, per
-/// `docs/design/dungeons.md`'s "one scene" blocking) with an orbitable
-/// camera, so a dungeon's actual elevated-3/4 angle and framing can be found
-/// by looking rather than guessed from a still image. Kept as a permanent
-/// utility — every future dungeon needs its own angle checked the same way.
-enum DungeonStageScene {
-    static func build() -> SCNScene {
-        let scene = SCNScene()
-        scene.background.contents = NSColor(calibratedWhite: 0.04, alpha: 1)
-
-        func band(
-            _ w: CGFloat, _ h: CGFloat, _ d: CGFloat,
-            at x: CGFloat, _ y: CGFloat, _ z: CGFloat,
-            color: NSColor
-        ) -> SCNNode {
-            let node = SCNNode(geometry: SCNBox(width: w, height: h, length: d, chamferRadius: 0))
-            node.geometry?.firstMaterial?.diffuse.contents = color
-            node.geometry?.firstMaterial?.lightingModel = .physicallyBased
-            node.geometry?.firstMaterial?.roughness.contents = 0.85
-            node.position = SCNVector3(x, y, z)
-            return node
-        }
-
-        // Depth bands, near (party) to far (back wall) — see the "Reading this"
-        // notes in the blocking diagram for what each one stands in for.
-        scene.rootNode.addChildNode(band(
-            22, 0.3, 9, at: 0, -0.15, 7,
-            color: NSColor(calibratedRed: 0.42, green: 0.34, blue: 0.24, alpha: 1)
-        )) // party floor — oversized on purpose, so it reaches past frame edges
-           // however the shot ends up panned/rotated rather than getting cropped
-        scene.rootNode.addChildNode(band(
-            10, 0.1, 3, at: 0, -0.35, 1.5,
-            color: NSColor(calibratedWhite: 0.03, alpha: 1)
-        )) // arena gap, recessed so it reads as its own zone
-        scene.rootNode.addChildNode(band(
-            9, 0.6, 3.5, at: 0, 0.1, -2,
-            color: NSColor(calibratedRed: 0.22, green: 0.26, blue: 0.28, alpha: 1)
-        )) // foe platform, raised
-        scene.rootNode.addChildNode(band(
-            10, 5, 0.3, at: 0, 2.2, -4,
-            color: NSColor(calibratedRed: 0.12, green: 0.13, blue: 0.15, alpha: 1)
-        )) // back wall
-
-        // A real baked sprite, billboarded, standing on the foe platform — the
-        // actual "flat foe in a live 3D stage" question this tool exists to test.
+/// A dev tool, **not** wired into real gameplay: an orbitable view of the
+/// shared `DungeonStageScene` room (`DungeonStage3D.swift`) with placeholder
+/// party/foe billboards, so a dungeon's actual elevated-3/4 angle and framing
+/// can be found by looking rather than guessed from a still image. Kept as a
+/// permanent utility — every future dungeon needs its own angle checked the
+/// same way, and it's how the Cache Warren's locked camera (now wired into
+/// the real arena) was found in the first place.
+enum DungeonStageCameraToolScene {
+    /// The debug-only standoff placeholders — same sprite for both, tinted so
+    /// they're distinguishable, sized/placed so both anchors of a two-rank
+    /// composition are visible at once. Never shown outside this tool.
+    static func addDebugBillboards(to scene: SCNScene) {
         let foePlane = SCNPlane(width: 2.2, height: 2.2)
-        foePlane.firstMaterial?.diffuse.contents = loadStageImage("mote-idle") ?? NSColor.systemPink
+        foePlane.firstMaterial?.diffuse.contents = loadDungeonStageImage("mote-idle") ?? NSColor.systemPink
         foePlane.firstMaterial?.isDoubleSided = true
         foePlane.firstMaterial?.lightingModel = .constant
         let foeNode = SCNNode(geometry: foePlane)
@@ -59,13 +25,8 @@ enum DungeonStageScene {
         foeNode.constraints = [SCNBillboardConstraint()]
         scene.rootNode.addChildNode(foeNode)
 
-        // A placeholder party billboard — same sprite, tinted blue so it
-        // reads as "the other side," bigger and further forward since it's
-        // meant to sit closer to camera on the party floor. Judging a
-        // two-rank standoff composition needs both anchors on screen at
-        // once, not just the foe half.
         let partyPlane = SCNPlane(width: 2.8, height: 2.8)
-        partyPlane.firstMaterial?.diffuse.contents = loadStageImage("mote-idle") ?? NSColor.systemBlue
+        partyPlane.firstMaterial?.diffuse.contents = loadDungeonStageImage("mote-idle") ?? NSColor.systemBlue
         partyPlane.firstMaterial?.multiply.contents = NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1)
         partyPlane.firstMaterial?.isDoubleSided = true
         partyPlane.firstMaterial?.lightingModel = .constant
@@ -73,58 +34,17 @@ enum DungeonStageScene {
         partyNode.position = SCNVector3(-3, 1.9, 8.5)
         partyNode.constraints = [SCNBillboardConstraint()]
         scene.rootNode.addChildNode(partyNode)
-
-        // Key light — warm, low angle, upper-left, matching the blocking diagram.
-        let key = SCNLight()
-        key.type = .directional
-        key.color = NSColor(calibratedRed: 1.0, green: 0.8, blue: 0.58, alpha: 1)
-        key.intensity = 1000
-        let keyNode = SCNNode()
-        keyNode.light = key
-        keyNode.eulerAngles = SCNVector3(-0.785, -0.785, 0) // -45°, -45°
-        scene.rootNode.addChildNode(keyNode)
-
-        // Ambient fill — cool, from the depths.
-        let fill = SCNLight()
-        fill.type = .directional
-        fill.color = NSColor(calibratedRed: 0.55, green: 0.78, blue: 0.88, alpha: 1)
-        fill.intensity = 320
-        let fillNode = SCNNode()
-        fillNode.light = fill
-        fillNode.eulerAngles = SCNVector3(-0.524, 1.428, 0) // -30°, ~82°
-        scene.rootNode.addChildNode(fillNode)
-
-        let ambient = SCNLight()
-        ambient.type = .ambient
-        ambient.color = NSColor(calibratedWhite: 0.22, alpha: 1)
-        let ambientNode = SCNNode()
-        ambientNode.light = ambient
-        scene.rootNode.addChildNode(ambientNode)
-
-        return scene
     }
 
     /// A starting guess at the elevated-3/4 angle — a baseline to drag from,
-    /// not the answer. Must be added to the scene graph (not just passed as
-    /// `pointOfView`) for `OrbitCamera`'s hand-rolled manipulator to actually
-    /// take hold of it.
-    static func makeCameraNode(in scene: SCNScene) -> SCNNode {
-        let camera = SCNCamera()
-        camera.fieldOfView = 32
-        let node = SCNNode()
-        node.camera = camera
-        node.position = SCNVector3(0, 4.5, 11)
-        node.look(at: SCNVector3(0, 0.5, -1))
-        scene.rootNode.addChildNode(node)
-        return node
+    /// not the answer.
+    static func makeStartingCamera(in scene: SCNScene) -> SCNNode {
+        DungeonStageScene.makeCamera(
+            position: SCNVector3(0, 4.5, 11),
+            lookingAt: SCNVector3(0, 0.5, -1),
+            in: scene
+        )
     }
-}
-
-private func loadStageImage(_ resourceName: String) -> NSImage? {
-    let url = Bundle.main.url(forResource: resourceName, withExtension: "png")
-        ?? Bundle.module.url(forResource: resourceName, withExtension: "png")
-    guard let url else { return nil }
-    return NSImage(contentsOf: url)
 }
 
 /// SceneKit's built-in `allowsCameraControl` manipulator turned out not to update
@@ -345,8 +265,9 @@ struct DungeonStageCameraToolView: View {
 
     init() {
         let scene = DungeonStageScene.build()
+        DungeonStageCameraToolScene.addDebugBillboards(to: scene)
         _scene = State(initialValue: scene)
-        _cameraNode = State(initialValue: DungeonStageScene.makeCameraNode(in: scene))
+        _cameraNode = State(initialValue: DungeonStageCameraToolScene.makeStartingCamera(in: scene))
     }
 
     var body: some View {
@@ -471,7 +392,7 @@ struct DungeonStageCameraToolView: View {
     private func reset() {
         cameraNode.removeFromParentNode()
         orbit = OrbitCamera()
-        cameraNode = DungeonStageScene.makeCameraNode(in: scene)
+        cameraNode = DungeonStageCameraToolScene.makeStartingCamera(in: scene)
         orbit.apply(to: cameraNode)
     }
 }

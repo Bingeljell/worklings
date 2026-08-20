@@ -25,8 +25,6 @@ let package = Package(
                 .copy("../../assets/foes/mote-idle.png"),
                 .copy("../../assets/foes/mote-attack.png"),
                 .copy("../../assets/foes/mote-hurt.png"),
-                .copy("../../assets/dungeons/cache-warren-cave-backdrop.png"),
-                .copy("../../assets/dungeons/cache-warren-atmosphere-overlay.png"),
                 .copy("../../assets/audio/dungeon/worklings-dungeon/dungeon-bgm/dungeon-bgm__v01.wav"),
                 .copy("../../assets/audio/dungeon/worklings-dungeon/combat-hit/combat-hit__v01.wav"),
                 .copy("../../assets/audio/dungeon/worklings-dungeon/combat-slam/combat-slam__v01.wav"),
