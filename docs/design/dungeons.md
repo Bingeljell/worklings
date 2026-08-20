@@ -237,12 +237,31 @@ getting low or close to the party's back costs the depth read between the two ra
 the drama is meant to come from VFX and attack animations at combat time, not the resting
 camera.
 
-**Not yet done:** real party/foe marks (the tool's billboards are rough corner
-placeholders, not final positions), the walk-past-and-dissolve transition, and real
-environment art — the stage is still a grey blockout; materials keyed to the "buried
-machine strata" identity are generated separately (see [sprite
-prompts](sprite-prompts.md)) but not yet applied here. Every future dungeon needs its own
-angle found the same way — only the Cache Warren's is locked.
+**Wired into the real arena (2026-08-20):** the flat painted cave backdrop is gone — the
+live `DungeonStageScene` room, at the locked camera above, is what the Cache Warren's
+actual in-game panel renders now (room-only; see `Sources/Worklings/DungeonStage3D.swift`
+and `CombatPanel.swift`'s `ArenaBackground`). The panel itself resized from 600×480 to
+1280×720 to match. Party and foe **still render as the old flat side-by-side SwiftUI
+columns** — untouched by this pass, not yet repositioned into the diagonal corners or
+turned into real scene billboards.
+
+**How the environment art has to work, so it doesn't look janky:** the room is real 3D
+geometry (the four bands), so its surfaces get **materials** — prompt-generated PBR
+albedo/normal/roughness/height sets keyed to the "buried machine strata" identity —
+applied directly onto that existing blockout, the same way any 3D scene is textured.
+**Not** a single flat painted image dropped in as a backdrop plane: that's exactly what
+would clash, since the near geometry has real depth/perspective from the locked camera's
+elevation and a flat image behind it wouldn't. A painted matte is still fair game for
+anything genuinely distant glimpsed *through* an opening past the back wall — safe from
+ever revealing its flatness specifically because the camera is fixed and never exposes a
+parallax mismatch — but the room itself gets textured as 3D, not papered over with a
+picture.
+
+**Not yet done:** real party/foe marks and turning them into real scene billboards
+(currently the untouched flat 2D columns), the walk-past-and-dissolve transition, and the
+environment materials themselves — the stage is still grey blockout boxes, nothing
+textured yet. Every future dungeon needs its own angle found the same way — only the
+Cache Warren's is locked.
 
 ## The Cache Warren
 
