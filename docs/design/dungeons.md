@@ -190,6 +190,60 @@ The [vertical-slice build notes](#what-a-first-playable-encounter-needs) below a
 starting point; this first playable dungeon widens that slice just far enough to feel like a
 delve, not the whole system at once.
 
+## The battle stage — camera & staging
+
+**Rendering approach:** a live SceneKit 3D room with the existing baked 2D sprite sheets
+billboarded into it as actors — not a flat painted backdrop (today's Cache Warren arena)
+and not live 3D characters either. The room gives real depth and lighting for free; the
+actors stay exactly the assets the [3D→2D pipeline](sprite-prompts.md) already produces,
+so nothing about that pipeline or its pose contract changes. This follows the standing
+call on rendering: baked sprites stay the actor format everywhere in the dungeon, live 3D
+is reserved for the character/gear screen.
+
+**The stage is four depth bands**, near to far: the party floor, an arena gap (where
+attacks and VFX play out), a raised foe platform, and a back wall. No side walls — an
+early pass added them for a sense of enclosure, but they didn't help read the
+composition and were dropped. **The camera never moves once a dungeon is authored** — it's
+staged like a backlot, not a walkable level, so nothing outside the frustum ever needs
+building.
+
+**Per-dungeon (and per-encounter) variety comes from a diagonal entry/exit direction**
+across the frame, not a different camera or new geometry: the party enters one corner,
+the foes hold the opposite, and — planned, not yet built — after a win the party walks
+past the cleared foe toward the exit corner and the shot dissolves into the next
+encounter. The direction can rotate 90° each encounter ("turn left") as the cheap-variety
+mechanism for a future dungeon builder: same room kit, same camera rig, just a different
+corner pairing.
+
+**Found with the Dungeon Stage Camera Tool** (🐾 menu → *Dungeon Stage Camera Tool…*,
+debug builds only, `Sources/Worklings/DungeonStageCameraTool.swift`) — an orbitable grey
+blockout of the four bands with placeholder party/foe billboards, so a standoff
+composition can actually be judged rather than guessed from a still image. Its window is
+a **fixed 1280×720 (16:9, scaled 1080p)** and deliberately not resizable: the same camera
+transform frames differently at a different aspect ratio, so numbers are only meaningful
+measured against that fixed shape.
+
+**The Cache Warren's locked camera:**
+
+```
+position   x 14.96   y 17.22   z 16.02
+target     x -3.60   y -0.63   z 5.16
+azimuth 59.7°   elevation 39.7°   radius 27.95   roll 0.0°
+```
+
+Diagonal direction: **bottom-left (party) → top-right (foes)**, held for every encounter
+in this dungeon. Chosen over a lower, closer "cinematic" angle tested alongside it —
+getting low or close to the party's back costs the depth read between the two ranks, and
+the drama is meant to come from VFX and attack animations at combat time, not the resting
+camera.
+
+**Not yet done:** real party/foe marks (the tool's billboards are rough corner
+placeholders, not final positions), the walk-past-and-dissolve transition, and real
+environment art — the stage is still a grey blockout; materials keyed to the "buried
+machine strata" identity are generated separately (see [sprite
+prompts](sprite-prompts.md)) but not yet applied here. Every future dungeon needs its own
+angle found the same way — only the Cache Warren's is locked.
+
 ## The Cache Warren
 
 *Setting — the **first** dungeon's, not the world's. Worklings is a broad universe, and
