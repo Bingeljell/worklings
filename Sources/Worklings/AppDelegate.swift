@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #if DEBUG
     private var activityContextMenuItem: NSMenuItem?
     private var isRunningActivitySimulation = false
-    private var dungeonStageSpikeWindowController: DungeonStageSpikeWindowController?
+    private var dungeonStageCameraToolWindowController: DungeonStageCameraToolWindowController?
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -299,14 +299,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(forgetGearItem)
 
         let stageSpikeItem = NSMenuItem(
-            title: "Dungeon Stage Camera Spike…",
-            action: #selector(openDungeonStageSpike),
+            title: "Dungeon Stage Camera Tool…",
+            action: #selector(openDungeonStageCameraTool),
             keyEquivalent: ""
         )
         stageSpikeItem.target = self
         stageSpikeItem.toolTip =
-            "Debug: orbit a blockout stage to find the dungeon's camera angle. "
-            + "Throwaway — no real art."
+            "Debug: orbit a blockout stage to find a dungeon's camera angle and framing. "
+            + "No real art."
         menu.addItem(stageSpikeItem)
         #endif
 
@@ -425,9 +425,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         petSession?.debugForgetAcquiredItems()
     }
 
-    @objc private func openDungeonStageSpike() {
-        let controller = dungeonStageSpikeWindowController ?? DungeonStageSpikeWindowController()
-        dungeonStageSpikeWindowController = controller
+    @objc private func openDungeonStageCameraTool() {
+        let controller = dungeonStageCameraToolWindowController ?? DungeonStageCameraToolWindowController()
+        dungeonStageCameraToolWindowController = controller
         controller.present()
     }
     #endif
