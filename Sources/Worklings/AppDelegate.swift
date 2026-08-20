@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #if DEBUG
     private var activityContextMenuItem: NSMenuItem?
     private var isRunningActivitySimulation = false
+    private var dungeonStageSpikeWindowController: DungeonStageSpikeWindowController?
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -296,6 +297,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "Debug: drop back to the starter item so boss drops can be earned again. "
             + "Keeps name, needs, XP, class, and family."
         menu.addItem(forgetGearItem)
+
+        let stageSpikeItem = NSMenuItem(
+            title: "Dungeon Stage Camera Spike…",
+            action: #selector(openDungeonStageSpike),
+            keyEquivalent: ""
+        )
+        stageSpikeItem.target = self
+        stageSpikeItem.toolTip =
+            "Debug: orbit a blockout stage to find the dungeon's camera angle. "
+            + "Throwaway — no real art."
+        menu.addItem(stageSpikeItem)
         #endif
 
         menu.addItem(.separator())
@@ -411,6 +423,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #if DEBUG
     @objc private func forgetAcquiredGear() {
         petSession?.debugForgetAcquiredItems()
+    }
+
+    @objc private func openDungeonStageSpike() {
+        let controller = dungeonStageSpikeWindowController ?? DungeonStageSpikeWindowController()
+        dungeonStageSpikeWindowController = controller
+        controller.present()
     }
     #endif
 
