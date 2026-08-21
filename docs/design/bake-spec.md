@@ -423,10 +423,12 @@ reuse those same frames unchanged, no extra animation authoring.
   expensive commitment. Bake one character at 0° / −18° / −35° elevation and compare
   three stills before locking.
 - **§10's elevation and back-azimuth are unlocked.** The −28° elevation and ~235–245°
-  `stageFaceTR` azimuth are from a same-day test session using a non-production stand-in
-  mesh (a Hunyuan3D-generated ram, not a Workling family) — good for judging silhouette
-  and angle read, not production-ready. Pending an in-scene comparison against the room's
-  live camera before either number locks.
+  `stageFaceTR` azimuth are from a same-day test session using the **Tempest Ram**
+  (Elemental family) — real production mesh, generated via TRELLIS on a Runpod GPU, not a
+  stand-in. The render itself was fast-preview quality (no supersample, ortho scale
+  widened to 2.6 to fit this character's horns) rather than the full §5 pipeline, and the
+  angle numbers are pending an in-scene comparison against the room's live camera before
+  either locks.
 - **Asymmetric-accessory mirroring is unresolved for §10.** §2 already avoids mirroring
   production Worklings for exactly this reason — the moss-fox's bell, the pangolin's back
   key, the newt's tail ember land on the wrong side under a horizontal flip. The same
