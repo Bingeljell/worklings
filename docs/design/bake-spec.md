@@ -379,11 +379,61 @@ lashing outward. It has a Snare (an Agility debuff), so the silhouette wants to 
 Until step 1 lands, `hasArt` is false and the foe renders the existing placeholder — a
 registered-but-unbaked foe degrades rather than breaks.
 
+## 10. Dungeon stage-facing (diagonal corners)
+
+The Cache Warren's battle stage (see [Dungeons](dungeons.md)) is a **fixed-camera room**
+where the party can enter at any of its four corners — bottom-left, top-left,
+bottom-right, top-right — always facing the opposite corner, where the foes wait, then
+walking past them toward the exit corner on a win. Because every actor is a flat
+billboard in a room whose camera never moves, whatever direction a bake visually faces is
+exactly how it reads once placed — there's no runtime rotation to correct it.
+
+This is a **different facing convention from §2's `face-left`/`face-right`**, which is a
+mild ±35° turn for the character-screen portrait context. The dungeon needs a character's
+body actually oriented toward a diagonal corner of the room, which turned out to need a
+much larger camera turn than ±35° — closer to a back 3/4 view than a front one.
+
+### The four corners, two real bakes
+
+Only two of the four corner-facings are ever rendered directly; the other two are a
+horizontal image mirror, because mirroring only flips the **left/right** component of a
+diagonal direction and leaves **up/down** alone. Mirror pairs therefore stay on the same
+vertical half — never cross top/bottom:
+
+| Bake | `CAM_TARGET` Z | Corner it's for | Produced by |
+| --- | --- | --- | --- |
+| `stageFaceBL` | **+35°** | Top-right (faces down-left, toward the party at BL) | Direct render |
+| `stageFaceTR` | **~235–245°** (not yet narrowed) | Bottom-left (faces up-right, toward the foes at TR) | Direct render |
+| `stageFaceBR` | mirror of `stageFaceBL` | Top-left (faces down-right, toward BR) | Horizontal mirror |
+| `stageFaceTL` | mirror of `stageFaceTR` | Bottom-right (faces up-left, toward TL) | Horizontal mirror |
+
+Elevation tested at **−28°** (steeper than §2's shipped −18°), bracketed against the
+room's own locked 39.7° elevation. Not locked — see Open.
+
+**Applies to animated poses too.** Since motion is a real 3D animation on the rig (§6),
+not per-angle hand-drawn art, an animated pose (walk, attack, hurt, die, ...) only needs
+its full frame sequence rendered from the two real azimuths above — the mirrored corners
+reuse those same frames unchanged, no extra animation authoring.
+
 ## Open
 
-- **The angle itself.** −18° / +35° is the working default, inside the recommended
-  15–25° band. It is deliberately not locked; the turntable rig and this manifest are
-  what keep it a cheap parameter rather than an expensive commitment. Bake one character
-  at 0° / −18° / −35° elevation and compare three stills before locking.
+- **The §2 angle itself.** −18° / +35° is the working default for the character-screen
+  facing, inside the recommended 15–25° band. It is deliberately not locked; the
+  turntable rig and this manifest are what keep it a cheap parameter rather than an
+  expensive commitment. Bake one character at 0° / −18° / −35° elevation and compare
+  three stills before locking.
+- **§10's elevation and back-azimuth are unlocked.** The −28° elevation and ~235–245°
+  `stageFaceTR` azimuth are from a same-day test session using a non-production stand-in
+  mesh (a Hunyuan3D-generated ram, not a Workling family) — good for judging silhouette
+  and angle read, not production-ready. Pending an in-scene comparison against the room's
+  live camera before either number locks.
+- **Asymmetric-accessory mirroring is unresolved for §10.** §2 already avoids mirroring
+  production Worklings for exactly this reason — the moss-fox's bell, the pangolin's back
+  key, the newt's tail ember land on the wrong side under a horizontal flip. The same
+  problem applies to `stageFaceBR`/`stageFaceTL`, and for animated poses it's now
+  multiplied across every frame, not just one still. Floated but not decided: simplify or
+  drop asymmetric detail specifically for dungeon-scale sprites (small, seen at a
+  distance) while keeping it correct on the character screen, which is a separate live-3D
+  render rather than this baked pipeline. No answer yet.
 - **Animation.** Everything is single-frame today. The frame index in the naming
   convention is the only concession made in advance.
