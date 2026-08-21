@@ -439,3 +439,31 @@ reuse those same frames unchanged, no extra animation authoring.
   render rather than this baked pipeline. No answer yet.
 - **Animation.** Everything is single-frame today. The frame index in the naming
   convention is the only concession made in advance.
+- **PICKUP NOTE (2026-08-21, paused mid-session):** Rigify-vs-manual-rig comparison in
+  progress on the Tempest Ram, in `image-to-3dlab` (not this repo). File:
+  `~/projects/worklings-blender-work/tempest-ram-rigify.blend`. Status:
+  - Manual pipeline (§6's rig, `blender_build_rig.py`/`blender_voxel_weights.py`) is done
+    and tuned — see `~/projects/worklings-blender-work/tempest-ram-markers.blend`
+    (Walk + Headbutt actions, both fake-user protected).
+  - Rigify side: used Rigify's **Basic Quadruped** sample metarig, generated, then voxel-
+    weighted onto it by hand in the UI (real Blender tools chained manually: Voxel
+    Remesh → Automatic Weights on the proxy → Data Transfer → Apply). Result: **100%
+    vertex coverage, 0 unweighted verts** — actually cleaner than the manual pipeline's
+    own result. But the Basic Quadruped metarig has **no head/neck/jaw bones** — just
+    spine + 4 legs + pelvis (+ a vestigial `breast.L/R` pair from the shared spine rig
+    component) — so it's not yet a fair full comparison; the manual rig has independent
+    head control and this doesn't, yet.
+  - New scripts written for this: `image-to-3dlab/scripts/rigify_walk_pose.py` +
+    `blender_rigify_walk_cycle.py` — a trot cycle retargeted to Rigify's FK control bones
+    (`front_thigh_fk.L` etc.), reusing the swing/fold math from the manual pipeline's
+    walk cycle. Requires each leg's `IK_FK` custom property (on the `*_parent` bones) set
+    to `1.0` first — Rigify legs default to IK, and FK rotations are silently ignored by
+    the deform bones otherwise. Already confirmed on this rig: local **X** rotation is
+    the swing axis (tested empirically, not assumed).
+  - **Where it was interrupted:** first pass rendered "walking in reverse" (gait ran
+    backward in time). Just applied a fix (negated `t` in the swing's theta) and reran,
+    but the render to confirm the fix worked hadn't come back before the session paused.
+    **Next step: check `rigify_walk2_frame*.png` in the scratchpad / rerun and verify
+    the direction reads correctly before doing anything else.**
+  - Not yet done: adding a head/neck chain to the metarig for a fair comparison, and the
+    actual side-by-side judgment call this whole detour is for.
