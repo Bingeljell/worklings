@@ -187,18 +187,21 @@ public enum Item: String, CaseIterable, Codable, Equatable, Sendable {
     /// slightly larger modifier — the soft synergy rider. The mapping is exact
     /// because the family→class→stat matrix is 1:1.
     ///
-    /// Nil where that family is still design-only: Guard attunes to **Bloomglass**
-    /// and Agility to **Glitchkin**, neither of which exists in `PetFamily` yet, so
-    /// those two items carry the universal base for everyone until the families
-    /// ship. Attunement is soft anyway — a nudge, never a gate — so their absence
-    /// costs correctness nothing.
+    /// All five stats now resolve: Guard and Agility were universal-only while
+    /// Bloomglass and Glitchkin were design-stage, and closed the moment those
+    /// families landed in `PetFamily`.
+    ///
+    /// Keyed on **family** today. Should attunement move to **class** — the two are
+    /// interchangeable while family→class→stat stays 1:1, so the swap is behaviour-
+    /// preserving right now and stops being so the moment per-class item sets are
+    /// authored — this property is the single seam to change.
     public var attunedFamily: PetFamily? {
         switch stat {
         case .power: .relicborn     // Juggernaut
         case .wit: .elemental       // Tinkerer
         case .vitality: .wildkin    // Wellspring
-        case .defense: nil          // Bloomglass, not yet a family
-        case .agility: nil          // Glitchkin, not yet a family
+        case .defense: .bloomglass  // Aegis
+        case .agility: .glitchkin   // Maverick
         }
     }
 

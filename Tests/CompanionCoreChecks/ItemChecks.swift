@@ -286,14 +286,18 @@ enum ItemChecks {
         context.expect(rates.isAttuned(whetstone, family: .relicborn),
                        "the attunement flag agrees with the modifier")
 
-        // Guard and Agility attune to families that don't exist in code yet, so
-        // they must read the universal base for everyone rather than silently
-        // matching some family.
-        for item in [Item.dentedBuckler, .quickstepCharm] {
+        // Now that Bloomglass and Glitchkin exist, every stat resolves to exactly
+        // one attuned family: each item reads the rider for one family and the
+        // universal base for the other four.
+        for item in Item.allCases {
             let readings = PetFamily.allCases.map { rates.modifier(for: item, family: $0) }
-            context.expect(
-                readings.allSatisfy { $0 == rates.solidModifier },
-                "\(item.displayName) is universal-only until its family ships"
+            context.expectEqual(
+                PetFamily.allCases.filter { rates.isAttuned(item, family: $0) }.count, 1,
+                "\(item.displayName) attunes to exactly one family"
+            )
+            context.expectEqual(
+                (readings.max() ?? 0) - (readings.min() ?? 0), rates.attunementBonus,
+                "\(item.displayName)'s spread across families is exactly the rider"
             )
         }
     }

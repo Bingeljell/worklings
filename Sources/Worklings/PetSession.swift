@@ -226,6 +226,13 @@ final class PetSession: ObservableObject {
         state = updated
         persist()
     }
+
+    /// Debug-only: a lump of XP, for clearing the delve level gate without
+    /// grinding — needed to visually check dungeon/arena changes at all.
+    func debugGrantXP(_ amount: Double) {
+        state = state.applying(addingXP: amount)
+        persist()
+    }
     #endif
 
     // MARK: - Dungeon

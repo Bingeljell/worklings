@@ -94,12 +94,30 @@ public enum PetFamily: String, CaseIterable, Codable, Equatable, Sendable {
     case wildkin
     case elemental
     case relicborn
+    /// The two design-stage families. They carry their full mechanical identity
+    /// (stat lean, passive, item attunement) from the moment they exist here; only
+    /// their art is outstanding, so they render the placeholder glyph until their
+    /// sheets are baked. Adding them ahead of the art is deliberate — the roster,
+    /// the family passives, and Guard/Agility item attunement all key off this enum.
+    case glitchkin
+    case bloomglass
 
     public var displayName: String {
         switch self {
         case .wildkin: "Wildkin"
         case .elemental: "Elemental"
         case .relicborn: "Relicborn"
+        case .glitchkin: "Glitchkin"
+        case .bloomglass: "Bloomglass"
+        }
+    }
+
+    /// Whether the family has a baked sprite sheet. Selection UI uses this to mark
+    /// the design-stage families rather than hiding them.
+    public var hasArt: Bool {
+        switch self {
+        case .wildkin, .elemental, .relicborn: true
+        case .glitchkin, .bloomglass: false
         }
     }
 }

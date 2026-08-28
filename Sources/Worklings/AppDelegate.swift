@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     #if DEBUG
     private var activityContextMenuItem: NSMenuItem?
     private var isRunningActivitySimulation = false
+    private var dungeonStageCameraToolWindowController: DungeonStageCameraToolWindowController?
     #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -296,6 +297,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "Debug: drop back to the starter item so boss drops can be earned again. "
             + "Keeps name, needs, XP, class, and family."
         menu.addItem(forgetGearItem)
+
+        let stageSpikeItem = NSMenuItem(
+            title: "Dungeon Stage Camera Tool…",
+            action: #selector(openDungeonStageCameraTool),
+            keyEquivalent: ""
+        )
+        stageSpikeItem.target = self
+        stageSpikeItem.toolTip =
+            "Debug: orbit a blockout stage to find a dungeon's camera angle and framing. "
+            + "No real art."
+        menu.addItem(stageSpikeItem)
+
+        let grantXPItem = NSMenuItem(
+            title: "Grant 1000 XP",
+            action: #selector(grantDebugXP),
+            keyEquivalent: ""
+        )
+        grantXPItem.target = self
+        grantXPItem.toolTip = "Debug: clears the delve level gate without grinding."
+        menu.addItem(grantXPItem)
         #endif
 
         menu.addItem(.separator())
@@ -412,6 +433,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func forgetAcquiredGear() {
         petSession?.debugForgetAcquiredItems()
     }
+
+    @objc private func openDungeonStageCameraTool() {
+        let controller = dungeonStageCameraToolWindowController ?? DungeonStageCameraToolWindowController()
+        dungeonStageCameraToolWindowController = controller
+        controller.present()
+    }
+
+    @objc private func grantDebugXP() {
+        petSession?.debugGrantXP(1000)
+    }
     #endif
 
     @objc private func openCharacterScreen() {
@@ -441,15 +472,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func makeChoiceMenuItem<Choice: CaseIterable & RawRepresentable>(
         title: String,
         action: Selector,
-        titleFor: (Choice) -> String
+        titleFor: (Choice) -> String,
+        isEnabled: (Choice) -> Bool = { _ in true }
     ) -> (parent: NSMenuItem, items: [NSMenuItem]) where Choice.RawValue == String {
         let parentItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: title)
+        // AppKit's automatic validation would re-enable anything with a target and
+        // an action, which is exactly what `isEnabled` is here to override.
+        submenu.autoenablesItems = false
 
         let items = Choice.allCases.map { choice in
             let item = NSMenuItem(title: titleFor(choice), action: action, keyEquivalent: "")
             item.target = self
             item.representedObject = choice.rawValue
+            item.isEnabled = isEnabled(choice)
             submenu.addItem(item)
             return item
         }
@@ -462,18 +498,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let (parent, items) = makeChoiceMenuItem(
             title: "Choose Workling",
             action: #selector(selectFamily(_:)),
-            titleFor: familySelectionTitle(for:)
+            titleFor: familySelectionTitle(for:),
+            // A family with no sprite sheet is listed but not pickable: the lane
+            // stays visible so the roster reads as five, and it un-greys on its
+            // own the moment its art is baked.
+            isEnabled: \.hasArt
         )
         familyMenuItems = items
         return parent
     }
 
     private func familySelectionTitle(for family: PetFamily) -> String {
-        switch family {
+        let name = switch family {
         case .wildkin: "Wildkin — Moss-Fox"
         case .elemental: "Elemental — Ember-Newt"
         case .relicborn: "Relicborn — Keyback Pangolin"
+        case .glitchkin: "Glitchkin — Sparktail"
+        case .bloomglass: "Bloomglass — Starpetal Fawn"
         }
+        // A family exists mechanically before its sprite sheet is baked, so the
+        // menu says so rather than quietly offering a placeholder-glyph pet.
+        return family.hasArt ? name : "\(name) (coming soon)"
     }
 
     private func makeClassMenuItem() -> NSMenuItem {
@@ -533,7 +578,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc
     private func selectFamily(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
-              let family = PetFamily(rawValue: rawValue) else {
+              let family = PetFamily(rawValue: rawValue),
+              // The menu already greys these out; this keeps the invariant true
+              // rather than merely unreachable through the UI.
+              family.hasArt else {
             return
         }
         if let companionController {

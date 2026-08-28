@@ -27,6 +27,7 @@ abilities, dungeons, and the class/family splits all land here as they take shap
 - [Abilities](design/abilities.md) — the first class-specific ability each, the ability-point currency, and the status-effect primitive combat needs. *Design direction.*
 - [Items & gear](design/items.md) — the read-time effective-stats model, slots, and a base item set. *Design direction.*
 - [Sprite prompts](design/sprite-prompts.md) — ready-to-use generation prompts for the new combat poses and the Cache Warren foes.
+- [Reusable quadruped animation pipeline](design/quadruped-animation-pipeline.md) — proposed Rigify template, family-profile, action-archetype, and character-adapter system for sharing animation structure across different creatures. *Design direction.*
 
 ## engineering/ — how it's built
 

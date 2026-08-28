@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import CompanionCore
 import Foundation
+import SceneKit
 import SwiftUI
 
 /// Which side of the arena a bit of speech belongs above.
@@ -588,7 +589,7 @@ final class CombatPanelController {
         // No .closable — the in-panel Close/Return is the only exit, so the
         // dismiss path (and the companion's return) always runs.
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720),
             styleMask: [.titled, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -660,7 +661,7 @@ struct DelvePanelView: View {
                 )
             }
         }
-        .frame(width: 600, height: 480)
+        .frame(width: 1280, height: 720)
         .animation(.easeInOut(duration: 0.25), value: delve.phase)
     }
 }
@@ -1031,7 +1032,7 @@ struct CombatPanelView: View {
             arena
             controlBar
         }
-        .frame(width: 600, height: 480)
+        .frame(width: 1280, height: 720)
         .background(stageBackground)
         .foregroundStyle(.white)
     }
@@ -1613,68 +1614,31 @@ private struct Sparkles: View {
 /// translucent atmosphere layer over it for parallax life, and a faint darkening
 /// so the fighters and text read on top. Falls back to a gradient if the art is
 /// missing.
+/// The live 3D stage — room geometry + the Cache Warren's locked camera, per
+/// `docs/design/dungeons.md`'s "The battle stage — camera & staging" (found
+/// with the Dungeon Stage Camera Tool). Room-only for now: party and foe
+/// still render as the flat SwiftUI views below, not scene billboards yet.
 private struct ArenaBackground: View {
+    private static let scene = DungeonStageScene.build()
+    // Re-centered 2026-08-27 alongside the same fix in dungeons.md and the
+    // Dungeon Stage Camera Tool — the prior target skewed the frame toward
+    // the top-right, leaving a dead zone bottom-left.
+    private static let cameraNode = DungeonStageScene.makeCamera(
+        position: SCNVector3(16.65, 17.76, 13.14),
+        lookingAt: SCNVector3(-1.92, -0.10, 2.29),
+        in: scene
+    )
+
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.11, green: 0.10, blue: 0.17), Color(red: 0.05, green: 0.05, blue: 0.09)],
-                startPoint: .top, endPoint: .bottom
-            )
-            if let backdrop = DungeonArtAsset.caveBackdrop {
-                Image(decorative: backdrop, scale: 1, orientation: .up)
-                    .resizable()
-                    .scaledToFill()
-            }
-            if let atmosphere = DungeonArtAsset.atmosphere {
-                AtmosphereDrift(image: atmosphere)
-                    .allowsHitTesting(false)
-            }
+            SceneView(scene: Self.scene, pointOfView: Self.cameraNode, options: [])
+                .ignoresSafeArea()
             LinearGradient(
                 colors: [.black.opacity(0.42), .black.opacity(0.14), .black.opacity(0.34)],
                 startPoint: .top, endPoint: .bottom
             )
         }
         .clipped()
-    }
-}
-
-/// Scrolls the seamless, horizontally-tileable atmosphere overlay to give the
-/// air a slow drift. Two copies chase each other so it loops without a seam.
-private struct AtmosphereDrift: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let image: CGImage
-
-    private static let pointsPerSecond = 10.0
-
-    var body: some View {
-        GeometryReader { geo in
-            let tileWidth = max(geo.size.height * CGFloat(image.width) / CGFloat(image.height), 1)
-            if reduceMotion {
-                tile(tileWidth, geo.size.height)
-            } else {
-                TimelineView(.animation) { context in
-                    let elapsed = context.date.timeIntervalSinceReferenceDate
-                    let phase = CGFloat((elapsed * Self.pointsPerSecond)
-                        .truncatingRemainder(dividingBy: Double(tileWidth)))
-                    HStack(spacing: 0) {
-                        tile(tileWidth, geo.size.height)
-                        tile(tileWidth, geo.size.height)
-                    }
-                    .offset(x: -phase)
-                    .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
-                    .clipped()
-                }
-            }
-        }
-    }
-
-    private func tile(_ width: CGFloat, _ height: CGFloat) -> some View {
-        // The overlay is a pale haze; keep it very faint so it drifts as
-        // atmosphere without washing the cave out or flattening the fighters.
-        Image(decorative: image, scale: 1, orientation: .up)
-            .resizable()
-            .frame(width: width, height: height)
-            .opacity(0.14)
     }
 }
 
@@ -1873,19 +1837,33 @@ private struct FoeSprite: View {
     let pose: FoePose
     let size: CGFloat
 
+    /// When the current pose began, so a multi-frame pose plays once from its
+    /// first frame each time the foe enters it rather than joining a free-running
+    /// loop mid-swing.
+    @State private var poseBegan = Date()
+
     var body: some View {
         if FoeSpriteAsset.hasArt(foeName) {
-            TimelineView(.periodic(from: .now, by: 0.9)) { context in
+            TimelineView(.periodic(from: .now, by: Self.frameDuration)) { context in
                 sprite(at: context.date)
             }
+            .onChange(of: pose) { _, _ in poseBegan = Date() }
         } else {
             FoePlaceholder(size: size)
         }
     }
 
+    /// 12fps. Slow enough to read as hand-animated beside the pixel art, fast
+    /// enough that an 8-frame swing lands inside a combat beat.
+    private static let frameDuration: TimeInterval = 1.0 / 12.0
+
     private func sprite(at date: Date) -> some View {
         Group {
-            if let image = FoeSpriteAsset.image(foe: foeName, pose: pose) {
+            if let image = FoeSpriteAsset.frame(
+                foe: foeName,
+                pose: pose,
+                index: frameIndex(at: date)
+            ) {
                 Image(decorative: image, scale: 1, orientation: .up)
                     .resizable()
                     .interpolation(.none)
@@ -1899,6 +1877,17 @@ private struct FoeSprite: View {
         .animation(.easeOut(duration: 0.14), value: pose)
     }
 
+    /// Poses play **once and hold their last frame**, which is why the final frame
+    /// of an animated pose must be authored to read as a settle — it is what the
+    /// foe sits on for the rest of the beat. Idle is the exception: it loops.
+    private func frameIndex(at date: Date) -> Int {
+        let count = FoeSpriteAsset.frameCount(foe: foeName, pose: pose)
+        guard count > 1 else { return 0 }
+        let elapsed = max(0, date.timeIntervalSince(poseBegan))
+        let step = Int(elapsed / Self.frameDuration)
+        return pose == .idle ? step % count : min(step, count - 1)
+    }
+
     private func idleBob(at date: Date) -> CGFloat {
         guard pose == .idle else { return 0 }
         let phase = Int(date.timeIntervalSinceReferenceDate / 0.9)
@@ -1908,20 +1897,62 @@ private struct FoeSprite: View {
 
 /// Loads and caches the small foe sprite sets. Each supported foe has an idle,
 /// attack, and hurt PNG, loaded once like the family sheets.
+///
+/// A pose is either a **single still** (one square PNG, the original form) or an
+/// **animation sheet**: a fixed 4-column, row-major grid whose cell size is read
+/// off the sheet's own width. The frame count is declared here per foe and pose
+/// rather than inferred, because a 4×4 sheet is square and would otherwise be
+/// indistinguishable from a single still.
 private enum FoeSpriteAsset {
+    private static let columnCount = 4
+
     static let moteIdle = load("mote-idle")
     static let moteAttack = load("mote-attack")
     static let moteHurt = load("mote-hurt")
 
+    static let snagIdle = load("snag-idle")
+    static let snagAttack = load("snag-attack")
+    static let snagHurt = load("snag-hurt")
+
     static func hasArt(_ foe: String) -> Bool {
-        resourceBase(for: foe) != nil
+        guard let base = resourceBase(for: foe) else { return false }
+        return sheet(base: base, pose: .idle) != nil
     }
 
-    static func image(foe: String, pose: FoePose) -> CGImage? {
+    /// Frames in this foe's pose. 1 means a single still.
+    static func frameCount(foe: String, pose: FoePose) -> Int {
         switch (resourceBase(for: foe), pose) {
+        case ("snag", .attack): return 8
+        default: return 1
+        }
+    }
+
+    /// One frame of a pose. `index` is ignored for single stills.
+    static func frame(foe: String, pose: FoePose, index: Int) -> CGImage? {
+        guard let base = resourceBase(for: foe),
+              let image = sheet(base: base, pose: pose) else { return nil }
+
+        let count = frameCount(foe: foe, pose: pose)
+        guard count > 1 else { return image }
+
+        let cell = image.width / columnCount
+        let clamped = min(max(index, 0), count - 1)
+        return image.cropping(to: CGRect(
+            x: CGFloat((clamped % columnCount) * cell),
+            y: CGFloat((clamped / columnCount) * cell),
+            width: CGFloat(cell),
+            height: CGFloat(cell)
+        ))
+    }
+
+    private static func sheet(base: String, pose: FoePose) -> CGImage? {
+        switch (base, pose) {
         case ("mote", .idle): return moteIdle
         case ("mote", .attack): return moteAttack
         case ("mote", .hurt): return moteHurt
+        case ("snag", .idle): return snagIdle
+        case ("snag", .attack): return snagAttack
+        case ("snag", .hurt): return snagHurt
         default: return nil
         }
     }
@@ -1930,6 +1961,7 @@ private enum FoeSpriteAsset {
         switch foe {
         // Display name → asset base. The Scamp's art files are still `mote-*`.
         case "Dungeon Scamp": return "mote"
+        case "Snag": return "snag"
         default: return nil
         }
     }
@@ -1937,12 +1969,6 @@ private enum FoeSpriteAsset {
     private static func load(_ resourceName: String) -> CGImage? {
         bundledCGImage(resourceName)
     }
-}
-
-/// The dungeon's background art, loaded once.
-private enum DungeonArtAsset {
-    static let caveBackdrop = bundledCGImage("cache-warren-cave-backdrop")
-    static let atmosphere = bundledCGImage("cache-warren-atmosphere-overlay")
 }
 
 /// Loads a bundled PNG as a `CGImage`, from the app bundle or the SwiftPM module

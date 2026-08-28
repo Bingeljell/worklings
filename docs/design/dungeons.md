@@ -190,6 +190,162 @@ The [vertical-slice build notes](#what-a-first-playable-encounter-needs) below a
 starting point; this first playable dungeon widens that slice just far enough to feel like a
 delve, not the whole system at once.
 
+## The battle stage — camera & staging
+
+**Rendering approach:** a live SceneKit 3D room with the existing baked 2D sprite sheets
+billboarded into it as actors — not a flat painted backdrop (today's Cache Warren arena)
+and not live 3D characters either. The room gives real depth and lighting for free; the
+actors stay exactly the assets the [3D→2D pipeline](sprite-prompts.md) already produces,
+so nothing about that pipeline or its pose contract changes. This follows the standing
+call on rendering: baked sprites stay the actor format everywhere in the dungeon, live 3D
+is reserved for the character/gear screen.
+
+**The stage is four depth bands**, near to far: the party floor, an arena gap (where
+attacks and VFX play out), a raised foe platform, and a back wall. No side walls — an
+early pass added them for a sense of enclosure, but they didn't help read the
+composition and were dropped. **The camera never moves once a dungeon is authored** — it's
+staged like a backlot, not a walkable level, so nothing outside the frustum ever needs
+building.
+
+**Per-dungeon (and per-encounter) variety comes from a diagonal entry/exit direction**
+across the frame, not a different camera or new geometry: the party enters one corner,
+the foes hold the opposite, and — planned, not yet built — after a win the party walks
+past the cleared foe toward the exit corner and the shot dissolves into the next
+encounter. The direction can rotate 90° each encounter ("turn left") as the cheap-variety
+mechanism for a future dungeon builder: same room kit, same camera rig, just a different
+corner pairing.
+
+**Found with the Dungeon Stage Camera Tool** (🐾 menu → *Dungeon Stage Camera Tool…*,
+debug builds only, `Sources/Worklings/DungeonStageCameraTool.swift`) — an orbitable grey
+blockout of the four bands with placeholder party/foe billboards, so a standoff
+composition can actually be judged rather than guessed from a still image. Its window is
+a **fixed 1280×720 (16:9, scaled 1080p)** and deliberately not resizable: the same camera
+transform frames differently at a different aspect ratio, so numbers are only meaningful
+measured against that fixed shape.
+
+**The Cache Warren's locked camera:**
+
+```
+position   x 16.65   y 17.76   z 13.14
+target     x -1.92   y -0.10   z 2.29
+azimuth 59.7°   elevation 39.7°   radius 27.95   roll 0.0°
+```
+
+Re-centered 2026-08-27: the prior target (-3.60, -0.63, 5.16) skewed the whole 16:9 frame
+toward the top-right, leaving a large dead zone bottom-left. Same azimuth, elevation, and
+radius — only the look-at point moved, so the diagonal-corner composition below is
+unchanged, just better framed within the fixed shot.
+
+Diagonal direction: **bottom-left (party) → top-right (foes)**, held for every encounter
+in this dungeon. Chosen over a lower, closer "cinematic" angle tested alongside it —
+getting low or close to the party's back costs the depth read between the two ranks, and
+the drama is meant to come from VFX and attack animations at combat time, not the resting
+camera.
+
+**Wired into the real arena (2026-08-20):** the flat painted cave backdrop is gone — the
+live `DungeonStageScene` room, at the locked camera above, is what the Cache Warren's
+actual in-game panel renders now (room-only; see `Sources/Worklings/DungeonStage3D.swift`
+and `CombatPanel.swift`'s `ArenaBackground`). The panel itself resized from 600×480 to
+1280×720 to match. Party and foe **still render as the old flat side-by-side SwiftUI
+columns** — untouched by this pass, not yet repositioned into the diagonal corners or
+turned into real scene billboards.
+
+**How the environment art has to work, so it doesn't look janky:** the room is real 3D
+geometry (the four bands), so its surfaces get **materials** — prompt-generated PBR
+albedo/normal/roughness/height sets keyed to the "buried machine strata" identity —
+applied directly onto that existing blockout, the same way any 3D scene is textured.
+**Not** a single flat painted image dropped in as a backdrop plane: that's exactly what
+would clash, since the near geometry has real depth/perspective from the locked camera's
+elevation and a flat image behind it wouldn't. A painted matte is still fair game for
+anything genuinely distant glimpsed *through* an opening past the back wall — safe from
+ever revealing its flatness specifically because the camera is fixed and never exposes a
+parallax mismatch — but the room itself gets textured as 3D, not papered over with a
+picture.
+
+**Not yet done:** real party/foe marks and turning them into real scene billboards
+(currently the untouched flat 2D columns), the walk-past-and-dissolve transition, and the
+environment materials themselves — the stage is still grey blockout boxes, nothing
+textured yet. Every future dungeon needs its own angle found the same way — only the
+Cache Warren's is locked. **Testing new characters and effects happens in the Dungeon
+Stage Camera Tool first** (same room, real camera, debug billboards) — the plan is to
+extend it to cycle real animated frame sequences before anything gets wired into the
+actual arena, rather than iterating directly against production code.
+
+### Building the room — a modular kit, not a backdrop or a hand-built scene
+
+**Decided 2026-08-28: the flat-painted-backdrop experiment is closed, rejected.** The
+2026-08-27 prototype (toggleable in the camera tool) was a genuine test against real
+reference art, not an assumption — and it failed on two counts, not one. First, the
+"pasted on" read didn't go away: a reference screenshot showed the Ram standing right
+next to a visibly warm torch glow while lit perfectly flat, and the Flicker standing in a
+visibly cyan crystal glow with no cyan pickup at all — neither a contact shadow nor a
+flat color tint nor a directional-light-gradient shader hack fully closed that gap (see
+the checklist below and the 2026-08-27/28 changelog entries for what was tried). Second,
+and more importantly: every one of those fixes was hand-tuned against *this one painted
+image* — sampled colors, guessed light directions, an eyeballed shadow position. None of
+it transfers to the next dungeon's backdrop; each new painted scene would mean re-deriving
+all of it from scratch, by eye, forever. That's not a workflow, it's a one-off patch.
+
+**The room stays real 3D geometry with real lights — the original call — and gets built
+as a reusable, modular kit rather than one bespoke scene per dungeon:**
+
+1. **Model a small kit of pieces in Blender**, not one monolithic room mesh: a floor
+   tile, a wall segment, a corner piece, and per-dungeon props (a torch/brazier, a
+   crystal cluster) matching that dungeon's identity — Cache Warren's "buried machine
+   strata" for the first one. This reuses the same scripted-Blender workflow already
+   built for the character rigs and stage camera (`image-to-3dlab/scripts/blender_*.py`,
+   talking to a running Blender over the `execute_code` RPC), which is a *better* fit for
+   boxy, parametric room geometry than it ever was for organic character meshes.
+2. **Export each piece** (`.usdz` or `.dae`) and import into SceneKit — real geometry,
+   real materials, lit by real `SCNLight` nodes positioned where the dungeon's fixtures
+   are (a warm point light at the torch, a cool one at the crystals). This is what makes
+   lighting consistency **free** across every future dungeon: place lights and swap
+   materials, and both the room *and* any character standing in it (once billboards
+   respond to real lighting instead of `.constant`, or once live 3D actors land — see
+   the "Effects" section above) pick up the same light automatically. No per-image
+   re-tuning, ever again.
+3. **Assemble each dungeon's room by placing kit pieces — start with Xcode's own
+   built-in SceneKit `.scn` scene editor**, not custom tooling: drag a piece in,
+   position it with the standard 3D gizmos, drop in a light, preview live. This is
+   already the "click to lay down ground, then add props" experience a world-editor
+   habit expects, and it ships free with Xcode — no reason to build a replacement until
+   it's proven insufficient.
+4. **Deferred, noted for later, not started:** a **custom browser-based dungeon-builder
+   tool** — a lightweight visual layout tool purpose-built for arranging this kit and
+   saving a room's layout as *data* (piece + transform per placement) rather than a
+   compiled `.scn` file, which would let rooms be authored or tweaked without a Swift
+   rebuild. Worth building once Xcode's editor's limits are actually felt (e.g. needing
+   runtime-loadable layouts, or non-engineers authoring rooms) — not before.
+
+### Effects — baked vs. live
+
+Two different kinds of "effect" on a character, deliberately handled differently:
+
+- **Pose-inherent effects stay baked into the sprite.** The signature pose's
+  family-coloured aura (§7 of [the bake spec](bake-spec.md) — Elemental's orange fire,
+  Wildkin's green nature-glow, etc.) is part of that pose's own render, same as it always
+  was. It doesn't change per-encounter, so there's nothing to gain by pulling it out.
+- **Everything else was meant to be a live layer — the Tempest Ram's crackle overturned
+  that.** The original plan: hit impacts, elemental bursts, character theming all get
+  built as reusable in-engine effects (particles/shaders/sprite overlays layered on top
+  of the billboard) rather than rendered into new Blender frame sequences, since baking
+  multiplies every effect variant against every pose × every character. **First real test
+  case (2026-08-27) went the other way.** A live 2D overlay on the flat billboard was
+  tried first and abandoned — it has no information about the mesh's actual surface, so
+  it couldn't trace the horn ridges / wool-tuft edges / joints the reference art called
+  for ("electricity crawling on the body," contours taken into account). Rebuilt instead
+  as a Blender material effect: a per-vertex curvature attribute drives an emissive
+  shader, with a frame-driven traveling sweep (forward pass → pause → reverse pass →
+  pause, tuned to loop seamlessly with the idle action) plus small floating spark/arc
+  anchors. Full story and the iteration it took to get there in the 2026-08-27 changelog
+  entries. **Revised guidance**: an effect that needs to read as tracing the character's
+  real 3D form (crackle veins, armor seams, anything contour-following) belongs baked
+  into the material, at the cost of a re-bake per action; an effect that's genuinely
+  independent of surface shape (a screen-space flash, a detached particle burst) is
+  still a better fit for a live layer. Only baked for the Ram's idle pose so far — the
+  walk/headbutt/damage actions would each need their own pass/pause timing re-tuned to
+  that action's own frame range, not a blind copy of idle's numbers.
+
 ## The Cache Warren
 
 *Setting — the **first** dungeon's, not the world's. Worklings is a broad universe, and
@@ -406,3 +562,28 @@ noted, not being tuned yet.** Enemy-ability, [ability](abilities.md#knobs), and
 4. **Randomness** — confirm seeded-per-encounter PRNG (reproducible, testable) over live RNG.
 5. **Encounter breadth** — v1 single-foe; when do multi-foe groups and targeting arrive?
 6. **First abilities** — promote each class's Signature into its first costed ability (moves to `abilities.md`).
+7. **Combat-impact readability at range** (2026-08-22) — the diagonal stage keeps party
+   and foe on opposite corners, real physical distance apart. How does an attack actually
+   *land* visually across that gap? Parked, not designed — effects (see above) are the
+   likely answer but unconfirmed. One stopgap floated, deliberately janky but cheap: both
+   combatants fly to the center on an attack, the attacker hits, the defender winces, both
+   fly back to their corners. Worth a mock before committing either way.
+8. **Impact frames** (2026-08-27) — hit-stop, camera shake, dust/debris bursts on a
+   stomp or landed hit; the single biggest lever for combat feeling weighty rather than
+   just animated. Genuinely blocked, not just unstarted: it needs to hook into the real
+   combat loop (`CombatPanel.swift`'s beat system) and shake/freeze a real `SCNNode`,
+   and the real arena still renders party/foe as flat SwiftUI columns, not scene
+   billboards (item below). Can be prototyped in the Dungeon Stage Camera Tool first
+   (freeze + shake + dust burst on the Ram's headbutt, same "test in the tool first"
+   pattern as everything else) without waiting on that wiring.
+9. **RESOLVED (was: flat painted backdrop vs. the live 3D room).** The backdrop
+   experiment (2026-08-27, toggleable in the camera tool) is closed and rejected — see
+   "Building the room — a modular kit, not a backdrop or a hand-built scene" above for
+   the full reasoning and the adopted plan (a modular Blender-built kit imported into a
+   real, lit SceneKit room, assembled with Xcode's own `.scn` editor). The diagnostic
+   checklist it produced (contact shadow done; haze, render-fidelity, and directional
+   light still open) stays useful context for building the kit's materials and lighting,
+   but the flat-image strategy itself is not being pursued further.
+   Whichever way this resolves, it resolves for *all* future dungeons, not just Cache
+   Warren — worth deciding deliberately once the checklist above is further along,
+   not mid-way through it.

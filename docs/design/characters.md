@@ -19,8 +19,17 @@ The five families form five thematic lanes — nature, elements, machinery, ener
 | **Wildkin** | Nature | Creatures shaped by living ecosystems and natural magic. | Moss-fox |
 | **Elemental** | Elements | Creatures whose elemental affinity is part of their anatomy. | Ember-newt |
 | **Relicborn** | Machinery | Creatures bonded to ancient mechanisms, relics, or rune-powered artifacts. | Keyback pangolin |
-| **Glitchkin** | Energy | Creatures born in the seams between systems — signal, speed, and unstable reality. | — *(design-stage; no art yet)* |
-| **Bloomglass** | Cosmos | Creatures of celestial stillness — starlight, crystal, and refracted moonlight. | — *(design-stage; no art yet)* |
+| **Glitchkin** | Energy | Creatures born in the seams between systems — signal, speed, and unstable reality. | — *(coming soon — art pending)* |
+| **Bloomglass** | Cosmos | Creatures of celestial stillness — starlight, crystal, and refracted moonlight. | — *(coming soon — art pending)* |
+
+All five families now exist in code (`PetFamily`). Glitchkin and Bloomglass are complete
+except for their **art**, so `PetFamily.hasArt` marks them and the family menu lists them
+**"(coming soon)" and greyed out** — visible, so the roster reads as five lanes, but not
+selectable until a sheet exists. Both the menu state and the selection handler key off
+`hasArt`, so each un-greys on its own the moment its art lands. Their stat lean and passive remain
+designed-not-built, the same as the other three families'. Their arrival is what unblocks
+the two stats — Guard and Agility — whose [item attunement](items.md#family-attunement--the-soft-synergy-layer) had no
+family to point at.
 
 ### Species
 
