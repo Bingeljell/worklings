@@ -11,6 +11,7 @@ import SwiftUI
 /// permanent utility — every future dungeon needs its own angle checked the
 /// same way, and it's how the Cache Warren's locked camera (now wired into
 /// the real arena) was found in the first place.
+@MainActor
 enum DungeonStageCameraToolScene {
     /// 2× the original placeholder sizing — first pass at "too small," per
     /// the 2026-08-21 review. An eyeballed guess, not a calibrated scale.
