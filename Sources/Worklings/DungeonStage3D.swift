@@ -30,23 +30,37 @@ enum DungeonStageScene {
 
         // Depth bands, near (party) to far (back wall) — see the "Reading this"
         // notes in the blocking diagram for what each one stands in for.
-        scene.rootNode.addChildNode(band(
+        // Named so a caller (e.g. the camera tool's backdrop-mode toggle,
+        // 2026-08-27) can hide/show the blockout as a group without this
+        // function needing to know why.
+        let partyFloor = band(
             22, 0.3, 9, at: 0, -0.15, 7,
             color: NSColor(calibratedRed: 0.42, green: 0.34, blue: 0.24, alpha: 1)
-        )) // party floor — oversized on purpose, so it reaches past frame edges
-           // however the shot ends up panned/rotated rather than getting cropped
-        scene.rootNode.addChildNode(band(
+        ) // party floor — oversized on purpose, so it reaches past frame edges
+          // however the shot ends up panned/rotated rather than getting cropped
+        partyFloor.name = "bandPartyFloor"
+        scene.rootNode.addChildNode(partyFloor)
+
+        let arenaGap = band(
             10, 0.1, 3, at: 0, -0.35, 1.5,
             color: NSColor(calibratedWhite: 0.03, alpha: 1)
-        )) // arena gap, recessed so it reads as its own zone
-        scene.rootNode.addChildNode(band(
+        ) // arena gap, recessed so it reads as its own zone
+        arenaGap.name = "bandArenaGap"
+        scene.rootNode.addChildNode(arenaGap)
+
+        let foePlatform = band(
             9, 0.6, 3.5, at: 0, 0.1, -2,
             color: NSColor(calibratedRed: 0.22, green: 0.26, blue: 0.28, alpha: 1)
-        )) // foe platform, raised
-        scene.rootNode.addChildNode(band(
+        ) // foe platform, raised
+        foePlatform.name = "bandFoePlatform"
+        scene.rootNode.addChildNode(foePlatform)
+
+        let backWall = band(
             10, 5, 0.3, at: 0, 2.2, -4,
             color: NSColor(calibratedRed: 0.12, green: 0.13, blue: 0.15, alpha: 1)
-        )) // back wall
+        ) // back wall
+        backWall.name = "bandBackWall"
+        scene.rootNode.addChildNode(backWall)
 
         // Key light — warm, low angle, upper-left, matching the blocking diagram.
         let key = SCNLight()

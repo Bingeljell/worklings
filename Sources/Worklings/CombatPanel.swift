@@ -1620,9 +1620,12 @@ private struct Sparkles: View {
 /// still render as the flat SwiftUI views below, not scene billboards yet.
 private struct ArenaBackground: View {
     private static let scene = DungeonStageScene.build()
+    // Re-centered 2026-08-27 alongside the same fix in dungeons.md and the
+    // Dungeon Stage Camera Tool — the prior target skewed the frame toward
+    // the top-right, leaving a dead zone bottom-left.
     private static let cameraNode = DungeonStageScene.makeCamera(
-        position: SCNVector3(14.96, 17.22, 16.02),
-        lookingAt: SCNVector3(-3.60, -0.63, 5.16),
+        position: SCNVector3(16.65, 17.76, 13.14),
+        lookingAt: SCNVector3(-1.92, -0.10, 2.29),
         in: scene
     )
 

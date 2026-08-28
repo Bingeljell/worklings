@@ -22,6 +22,7 @@ let package = Package(
                 .copy("../../assets/worklings-elemental-spritesheet.png"),
                 .copy("../../assets/worklings-relicborn-spritesheet.png"),
                 .copy("../../assets/worklings-smoke-effects.png"),
+                .copy("../../assets/dungeons/cache-warren-v1-noChars.png"),
                 .copy("../../assets/foes/mote-idle.png"),
                 .copy("../../assets/foes/mote-attack.png"),
                 .copy("../../assets/foes/mote-hurt.png"),
