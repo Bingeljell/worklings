@@ -166,6 +166,21 @@ Commit the **assembled sheets only**. Keep `.blend` files and per-pose intermedi
 renders out of git (or under LFS) — the repo's history is already heavy, and a 2048×2560
 RGBA sheet is roughly 4× the old one.
 
+**Where that lives:** `~/projects/worklings-blender-work/` (a sibling directory to this
+repo, not inside it — nothing under it is git-tracked here). Two things go there:
+
+- **One `.blend` per character** at the top level — e.g.
+  `tempest-ram-rigify-natural-walk.blend`, `clockwork-pangolin-rigify.blend` — each
+  carrying that character's mesh, Rigify rig, actions, and (per §2/§10) its
+  `CAM_TARGET`/`QuickCam2` camera rig. This is the reusable working file per character;
+  see "Per-character workflow" above for why it's one file per character rather than
+  one shared file.
+- **`test-renders/stage-frames/`** — the raw baked PNG frame sequences `blender_stage_bake.py`
+  (§10) produces, named `<character>_<action>_az<azimuth>_f<frame>.png`. This is
+  dev-preview output for the dungeon-stage tool, not the final §5 sheets above — no
+  grid assembly, no 512px downsample, nothing committed. Frame-selection and sheet
+  assembly (turning this into the real §5/§9 deliverable) hasn't started yet.
+
 ## 6. The rig — as built
 
 **This section records the rig that exists, and supersedes the earlier draft in this
@@ -184,6 +199,35 @@ that has to be applied and fixed up per rig. Here the motion lives in the script
 names, and a new character costs a marker pass. The consequence is the same as before but
 sharper: **a rig that renames a bone silently opts out of every gait**, so names are not
 a convention, they are the interface.
+
+### Per-character workflow
+
+**One `.blend` file per character** — not one shared file with every character imported.
+A new character's file gets its own mesh import, its own rig fit (the marker pass above),
+and its own action names; nothing about authoring wants them to share a scene graph, and
+a shared file would mean every character's actions live in one flat `bpy.data.actions`
+namespace, fighting over names like `Walk`.
+
+What *is* shared, and copied forward into each new file rather than re-decided: the
+rig-building script (this section), the marker system, the lighting rig (§3), and the
+room-locked camera convention (§2 for character-screen facing, §10 for dungeon-stage
+facing) — those values don't change per character, only the mesh being fitted to them
+does. `blender_stage_bake.py` (§10) makes the *render* step mechanical once a file has
+the camera rig — but building that rig in the first place (the `CAM_TARGET` empty +
+`QuickCam2` ortho camera, §2) is still manual RPC surgery per file, and it's the part
+that just broke: Pangolin's rig was built ad hoc during the 2026-08-26 session and never
+saved, and its ortho scale was sized off bbox height alone, which clips on any body
+that isn't roughly as tall as it is long (§10 Open has the full story). **Not yet
+built, worth doing before the next character**: a `blender_build_stage_rig.py` that
+takes an already-rigged-and-animated file, builds the `CAM_TARGET`/`QuickCam2` rig at
+the mid-body height read off the mesh's own world bbox, sizes ortho scale off the
+*posed* extent across every action at both stage azimuths (not just a rest-pose
+height guess), and — since `DungeonStageCameraTool.swift`'s `groundOffsetFraction`
+table has to be hand-updated every time ortho scale changes, which is exactly the kind
+of step that gets forgotten — writes a small per-character metadata file (ortho scale,
+ground-offset fraction, bbox) that `StageFrameLibrary` could read instead of the
+hardcoded Swift dictionary. That would close the loop: mesh in, camera rig and
+metadata out, no manual RPC and no Swift edit, for every character after this one.
 
 ### Hierarchy
 
@@ -403,12 +447,16 @@ vertical half — never cross top/bottom:
 | Bake | `CAM_TARGET` Z | Corner it's for | Produced by |
 | --- | --- | --- | --- |
 | `stageFaceBL` | **+35°** | Top-right (faces down-left, toward the party at BL) | Direct render |
-| `stageFaceTR` | **~235–245°** (not yet narrowed) | Bottom-left (faces up-right, toward the foes at TR) | Direct render |
+| `stageFaceTR` | **245°** | Bottom-left (faces up-right, toward the foes at TR) | Direct render |
 | `stageFaceBR` | mirror of `stageFaceBL` | Top-left (faces down-right, toward BR) | Horizontal mirror |
 | `stageFaceTL` | mirror of `stageFaceTR` | Bottom-right (faces up-left, toward TL) | Horizontal mirror |
 
-Elevation tested at **−28°** (steeper than §2's shipped −18°), bracketed against the
-room's own locked 39.7° elevation. Not locked — see Open.
+Elevation locked at **−28°** (steeper than §2's shipped −18°), bracketed against the
+room's own locked 39.7° elevation. Both azimuths confirmed 2026-08-22 in the dungeon-stage
+tool against the Tempest Ram's real animated rig (walk cycle) rather than a placeholder —
+`stageFaceBL` at 35° first, then `stageFaceTR` narrowed from the 235°/245° bracket to 245°
+(245° read marginally better for face/eye visibility; 235° was judged an acceptable
+alternative, not a clear miss).
 
 **Applies to animated poses too.** Since motion is a real 3D animation on the rig (§6),
 not per-angle hand-drawn art, an animated pose (walk, attack, hurt, die, ...) only needs
@@ -422,48 +470,169 @@ reuse those same frames unchanged, no extra animation authoring.
   turntable rig and this manifest are what keep it a cheap parameter rather than an
   expensive commitment. Bake one character at 0° / −18° / −35° elevation and compare
   three stills before locking.
-- **§10's elevation and back-azimuth are unlocked.** The −28° elevation and ~235–245°
-  `stageFaceTR` azimuth are from a same-day test session using the **Tempest Ram**
-  (Elemental family) — real production mesh, generated via TRELLIS on a Runpod GPU, not a
-  stand-in. The render itself was fast-preview quality (no supersample, ortho scale
-  widened to 2.6 to fit this character's horns) rather than the full §5 pipeline, and the
-  angle numbers are pending an in-scene comparison against the room's live camera before
-  either locks.
-- **Asymmetric-accessory mirroring is unresolved for §10.** §2 already avoids mirroring
-  production Worklings for exactly this reason — the moss-fox's bell, the pangolin's back
-  key, the newt's tail ember land on the wrong side under a horizontal flip. The same
-  problem applies to `stageFaceBR`/`stageFaceTL`, and for animated poses it's now
-  multiplied across every frame, not just one still. Floated but not decided: simplify or
-  drop asymmetric detail specifically for dungeon-scale sprites (small, seen at a
-  distance) while keeping it correct on the character screen, which is a separate live-3D
-  render rather than this baked pipeline. No answer yet.
-- **Animation.** Everything is single-frame today. The frame index in the naming
-  convention is the only concession made in advance.
-- **PICKUP NOTE (2026-08-21, paused mid-session):** Rigify-vs-manual-rig comparison in
-  progress on the Tempest Ram, in `image-to-3dlab` (not this repo). File:
-  `~/projects/worklings-blender-work/tempest-ram-rigify.blend`. Status:
-  - Manual pipeline (§6's rig, `blender_build_rig.py`/`blender_voxel_weights.py`) is done
-    and tuned — see `~/projects/worklings-blender-work/tempest-ram-markers.blend`
-    (Walk + Headbutt actions, both fake-user protected).
-  - Rigify side: used Rigify's **Basic Quadruped** sample metarig, generated, then voxel-
-    weighted onto it by hand in the UI (real Blender tools chained manually: Voxel
-    Remesh → Automatic Weights on the proxy → Data Transfer → Apply). Result: **100%
-    vertex coverage, 0 unweighted verts** — actually cleaner than the manual pipeline's
-    own result. But the Basic Quadruped metarig has **no head/neck/jaw bones** — just
-    spine + 4 legs + pelvis (+ a vestigial `breast.L/R` pair from the shared spine rig
-    component) — so it's not yet a fair full comparison; the manual rig has independent
-    head control and this doesn't, yet.
-  - New scripts written for this: `image-to-3dlab/scripts/rigify_walk_pose.py` +
-    `blender_rigify_walk_cycle.py` — a trot cycle retargeted to Rigify's FK control bones
-    (`front_thigh_fk.L` etc.), reusing the swing/fold math from the manual pipeline's
-    walk cycle. Requires each leg's `IK_FK` custom property (on the `*_parent` bones) set
-    to `1.0` first — Rigify legs default to IK, and FK rotations are silently ignored by
-    the deform bones otherwise. Already confirmed on this rig: local **X** rotation is
-    the swing axis (tested empirically, not assumed).
-  - **Where it was interrupted:** first pass rendered "walking in reverse" (gait ran
-    backward in time). Just applied a fix (negated `t` in the swing's theta) and reran,
-    but the render to confirm the fix worked hadn't come back before the session paused.
-    **Next step: check `rigify_walk2_frame*.png` in the scratchpad / rerun and verify
-    the direction reads correctly before doing anything else.**
-  - Not yet done: adding a head/neck chain to the metarig for a fair comparison, and the
-    actual side-by-side judgment call this whole detour is for.
+- **§10's elevation and both azimuths are now locked** (−28° / 35° / 245°, see the table
+  above) — confirmed 2026-08-22 in-scene against the dungeon-stage tool's live camera,
+  using the **Tempest Ram** (Elemental family)'s real animated rig rather than a
+  placeholder or a single static still. Bumped from 640² to **1024²** the same day once
+  the dungeon-stage tool's window (locked to 1280×720) made the original render look soft
+  by comparison. Still fast-preview quality (no supersample, ortho scale widened to 2.6 to
+  fit this character's horns) and not the full §5 2048²→512 pipeline — the numbers are
+  locked, the pixels backing them are not production-final yet.
+- **Asymmetric-accessory mirroring is unresolved for §10 — but no longer for Pangolin.**
+  §2 already avoids mirroring production Worklings for exactly this reason — an
+  off-center accessory lands on the wrong side under a horizontal flip. Nikhil rebuilt
+  the Clockwork Pangolin fully symmetric (2026-08-27), so its back key no longer poses
+  this problem and it's dropped as a live concern for this character. The general
+  question is still open for any future asymmetric character (the moss-fox's bell, the
+  newt's tail ember were the original examples) — `stageFaceBR`/`stageFaceTL` mirroring,
+  multiplied across every animated frame, not just one still. Floated but not decided:
+  simplify or drop asymmetric detail specifically for dungeon-scale sprites (small, seen
+  at a distance) while keeping it correct on the character screen, which is a separate
+  live-3D render rather than this baked pipeline.
+- **Pangolin's ortho scale was too tight, and it clips in exactly the way a
+  height-derived auto-size predicts.** Found 2026-08-27 by actually looking at the
+  dungeon-stage tool: the Pangolin's tail ran off the frame edge at rest, and got worse
+  mid-animation. Its `CAM_TARGET`/`QuickCam2` rig, built during the 2026-08-26 bake pass,
+  had never been saved back into `clockwork-pangolin-rigify.blend` — reopening the file
+  showed only a bare perspective `Camera`, no turntable rig at all — so there was no
+  record of what ortho scale had even been used. Root cause of the clip once the rig was
+  rebuilt: the Pangolin's world-space bounding box is 2.22 BU nose-to-tail but only 1.11
+  BU tall — over 2× longer than it is tall — and the auto-sizing rule (bbox height × 1.5)
+  that the other two characters' rigs used only accounts for height, so it starved the
+  horizontal axis for a body shape this elongated. Fixed by projecting the evaluated
+  (posed, not just rest) mesh into camera space across every baked action at both stage
+  azimuths and taking the true worst-case extent — 2.59 BU, from the tail mid-swing in
+  `Attack_TailSwipe_CW180` — then setting ortho scale to **3.0** (roughly 15% margin over
+  that measured worst case, not a guess). All five picked actions (§ above) were rebaked
+  at both azimuths with this scale; the `.blend` was resaved with the rig included this
+  time. **Consequence for `groundOffsetFraction`** (`DungeonStageCameraTool.swift`):
+  that fraction is ground-contact-z ÷ ortho-scale, so widening the scale from ~1.67 to
+  3.0 moved Pangolin's value from 0.305 to **0.179** — it was recomputed and updated
+  alongside the rebake, not left stale. Lesson for future characters: don't auto-size
+  ortho scale off bounding-box height alone for a non-compact body plan; a script should
+  measure the full posed-across-all-actions extent (see the reusable-rig-setup item
+  below) rather than repeat this per character by hand.
+- **Animation — rigs done for three characters, export still pending.** The Rigify-vs-manual
+  detour below is settled: Rigify won. As of 2026-08-26, **all three** currently-rigged
+  characters carry a full action set on the Rigify `rig` armature: **Tempest Ram**
+  (`RamWalk_Natural_FrontFix`, `RamHeadbutt_Power`, `RamDamage_ChestLed_Wince`,
+  `RamIdle_Breathe_Paw` — walk/attack/hurt/idle, idle landing this session and closing the
+  "no idle pose yet" gap), **Forest Flicker** (`ForestFlicker_Walk_Feline`,
+  `_Attack_RightSwipe`, `_Damage_Wince_TailDown`, `_Special_DoublePawSlam`,
+  `_Idle_BreatheLook`), and **Clockwork Pangolin** (`Pangolin_Walk_InPlace_v01`,
+  `_Attack_TailSwipe_CW180_Sprite_v03`, `_HitReact_HeadTuck_Sprite_v01`,
+  `_Special_RearSlam_Sprite_v04`, `_Rest_BreatheLook_v01` — Pangolin's file carries several
+  versioned variants per slot; only the picks above have been rendered so far, the rest are
+  unreviewed alternates, not rejects). Frame index in the naming convention (§5) is still
+  the only concession made toward export; actual frame-selection and sheet assembly still
+  hasn't started (see the 2026-08-26 pickup note).
+- **RESOLVED (was: 2026-08-21 pickup note, Rigify-vs-manual rig comparison).** Rigify won
+  outright: the Basic Quadruped metarig's missing head/neck/jaw (the blocker noted below)
+  got a head/neck chain added, closing the gap with the manual rig, and the manual
+  pipeline (`tempest-ram-markers.blend`) hasn't been touched since. `rig` in
+  `tempest-ram-rigify-natural-walk.blend` is the live armature going forward — 283 bones
+  total (Rigify's full mechanism/deform/widget set, not the 25-bone §6 contract count,
+  which only counts the deform layer). The walk-direction bug (gait running backward) is
+  also fixed — confirmed by eye in the dungeon-stage tool, not just by rerunning the
+  render.
+- **RESOLVED (was: 2026-08-22 pickup note, items 1–3).** Idle landed for the Tempest Ram;
+  the reusable frame-sequence render script got built (`blender_stage_bake.py`, see below);
+  and Forest Flicker + Clockwork Pangolin both got rigged with full action sets, not just
+  queued. Item 4 (frame-selection and sheet assembly) is still open — see the new pickup
+  note below, which picks up exactly where this one left off.
+- **PICKUP NOTE (2026-08-26, stopping for the night).** Tonight's session took the
+  reusable-render-script item from the previous pickup note and ran it across all three
+  rigged characters:
+  - **`image-to-3dlab/scripts/blender_stage_bake.py`** is the reusable frame-sequence
+    render script from the prior pickup note. Talks to a live Blender over the
+    `execute_code` RPC (port 9876) rather than running headless, so it renders whatever
+    `.blend` is currently open; switching files is the caller's job. Parameterized by
+    action name, label, azimuth, elevation, ortho scale, frame range/step, and resolution.
+    It assumes the section-6/section-2 rig contract (`rig` armature, `CAM_TARGET` empty,
+    ortho camera named `QuickCam2` parented to it) already exists in the file — it never
+    authors that rig itself. Forest Flicker and Pangolin didn't have one yet, so that rig
+    (empty + parented ortho camera, ortho scale auto-sized off the mesh's own bounding-box
+    height × 1.5, matching the §2 ratio) got built once per file before baking.
+  - **All three characters are now baked at both locked stage azimuths** (35°/245°, §10)
+    into `worklings-blender-work/test-renders/stage-frames/` (outside the repo, per the
+    weight policy in §5's "Weight" note) — 1312 frames total, 849MB. Frame policy: full
+    native frame rate (24fps, no subsampling) for actions ≤60 frames — every walk, attack,
+    hit-react, and wince — and half-rate subsampling only for the long idle-breathing loops
+    (121–144 native frames), since those are slow enough that skipping every other frame is
+    invisible. This was a deliberate call against under-sampling (an earlier plan to bake
+    only 4–6 frames per action was rejected as not enough to read as real motion).
+  - **`DungeonStageCameraTool.swift`** now plays these back for real instead of showing the
+    old single frame-08 still: `StageFrameLibrary` indexes the frame folder, and the tool
+    got live pickers so any character/action can be dropped into either the az-35 ("foe")
+    or az-245 ("party") stage-corner slot and compared against the locked camera.
+  - **Pitfall worth remembering**: the first implementation animated the swap via a
+    `CAKeyframeAnimation` on `SCNMaterial.diffuse.contents` with `NSImage` values — this
+    crashes. SceneKit's CA→C3D animation bridge only understands animatable scalar/vector/
+    color types, not opaque images, and throws inside
+    `-[SCNMaterial addAnimationPlayer:forKey:]` the instant the scene's `pointOfView` is
+    set (confirmed via the crash log's exception backtrace, not guessed). The fix was an
+    `SCNAction` sequence (`.run` to swap the texture + `.wait` per frame, `repeatForever`)
+    driven off the node instead of the material — the supported way to animate opaque
+    `contents` in SceneKit. If a future pass ever wants to go back to CA-driven playback for
+    performance, this is why it can't be a plain keyframe animation.
+  - **RESOLVED same night — verified by eye, and two real bugs found and fixed.** Checked
+    against the actual running tool (not just "compiles"):
+    1. **Playback was in slow motion.** The tool played every billboard back at a hardcoded
+       12fps regardless of how the frames were sampled. Walk/attack/hit-react/wince were
+       baked at full native rate (24fps, step 1 — see the frame-policy note above), so
+       playing them at 12fps ran everything at exactly half real speed. Fixed by having
+       `StageFrameLibrary` read the actual gap between consecutive baked frame indices (the
+       `_f###` in each filename) and derive playback fps as `24 / step` per selection,
+       instead of assuming one fixed rate for every action.
+    2. **Forest Flicker and Pangolin were clipping into the stage platforms.** Root cause:
+       each character's own baked frame puts its ground-contact line at a different
+       fraction of the frame height — a function of that file's `CAM_TARGET` z divided by
+       its camera's ortho scale (Ram 0.196, Flicker 0.335, Pangolin 0.305 — Flicker's
+       ground line sits nearly twice as far from frame-center as Ram's). The tool's two
+       billboards had one fixed node-y each, tuned by eye against whichever character
+       happened to be loaded when it was last dragged into place, so swapping characters
+       via the picker silently broke the ground alignment for anyone but that one
+       character. Fixed by reading the real platform-top heights straight out of
+       `DungeonStageScene.build()` (foe platform top = 0.4, party floor top = 0.0 —
+       `DungeonStage3D.swift`) and repositioning each billboard's node to
+       `platformTop + groundOffsetFraction × planeHeight` every time a selection changes,
+       using the per-character fractions above instead of one number for everyone.
+    Both confirmed fixed against the live tool, not just by reasoning about the code.
+  - Still open, unchanged from before: frame-selection and sheet assembly per §5/§9 haven't
+    started (everything baked so far is stage-preview output, not sprite-sheet export); the
+    asymmetric-accessory mirroring question (two bullets up) now applies to Pangolin's
+    back-key too, visible in the renders; and Pangolin's several versioned attack/special
+    actions haven't been reviewed against each other to pick a canonical one.
+  - **Separate, adjacent backlog surfaced in conversation tonight, not yet in this doc's
+    scope**: the Cache Warren's actual bestiary needs animation too — Snag has a model but
+    no rig/actions yet, and the delve's final boss has a model with animation not yet
+    started either. Neither has a `.blend` in `worklings-blender-work/` yet, so there's
+    nothing for `blender_stage_bake.py` to run against until that rigging pass happens.
+  - **Open discussion, raised tonight, not decided: shipped frame budget.** Tonight's bake
+    is 1312 frames across three characters and lives outside git — fine for a dev-preview
+    tool, but a real question once frame-selection/sheet-assembly (bullet above) actually
+    starts: how many frames per action does the *shipped* game need once more characters,
+    foes, and combat effects stack up? §9 already caps a foe's attack at 8 frames played
+    once at 12fps and idle at a small loop, which is nowhere near tonight's raw per-action
+    counts (32–72) — so the shipping budget is probably fine by design, but it hasn't been
+    checked against this session's real numbers yet. Pick up tomorrow.
+  - **Raised tonight, thought settled — reopened 2026-08-27.** The stage room today is
+    flat-colored `SCNBox` blockout geometry (`DungeonStage3D.swift`), obviously
+    placeholder, which raised the question of whether a baked 2D image could stand in
+    for it the way sprites do for characters. This entry originally said no, settled,
+    room stays real 3D geometry with PBR materials. **That call is back open** — real
+    reference art (a full painted cave scene, camera-matched) made the flat-backdrop
+    case concrete enough to actually test rather than assume against. See
+    `docs/design/dungeons.md`'s Open item 9 for the live checklist (contact shadow done,
+    atmospheric depth/render-fidelity/directional-light matching still open) and the
+    2026-08-27 changelog entries for what's been tried so far in the Dungeon Stage
+    Camera Tool. Not re-decided yet either way.
+  - **New reusable technique, 2026-08-27: curvature-driven emissive materials.** Built
+    for the Tempest Ram's electrical crackle (full story in dungeons.md's "Effects —
+    baked vs. live" and the same-day changelog entries) — a per-vertex curvature
+    attribute (bmesh, vertex-normal-vs-neighbor-average, percentile-clipped to isolate
+    real ridges from noise) drives an emissive Mix Shader, with frame-number drivers for
+    timing so the effect needs no per-frame authoring. Worth reaching for again for any
+    future character effect that has to trace the mesh's actual contours rather than
+    sit in flat image space — Forest Flicker's glitch theming is the next likely
+    candidate, whenever its animation set is far enough along to be worth juicing.

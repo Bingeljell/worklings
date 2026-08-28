@@ -226,10 +226,15 @@ measured against that fixed shape.
 **The Cache Warren's locked camera:**
 
 ```
-position   x 14.96   y 17.22   z 16.02
-target     x -3.60   y -0.63   z 5.16
+position   x 16.65   y 17.76   z 13.14
+target     x -1.92   y -0.10   z 2.29
 azimuth 59.7°   elevation 39.7°   radius 27.95   roll 0.0°
 ```
+
+Re-centered 2026-08-27: the prior target (-3.60, -0.63, 5.16) skewed the whole 16:9 frame
+toward the top-right, leaving a large dead zone bottom-left. Same azimuth, elevation, and
+radius — only the look-at point moved, so the diagonal-corner composition below is
+unchanged, just better framed within the fixed shot.
 
 Diagonal direction: **bottom-left (party) → top-right (foes)**, held for every encounter
 in this dungeon. Chosen over a lower, closer "cinematic" angle tested alongside it —
@@ -261,7 +266,39 @@ picture.
 (currently the untouched flat 2D columns), the walk-past-and-dissolve transition, and the
 environment materials themselves — the stage is still grey blockout boxes, nothing
 textured yet. Every future dungeon needs its own angle found the same way — only the
-Cache Warren's is locked.
+Cache Warren's is locked. **Testing new characters and effects happens in the Dungeon
+Stage Camera Tool first** (same room, real camera, debug billboards) — the plan is to
+extend it to cycle real animated frame sequences before anything gets wired into the
+actual arena, rather than iterating directly against production code.
+
+### Effects — baked vs. live
+
+Two different kinds of "effect" on a character, deliberately handled differently:
+
+- **Pose-inherent effects stay baked into the sprite.** The signature pose's
+  family-coloured aura (§7 of [the bake spec](bake-spec.md) — Elemental's orange fire,
+  Wildkin's green nature-glow, etc.) is part of that pose's own render, same as it always
+  was. It doesn't change per-encounter, so there's nothing to gain by pulling it out.
+- **Everything else was meant to be a live layer — the Tempest Ram's crackle overturned
+  that.** The original plan: hit impacts, elemental bursts, character theming all get
+  built as reusable in-engine effects (particles/shaders/sprite overlays layered on top
+  of the billboard) rather than rendered into new Blender frame sequences, since baking
+  multiplies every effect variant against every pose × every character. **First real test
+  case (2026-08-27) went the other way.** A live 2D overlay on the flat billboard was
+  tried first and abandoned — it has no information about the mesh's actual surface, so
+  it couldn't trace the horn ridges / wool-tuft edges / joints the reference art called
+  for ("electricity crawling on the body," contours taken into account). Rebuilt instead
+  as a Blender material effect: a per-vertex curvature attribute drives an emissive
+  shader, with a frame-driven traveling sweep (forward pass → pause → reverse pass →
+  pause, tuned to loop seamlessly with the idle action) plus small floating spark/arc
+  anchors. Full story and the iteration it took to get there in the 2026-08-27 changelog
+  entries. **Revised guidance**: an effect that needs to read as tracing the character's
+  real 3D form (crackle veins, armor seams, anything contour-following) belongs baked
+  into the material, at the cost of a re-bake per action; an effect that's genuinely
+  independent of surface shape (a screen-space flash, a detached particle burst) is
+  still a better fit for a live layer. Only baked for the Ram's idle pose so far — the
+  walk/headbutt/damage actions would each need their own pass/pause timing re-tuned to
+  that action's own frame range, not a blind copy of idle's numbers.
 
 ## The Cache Warren
 
@@ -479,3 +516,44 @@ noted, not being tuned yet.** Enemy-ability, [ability](abilities.md#knobs), and
 4. **Randomness** — confirm seeded-per-encounter PRNG (reproducible, testable) over live RNG.
 5. **Encounter breadth** — v1 single-foe; when do multi-foe groups and targeting arrive?
 6. **First abilities** — promote each class's Signature into its first costed ability (moves to `abilities.md`).
+7. **Combat-impact readability at range** (2026-08-22) — the diagonal stage keeps party
+   and foe on opposite corners, real physical distance apart. How does an attack actually
+   *land* visually across that gap? Parked, not designed — effects (see above) are the
+   likely answer but unconfirmed. One stopgap floated, deliberately janky but cheap: both
+   combatants fly to the center on an attack, the attacker hits, the defender winces, both
+   fly back to their corners. Worth a mock before committing either way.
+8. **Impact frames** (2026-08-27) — hit-stop, camera shake, dust/debris bursts on a
+   stomp or landed hit; the single biggest lever for combat feeling weighty rather than
+   just animated. Genuinely blocked, not just unstarted: it needs to hook into the real
+   combat loop (`CombatPanel.swift`'s beat system) and shake/freeze a real `SCNNode`,
+   and the real arena still renders party/foe as flat SwiftUI columns, not scene
+   billboards (item below). Can be prototyped in the Dungeon Stage Camera Tool first
+   (freeze + shake + dust burst on the Ram's headbutt, same "test in the tool first"
+   pattern as everything else) without waiting on that wiring.
+9. **Flat painted backdrop vs. the live 3D room — under active test, not decided.**
+   dungeons.md's "no flat backdrop" call (§"The battle stage") is being tested against
+   real reference art, not assumed correct — see the 2026-08-27 changelog entries. A
+   toggleable backdrop mode exists in the Dungeon Stage Camera Tool now. Color match
+   alone isn't the bar — the working diagnosis for "characters look pasted on, not from
+   the same universe" is four separate things, only the first of which is built:
+   - [x] **Contact shadow** — a ground decal anchoring feet to the floor. Done, tuned
+     against the backdrop's own near-black ground values.
+   - [ ] **Atmospheric depth/haze** — the foe corner sits further from camera than the
+     party corner; the backdrop has real depth falloff (dimmer/softer with distance)
+     that the crisp, full-contrast sprite doesn't pick up at all yet.
+   - [ ] **Render-fidelity match** — the backdrop is a soft painted/photoreal render:
+     the character cutouts are clean 3D-render edges. That gap alone reads as "pasted
+     on" independent of color or shadow.
+   - [ ] **Directional light match** — sprites are lit by one fixed, even three-lamp rig
+     (bake-spec §3) regardless of where they stand; the backdrop's light is local and
+     directional. A flat color tint (tried, see changelog) can't fix this — it needs an
+     actual rim/kicker light term, likely a bake-time change per dungeon, not a runtime
+     trick. **In progress (2026-08-28):** a runtime fake — a fragment-shader gradient
+     across the billboard's UV space, warm/bright toward the corner's light source and
+     cool/dim away from it — added as a third toggle in the camera tool, with direction
+     and strength as live-tunable fields since the UV-orientation guess is untested.
+     Not yet judged against reference art; a strength-clamp bug found on the first run
+     (values past 1.0 washed the sprite to a flat color) is fixed.
+   Whichever way this resolves, it resolves for *all* future dungeons, not just Cache
+   Warren — worth deciding deliberately once the checklist above is further along,
+   not mid-way through it.
