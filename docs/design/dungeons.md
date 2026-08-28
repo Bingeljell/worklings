@@ -271,6 +271,52 @@ Stage Camera Tool first** (same room, real camera, debug billboards) — the pla
 extend it to cycle real animated frame sequences before anything gets wired into the
 actual arena, rather than iterating directly against production code.
 
+### Building the room — a modular kit, not a backdrop or a hand-built scene
+
+**Decided 2026-08-28: the flat-painted-backdrop experiment is closed, rejected.** The
+2026-08-27 prototype (toggleable in the camera tool) was a genuine test against real
+reference art, not an assumption — and it failed on two counts, not one. First, the
+"pasted on" read didn't go away: a reference screenshot showed the Ram standing right
+next to a visibly warm torch glow while lit perfectly flat, and the Flicker standing in a
+visibly cyan crystal glow with no cyan pickup at all — neither a contact shadow nor a
+flat color tint nor a directional-light-gradient shader hack fully closed that gap (see
+the checklist below and the 2026-08-27/28 changelog entries for what was tried). Second,
+and more importantly: every one of those fixes was hand-tuned against *this one painted
+image* — sampled colors, guessed light directions, an eyeballed shadow position. None of
+it transfers to the next dungeon's backdrop; each new painted scene would mean re-deriving
+all of it from scratch, by eye, forever. That's not a workflow, it's a one-off patch.
+
+**The room stays real 3D geometry with real lights — the original call — and gets built
+as a reusable, modular kit rather than one bespoke scene per dungeon:**
+
+1. **Model a small kit of pieces in Blender**, not one monolithic room mesh: a floor
+   tile, a wall segment, a corner piece, and per-dungeon props (a torch/brazier, a
+   crystal cluster) matching that dungeon's identity — Cache Warren's "buried machine
+   strata" for the first one. This reuses the same scripted-Blender workflow already
+   built for the character rigs and stage camera (`image-to-3dlab/scripts/blender_*.py`,
+   talking to a running Blender over the `execute_code` RPC), which is a *better* fit for
+   boxy, parametric room geometry than it ever was for organic character meshes.
+2. **Export each piece** (`.usdz` or `.dae`) and import into SceneKit — real geometry,
+   real materials, lit by real `SCNLight` nodes positioned where the dungeon's fixtures
+   are (a warm point light at the torch, a cool one at the crystals). This is what makes
+   lighting consistency **free** across every future dungeon: place lights and swap
+   materials, and both the room *and* any character standing in it (once billboards
+   respond to real lighting instead of `.constant`, or once live 3D actors land — see
+   the "Effects" section above) pick up the same light automatically. No per-image
+   re-tuning, ever again.
+3. **Assemble each dungeon's room by placing kit pieces — start with Xcode's own
+   built-in SceneKit `.scn` scene editor**, not custom tooling: drag a piece in,
+   position it with the standard 3D gizmos, drop in a light, preview live. This is
+   already the "click to lay down ground, then add props" experience a world-editor
+   habit expects, and it ships free with Xcode — no reason to build a replacement until
+   it's proven insufficient.
+4. **Deferred, noted for later, not started:** a **custom browser-based dungeon-builder
+   tool** — a lightweight visual layout tool purpose-built for arranging this kit and
+   saving a room's layout as *data* (piece + transform per placement) rather than a
+   compiled `.scn` file, which would let rooms be authored or tweaked without a Swift
+   rebuild. Worth building once Xcode's editor's limits are actually felt (e.g. needing
+   runtime-loadable layouts, or non-engineers authoring rooms) — not before.
+
 ### Effects — baked vs. live
 
 Two different kinds of "effect" on a character, deliberately handled differently:
@@ -530,30 +576,14 @@ noted, not being tuned yet.** Enemy-ability, [ability](abilities.md#knobs), and
    billboards (item below). Can be prototyped in the Dungeon Stage Camera Tool first
    (freeze + shake + dust burst on the Ram's headbutt, same "test in the tool first"
    pattern as everything else) without waiting on that wiring.
-9. **Flat painted backdrop vs. the live 3D room — under active test, not decided.**
-   dungeons.md's "no flat backdrop" call (§"The battle stage") is being tested against
-   real reference art, not assumed correct — see the 2026-08-27 changelog entries. A
-   toggleable backdrop mode exists in the Dungeon Stage Camera Tool now. Color match
-   alone isn't the bar — the working diagnosis for "characters look pasted on, not from
-   the same universe" is four separate things, only the first of which is built:
-   - [x] **Contact shadow** — a ground decal anchoring feet to the floor. Done, tuned
-     against the backdrop's own near-black ground values.
-   - [ ] **Atmospheric depth/haze** — the foe corner sits further from camera than the
-     party corner; the backdrop has real depth falloff (dimmer/softer with distance)
-     that the crisp, full-contrast sprite doesn't pick up at all yet.
-   - [ ] **Render-fidelity match** — the backdrop is a soft painted/photoreal render:
-     the character cutouts are clean 3D-render edges. That gap alone reads as "pasted
-     on" independent of color or shadow.
-   - [ ] **Directional light match** — sprites are lit by one fixed, even three-lamp rig
-     (bake-spec §3) regardless of where they stand; the backdrop's light is local and
-     directional. A flat color tint (tried, see changelog) can't fix this — it needs an
-     actual rim/kicker light term, likely a bake-time change per dungeon, not a runtime
-     trick. **In progress (2026-08-28):** a runtime fake — a fragment-shader gradient
-     across the billboard's UV space, warm/bright toward the corner's light source and
-     cool/dim away from it — added as a third toggle in the camera tool, with direction
-     and strength as live-tunable fields since the UV-orientation guess is untested.
-     Not yet judged against reference art; a strength-clamp bug found on the first run
-     (values past 1.0 washed the sprite to a flat color) is fixed.
+9. **RESOLVED (was: flat painted backdrop vs. the live 3D room).** The backdrop
+   experiment (2026-08-27, toggleable in the camera tool) is closed and rejected — see
+   "Building the room — a modular kit, not a backdrop or a hand-built scene" above for
+   the full reasoning and the adopted plan (a modular Blender-built kit imported into a
+   real, lit SceneKit room, assembled with Xcode's own `.scn` editor). The diagnostic
+   checklist it produced (contact shadow done; haze, render-fidelity, and directional
+   light still open) stays useful context for building the kit's materials and lighting,
+   but the flat-image strategy itself is not being pursued further.
    Whichever way this resolves, it resolves for *all* future dungeons, not just Cache
    Warren — worth deciding deliberately once the checklist above is further along,
    not mid-way through it.
