@@ -124,6 +124,48 @@ been hand-building editor tooling to compensate for a framework that has none.
 
 That is a real, ongoing tax, separate from the platform question.
 
+## Audience data (added 2026-09-01)
+
+The instinct "casual desktop-pet and MMO players are Windows-first" is right about
+gaming but is the wrong frame for this product, and the right frame argues *harder* for
+cross-platform.
+
+| | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| Steam hardware survey (gamers), Jul 2026 | 93.7% | 2.3% | 4.0% |
+| Stack Overflow 2025, professional use | 49.5% | 32.9% | 27.7% |
+
+Worklings' hook is *developer activity* — commits, Claude Code, Codex feeding pet
+progression. That audience is roughly a third macOS, not two percent. This does not
+rescue Mac-only; it condemns it harder, since Mac-only excludes about two thirds of the
+actual audience.
+
+**The consequence worth pricing in: Linux is not a rounding error here.** At ~28% of
+developers it is nearly level with macOS, where under a gaming frame it would be 4% and
+ignorable. That promotes Linux from "maybe" to a real target, and it is an argument for
+Godot specifically — the only option on this table that reaches Linux at all.
+
+(Developer figures are multi-select and sum past 100; read them as reach, not share.)
+
+## On the cost of rewriting (corrected 2026-09-01)
+
+An earlier version of this doc implied the rewrite was a year-scale risk. That was a
+human-team estimate applied to a case that does not resemble one, and it was wrong.
+
+- **`CompanionCore` is the best case for a port**: pure, deterministic, no platform APIs,
+  and covered by a check suite that acts as a correctness oracle. Port, run the checks,
+  know whether the logic held. Days, not months.
+- **The real asymmetry is that logic has an oracle and UI does not.** Checks confirm the
+  combat maths survived; nothing confirms the character screen feels right or the pet
+  moves correctly on the desktop. That work is taste-driven iteration gated on human
+  judgement, and speed does not remove that bottleneck.
+- **Activity adapters, git watchers and hook integration must be written for Windows and
+  Linux under *any* option.** That is a cross-platform cost, not a Godot cost, and should
+  not be charged to the engine decision.
+
+**Timing:** rewriting now is cheaper than rewriting later — the codebase only grows, and
+the effects layer is precisely the expensive engine-specific work still ahead.
+
 ## Recommendation (not a decision)
 
 **Make the Godot spike be the dungeon vertical slice**, rather than running them in
@@ -141,6 +183,13 @@ camera all at once, and it is the thing we want built anyway.
 
 The alternative — build the effects layer in SceneKit first — spends the most
 engine-specific effort we will spend on the framework least likely to be the destination.
+
+**Sequencing, if Godot is chosen:** spend a day on an asset probe *before* porting any
+logic — load a character's glTF, put it on a floor at the locked camera, play a walk
+action, fire one particle burst. Not because the port is expensive, but because a broken
+rig or animation import is something to discover before the logic move rather than after.
+Godot reads glTF natively so this should be clean; the USDZ import was expected to be
+clean too and cost an afternoon over a Z-up axis mismatch.
 
 ## What is not in question
 
