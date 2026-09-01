@@ -31,12 +31,17 @@ public partial class CacheWarrenScene : Node3D
 
     private StageActor _party = null!;
     private StageActor _foe = null!;
-    private Label _readout = null!;
+    private CombatHud _hud = null!;
+    private DamageNumbers _numbers = null!;
+    private Color _petEnergy, _foeEnergy;
 
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
     private readonly AttackLunge _lunge = new();
     private double _beatTimer;
+    private double _beatLength;
+    private int _round;
+    private Approach _approach = Approach.Clever;
     private string _petName = "Ram";
     private string _foeName = "Flicker";
     private int _petHP, _petMaxHP, _foeHP, _foeMaxHP;
@@ -46,8 +51,10 @@ public partial class CacheWarrenScene : Node3D
     {
         _party = new StageActor(GetNode<Node3D>("Party"), "tempest_ram", ActorAnimations.TempestRam);
         _foe = new StageActor(GetNode<Node3D>("Foe"), "forest_flicker", ActorAnimations.ForestFlicker);
-        _readout = BuildReadout();
-        _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this);
+        _petEnergy = FamilyEnergy.Of(FamilyEnergy.For(_party.ModelName));
+        _foeEnergy = FamilyEnergy.Of(FamilyEnergy.For(_foe.ModelName));
+        _numbers = new DamageNumbers(this);
+        _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this, this);
         StartFight();
     }
 
@@ -65,7 +72,7 @@ public partial class CacheWarrenScene : Node3D
         // Seeded from the clock so each replay differs; a real delve seeds from
         // the save state plus a per-delve nonce instead.
         ulong seed = (ulong)Time.GetTicksUsec();
-        var encounter = new CombatEncounter(pet, foe, Approach.Clever, rates, seed);
+        var encounter = new CombatEncounter(pet, foe, _approach, rates, seed);
         encounter.RunToCompletion();
 
         _petName = pet.Name;
@@ -76,6 +83,9 @@ public partial class CacheWarrenScene : Node3D
         _foeHP = _foeMaxHP;
 
         _lunge.Cancel();
+        _hud ??= new CombatHud(this, _petName, _petMaxHP, _petEnergy,
+                               _foeName, _foeMaxHP, _foeEnergy);
+        _hud.Reset(_petMaxHP, _foeMaxHP);
         _pending.Clear();
         foreach (var e in encounter.Log) _pending.Enqueue(e);
         _beatTimer = 0;
@@ -90,6 +100,8 @@ public partial class CacheWarrenScene : Node3D
         // Impact reactions animate on real time. The freeze applies to the
         // fight, not to the shake and dust working their way out of it.
         _impact.Tick(delta);
+        _hud?.Tick(delta);
+        if (_beatLength > 0) _hud?.SetBeat(1.0 - _beatTimer / _beatLength);
 
         // The attacker freezes at the point of contact during hit-stop rather
         // than sliding through the held frame.
@@ -109,6 +121,7 @@ public partial class CacheWarrenScene : Node3D
         var next = _pending.Dequeue();
         _beatTimer = Apply(next) ? BeatSeconds : 0.0;
         if (_lunge.IsBusy) _beatTimer = System.Math.Max(_beatTimer, AttackLunge.Duration + 0.12);
+        _beatLength = _beatTimer;
         UpdateReadout();
     }
 
@@ -130,7 +143,10 @@ public partial class CacheWarrenScene : Node3D
         _lunge.Begin(attacker, defender, onContact: () =>
         {
             ApplyDamage(toFoe, outcome.Damage);
-            _impact.Strike(defender, direction, severity, outcome.DidCrit || isSignature);
+            var energy = toFoe ? _petEnergy : _foeEnergy;
+            _impact.Strike(defender, direction, severity, outcome.DidCrit || isSignature, energy);
+            _numbers.Spawn(defender.Root.Position, outcome.Damage, energy,
+                           outcome.DidCrit || isSignature);
             UpdateReadout();
         });
     }
@@ -139,7 +155,8 @@ public partial class CacheWarrenScene : Node3D
     /// to show for it, which is what makes a miss read as a miss rather than as
     /// a skipped turn.
     private void ScheduleWhiff(StageActor attacker, StageActor defender) =>
-        _lunge.Begin(attacker, defender, onContact: () => { });
+        _lunge.Begin(attacker, defender,
+                     onContact: () => _numbers.SpawnMiss(defender.Root.Position));
 
     /// Turns one event into what you see. Returns whether it deserves a beat —
     /// bookkeeping events (round markers, decision points) pass through instantly
@@ -197,8 +214,12 @@ public partial class CacheWarrenScene : Node3D
                 _line = x.Victory ? "Victory" : "Defeat";
                 return true;
 
+            case CombatEvent.RoundBegan x:
+                _round = x.Round;
+                return false;
+
             default:
-                return false;   // round markers, decision points, telegraphs
+                return false;   // decision points, telegraphs
         }
     }
 
@@ -208,20 +229,10 @@ public partial class CacheWarrenScene : Node3D
         else _petHP = System.Math.Max(0, _petHP - amount);
     }
 
-    private Label BuildReadout()
+    private void UpdateReadout()
     {
-        var layer = new CanvasLayer();
-        AddChild(layer);
-        var label = new Label
-        {
-            Position = new Vector2(24, 20),
-            Size = new Vector2(600, 120),
-        };
-        label.AddThemeFontSizeOverride("font_size", 22);
-        layer.AddChild(label);
-        return label;
+        _hud.SetHP(_petHP, _foeHP);
+        _hud.SetNarration(_line);
+        _hud.SetStatus($"Round {_round}  ·  {_approach}");
     }
-
-    private void UpdateReadout() =>
-        _readout.Text = $"{_petName}  {_petHP}/{_petMaxHP}\n{_foeName}  {_foeHP}/{_foeMaxHP}\n{_line}";
 }

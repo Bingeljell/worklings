@@ -22,6 +22,14 @@ public sealed class ImpactFrames
     private readonly Vector3 _cameraRest;
     private readonly Node3D _dustParent;
 
+    /// A full-screen white quad, flashed for a few frames on contact.
+    ///
+    /// The anime "impact frame": two or three near-white frames that interrupt
+    /// smooth motion so the eye registers a blow it would otherwise slide past.
+    /// The highest impact-per-effort effect in the whole vocabulary — it is one
+    /// ColorRect — and it works precisely because it is crude.
+    private readonly ColorRect _flash;
+
     /// How long the world freezes on contact. Short — long enough to read as a
     /// held frame, not long enough to feel like a stutter.
     private const double HitStopBase = 0.055;
@@ -47,11 +55,22 @@ public sealed class ImpactFrames
     private double _knockRemaining;
     private float _knockStrength;
 
-    public ImpactFrames(Camera3D camera, Node3D dustParent)
+    public ImpactFrames(Camera3D camera, Node3D dustParent, Node hudParent)
     {
         _camera = camera;
         _cameraRest = camera.Position;
         _dustParent = dustParent;
+
+        var layer = new CanvasLayer { Layer = 2 };   // above the HUD
+        hudParent.AddChild(layer);
+        _flash = new ColorRect
+        {
+            Color = new Color(1, 1, 1, 0),
+            AnchorRight = 1,
+            AnchorBottom = 1,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        layer.AddChild(_flash);
     }
 
     /// True while the world is held on a contact frame. The scene checks this
@@ -59,11 +78,15 @@ public sealed class ImpactFrames
     /// than a slow-motion.
     public bool IsHitStopped => _stopRemaining > 0;
 
-    /// Fire the whole reaction. `severity` is 0..1.
-    public void Strike(StageActor victim, Vector3 fromDirection, double severity, bool crit)
+    /// Fire the whole reaction. `severity` is 0..1. `energy` is the attacker's
+    /// family colour, which tints the spark and the flash so a hit reads as
+    /// belonging to whoever threw it.
+    public void Strike(StageActor victim, Vector3 fromDirection, double severity, bool crit,
+                       Color energy)
     {
         severity = System.Math.Clamp(severity, 0, 1);
         double weight = crit ? System.Math.Min(1, severity + 0.35) : severity;
+        Flash(weight, crit, energy);
 
         _stopRemaining = HitStopBase + HitStopPerSeverity * weight;
         _shakeStrength = ShakeBase + ShakePerSeverity * (float)weight;
@@ -75,7 +98,24 @@ public sealed class ImpactFrames
         _knockRemaining = 0.28;
 
         victim.Play(ActorAction.Wince);
-        SpawnDust(victim.Root.Position, weight);
+        SpawnSpark(victim.Root.Position, weight, energy, crit);
+    }
+
+    /// The impact frame itself: up hard, out fast. Tinted toward the attacker's
+    /// family rather than pure white, so even the loudest moment stays
+    /// identifiable — an Elemental crit flashes violet-white, a Relicborn one
+    /// gold-white.
+    private void Flash(double weight, bool crit, Color energy)
+    {
+        var tint = energy.Lerp(new Color(1, 1, 1), crit ? 0.55f : 0.75f);
+        float peak = (float)(0.30 + 0.45 * weight);
+        double hold = crit ? 0.05 : 0.03;
+        double fade = crit ? 0.16 : 0.10;
+
+        _flash.Color = new Color(tint.R, tint.G, tint.B, peak);
+        var tween = _flash.CreateTween();
+        tween.TweenInterval(hold);
+        tween.TweenProperty(_flash, "color:a", 0.0f, fade).SetEase(Tween.EaseType.Out);
     }
 
     /// Advance the effects. Called with the real frame delta even during
@@ -112,15 +152,18 @@ public sealed class ImpactFrames
         }
     }
 
-    /// A one-shot puff at the point of contact. Built in code rather than as a
-    /// scene file so the whole effect stays readable in one place while it is
-    /// still being tuned.
-    private void SpawnDust(Vector3 at, double weight)
+    /// A burst at the point of contact, in the attacker's family colour.
+    ///
+    /// Replaces the brown dust puff this started as, which read as scenery
+    /// kicked up rather than as a hit — the colour was doing the opposite of
+    /// its job by blending into the floor. Emissive and unshaded so it reads
+    /// against the cave whatever the lighting is doing.
+    private void SpawnSpark(Vector3 at, double weight, Color energy, bool crit)
     {
         var particles = new GpuParticles3D
         {
-            Amount = 8 + (int)(weight * 20),
-            Lifetime = 0.7,
+            Amount = 14 + (int)(weight * 30),
+            Lifetime = crit ? 0.85 : 0.55,
             OneShot = true,
             Explosiveness = 1.0f,
             Position = at + new Vector3(0, 0.35f, 0),
@@ -129,22 +172,29 @@ public sealed class ImpactFrames
         var material = new ParticleProcessMaterial
         {
             Direction = new Vector3(0, 1, 0),
-            Spread = 65,
-            InitialVelocityMin = 1.2f + (float)weight * 2.0f,
-            InitialVelocityMax = 2.4f + (float)weight * 3.0f,
-            Gravity = new Vector3(0, -4.5f, 0),
-            ScaleMin = 0.06f,
-            ScaleMax = 0.16f + (float)weight * 0.12f,
-            Damping = new Vector2(1.5f, 3.0f),
+            // Wide spread and low gravity: a spark scatters outward from the
+            // blow, where dust fell downward from it.
+            Spread = 180,
+            InitialVelocityMin = 2.6f + (float)weight * 3.5f,
+            InitialVelocityMax = 5.0f + (float)weight * 6.0f,
+            Gravity = new Vector3(0, -2.2f, 0),
+            ScaleMin = 0.05f,
+            ScaleMax = 0.13f + (float)weight * 0.14f,
+            Damping = new Vector2(3.0f, 6.5f),
         };
         material.SetParam(ParticleProcessMaterial.Parameter.AngularVelocity, new Vector2(-90, 90));
         particles.ProcessMaterial = material;
 
-        var mesh = new QuadMesh { Size = new Vector2(0.28f, 0.28f) };
+        var mesh = new QuadMesh { Size = new Vector2(0.22f, 0.22f) };
+        var hot = FamilyEnergy.Lift(crit ? FamilyEnergy.Crit : energy, 0.35f);
         mesh.Material = new StandardMaterial3D
         {
-            AlbedoColor = new Color(0.62f, 0.48f, 0.33f, 0.85f),
+            AlbedoColor = new Color(hot.R, hot.G, hot.B, 0.95f),
+            EmissionEnabled = true,
+            Emission = hot,
+            EmissionEnergyMultiplier = crit ? 3.0f : 1.9f,
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            BlendMode = BaseMaterial3D.BlendModeEnum.Add,
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
         };
