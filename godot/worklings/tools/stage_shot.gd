@@ -17,8 +17,8 @@ const OUT := "user://stage_shot.png"
 
 ## [glb basename, slot node name, scale, y-rotation degrees, action substring]
 const ACTORS := [
-    ["tempest_ram", "PartySlot", 3.7, 160.0, "Idle"],
-    ["forest_flicker", "FoeSlot", 2.8, 20.0, "Idle"],
+    ["tempest_ram", "PartySlot", 3.7, -178.36, "Idle"],
+    ["forest_flicker", "FoeSlot", 2.8, -3.66, "Idle"],
 ]
 
 func _ready() -> void:
