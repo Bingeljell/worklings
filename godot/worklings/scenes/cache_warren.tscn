@@ -1,0 +1,17 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/cache_warren.gd" id="script"]
+[ext_resource type="PackedScene" path="res://scenes/dungeon_stage.tscn" id="stage"]
+[ext_resource type="PackedScene" path="res://assets/characters/tempest_ram.glb" id="ram"]
+[ext_resource type="PackedScene" path="res://assets/characters/forest_flicker.glb" id="flicker"]
+
+[node name="CacheWarren" type="Node3D"]
+script = ExtResource("script")
+
+[node name="Stage" parent="." instance=ExtResource("stage")]
+
+[node name="Party" parent="." instance=ExtResource("ram")]
+transform = Transform3D(-3.47686, 0.00000, 1.26547, 0.00000, 3.70000, 0.00000, -1.26547, 0.00000, -3.47686, -3.00, 0.00, 8.50)
+
+[node name="Foe" parent="." instance=ExtResource("flicker")]
+transform = Transform3D(2.63114, 0.00000, 0.95766, 0.00000, 2.80000, 0.00000, -0.95766, 0.00000, 2.63114, 0.00, 0.00, -2.00)
