@@ -3,11 +3,7 @@
 # Exported builds
 build/
 
-# Character source assets stay local for now: tempest_ram.glb alone is 23 MB at
-# full resolution, and the decimation/animation-file pipeline is not settled
-# (see docs/design/dungeons.md). Re-export from worklings-blender-work to
-# populate. Godot also extracts embedded textures next to the .glb on import —
-# those are derived, never source.
-assets/characters/*.glb
-assets/characters/*.webp
-assets/characters/*.import
+# Character exports are tracked now that the asset standard is locked
+# (20k triangles / 1024 textures — docs/engineering/character-asset-pipeline.md).
+# Three characters total 22 MB. See assets/characters/.gitignore for which
+# files are derived and excluded.

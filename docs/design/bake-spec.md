@@ -15,7 +15,8 @@ eventually replaces.
 > tight (2–4 characters per dungeon). This spec still governs the **desktop pet**, where
 > the constraints differ; the stage-bake sections (per-azimuth frame sequences, ground-
 > offset fractions, the stage frame library) are retained as the record of that pass
-> rather than as live guidance for the dungeon.
+> rather than as live guidance for the dungeon. The live-3D path has its own spec —
+> see [character asset pipeline](../engineering/character-asset-pipeline.md).
 ## 1. World scale
 
 One number everything else derives from:
