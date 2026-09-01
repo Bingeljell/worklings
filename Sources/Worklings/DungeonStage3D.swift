@@ -11,6 +11,48 @@ enum DungeonStageScene {
     /// composed at one FOV and rendered at another silently reframes itself.
     static let cameraFieldOfView: CGFloat = 32
 
+
+    /// A material for a room-kit surface: one baked tile texture repeated
+    /// across the surface rather than a unique texture per room. The tile is
+    /// authored 4×4 world units (see `assets/dungeons/kit/`), so a surface
+    /// `w × h` units across repeats it `w/4 × h/4` times.
+    ///
+    /// This is the whole point of the kit — a 22×9 floor is 4 vertices and one
+    /// 1024² texture pair instead of the 21k-vert displaced mesh the Blender
+    /// blockout used. The displacement it replaces was never visible in
+    /// silhouette at this camera's elevation, so it now lives in the normal map.
+    ///
+    /// `.repeat` wrapping plus a scaled `contentsTransform` is what tiles it:
+    /// SceneKit's box UVs run 0–1 per face, so the transform is the only thing
+    /// turning that into multiple repeats.
+    static func tiledKitMaterial(
+        tile: String,
+        surfaceWidth: CGFloat,
+        surfaceDepth: CGFloat,
+        tileSize: CGFloat = 4
+    ) -> SCNMaterial {
+        let material = SCNMaterial()
+        material.lightingModel = .physicallyBased
+        material.diffuse.contents = loadDungeonStageImage("\(tile)_albedo")
+        material.normal.contents = loadDungeonStageImage("\(tile)_normal")
+        material.roughness.contents = 0.9
+
+        let repeatS = surfaceWidth / tileSize
+        let repeatT = surfaceDepth / tileSize
+        let transform = SCNMatrix4MakeScale(repeatS, repeatT, 1)
+        for property in [material.diffuse, material.normal] {
+            property.wrapS = .repeat
+            property.wrapT = .repeat
+            property.contentsTransform = transform
+            // Tiled ground read at a glancing angle is exactly where mip
+            // filtering turns to mush — anisotropy is what keeps the far half
+            // of the floor from smearing into flat colour.
+            property.mipFilter = .linear
+            property.maxAnisotropy = 8
+        }
+        return material
+    }
+
     static func build() -> SCNScene {
         let scene = SCNScene()
         scene.background.contents = NSColor(calibratedWhite: 0.04, alpha: 1)
@@ -39,6 +81,16 @@ enum DungeonStageScene {
         ) // party floor — oversized on purpose, so it reaches past frame edges
           // however the shot ends up panned/rotated rather than getting cropped
         partyFloor.name = "bandPartyFloor"
+        // SCNBox takes six materials in the order front, right, back, left,
+        // top, bottom — only the top face is ever seen, so only it carries the
+        // tile; the rest keep the flat blockout colour.
+        if let sides = partyFloor.geometry?.firstMaterial {
+            partyFloor.geometry?.materials = [
+                sides, sides, sides, sides,
+                tiledKitMaterial(tile: "floorTile", surfaceWidth: 22, surfaceDepth: 9),
+                sides,
+            ]
+        }
         scene.rootNode.addChildNode(partyFloor)
 
         let arenaGap = band(
