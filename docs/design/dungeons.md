@@ -203,10 +203,27 @@ so nothing about that pipeline or its pose contract changes. This follows the st
 call on rendering: baked sprites stay the actor format everywhere in the dungeon, live 3D
 is reserved for the character/gear screen.
 
-**The stage is four depth bands**, near to far: the party floor, an arena gap (where
-attacks and VFX play out), a raised foe platform, and a back wall. No side walls — an
-early pass added them for a sense of enclosure, but they didn't help read the
-composition and were dropped. **The camera never moves once a dungeon is authored** — it's
+**OPEN (2026-09-01): billboards vs. live 3D actors — the room being real changed the
+argument.** The reasoning above was written when the room was grey blockout boxes. The
+room is now real geometry lit by real lights, and billboards draw with `.constant`
+lighting, meaning they ignore lights entirely — so a lit room containing an unlit flat
+sprite reproduces *precisely* the "pasted on" read that killed the flat-backdrop
+experiment, approached from the other side. Meanwhile the case for live 3D strengthened
+on its own: the Ram/Flicker/Pangolin are rigged with walk/idle/attack/wince, a decimation
+ladder at the locked camera showed **12k tris is indistinguishable from the 283k
+original at game size**, and live 3D would delete the bake pipeline for actors entirely
+(no per-azimuth frame sequences, no per-character ground-offset fractions). The cost is
+export and animation wiring — rigged mesh out of Blender into SceneKit with its actions
+intact. Not decided; flagged rather than silently followed. Note this is *independent* of
+impact frames, which need actors in the scene graph and don't care what they're made of.
+
+**The stage is one flat floor** (2026-09-01). It was four depth bands near to far — party
+floor, an arena gap where attacks and VFX play out, a raised foe platform, and a back
+wall — but those were staging scaffolding from before the room was real geometry, and
+the Blender room they were meant to mirror is a single flat floor. Both combatants now
+stand on the same surface, which does cost the two-tier depth read; the kit's platform
+edge piece is where that comes back. No side walls — an early pass added them for a
+sense of enclosure, but they didn't help read the composition and were dropped. **The camera never moves once a dungeon is authored** — it's
 staged like a backlot, not a walkable level, so nothing outside the frustum ever needs
 building.
 
@@ -313,6 +330,26 @@ as a reusable, modular kit rather than one bespoke scene per dungeon:**
    already the "click to lay down ground, then add props" experience a world-editor
    habit expects, and it ships free with Xcode — no reason to build a replacement until
    it's proven insufficient.
+**The floor is one baked tile, repeated — not a mesh (2026-09-01).** The first kit piece
+is built and shipped. The Blender blockout's cave floor was a 21,091-vert mesh carrying
+two Displace modifiers; at the locked camera's 39.7° elevation that displacement never
+read in silhouette, so it was spending 41,600 triangles on shading a normal map gives
+for free. A 200×200-segment 4×4 patch carrying the same displace recipe and material was
+baked down to albedo + normal on a flat quad (`assets/dungeons/kit/`), then made tileable
+with a separable triangular-window cross-dissolve against the half-shifted copy — a
+window that vanishes at the borders and sums to 1 with its own half-shift, so the wrap is
+continuous by construction. Measured seam delta 0.0016 / 0.0060, i.e. the one-pixel wrap
+offset. **Result: 21,091 verts → 4**, no visible seam or repetition across 11×8.5
+repeats. `DungeonStageScene.tiledKitMaterial` is the reusable half — every later piece is
+the same move on different geometry. Known tradeoff: the seamless cross-dissolve softens
+contrast and can ghost; invisible at this camera distance, and the first thing that would
+break if the camera ever pushes in.
+
+**Tiles are authored at 4×4 world units.** A surface `w × h` repeats the tile `w/4 × h/4`
+times via a scaled `contentsTransform`, since SceneKit's box UVs run 0–1 per face.
+Anisotropy is set on the texture properties because tiled ground at a glancing angle is
+exactly where mip filtering smears the far half of the floor into flat colour.
+
 4. **Deferred, noted for later, not started:** a **custom browser-based dungeon-builder
    tool** — a lightweight visual layout tool purpose-built for arranging this kit and
    saving a room's layout as *data* (piece + transform per placement) rather than a
