@@ -47,17 +47,11 @@ public sealed class HealthPlate
         header.AddThemeConstantOverride("separation", 12);
         header.Alignment = mirrored ? BoxContainer.AlignmentMode.End : BoxContainer.AlignmentMode.Begin;
 
-        _name = new Label { Text = name };
-        _name.AddThemeFontSizeOverride("font_size", 26);
-        _name.AddThemeColorOverride("font_color", new Color(0.95f, 0.91f, 0.85f));
-        _name.AddThemeConstantOverride("outline_size", 6);
-        _name.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
-
-        _numbers = new Label { Text = $"{_max} / {_max}" };
-        _numbers.AddThemeFontSizeOverride("font_size", 20);
-        _numbers.AddThemeColorOverride("font_color", new Color(0.66f, 0.60f, 0.51f));
-        _numbers.AddThemeConstantOverride("outline_size", 5);
-        _numbers.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
+        _name = StageType.Label(name.ToUpperInvariant(), 26, StageType.Ink, bold: true);
+        // Letter-spaced caps read as a nameplate rather than as running text —
+        // the one place in the HUD where the type does identity work.
+        _name.AddThemeConstantOverride("outline_size", 7);
+        _numbers = StageType.Label($"{_max} / {_max}", 21, StageType.Muted);
 
         // Numbers sit inboard of the name on the mirrored plate so both plates
         // read outside-in from their own frame edge.

@@ -21,15 +21,16 @@ public sealed class ActorAnimations
     private readonly Dictionary<ActorAction, string> _map;
 
     /// Where in the clip the blow actually connects, 0..1 of its duration.
-    /// Impact frames (hit-stop, shake, dust) fire here rather than at the start
-    /// of the animation, which is what makes a hit look like it landed rather
-    /// than like two things happening near each other.
+    ///
+    /// These sit near the END of the animation. Both attack clips are built as
+    /// a long wind-up into a strike at the finish, so a mid-clip contact fires
+    /// the flash and the damage while the attacker is still rearing back.
     ///
     /// Eyeballed per character and expected to be retuned once the actions are
-    /// trimmed; there is no way to derive it from the file.
+    /// trimmed and shortened; there is no way to derive it from the file.
     public double AttackImpactPoint { get; }
 
-    public ActorAnimations(Dictionary<ActorAction, string> map, double attackImpactPoint = 0.45)
+    public ActorAnimations(Dictionary<ActorAction, string> map, double attackImpactPoint = 0.85)
     {
         _map = map;
         AttackImpactPoint = System.Math.Clamp(attackImpactPoint, 0, 1);
@@ -53,7 +54,7 @@ public sealed class ActorAnimations
             [ActorAction.Wince] = "RamDamage_HeavyFront_Wince",
             [ActorAction.Downed] = "RamDamage_HeavyFront",
         },
-        attackImpactPoint: 0.5);
+        attackImpactPoint: 0.86);
 
     /// The Forest Flicker. Its five actions are already a clean set — one per
     /// beat, no variants — which is what the Ram's should be trimmed down to.
@@ -67,7 +68,7 @@ public sealed class ActorAnimations
             [ActorAction.Wince] = "ForestFlicker_Damage_Wince_TailDown",
             [ActorAction.Downed] = "ForestFlicker_Damage_Wince_TailDown",
         },
-        attackImpactPoint: 0.4);
+        attackImpactPoint: 0.82);
 
     /// Looked up by the .glb basename the actor was loaded from.
     public static ActorAnimations? For(string modelName) => modelName switch
