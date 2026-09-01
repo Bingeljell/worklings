@@ -1,0 +1,13 @@
+# Godot's import cache and generated artefacts — regenerated on first open
+.godot/
+# Exported builds
+build/
+
+# Character source assets stay local for now: tempest_ram.glb alone is 23 MB at
+# full resolution, and the decimation/animation-file pipeline is not settled
+# (see docs/design/dungeons.md). Re-export from worklings-blender-work to
+# populate. Godot also extracts embedded textures next to the .glb on import —
+# those are derived, never source.
+assets/characters/*.glb
+assets/characters/*.webp
+assets/characters/*.import

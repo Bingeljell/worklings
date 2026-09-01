@@ -1,0 +1,16 @@
+78098b89c88a74ebe8c20117b8754620
+::res://::1788262756
+::res://assets/::1788262710
+::res://assets/characters/::1788262710
+tempest_ram_Image_1.webp::CompressedTexture2D::4608734153272395206::1788262757::1788262759::1::::<><><>0<>0<>81114abd553ab8c85ea7c54701bf70e9<>res://.godot/imported/tempest_ram_Image_1.webp-07ea251eeac1d0329bdde55d1e1ef9b2.s3tc.ctex::
+tempest_ram_Image_0.webp::CompressedTexture2D::9173185777357728858::1788262756::1788262759::1::::<><><>0<>0<>5f12b1c529c28b79a6b7dadb36e48484<>res://.godot/imported/tempest_ram_Image_0.webp-a9fe089c4acf9bbf6c9e701b5eafd596.s3tc.ctex::
+tempest_ram.glb::PackedScene::4024900930890098028::1788262710::1788262759::1::::<><><>0<>0<>b7dafad9c471fcc1c0180011c16e9264<>res://.godot/imported/tempest_ram.glb-5b1190b268371820fbb5d823b24bc234.scn::uid://d3xtbae2f074i::::res://assets/characters/tempest_ram_Image_0.webp<>uid://b6wrgb7nrbf8y::::res://assets/characters/tempest_ram_Image_1.webp
+::res://assets/kit/::1788262710
+floorTile_albedo.png::CompressedTexture2D::5115631042646954705::1788262710::1788262756::1::::<><><>0<>0<>fff9a486c4899fb64bf11973a94f8566<>res://.godot/imported/floorTile_albedo.png-f9ad3f87354078a2d1d2b4761443129e.ctex::
+floorTile_normal.png::CompressedTexture2D::8643125264943127753::1788262710::1788262756::1::::<><><>0<>0<>85a48f66c5ca410413874702eba8a9f6<>res://.godot/imported/floorTile_normal.png-760599aa538bbe91438c314265ecd6d4.ctex::
+::res://scenes/::1788262754
+dungeon_stage.tscn::PackedScene::-1::1788262754::0::1::::<><><>0<>0<><>::
+::res://tools/::1788262754
+build_stage.gd::GDScript::4088673182207410826::1788262737::0::1::::<>Node3D<><>0<>1<><>::
+run_build.gd::GDScript::5206640056003000244::1788262754::0::1::::<>Node3D<><>0<>0<><>::
+run_build.tscn::PackedScene::-1::1788262754::0::1::::<><><>0<>0<><>::res://tools/run_build.gd
