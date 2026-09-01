@@ -252,6 +252,7 @@ enum DungeonStageActors {
     /// child would inherit that rotation, tilting the shadow up off the floor
     /// instead of lying flat. 2026-08-27, first of the "why do these look
     /// pasted on" fixes (see dungeons.md).
+    @MainActor
     static func makeContactShadow(for slot: DungeonStageSlot) -> SCNNode {
         let p = slot.position
         return makeContactShadow(
@@ -265,6 +266,7 @@ enum DungeonStageActors {
     /// floor rather than standing on it (2026-08-27 feedback: "they don't
     /// look like they're from the same universe... could be shadows").
     /// Not parented to the billboard — see the call site for why.
+    @MainActor
     static func makeContactShadow(diameter: CGFloat, at position: SCNVector3) -> SCNNode {
         let plane = SCNPlane(width: diameter, height: diameter * 0.62)
         plane.firstMaterial?.diffuse.contents = contactShadowTexture
@@ -282,6 +284,13 @@ enum DungeonStageActors {
     /// than shipped as an asset — same reasoning as the spark texture
     /// elsewhere in this file, there's nothing character-specific about a
     /// contact shadow's shape.
+    /// `@MainActor` because a `static let` of a non-Sendable type (`NSImage`)
+    /// is not concurrency-safe under Swift 6 strict checking. It was isolated
+    /// implicitly while it lived in the camera tool's `@MainActor` enum, and
+    /// lifting it here on 2026-09-01 lost that. Only CI caught it — Swift 6.3
+    /// locally accepts what CI's Xcode 16.4 rejects. Same class of fix as the
+    /// earlier `DungeonStageCameraToolScene` annotation.
+    @MainActor
     private static let contactShadowTexture: NSImage = {
         let size = 128
         let image = NSImage(size: NSSize(width: size, height: size))
