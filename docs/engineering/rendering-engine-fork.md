@@ -4,8 +4,25 @@
 
 ## Status
 
-**OPEN. Not decided.** Recorded 2026-09-01 so the choice gets made deliberately rather
-than by drift. Nothing here overrides the current build; SceneKit is what ships today.
+**DECIDED 2026-09-01: Godot.** The dungeon, and in time the whole app, moves off
+SceneKit. The analysis below is kept as the reasoning, not as an open question.
+
+**Why, in one line:** SceneKit is soft-deprecated and Apple-only, Windows is a firm ship
+target and Linux turns out to be ~28% of the actual (developer) audience, and we were
+standing exactly at the point where engine-specific effects work begins — so the cheapest
+moment to switch was before writing it, not after.
+
+**What settled the two open worries:**
+
+- *"The rewrite is too expensive."* Overstated by me. `CompanionCore` is pure,
+  deterministic, and covered by a check suite that acts as a correctness oracle, which
+  makes the port mechanical rather than exploratory. The UI half has no oracle, but Nikhil
+  is doing that judgement directly.
+- *"Will the assets survive?"* Probed rather than assumed, and glTF beat USDZ on every
+  axis that mattered — see "Asset probe result" below.
+
+**Sequencing:** the app keeps shipping from the Swift codebase until the Godot side can
+replace a mode outright. This is not a stop-the-world rewrite.
 
 This sits under [Cross-platform architecture](cross-platform-architecture.md), which
 already names Godot as the first non-macOS candidate and scopes a disposable spike. What
@@ -123,6 +140,37 @@ placement, live preview. The planned "test impact" button is more of the same. W
 been hand-building editor tooling to compensate for a framework that has none.
 
 That is a real, ongoing tax, separate from the platform question.
+
+## Asset probe result (2026-09-01)
+
+Run before committing to the port, on the principle that a broken rig is better found
+early. The Ram (`tempest-ram-rigify-natural-walk.blend`) exported to glTF and loaded into
+Godot 4.7.2 at the locked camera with the walk cycle playing.
+
+| | SceneKit / USDZ | Godot / glTF |
+| --- | --- | --- |
+| Animations per file | 1 | **all 17** |
+| Up axis | Z-up; needed a runtime rotation | correct, no fix |
+| Textures | had to be unpacked to disk first | imported automatically |
+| Vertex colours | lost | **`COLOR_0` and `COLOR_1` present** |
+| Frame ranges | had to be set per action | correct for every action |
+
+The walk imports at 1.333s — exactly 32 frames at 24fps — with no hand-tuning anywhere.
+
+**Two findings worth carrying forward:**
+
+1. **Vertex colours survive glTF.** `Crackle_Curvature` was lost through USD, and the
+   plan had been to bake curvature into a texture channel. It arrives intact here, so a
+   runtime shader can read it directly.
+2. **Blender material node trees still flatten**, under any engine. The Ram's crackle
+   exported as a uniform `emissiveFactor` of (0.1, 0.28, 1.0) at 3x strength — glTF
+   cannot represent a curvature-driven emission mix, so it took the colour and applied it
+   to the whole mesh, drowning the base texture. Suppressed for now; the effect has to be
+   rebuilt as a real shader. This is the shape of the work, not a bug.
+
+**Also observed:** the Ram casts a real shadow in Godot. SceneKit had none here —
+`makeContactShadow` existed to fake one with a code-generated blurred oval decal, and
+that whole mechanism is unnecessary now.
 
 ## Audience data (added 2026-09-01)
 

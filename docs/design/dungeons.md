@@ -251,12 +251,25 @@ the locked camera, not assumed. Findings worth keeping whichever engine wins:
   is the difference between roughly 450 MB and 4 GB. Textures overtake geometry as the
   problem at that scale.
 
-**Engine choice is now an open fork** — see
-[rendering engine fork](../engineering/rendering-engine-fork.md). SceneKit entered soft
-deprecation at WWDC 2025 (critical fixes only), Windows is a firm want, and the live-3D
-call unblocks a large body of engine-specific effects work. **Decide before building that
-effects layer, not after** — everything built so far is cheap to abandon; effects code is
-not.
+**ENGINE DECIDED 2026-09-01: Godot** — see
+[rendering engine fork](../engineering/rendering-engine-fork.md) for the full reasoning.
+SceneKit is soft-deprecated and Apple-only; Windows is a firm ship target and Linux is
+~28% of the developer audience this product actually serves. The decision was taken
+*before* building the effects layer, since that is the most engine-specific work ahead.
+
+The SceneKit findings above still hold as a record of what was proven, but the shipping
+path is glTF into Godot, where the export behaves better on every axis: all 17 actions in
+one file, correct up-axis, textures and vertex colours intact, correct frame ranges. The
+Cache Warren stage now exists as a real Godot scene (`godot/worklings/`) at the same
+locked camera, and **the Ram casts a real shadow there** — `makeContactShadow`'s
+code-generated blurred oval, which existed to fake exactly that, is unnecessary in the
+new renderer.
+
+One thing that does *not* change with the engine: **Blender material node trees flatten
+on export regardless.** The Ram's crackle came through glTF as a uniform emissive factor
+of (0.1, 0.28, 1.0) at 3x strength, glowing the whole mesh blue. It has to be rebuilt as
+a runtime shader — but the ingredients survive, since glTF carries the vertex colours USD
+dropped.
 
 **The stage is one flat floor** (2026-09-01). It was four depth bands near to far — party
 floor, an arena gap where attacks and VFX play out, a raised foe platform, and a back
