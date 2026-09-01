@@ -13,113 +13,67 @@ import SwiftUI
 /// the real arena) was found in the first place.
 @MainActor
 enum DungeonStageCameraToolScene {
-    /// 2× the original placeholder sizing — first pass at "too small," per
-    /// the 2026-08-21 review. An eyeballed guess, not a calibrated scale.
-    private static let testScale: CGFloat = 2.0
-
-    /// The room's floor height from `DungeonStageScene.build()`
-    /// (`DungeonStage3D.swift`) — a box centered at y=-0.15 with height 0.3,
-    /// so its top surface is y=0. Ground truth, not eyeballed: billboards
-    /// land on this exact surface regardless of which character is loaded.
+    /// Builds (or rebuilds) the two stage actors from a real rendered frame
+    /// sequence — see `StageFrameLibrary`. Falls back to the mote-idle
+    /// placeholder tinted for the party slot when no frames are found for the
+    /// current picker selection, same as the single-still era.
     ///
-    /// Was two values until 2026-09-01 (a raised foe platform at 0.4 and a
-    /// party floor at 0.0), collapsed when the four-band blockout became a
-    /// single flat floor. Both combatants now stand on the same surface.
-    static let floorTopY: CGFloat = 0.0
-
-    /// Where each character's own baked frame puts its ground-contact line,
-    /// as a fraction of the frame's full height *below* the frame's
-    /// vertical center. This is `CAM_TARGET`'s world-space z divided by the
-    /// camera's ortho scale at bake time — not eyeballed, read off (Ram) or
-    /// computed for (Flicker, Pangolin) each file's turntable rig during the
-    /// 2026-08-26 `blender_stage_bake.py` pass. A billboard's node sits at
-    /// `platformTopY + offset * planeHeight` so the character's actual feet
-    /// land on the platform surface, whatever fraction of the frame they
-    /// happen to occupy — a fixed node y regardless of which character is
-    /// loaded was the bug: every character's ground line sits at a
-    /// different height in its own frame (Ram 0.196, Flicker 0.335,
-    /// Pangolin 0.179), so one fixed y only ever looked right for whichever
-    /// character it was tuned against. Pangolin's value was recomputed
-    /// 2026-08-27 after its ortho scale was widened 1.67→3.0 to stop its
-    /// tail/silhouette clipping the frame edge (see bake-spec §10 Open) — a
-    /// wider ortho scale shrinks the creature within the frame, which also
-    /// moves its ground line closer to center, so this fraction isn't stable
-    /// across an ortho-scale change and must be recomputed alongside it.
-    private static let groundOffsetFraction: [String: CGFloat] = [
-        "tempest-ram": 0.196,
-        "forest-flicker": 0.335,
-        "pangolin": 0.179,
-    ]
-    /// Used only for the mote-idle placeholder when no frames are found —
-    /// roughly the middle of the observed range above.
-    private static let defaultGroundOffsetFraction: CGFloat = 0.25
-
-    /// Builds (or rebuilds) the two stage-corner billboards from a real
-    /// rendered frame sequence — see `StageFrameLibrary`. Falls back to the
-    /// mote-idle placeholder tinted for the party slot when no frames are
-    /// found for the current picker selection, same as the single-still era.
+    /// Slot positions, sizes and contact shadows come from
+    /// `DungeonStageActors` (`DungeonStage3D.swift`), shared with the real
+    /// arena — only the frame-sequence playback is dev-tool-only, because
+    /// `StageFrameLibrary` reads from an absolute path outside the repo.
     @discardableResult
     static func addDebugBillboards(
         to scene: SCNScene,
         foeSelection: StageFrameLibrary.Selection?,
         partySelection: StageFrameLibrary.Selection?
     ) -> (foe: SCNNode, party: SCNNode) {
-        // Contact shadows first, so they render under the billboards — a
-        // fixed ground decal at each corner's (x,z), not attached to the
-        // billboard node itself: the billboard carries a
-        // SCNBillboardConstraint that rotates it to face the camera, and a
-        // child would inherit that rotation, tilting the shadow up off the
-        // ground instead of lying flat. 2026-08-27, first of the "why do
-        // these look pasted on" fixes (see dungeons.md).
-        scene.rootNode.addChildNode(makeContactShadow(
-            diameter: 2.2 * testScale * 0.4, at: SCNVector3(0, floorTopY + 0.006, -2)
-        ))
-        scene.rootNode.addChildNode(makeContactShadow(
-            diameter: 2.8 * testScale * 0.4, at: SCNVector3(-3, floorTopY + 0.006, 8.5)
-        ))
+        // Shadows first, so they render under the actors.
+        for slot in DungeonStageSlot.allCases {
+            scene.rootNode.addChildNode(DungeonStageActors.makeContactShadow(for: slot))
+        }
 
-        let foePlane = SCNPlane(width: 2.2 * testScale, height: 2.2 * testScale)
-        foePlane.firstMaterial?.isDoubleSided = true
-        foePlane.firstMaterial?.lightingModel = .constant
-        let foeNode = SCNNode(geometry: foePlane)
-        foeNode.name = "stageFoeBillboard"
-        foeNode.position = SCNVector3(0, floorTopY, -2)
-        foeNode.constraints = [SCNBillboardConstraint()]
+        let foeNode = DungeonStageActors.makeBillboard(for: .foe)
         scene.rootNode.addChildNode(foeNode)
-        applyBillboard(foeSelection, to: foeNode, groundY: floorTopY, fallbackTint: nil)
+        applyBillboard(foeSelection, to: foeNode, slot: .foe, fallbackTint: nil)
 
-        let partyPlane = SCNPlane(width: 2.8 * testScale, height: 2.8 * testScale)
-        partyPlane.firstMaterial?.isDoubleSided = true
-        partyPlane.firstMaterial?.lightingModel = .constant
-        let partyNode = SCNNode(geometry: partyPlane)
-        partyNode.name = "stagePartyBillboard"
-        partyNode.position = SCNVector3(-3, floorTopY, 8.5)
-        partyNode.constraints = [SCNBillboardConstraint()]
+        let partyNode = DungeonStageActors.makeBillboard(for: .party)
         scene.rootNode.addChildNode(partyNode)
-        applyBillboard(partySelection, to: partyNode, groundY: floorTopY, fallbackTint: NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1))
+        applyBillboard(
+            partySelection, to: partyNode, slot: .party,
+            fallbackTint: NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1)
+        )
 
         return (foeNode, partyNode)
     }
 
-    /// Swaps a single billboard's material to a new character/action/azimuth
-    /// selection without touching the other billboard or the camera — used
-    /// when a picker changes mid-session. Also repositions the node's y so
-    /// the new character's feet land on `groundY` (see `groundOffsetFraction`
-    /// above), since that offset differs per character.
-    static func applyBillboard(_ selection: StageFrameLibrary.Selection?, to node: SCNNode, groundY: CGFloat, fallbackTint: NSColor?) {
+    /// Swaps a single actor's material to a new character/action/azimuth
+    /// selection without touching the other actor or the camera — used when a
+    /// picker changes mid-session. Also repositions the node's y so the new
+    /// character's feet land on the floor, since that offset differs per
+    /// character (see `DungeonStageActors.groundOffsetFraction`).
+    static func applyBillboard(
+        _ selection: StageFrameLibrary.Selection?,
+        to node: SCNNode,
+        slot: DungeonStageSlot,
+        fallbackTint: NSColor?
+    ) {
         let plane = node.geometry as! SCNPlane
         let material = plane.firstMaterial!
         node.removeAction(forKey: "frameSequence")
         guard let selection, let images = StageFrameLibrary.shared.loadImages(for: selection), !images.isEmpty else {
             material.diffuse.contents = loadDungeonStageImage("mote-idle") ?? NSColor.systemPink
             material.multiply.contents = fallbackTint
-            node.position.y = groundY + defaultGroundOffsetFraction * plane.height
+            node.position.y = DungeonStageActors.groundedY(
+                for: slot, offsetFraction: DungeonStageActors.defaultGroundOffsetFraction
+            )
             return
         }
         material.multiply.contents = nil
         material.diffuse.contents = images[0]
-        let offset = groundOffsetFraction[selection.label] ?? defaultGroundOffsetFraction
-        node.position.y = groundY + offset * plane.height
+        let offset = DungeonStageActors.groundOffsetFraction[selection.label]
+            ?? DungeonStageActors.defaultGroundOffsetFraction
+        node.position.y = DungeonStageActors.groundedY(for: slot, offsetFraction: offset)
         guard images.count > 1 else { return }
         let fps = StageFrameLibrary.shared.playbackFPS(for: selection)
         node.runAction(StageFrameLibrary.frameSequenceAction(images: images, material: material, fps: fps), forKey: "frameSequence")
@@ -134,58 +88,6 @@ enum DungeonStageCameraToolScene {
             in: scene
         )
     }
-
-    /// A flat, soft-edged dark oval lying on the ground under a billboard —
-    /// without this, a character reads as a sticker floating above the
-    /// floor rather than standing on it (2026-08-27 feedback: "they don't
-    /// look like they're from the same universe... could be shadows").
-    /// Not parented to the billboard — see the call site for why.
-    private static func makeContactShadow(diameter: CGFloat, at position: SCNVector3) -> SCNNode {
-        let plane = SCNPlane(width: diameter, height: diameter * 0.62)
-        plane.firstMaterial?.diffuse.contents = contactShadowTexture
-        plane.firstMaterial?.lightingModel = .constant
-        plane.firstMaterial?.isDoubleSided = true
-        plane.firstMaterial?.writesToDepthBuffer = false
-        let node = SCNNode(geometry: plane)
-        node.name = "contactShadow"
-        node.eulerAngles = SCNVector3(-Double.pi / 2, 0, 0) // lie flat, normal up +Y
-        node.position = position
-        return node
-    }
-
-    /// A soft radial dark-to-transparent gradient, generated in code rather
-    /// than shipped as an asset — same reasoning as the spark texture
-    /// elsewhere in this file, there's nothing character-specific about a
-    /// contact shadow's shape.
-    private static let contactShadowTexture: NSImage = {
-        let size = 128
-        let image = NSImage(size: NSSize(width: size, height: size))
-        image.lockFocus()
-        if let ctx = NSGraphicsContext.current?.cgContext {
-            // Pushed much darker/tighter than a typical soft AO falloff —
-            // 2026-08-27: against the painted backdrop's already near-black
-            // ground (sampled ~RGB 14-28), a gentle alpha gradient had
-            // almost no headroom left to darken further and was invisible.
-            // A near-opaque core with a fast falloff still reads as a real
-            // shadow shape even with little room below the floor's own
-            // value.
-            let colors = [
-                NSColor.black.withAlphaComponent(0.9).cgColor,
-                NSColor.black.withAlphaComponent(0.5).cgColor,
-                NSColor.black.withAlphaComponent(0.0).cgColor,
-            ] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.35, 1]) {
-                ctx.drawRadialGradient(
-                    gradient,
-                    startCenter: CGPoint(x: size / 2, y: size / 2), startRadius: 0,
-                    endCenter: CGPoint(x: size / 2, y: size / 2), endRadius: CGFloat(size / 2),
-                    options: []
-                )
-            }
-        }
-        image.unlockFocus()
-        return image
-    }()
 
     private static let backdropNodeName = "flatBackdropPlane"
     private static let roomBandNames = ["bandFloor"]
@@ -812,7 +714,7 @@ struct DungeonStageCameraToolView: View {
     private func updateFoe() {
         let selection = foeLabel.isEmpty ? nil : StageFrameLibrary.Selection(label: foeLabel, action: foeAction, azimuth: 35)
         DungeonStageCameraToolScene.applyBillboard(
-            selection, to: foeNode, groundY: DungeonStageCameraToolScene.floorTopY, fallbackTint: nil
+            selection, to: foeNode, slot: .foe, fallbackTint: nil
         )
         updateLighting()
     }
@@ -820,7 +722,7 @@ struct DungeonStageCameraToolView: View {
     private func updateParty() {
         let selection = partyLabel.isEmpty ? nil : StageFrameLibrary.Selection(label: partyLabel, action: partyAction, azimuth: 245)
         DungeonStageCameraToolScene.applyBillboard(
-            selection, to: partyNode, groundY: DungeonStageCameraToolScene.floorTopY,
+            selection, to: partyNode, slot: .party,
             fallbackTint: NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1)
         )
         updateLighting()
