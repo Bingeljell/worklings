@@ -70,49 +70,32 @@ enum DungeonStageScene {
             return node
         }
 
-        // Depth bands, near (party) to far (back wall) — see the "Reading this"
-        // notes in the blocking diagram for what each one stands in for.
-        // Named so a caller (e.g. the camera tool's backdrop-mode toggle,
-        // 2026-08-27) can hide/show the blockout as a group without this
-        // function needing to know why.
-        let partyFloor = band(
-            22, 0.3, 9, at: 0, -0.15, 7,
+        // One flat floor, matching the Blender room's `caveFloor` footprint
+        // (44 x 34 world units, top surface at y=0). This replaced the old
+        // four-band blockout — party floor / recessed arena gap / raised foe
+        // platform / back wall — on 2026-09-01: those bands were staging
+        // scaffolding from before the room was real geometry, and the Blender
+        // scene they are meant to mirror is a single flat floor. Both
+        // combatants now stand on the same surface.
+        //
+        // Oversized on purpose so it reaches past the frame edges however the
+        // shot ends up panned or rotated, rather than getting cropped.
+        let floor = band(
+            44, 0.3, 34, at: 0, -0.15, 0,
             color: NSColor(calibratedRed: 0.42, green: 0.34, blue: 0.24, alpha: 1)
-        ) // party floor — oversized on purpose, so it reaches past frame edges
-          // however the shot ends up panned/rotated rather than getting cropped
-        partyFloor.name = "bandPartyFloor"
+        )
+        floor.name = "bandFloor"
         // SCNBox takes six materials in the order front, right, back, left,
         // top, bottom — only the top face is ever seen, so only it carries the
         // tile; the rest keep the flat blockout colour.
-        if let sides = partyFloor.geometry?.firstMaterial {
-            partyFloor.geometry?.materials = [
+        if let sides = floor.geometry?.firstMaterial {
+            floor.geometry?.materials = [
                 sides, sides, sides, sides,
-                tiledKitMaterial(tile: "floorTile", surfaceWidth: 22, surfaceDepth: 9),
+                tiledKitMaterial(tile: "floorTile", surfaceWidth: 44, surfaceDepth: 34),
                 sides,
             ]
         }
-        scene.rootNode.addChildNode(partyFloor)
-
-        let arenaGap = band(
-            10, 0.1, 3, at: 0, -0.35, 1.5,
-            color: NSColor(calibratedWhite: 0.03, alpha: 1)
-        ) // arena gap, recessed so it reads as its own zone
-        arenaGap.name = "bandArenaGap"
-        scene.rootNode.addChildNode(arenaGap)
-
-        let foePlatform = band(
-            9, 0.6, 3.5, at: 0, 0.1, -2,
-            color: NSColor(calibratedRed: 0.22, green: 0.26, blue: 0.28, alpha: 1)
-        ) // foe platform, raised
-        foePlatform.name = "bandFoePlatform"
-        scene.rootNode.addChildNode(foePlatform)
-
-        let backWall = band(
-            10, 5, 0.3, at: 0, 2.2, -4,
-            color: NSColor(calibratedRed: 0.12, green: 0.13, blue: 0.15, alpha: 1)
-        ) // back wall
-        backWall.name = "bandBackWall"
-        scene.rootNode.addChildNode(backWall)
+        scene.rootNode.addChildNode(floor)
 
         // Key light — warm, low angle, upper-left, matching the blocking diagram.
         let key = SCNLight()

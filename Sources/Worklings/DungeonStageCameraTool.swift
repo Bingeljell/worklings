@@ -17,14 +17,15 @@ enum DungeonStageCameraToolScene {
     /// the 2026-08-21 review. An eyeballed guess, not a calibrated scale.
     private static let testScale: CGFloat = 2.0
 
-    /// Real platform-top heights from `DungeonStageScene.build()`
-    /// (`DungeonStage3D.swift`) — the foe platform is a box centered at
-    /// y=0.1 with height 0.6 (top = 0.4), the party floor is centered at
-    /// y=-0.15 with height 0.3 (top = 0.0). Ground truth, not eyeballed:
-    /// billboards land on these exact surfaces regardless of which
-    /// character is loaded into the slot.
-    static let foePlatformTopY: CGFloat = 0.4
-    static let partyFloorTopY: CGFloat = 0.0
+    /// The room's floor height from `DungeonStageScene.build()`
+    /// (`DungeonStage3D.swift`) — a box centered at y=-0.15 with height 0.3,
+    /// so its top surface is y=0. Ground truth, not eyeballed: billboards
+    /// land on this exact surface regardless of which character is loaded.
+    ///
+    /// Was two values until 2026-09-01 (a raised foe platform at 0.4 and a
+    /// party floor at 0.0), collapsed when the four-band blockout became a
+    /// single flat floor. Both combatants now stand on the same surface.
+    static let floorTopY: CGFloat = 0.0
 
     /// Where each character's own baked frame puts its ground-contact line,
     /// as a fraction of the frame's full height *below* the frame's
@@ -71,10 +72,10 @@ enum DungeonStageCameraToolScene {
         // ground instead of lying flat. 2026-08-27, first of the "why do
         // these look pasted on" fixes (see dungeons.md).
         scene.rootNode.addChildNode(makeContactShadow(
-            diameter: 2.2 * testScale * 0.4, at: SCNVector3(0, foePlatformTopY + 0.006, -2)
+            diameter: 2.2 * testScale * 0.4, at: SCNVector3(0, floorTopY + 0.006, -2)
         ))
         scene.rootNode.addChildNode(makeContactShadow(
-            diameter: 2.8 * testScale * 0.4, at: SCNVector3(-3, partyFloorTopY + 0.006, 8.5)
+            diameter: 2.8 * testScale * 0.4, at: SCNVector3(-3, floorTopY + 0.006, 8.5)
         ))
 
         let foePlane = SCNPlane(width: 2.2 * testScale, height: 2.2 * testScale)
@@ -82,20 +83,20 @@ enum DungeonStageCameraToolScene {
         foePlane.firstMaterial?.lightingModel = .constant
         let foeNode = SCNNode(geometry: foePlane)
         foeNode.name = "stageFoeBillboard"
-        foeNode.position = SCNVector3(0, foePlatformTopY, -2)
+        foeNode.position = SCNVector3(0, floorTopY, -2)
         foeNode.constraints = [SCNBillboardConstraint()]
         scene.rootNode.addChildNode(foeNode)
-        applyBillboard(foeSelection, to: foeNode, groundY: foePlatformTopY, fallbackTint: nil)
+        applyBillboard(foeSelection, to: foeNode, groundY: floorTopY, fallbackTint: nil)
 
         let partyPlane = SCNPlane(width: 2.8 * testScale, height: 2.8 * testScale)
         partyPlane.firstMaterial?.isDoubleSided = true
         partyPlane.firstMaterial?.lightingModel = .constant
         let partyNode = SCNNode(geometry: partyPlane)
         partyNode.name = "stagePartyBillboard"
-        partyNode.position = SCNVector3(-3, partyFloorTopY, 8.5)
+        partyNode.position = SCNVector3(-3, floorTopY, 8.5)
         partyNode.constraints = [SCNBillboardConstraint()]
         scene.rootNode.addChildNode(partyNode)
-        applyBillboard(partySelection, to: partyNode, groundY: partyFloorTopY, fallbackTint: NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1))
+        applyBillboard(partySelection, to: partyNode, groundY: floorTopY, fallbackTint: NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1))
 
         return (foeNode, partyNode)
     }
@@ -187,7 +188,7 @@ enum DungeonStageCameraToolScene {
     }()
 
     private static let backdropNodeName = "flatBackdropPlane"
-    private static let roomBandNames = ["bandPartyFloor", "bandArenaGap", "bandFoePlatform", "bandBackWall"]
+    private static let roomBandNames = ["bandFloor"]
 
     /// 2026-08-27 prototype: swaps the grey 3D blockout for a single flat
     /// painted-backdrop plane, so the two approaches can be judged side by
@@ -811,7 +812,7 @@ struct DungeonStageCameraToolView: View {
     private func updateFoe() {
         let selection = foeLabel.isEmpty ? nil : StageFrameLibrary.Selection(label: foeLabel, action: foeAction, azimuth: 35)
         DungeonStageCameraToolScene.applyBillboard(
-            selection, to: foeNode, groundY: DungeonStageCameraToolScene.foePlatformTopY, fallbackTint: nil
+            selection, to: foeNode, groundY: DungeonStageCameraToolScene.floorTopY, fallbackTint: nil
         )
         updateLighting()
     }
@@ -819,7 +820,7 @@ struct DungeonStageCameraToolView: View {
     private func updateParty() {
         let selection = partyLabel.isEmpty ? nil : StageFrameLibrary.Selection(label: partyLabel, action: partyAction, azimuth: 245)
         DungeonStageCameraToolScene.applyBillboard(
-            selection, to: partyNode, groundY: DungeonStageCameraToolScene.partyFloorTopY,
+            selection, to: partyNode, groundY: DungeonStageCameraToolScene.floorTopY,
             fallbackTint: NSColor(calibratedRed: 0.6, green: 0.75, blue: 1.0, alpha: 1)
         )
         updateLighting()
