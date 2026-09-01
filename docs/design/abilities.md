@@ -1,5 +1,8 @@
 # Worklings Abilities
 
+> Evolving doc, not a frozen spec — see [docs/README](../README.md). "LOCKED" below
+> means the current real-time call, not an immovable constraint.
+
 ## Status
 
 **v1 model LOCKED (design); not yet implemented.** Abilities are systems-ladder step 4,

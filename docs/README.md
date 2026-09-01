@@ -1,5 +1,13 @@
 # Worklings Documentation
 
+**These docs are evolving — not gospel.** This game is being designed in real time by
+one person (plus an AI collaborator), not built from a frozen, watertight spec. A doc
+saying something is "decided" or "LOCKED" records the most recent real-time call, not an
+immovable constraint — it changes the moment a better idea shows up or reality pushes
+back. If a doc's stated decision conflicts with what actually makes sense to build next,
+**flag it and discuss, don't silently defer to the doc.** Citing "the docs say X" is a
+starting point for a conversation, never a reason to avoid one.
+
 The map of the `docs/` tree. Detailed design and engineering notes live here; the
 repository root keeps only entry-point and governance files (`README.md`,
 `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`, `CODE_OF_CONDUCT.md`).
