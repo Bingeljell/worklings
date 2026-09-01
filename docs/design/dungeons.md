@@ -1,5 +1,8 @@
 # Worklings Dungeons
 
+> Evolving doc, not a frozen spec — see [docs/README](../README.md). Treat anything
+> below as the latest real-time call, not a constraint to defend.
+
 ## Status
 
 This is the **full design spec** for the first content system — solo dungeons — and
@@ -317,6 +320,55 @@ as a reusable, modular kit rather than one bespoke scene per dungeon:**
    rebuild. Worth building once Xcode's editor's limits are actually felt (e.g. needing
    runtime-loadable layouts, or non-engineers authoring rooms) — not before.
 
+### Next milestone: one full start-to-finish combat pass (decided 2026-08-28)
+
+Before widening Cache Warren's design (more encounters, more variety), the goal is one
+complete pass end to end: real room, real actor, one real combat round, feeling right.
+Scoped deliberately small so it's finishable, not a re-litigation of the whole delve.
+
+**In scope:**
+- The modular room kit (floor tile, wall segment, corner piece, torch/crystal props)
+  built in Blender, textured, exported, assembled in SceneKit with real `SCNLight`s, at
+  the locked Cache Warren camera. **Texturing target for this pass is a plain, natural
+  cave look** (reference: `assets/dungeons/cave-floor.png` — fine gravel/pebble detail,
+  scattered loose rocks, warm vignette lighting) — not yet the "buried machine strata"
+  identity (glyphs, digital/tech motifs). That theming is explicitly deferred until
+  after this combat pass proves out; don't let it creep in early.
+- **One foe: the Flicker.** Already rigged, alongside the pet's own Ram/Pangolin/Forest
+  Flicker models. Mote, Snag, and Monolith are *not* blocking this pass — they can be
+  rigged and animated separately (a day's work per Nikhil) once the room and the combat
+  feel are proven against one foe. Don't wait on the full roster to validate the loop.
+- **Combat mechanics stay exactly as currently designed: the existing active
+  auto-battler**, not a manual per-turn system. No drag-to-target, no Energy/Mana
+  resource gating for this pass — see the deferred item below.
+- **Impact frames** (hit-stop, camera shake, dust/debris on a landed hit) — see the
+  reasoning below on why this is unblocked now.
+- Music/SFX — already shipped (alpha.8's dungeon BGM, boss theme, per-action cues);
+  reuse as-is, evolve later if the Flicker/new foes need bespoke cues.
+
+**Why impact frames stop being blocked here:** the earlier concern (open question #8)
+was that party/foe render as flat SwiftUI columns bolted on top of the 3D view, outside
+the SceneKit scene graph — so there's no `SCNNode` to shake or freeze. That blocker was
+never really about actors being *live 3D geometry* versus *baked billboards* — it was
+about actors being **inside the scene graph at all**. A baked-sprite billboard
+(`SCNPlane` textured with the pre-baked frames) positioned as a real node in the same
+`SCNScene` as the room unblocks hit-stop (freeze scene time), camera shake (perturb the
+camera node), and dust bursts (an `SCNParticleSystem` in the room) exactly as well as a
+fully live-3D character would. So: once the room is real SceneKit and the Flicker/pet
+are placed as real nodes in it — billboards or not — impact frames become normal
+SceneKit work, not a wait on the actors also going live-3D.
+
+**Deliberately deferred, not designed away — revisit when it comes up:**
+- **Drag an ability onto the enemy to choose the next action.** A real idea, but a
+  genuine pivot from the current locked model (auto-battler, decision points not
+  per-turn control) — worth deciding on purpose with its own pass, not sliding in
+  alongside this milestone. The current auto-battler is fine for this pass.
+  See [combat model](#the-combat-model) and [player input](#the-players-input-strategy-at-decision-points).
+- **Energy/Mana resource costs on abilities.** Tied to the drag-to-target pass above —
+  a per-turn resource economy only matters once the player is choosing actions per turn.
+  Until abilities/manual targeting land, the existing Signature/decision-point model
+  covers this pass.
+
 ### Effects — baked vs. live
 
 Two different kinds of "effect" on a character, deliberately handled differently:
@@ -568,12 +620,14 @@ noted, not being tuned yet.** Enemy-ability, [ability](abilities.md#knobs), and
    likely answer but unconfirmed. One stopgap floated, deliberately janky but cheap: both
    combatants fly to the center on an attack, the attacker hits, the defender winces, both
    fly back to their corners. Worth a mock before committing either way.
-8. **Impact frames** (2026-08-27) — hit-stop, camera shake, dust/debris bursts on a
-   stomp or landed hit; the single biggest lever for combat feeling weighty rather than
-   just animated. Genuinely blocked, not just unstarted: it needs to hook into the real
-   combat loop (`CombatPanel.swift`'s beat system) and shake/freeze a real `SCNNode`,
-   and the real arena still renders party/foe as flat SwiftUI columns, not scene
-   billboards (item below). Can be prototyped in the Dungeon Stage Camera Tool first
+8. **Impact frames** (2026-08-27, unblocked 2026-08-28) — hit-stop, camera shake,
+   dust/debris bursts on a stomp or landed hit; the single biggest lever for combat
+   feeling weighty rather than just animated. No longer thought to require live-3D
+   actors specifically — see "Next milestone" above: once the room is a real `SCNScene`
+   and the Flicker/pet are placed as real `SCNNode`s in it (billboards are enough), hit-
+   stop/shake/particle-burst are normal SceneKit operations. Still needs the real arena
+   to move off flat SwiftUI columns onto scene billboards (item below) before it lands
+   in production combat, but can be prototyped in the Dungeon Stage Camera Tool first
    (freeze + shake + dust burst on the Ram's headbutt, same "test in the tool first"
    pattern as everything else) without waiting on that wiring.
 9. **RESOLVED (was: flat painted backdrop vs. the live 3D room).** The backdrop
