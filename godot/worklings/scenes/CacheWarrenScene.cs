@@ -35,11 +35,7 @@ public partial class CacheWarrenScene : Node3D
 
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
-
-    /// A landed blow queued to fire partway through the attacker's animation,
-    /// at the frame the blow actually connects.
-    private double _impactDelay;
-    private System.Action? _impactAction;
+    private readonly AttackLunge _lunge = new();
     private double _beatTimer;
     private string _petName = "Ram";
     private string _foeName = "Flicker";
@@ -79,7 +75,7 @@ public partial class CacheWarrenScene : Node3D
         _petHP = _petMaxHP;
         _foeHP = _foeMaxHP;
 
-        _impactAction = null;
+        _lunge.Cancel();
         _pending.Clear();
         foreach (var e in encounter.Log) _pending.Enqueue(e);
         _beatTimer = 0;
@@ -95,12 +91,9 @@ public partial class CacheWarrenScene : Node3D
         // fight, not to the shake and dust working their way out of it.
         _impact.Tick(delta);
 
-        // A queued blow lands mid-animation, not when the clip starts.
-        if (_impactAction != null)
-        {
-            _impactDelay -= delta;
-            if (_impactDelay <= 0) { _impactAction(); _impactAction = null; }
-        }
+        // The attacker freezes at the point of contact during hit-stop rather
+        // than sliding through the held frame.
+        _lunge.Tick(delta, _impact.IsHitStopped ? 0 : 1);
 
         if (_impact.IsHitStopped) return;
 
@@ -115,12 +108,18 @@ public partial class CacheWarrenScene : Node3D
 
         var next = _pending.Dequeue();
         _beatTimer = Apply(next) ? BeatSeconds : 0.0;
+        if (_lunge.IsBusy) _beatTimer = System.Math.Max(_beatTimer, AttackLunge.Duration + 0.12);
         UpdateReadout();
     }
 
-    /// Defers the hit reaction to the point in the attack animation where the
-    /// blow connects. Damage lands then too, so the HP readout drops on contact
-    /// rather than as the attacker starts moving.
+    /// Sends the attacker at its target and hangs the whole reaction off the
+    /// moment it arrives.
+    ///
+    /// The combatants stand ~11 units apart — over two body lengths — so an
+    /// attack played in place lands nowhere near the defender and the fight
+    /// reads as two models taking turns with animations. Closing the distance is
+    /// what makes it a collision; impact frames are the reaction to that
+    /// collision, and were previously firing at a contact that never happened.
     private void ScheduleImpact(
         StageActor attacker, StageActor defender, bool toFoe,
         StrikeOutcome outcome, bool isSignature = false)
@@ -128,14 +127,19 @@ public partial class CacheWarrenScene : Node3D
         int maxHP = toFoe ? _foeMaxHP : _petMaxHP;
         double severity = maxHP > 0 ? (double)outcome.Damage / maxHP : 0;
         var direction = defender.Root.Position - attacker.Root.Position;
-        _impactDelay = attacker.AttackImpactDelay();
-        _impactAction = () =>
+        _lunge.Begin(attacker, defender, onContact: () =>
         {
             ApplyDamage(toFoe, outcome.Damage);
             _impact.Strike(defender, direction, severity, outcome.DidCrit || isSignature);
             UpdateReadout();
-        };
+        });
     }
+
+    /// A miss still commits — the attacker goes in and comes back with nothing
+    /// to show for it, which is what makes a miss read as a miss rather than as
+    /// a skipped turn.
+    private void ScheduleWhiff(StageActor attacker, StageActor defender) =>
+        _lunge.Begin(attacker, defender, onContact: () => { });
 
     /// Turns one event into what you see. Returns whether it deserves a beat —
     /// bookkeeping events (round markers, decision points) pass through instantly
@@ -157,6 +161,7 @@ public partial class CacheWarrenScene : Node3D
                 }
                 else
                 {
+                    ScheduleWhiff(attacker, defender);
                     _line = $"{x.Attacker} misses";
                 }
                 return true;

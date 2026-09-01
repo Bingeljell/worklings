@@ -5,7 +5,7 @@ using Godot;
 public partial class FightShot : Node
 {
     private const string Out = "user://fight_";
-    private static readonly double[] At = { 1.35, 1.55, 2.6, 3.8, 5.0, 6.2 };
+    private static readonly double[] At = { 1.30, 1.42, 1.52, 1.62, 1.80, 2.10 };
 
     public override async void _Ready()
     {

@@ -27,9 +27,14 @@ public sealed class ImpactFrames
     private const double HitStopBase = 0.055;
     private const double HitStopPerSeverity = 0.09;
 
-    private const float ShakeBase = 0.06f;
-    private const float ShakePerSeverity = 0.28f;
-    private const double ShakeDuration = 0.22;
+    /// Shake amplitude in world units. The camera sits ~28 units out with a 32
+    /// degree vertical FOV, so the visible frame is ~16 units tall: one unit is
+    /// roughly 67 pixels at 1080p. The first pass used 0.06-0.34, which peaks
+    /// around 20px and decays quadratically — read as "barely any shake", which
+    /// it was.
+    private const float ShakeBase = 0.18f;
+    private const float ShakePerSeverity = 0.75f;
+    private const double ShakeDuration = 0.3;
 
     private const float KnockbackBase = 0.05f;
     private const float KnockbackPerSeverity = 0.35f;
@@ -84,11 +89,16 @@ public sealed class ImpactFrames
         {
             _shakeRemaining -= delta;
             float falloff = (float)System.Math.Max(0, _shakeRemaining / ShakeDuration);
-            float amount = _shakeStrength * falloff * falloff;
-            _camera.Position = _cameraRest + new Vector3(
-                (float)GD.RandRange(-amount, amount),
-                (float)GD.RandRange(-amount, amount),
-                0);
+            // Linear falloff, not quadratic: squaring killed most of the motion
+            // in the first few frames, which is exactly where a shake reads.
+            float amount = _shakeStrength * falloff;
+            // Displace along the camera's own right/up, not world XY. The stage
+            // camera is angled ~40 degrees down and 60 across, so a world-space
+            // nudge slides the frame diagonally instead of shaking it.
+            var basis = _camera.GlobalTransform.Basis;
+            _camera.Position = _cameraRest
+                + basis.X * (float)GD.RandRange(-amount, amount)
+                + basis.Y * (float)GD.RandRange(-amount, amount);
             if (_shakeRemaining <= 0) _camera.Position = _cameraRest;
         }
 
