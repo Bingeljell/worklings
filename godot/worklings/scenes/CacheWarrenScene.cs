@@ -22,12 +22,19 @@ using Worklings.Core.Stage;
 /// starts, so nothing is lost by resolving first and animating after.
 public partial class CacheWarrenScene : Node3D
 {
-    /// Seconds each beat holds before the next event plays.
-    [Export] public float BeatSeconds { get; set; } = 1.1f;
+    /// The pause between one action finishing and the next beginning. Long
+    /// enough to read what happened and see it coming — combat is meant to be
+    /// watched, not raced through.
+    [Export] public float BeatSeconds { get; set; } = 3.0f;
+
+    /// How long an action's own animation is given before the countdown starts.
+    /// Bookkeeping events (round markers, decision points) skip both.
+    [Export] public float ActionSeconds { get; set; } = 1.0f;
 
     /// Restart the fight from the top once it ends, so the scene is never a
     /// still frame when you come back to it.
     [Export] public bool Loop { get; set; } = true;
+
 
     private StageActor _party = null!;
     private StageActor _foe = null!;
@@ -38,6 +45,10 @@ public partial class CacheWarrenScene : Node3D
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
     private readonly AttackLunge _lunge = new();
+    /// A beat runs in two phases: the action plays, then the countdown to the
+    /// next one. Separating them is what lets the countdown mean "next attack
+    /// in 3s" rather than draining through the attack itself.
+    private double _actionTimer;
     private double _beatTimer;
     private double _beatLength;
     private int _round;
@@ -101,7 +112,6 @@ public partial class CacheWarrenScene : Node3D
         // fight, not to the shake and dust working their way out of it.
         _impact.Tick(delta);
         _hud?.Tick(delta);
-        if (_beatLength > 0) _hud?.SetBeat(1.0 - _beatTimer / _beatLength);
 
         // The attacker freezes at the point of contact during hit-stop rather
         // than sliding through the held frame.
@@ -109,8 +119,22 @@ public partial class CacheWarrenScene : Node3D
 
         if (_impact.IsHitStopped) return;
 
-        _beatTimer -= delta;
-        if (_beatTimer > 0) return;
+        // Phase one: the action is playing. No countdown — the attack is not
+        // the wait.
+        if (_actionTimer > 0)
+        {
+            _actionTimer -= delta;
+            if (_actionTimer <= 0) _beatTimer = _beatLength;
+            else { _hud?.ClearBeat(); return; }
+        }
+
+        // Phase two: counting down to the next action.
+        if (_beatTimer > 0)
+        {
+            _beatTimer -= delta;
+            _hud?.SetBeat(1.0 - _beatTimer / _beatLength, _beatTimer);
+            if (_beatTimer > 0) return;
+        }
 
         if (_pending.Count == 0)
         {
@@ -119,9 +143,14 @@ public partial class CacheWarrenScene : Node3D
         }
 
         var next = _pending.Dequeue();
-        _beatTimer = Apply(next) ? BeatSeconds : 0.0;
-        if (_lunge.IsBusy) _beatTimer = System.Math.Max(_beatTimer, AttackLunge.Duration + 0.12);
-        _beatLength = _beatTimer;
+        if (Apply(next))
+        {
+            _actionTimer = _lunge.IsBusy
+                ? System.Math.Max(ActionSeconds, AttackLunge.Duration + 0.12)
+                : ActionSeconds;
+            _beatLength = BeatSeconds;
+            _hud?.ClearBeat();
+        }
         UpdateReadout();
     }
 

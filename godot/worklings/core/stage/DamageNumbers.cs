@@ -25,6 +25,7 @@ public sealed class DamageNumbers
         {
             Text = amount.ToString(),
             Position = at + new Vector3(0, 2.6f, 0),
+            Font = StageType.Bold,
             Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
             FontSize = crit ? 320 : 200,
             OutlineSize = crit ? 60 : 44,
@@ -67,6 +68,7 @@ public sealed class DamageNumbers
         {
             Text = "miss",
             Position = at + new Vector3(0, 2.6f, 0),
+            Font = StageType.Semi,
             Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
             FontSize = 130,
             OutlineSize = 34,

@@ -21,6 +21,7 @@ public sealed class CombatHud
     private readonly HealthPlate _foe;
     private readonly ColorRect _beatFill;
     private readonly Control _beatTrack;
+    private readonly Label _beatCount;
     private readonly Label _status;
     private readonly Label _narration;
 
@@ -52,25 +53,29 @@ public sealed class CombatHud
         beatBox.Position = new Vector2(Margin, -Margin - 52);
         root.AddChild(beatBox);
 
-        _narration = new Label { Text = "" };
-        _narration.AddThemeFontSizeOverride("font_size", 22);
-        _narration.AddThemeColorOverride("font_color", new Color(0.86f, 0.81f, 0.72f));
-        _narration.AddThemeConstantOverride("outline_size", 6);
-        _narration.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
+        _narration = StageType.Label("", 24, StageType.Ink);
         beatBox.AddChild(_narration);
 
-        _beatTrack = new Control { CustomMinimumSize = new Vector2(BeatWidth, 4) };
-        var beatBg = new ColorRect { Color = new Color(1, 1, 1, 0.14f), AnchorRight = 1, AnchorBottom = 1 };
-        _beatTrack.AddChild(beatBg);
-        _beatFill = new ColorRect { Color = new Color(0.95f, 0.91f, 0.85f, 0.9f), Size = new Vector2(0, 4) };
-        _beatTrack.AddChild(_beatFill);
-        beatBox.AddChild(_beatTrack);
+        // The countdown reads as a wind-up to the next exchange. A bare bar
+        // draining was too quiet to notice, so the seconds are spelled out
+        // beside it — the number is what makes the pause feel deliberate rather
+        // than like the game hanging.
+        var beatRow = new HBoxContainer();
+        beatRow.AddThemeConstantOverride("separation", 12);
+        beatRow.Alignment = BoxContainer.AlignmentMode.Begin;
 
-        _status = new Label { Text = "" };
-        _status.AddThemeFontSizeOverride("font_size", 18);
-        _status.AddThemeColorOverride("font_color", new Color(0.55f, 0.50f, 0.42f));
-        _status.AddThemeConstantOverride("outline_size", 5);
-        _status.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
+        _beatTrack = new Control { CustomMinimumSize = new Vector2(BeatWidth, 6) };
+        var beatBg = new ColorRect { Color = new Color(1, 1, 1, 0.12f), AnchorRight = 1, AnchorBottom = 1 };
+        _beatTrack.AddChild(beatBg);
+        _beatFill = new ColorRect { Color = new Color(0.95f, 0.91f, 0.85f, 0.9f), Size = new Vector2(0, 6) };
+        _beatTrack.AddChild(_beatFill);
+        beatRow.AddChild(_beatTrack);
+
+        _beatCount = StageType.Label("", 19, StageType.Muted);
+        beatRow.AddChild(_beatCount);
+        beatBox.AddChild(beatRow);
+
+        _status = StageType.Label("", 19, StageType.Faint);
         _status.AnchorTop = 1; _status.AnchorBottom = 1;
         _status.AnchorLeft = 1; _status.AnchorRight = 1;
         _status.Position = new Vector2(-Margin - 320, -Margin - 26);
@@ -84,9 +89,23 @@ public sealed class CombatHud
     public void SetNarration(string line) => _narration.Text = line;
     public void SetStatus(string line) => _status.Text = line;
 
-    /// `progress` is 0 at the start of a beat and 1 when the next action fires.
-    public void SetBeat(double progress) =>
-        _beatFill.Size = new Vector2(BeatWidth * (float)Mathf.Clamp(progress, 0, 1), 4);
+    /// `progress` is 0 at the start of a beat and 1 when the next action fires;
+    /// `remaining` is the seconds still to run, shown to one decimal so the
+    /// countdown visibly moves rather than sitting on a whole number.
+    public void SetBeat(double progress, double remaining)
+    {
+        _beatFill.Size = new Vector2(BeatWidth * (float)Mathf.Clamp(progress, 0, 1), 6);
+        _beatCount.Text = remaining > 0.05 ? $"{remaining:0.0}s" : "";
+    }
+
+    /// Hides the countdown while an action is actually playing — a bar that
+    /// drains through the attack implies the attack is the wait, when it is the
+    /// thing being waited for.
+    public void ClearBeat()
+    {
+        _beatFill.Size = new Vector2(0, 6);
+        _beatCount.Text = "";
+    }
 
     public void Tick(double delta) { _pet.Tick(delta); _foe.Tick(delta); }
 }
