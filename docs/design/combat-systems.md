@@ -1,5 +1,7 @@
 # Worklings Combat Systems — Stats, Derived Attributes & Resources
 
+> Evolving doc, not a frozen spec — see [docs/README](../README.md).
+
 ## Status
 
 **Vision doc — the destination, not the v1 build.** This is the agreed target model for how the character sheet drives a fight, so every combat slice builds toward one coherent system rather than painting itself into a corner. It sits under [Progression](progression.md) (which owns XP/levels/persistence) and feeds [Dungeons](dungeons.md) (which owns encounter formulas) and [Abilities](abilities.md).
