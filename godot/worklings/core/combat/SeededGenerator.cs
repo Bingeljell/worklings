@@ -79,4 +79,25 @@ public struct SeededGenerator
         if (upper <= lower) return lower;
         return lower + (int)NextBelow((ulong)(upper - lower + 1));
     }
+
+    /// A double in a CLOSED range [lower, upper], matching Swift's
+    /// `Double.random(in: a...b, using:)`.
+    ///
+    /// Deliberately separate from NextDouble, because Swift's two range
+    /// overloads do not draw the same way — and the difference is the opposite
+    /// of what you would guess:
+    ///
+    ///   half-open `0..<1`  ->  the LOW 53 bits   (word & (2^53 - 1))
+    ///   closed    `a...b`  ->  the HIGH 53 bits  (word >> 11)
+    ///
+    /// Both consume exactly one word. Determined by deriving the mapping from
+    /// reference values captured out of the Swift implementation, after two
+    /// wrong guesses from reasoning about the stdlib source. Every strike draws
+    /// its damage swing from a closed range, so getting this wrong would
+    /// desynchronise every fight.
+    public double NextDoubleClosed(double lower, double upper)
+    {
+        double unitRandom = (Next() >> 11) * (1.0 / 9007199254740992.0);
+        return (upper - lower) * unitRandom + lower;
+    }
 }
