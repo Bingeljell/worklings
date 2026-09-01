@@ -302,6 +302,14 @@ a **fixed 1280×720 (16:9, scaled 1080p)** and deliberately not resizable: the s
 transform frames differently at a different aspect ratio, so numbers are only meaningful
 measured against that fixed shape.
 
+**Superseded for the Godot stage (2026-09-01): it renders at 1920×1080.** The 720p cap
+existed because baked sprite sheets had a fixed pixel ceiling and the stage could only be
+as sharp as the sheets filling it. Live 3D has no bake ceiling — it renders at whatever
+resolution is asked for — so that constraint went away when billboards did. What still
+holds is the **16:9 aspect**: the locked camera frames differently at another ratio, so
+the shape is load-bearing even though the resolution is not. Godot keeps it with
+`window/stretch/aspect="keep"`.
+
 **The Cache Warren's locked camera:**
 
 ```
