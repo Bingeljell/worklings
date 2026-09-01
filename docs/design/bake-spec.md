@@ -8,6 +8,14 @@ Companion docs: [Characters](characters.md) for the roster and the pose contract
 [Sprite prompts](sprite-prompts.md) for the interim image-model prompts this pipeline
 eventually replaces.
 
+
+> **Dungeon actors moved to live 3D (2026-09-01).** The dungeon no longer uses baked
+> sprite billboards for characters — see [dungeons](dungeons.md)'s "Rendering approach".
+> Billboards were a performance optimisation for a budget that turned out not to be
+> tight (2–4 characters per dungeon). This spec still governs the **desktop pet**, where
+> the constraints differ; the stage-bake sections (per-azimuth frame sequences, ground-
+> offset fractions, the stage frame library) are retained as the record of that pass
+> rather than as live guidance for the dungeon.
 ## 1. World scale
 
 One number everything else derives from:

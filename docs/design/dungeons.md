@@ -195,27 +195,43 @@ delve, not the whole system at once.
 
 ## The battle stage — camera & staging
 
-**Rendering approach:** a live SceneKit 3D room with the existing baked 2D sprite sheets
-billboarded into it as actors — not a flat painted backdrop (today's Cache Warren arena)
-and not live 3D characters either. The room gives real depth and lighting for free; the
-actors stay exactly the assets the [3D→2D pipeline](sprite-prompts.md) already produces,
-so nothing about that pipeline or its pose contract changes. This follows the standing
-call on rendering: baked sprites stay the actor format everywhere in the dungeon, live 3D
-is reserved for the character/gear screen.
+**Rendering approach (DECIDED 2026-09-01): a live SceneKit 3D room with live 3D
+characters in it.** Not a flat painted backdrop, and not baked sprite billboards either.
 
-**OPEN (2026-09-01): billboards vs. live 3D actors — the room being real changed the
-argument.** The reasoning above was written when the room was grey blockout boxes. The
-room is now real geometry lit by real lights, and billboards draw with `.constant`
-lighting, meaning they ignore lights entirely — so a lit room containing an unlit flat
-sprite reproduces *precisely* the "pasted on" read that killed the flat-backdrop
-experiment, approached from the other side. Meanwhile the case for live 3D strengthened
-on its own: the Ram/Flicker/Pangolin are rigged with walk/idle/attack/wince, a decimation
-ladder at the locked camera showed **12k tris is indistinguishable from the 283k
-original at game size**, and live 3D would delete the bake pipeline for actors entirely
-(no per-azimuth frame sequences, no per-character ground-offset fractions). The cost is
-export and animation wiring — rigged mesh out of Blender into SceneKit with its actions
-intact. Not decided; flagged rather than silently followed. Note this is *independent* of
-impact frames, which need actors in the scene graph and don't care what they're made of.
+This reverses the earlier call — baked sprites as the actor format everywhere in the
+dungeon, live 3D reserved for the character/gear screen — and the reason it reverses is
+worth recording, because the original reasoning was never wrong so much as answering a
+question we don't have.
+
+**Billboards were a performance optimisation.** That's the whole of it. A dungeon holds
+two characters — maybe four, if multiple foes or multiplayer ever land. That is not a
+budget that needs optimising: a decimation ladder at the locked camera measured **12k
+tris as indistinguishable from the 283k original at game size**, so four characters is
+~48k triangles. Paying a real cost to avoid a cost that isn't there is a bad trade.
+
+And the costs were real, on both sides:
+
+- **Billboards ignore light.** They draw with `.constant` lighting. The room is now real
+  geometry lit by real `SCNLight`s, so a lit room containing an unlit flat sprite
+  reproduces *precisely* the "pasted on" read that killed the flat-backdrop experiment,
+  approached from the other side. Live 3D actors pick up the room's lights for free —
+  which is the same "lighting consistency is free" property that motivated the room kit.
+- **Billboards need the bake pipeline.** Per-azimuth frame sequences, per-character
+  ground-offset fractions, and a frame library that currently reads an absolute path
+  outside the repo — shipping billboards to the real arena would mean bundling every
+  character × action × azimuth as app resources first. Live 3D deletes all of it.
+- **The models already exist**, rigged with walk / idle / attack / wince.
+
+Baked sprites are *not* going away everywhere — they remain the format for the desktop
+pet, where the constraints are genuinely different. This decision is about the dungeon.
+
+**Cost of the new path:** export and animation wiring — rigged mesh out of Blender into
+SceneKit with its actions intact. Untested; the first real question is what SceneKit can
+ingest (`.dae` vs `.usdz` vs the existing GLB) with rigs and actions surviving, worth
+proving on one character before committing the pipeline.
+
+Note this is *independent* of impact frames, which need actors in the scene graph and
+don't care what those actors are made of.
 
 **The stage is one flat floor** (2026-09-01). It was four depth bands near to far — party
 floor, an arena gap where attacks and VFX play out, a raised foe platform, and a back
@@ -268,7 +284,7 @@ actual in-game panel renders now (room-only; see `Sources/Worklings/DungeonStage
 and `CombatPanel.swift`'s `ArenaBackground`). The panel itself resized from 600×480 to
 1280×720 to match. Party and foe **still render as the old flat side-by-side SwiftUI
 columns** — untouched by this pass, not yet repositioned into the diagonal corners or
-turned into real scene billboards.
+turned into real scene actors.
 
 **How the environment art has to work, so it doesn't look janky:** the room is real 3D
 geometry (the four bands), so its surfaces get **materials** — prompt-generated PBR
@@ -282,7 +298,7 @@ ever revealing its flatness specifically because the camera is fixed and never e
 parallax mismatch — but the room itself gets textured as 3D, not papered over with a
 picture.
 
-**Not yet done:** real party/foe marks and turning them into real scene billboards
+**Not yet done:** real party/foe marks and turning them into real scene actors
 (currently the untouched flat 2D columns), the walk-past-and-dissolve transition, and the
 environment materials themselves — the stage is still grey blockout boxes, nothing
 textured yet. Every future dungeon needs its own angle found the same way — only the
@@ -320,10 +336,9 @@ as a reusable, modular kit rather than one bespoke scene per dungeon:**
    real materials, lit by real `SCNLight` nodes positioned where the dungeon's fixtures
    are (a warm point light at the torch, a cool one at the crystals). This is what makes
    lighting consistency **free** across every future dungeon: place lights and swap
-   materials, and both the room *and* any character standing in it (once billboards
-   respond to real lighting instead of `.constant`, or once live 3D actors land — see
-   the "Effects" section above) pick up the same light automatically. No per-image
-   re-tuning, ever again.
+   materials, and both the room *and* any character standing in it pick up the same
+   light automatically — actors being live 3D is what makes that true for characters as
+   well as walls. No per-image re-tuning, ever again.
 3. **Assemble each dungeon's room by placing kit pieces — start with Xcode's own
    built-in SceneKit `.scn` scene editor**, not custom tooling: drag a piece in,
    position it with the standard 3D gizmos, drop in a light, preview live. This is
@@ -385,15 +400,12 @@ Scoped deliberately small so it's finishable, not a re-litigation of the whole d
 
 **Why impact frames stop being blocked here:** the earlier concern (open question #8)
 was that party/foe render as flat SwiftUI columns bolted on top of the 3D view, outside
-the SceneKit scene graph — so there's no `SCNNode` to shake or freeze. That blocker was
-never really about actors being *live 3D geometry* versus *baked billboards* — it was
-about actors being **inside the scene graph at all**. A baked-sprite billboard
-(`SCNPlane` textured with the pre-baked frames) positioned as a real node in the same
-`SCNScene` as the room unblocks hit-stop (freeze scene time), camera shake (perturb the
-camera node), and dust bursts (an `SCNParticleSystem` in the room) exactly as well as a
-fully live-3D character would. So: once the room is real SceneKit and the Flicker/pet
-are placed as real nodes in it — billboards or not — impact frames become normal
-SceneKit work, not a wait on the actors also going live-3D.
+the SceneKit scene graph — so there's no `SCNNode` to shake or freeze. That blocker is
+about actors being **inside the scene graph at all**, not about what they are made of:
+any node in the same `SCNScene` as the room unblocks hit-stop (freeze scene time),
+camera shake (perturb the camera node), and dust bursts (an `SCNParticleSystem` in the
+room). Actors are now live 3D by the 2026-09-01 call above, which settles what fills the
+slot — but impact frames never depended on that answer either way.
 
 **Deliberately deferred, not designed away — revisit when it comes up:**
 - **Drag an ability onto the enemy to choose the next action.** A real idea, but a
@@ -434,6 +446,15 @@ Two different kinds of "effect" on a character, deliberately handled differently
   still a better fit for a live layer. Only baked for the Ram's idle pose so far — the
   walk/headbutt/damage actions would each need their own pass/pause timing re-tuned to
   that action's own frame range, not a blind copy of idle's numbers.
+- **The live-3D actor call (2026-09-01) partly reopens this.** The crackle post-mortem's
+  finding was that a live overlay has no information about the mesh's actual surface —
+  true of a flat billboard, where the mesh isn't there. With the real mesh in the scene,
+  a runtime shader *does* have the surface to work with, so the "must be baked" half of
+  the guidance is now a question rather than a conclusion. The per-vertex curvature
+  attribute the Blender effect already relies on would travel with the exported mesh.
+  Not tested; noted so the baked-vs-live line gets re-checked against live 3D rather
+  than inherited from the billboard era. The upside if it holds: no re-bake per action,
+  which was the whole cost of the baked approach.
 
 ## The Cache Warren
 
@@ -659,14 +680,34 @@ noted, not being tuned yet.** Enemy-ability, [ability](abilities.md#knobs), and
    fly back to their corners. Worth a mock before committing either way.
 8. **Impact frames** (2026-08-27, unblocked 2026-08-28) — hit-stop, camera shake,
    dust/debris bursts on a stomp or landed hit; the single biggest lever for combat
-   feeling weighty rather than just animated. No longer thought to require live-3D
-   actors specifically — see "Next milestone" above: once the room is a real `SCNScene`
-   and the Flicker/pet are placed as real `SCNNode`s in it (billboards are enough), hit-
-   stop/shake/particle-burst are normal SceneKit operations. Still needs the real arena
-   to move off flat SwiftUI columns onto scene billboards (item below) before it lands
-   in production combat, but can be prototyped in the Dungeon Stage Camera Tool first
-   (freeze + shake + dust burst on the Ram's headbutt, same "test in the tool first"
-   pattern as everything else) without waiting on that wiring.
+   feeling weighty rather than just animated. Needs actors to be `SCNNode`s in the same
+   scene as the room — not live 3D geometry specifically, though that is now the call
+   (see "Rendering approach" above). Still needs the real arena to move off flat SwiftUI
+   columns onto scene actors before it lands in production combat.
+
+   **Where to build it (decided 2026-09-01): the real arena, not the camera tool** — a
+   deliberate departure from the usual "test in the tool first" pattern. The tool has no
+   combat loop, so prototyping there means first building a fake one to drive the very
+   thing you're trying to integrate with. And the genuinely unknown part exists only in
+   the arena: `ArenaCombatant` is one SwiftUI column stacking speech bubble, sprite,
+   name, HP bar and damage floaters, so moving the sprite into the scene separates it
+   from its own chrome — the bubble and HP bar must then follow a 3D node by projecting
+   its world position to a screen point, and keep following while it shakes. The split
+   is by what's actually unknown: **the tool owns how the effect looks** (particle
+   tuning, shake curve, hit-stop duration, behind a "test impact" button — iteration-
+   heavy visual work with no combat dependency), **the arena owns how it's wired**.
+
+   **Step 1 done (2026-09-01):** actor placement lifted out of `#if DEBUG` into
+   `DungeonStageSlot` / `DungeonStageActors` in `DungeonStage3D.swift`, shared by the
+   tool and the arena the same way the room already is. No visible change; it is the
+   seam the rest needs. Remaining: arena actors become scene nodes with chrome projected
+   to screen; impact frames driven off the existing beat system; a test-impact button in
+   the tool. If the projection turns out ugly, the fallback is fixed-position chrome
+   with only the actor moving — worse, but it still unblocks impact frames.
+
+   One hazard noted while reading: `ArenaBackground.scene` is a `private static let`, so
+   one scene instance is shared across every combat. Harmless for room geometry; the
+   moment actors are nodes in it, that is state carrying between delves.
 9. **RESOLVED (was: flat painted backdrop vs. the live 3D room).** The backdrop
    experiment (2026-08-27, toggleable in the camera tool) is closed and rejected — see
    "Building the room — a modular kit, not a backdrop or a hand-built scene" above for
