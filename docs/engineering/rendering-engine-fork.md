@@ -23,15 +23,27 @@ question.
    features or optimisations, with RealityKit named as the migration path. This is now a
    stated Apple position, not an inference from the release cadence.
 3. **Windows is a firm want**, Linux a maybe. macOS-first is a consequence of the
-   developer's machine, not a product decision.
+   developer's machine, not a product decision. **The menubar is not sacred** (2026-09-01)
+   — it is a macOS-only affordance and the app's controls may live elsewhere on other
+   platforms, which removes the strongest argument for staying with a native Apple UI
+   host. Recent Godot has a cross-platform status-indicator (tray icon) API that would
+   cover the control surface; verify the version in the spike.
 
 ## The core asymmetry
 
 **Game logic already carries. Rendering does not.**
 
 `CompanionCore` is a pure deterministic module with no rendering dependency — combat
-resolution, progression, the pet brain, save data. That is engine-agnostic today and
-stays so under any option here.
+resolution, progression, the pet brain, save data.
+
+**Correction (2026-09-01): "carries" means architecturally, not literally, and the
+difference is expensive.** `CompanionCore` is Swift. It carries as *code* to RealityKit,
+which is also Swift. It does **not** carry to Godot, which runs GDScript or C# — there it
+means a rewrite, or exposing the module as a C-compatible shared library through
+GDExtension, which is exotic and multiplies build complexity across three platforms.
+This is shipped, tested logic, and it is the largest single number in the Godot column.
+An earlier version of this doc claimed the core was engine-agnostic "under any option
+here"; that was wrong and understated the cost of switching.
 
 Rendering carries **nothing**. Not one line of `DungeonStage3D.swift`,
 `DungeonStageCameraTool.swift`, or any future effects layer survives a move to Godot.
@@ -73,13 +85,26 @@ the inventory UI — a shipped alpha.9 product, not a prototype.
 That is a much larger decision than the dungeon, and it is why this is a fork worth
 writing down rather than a preference to act on.
 
+## What "a Godot app" actually means
+
+Not a runtime users install. Godot exports a **native executable per platform** — a
+`.app` bundle on macOS, an `.exe` on Windows, an ELF binary on Linux — with the engine
+linked into the binary. It is a native app built with a different toolchain, not a game
+running inside a shipped engine.
+
+Costs: roughly 30–70 MB of engine in the binary, and the loss of Apple-native affordances
+(menubar extra, native menus, system accessibility) unless platform glue is written.
+
 ## The options
 
 | | Windows/Linux | visionOS | Editor & tooling | Cost from here |
 | --- | --- | --- | --- | --- |
 | **SceneKit** (status quo) | No — full rewrite | No | Weakest. Xcode's `.scn` editor is minimal; the Dungeon Stage Camera Tool exists *because* there is no usable editor | Lowest today, but every effect built is throwaway if we ever leave Apple |
 | **RealityKit** | No — full rewrite | Yes, comparatively cheap | Reality Composer Pro is real tooling; USD is native, and it can cut a combined animation into separate clips | Migration from SceneKit is real (ECS architecture); assets carry |
-| **Godot** | Yes, one codebase | No | Strongest. Full visual 3D scene editor, particle and shader editors, live preview | Highest — reaches the whole app, not just the dungeon |
+| **Godot** | Yes, one codebase | No | Strongest. Full visual 3D scene editor, particle and shader editors, live preview | Highest — reaches the whole app, and `CompanionCore` is a rewrite (Swift → GDScript/C#) |
+
+**The trade, sharpened:** Godot costs a logic rewrite and buys three platforms plus a
+real editor. RealityKit keeps the Swift logic and buys visionOS, but never Windows.
 
 **RealityKit and Windows are mutually exclusive.** Both are Apple-only. If Windows is a
 firm requirement, RealityKit rules itself out on those terms regardless of SceneKit's
@@ -119,8 +144,9 @@ engine-specific effort we will spend on the framework least likely to be the des
 
 ## What is not in question
 
-- `CompanionCore` stays pure and engine-agnostic. This is what makes the fork survivable
-  at all, and it should get *more* disciplined, not less, while the fork is open.
+- `CompanionCore` stays pure and free of rendering dependencies, and should get *more*
+  disciplined, not less, while the fork is open — but see the correction above: purity
+  makes it portable in *design*, not in *language*. Under Godot it is a rewrite.
 - Blender stays the authoring tool under every option.
 - The desktop pet remains a 2D bake ([bake-spec](../design/bake-spec.md)); the character
   screen and dungeon are the 3D modes.
@@ -132,7 +158,18 @@ Answer before committing either way:
 1. Is Windows a real ship target with a date, or an aspiration? This single answer
    collapses most of the table.
 2. Can Godot deliver a transparent, always-on-top, click-through companion window on
-   **Windows specifically**? Documented as supported; unproven on that OS for this use.
+   **Windows specifically**? Researched 2026-09-01 and it looks well-trodden, but it is
+   still unproven *for this app*:
+   - Godot has it built in — borderless + transparent + always-on-top in project
+     settings, per-pixel transparency in rendering, and
+     `DisplayServer.window_set_mouse_passthrough(region)` for the clickable polygon.
+     Events outside the region pass through; on Windows that area is not even drawn,
+     which is what a pet wants. There is a published Godot-4 desktop-pet tutorial.
+   - Native Win32 does it with `WS_EX_LAYERED` + `WS_EX_TRANSPARENT`. Note `WS_EX_LAYERED`
+     alone only makes pixels *look* transparent — Windows still hit-tests them.
+   - **Known wart to test, not assume:** godotengine/godot#91588 — setting a borderless
+     window to always-on-top *at runtime* can make it non-interactive with all clicks
+     falling through. Workaround is toggling visibility off and on.
 3. What is the honest cost of moving the menubar host, activity adapters, and character
    screen to Godot — or of running two processes?
 4. Does the dungeon actually feel good? An engine choice made before knowing whether the
