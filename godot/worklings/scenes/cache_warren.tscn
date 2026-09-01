@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scenes/cache_warren.gd" id="script"]
+[ext_resource type="Script" path="res://scenes/CacheWarrenScene.cs" id="script"]
 [ext_resource type="PackedScene" path="res://scenes/dungeon_stage.tscn" id="stage"]
 [ext_resource type="PackedScene" path="res://assets/characters/tempest_ram.glb" id="ram"]
 [ext_resource type="PackedScene" path="res://assets/characters/forest_flicker.glb" id="flicker"]
