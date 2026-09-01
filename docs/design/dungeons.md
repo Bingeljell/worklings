@@ -307,8 +307,10 @@ existed because baked sprite sheets had a fixed pixel ceiling and the stage coul
 as sharp as the sheets filling it. Live 3D has no bake ceiling — it renders at whatever
 resolution is asked for — so that constraint went away when billboards did. What still
 holds is the **16:9 aspect**: the locked camera frames differently at another ratio, so
-the shape is load-bearing even though the resolution is not. Godot keeps it with
-`window/stretch/aspect="keep"`.
+the shape is load-bearing even though the resolution is not. Godot preserves it by
+default — `window/stretch/aspect` defaults to `keep` in Godot 4, and the editor strips
+default values from `project.godot`, so an explicit line there will silently disappear
+every time the project is opened. Nothing to configure; worth knowing before trying.
 
 **The Cache Warren's locked camera:**
 

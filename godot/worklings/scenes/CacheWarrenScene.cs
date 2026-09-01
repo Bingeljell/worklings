@@ -2,6 +2,7 @@ using Godot;
 using System.Collections.Generic;
 using System.Linq;
 using Worklings.Core.Combat;
+using Worklings.Core.Stage;
 
 /// The Cache Warren scene: the first dungeon, playing a real encounter.
 ///
@@ -28,21 +29,19 @@ public partial class CacheWarrenScene : Node3D
     /// still frame when you come back to it.
     [Export] public bool Loop { get; set; } = true;
 
-    /// Which action each character plays, matched on substring — names differ
-    /// per character (RamIdle_Breathe_Paw vs ForestFlicker_Idle_BreatheLook) and
-    /// are still being trimmed, so exact names would be brittle.
-    private static readonly string[] IdleHints = { "Idle", "Rest", "Breathe" };
-    private static readonly string[] AttackHints = { "Headbutt_Power_Impact", "Attack", "Headbutt", "Swipe" };
-    private static readonly string[] WinceHints = { "Wince", "Damage", "HitReact" };
-
-    private Node3D _party = null!;
-    private Node3D _foe = null!;
-    private Label _readout = null!;
-    private AnimationPlayer? _partyAnim;
-    private AnimationPlayer? _foeAnim;
+    private StageActor _party = null!;
+    private StageActor _foe = null!;
+    private CombatHud _hud = null!;
+    private DamageNumbers _numbers = null!;
+    private Color _petEnergy, _foeEnergy;
 
     private readonly Queue<CombatEvent> _pending = new();
+    private ImpactFrames _impact = null!;
+    private readonly AttackLunge _lunge = new();
     private double _beatTimer;
+    private double _beatLength;
+    private int _round;
+    private Approach _approach = Approach.Clever;
     private string _petName = "Ram";
     private string _foeName = "Flicker";
     private int _petHP, _petMaxHP, _foeHP, _foeMaxHP;
@@ -50,11 +49,12 @@ public partial class CacheWarrenScene : Node3D
 
     public override void _Ready()
     {
-        _party = GetNode<Node3D>("Party");
-        _foe = GetNode<Node3D>("Foe");
-        _partyAnim = FindPlayer(_party);
-        _foeAnim = FindPlayer(_foe);
-        _readout = BuildReadout();
+        _party = new StageActor(GetNode<Node3D>("Party"), "tempest_ram", ActorAnimations.TempestRam);
+        _foe = new StageActor(GetNode<Node3D>("Foe"), "forest_flicker", ActorAnimations.ForestFlicker);
+        _petEnergy = FamilyEnergy.Of(FamilyEnergy.For(_party.ModelName));
+        _foeEnergy = FamilyEnergy.Of(FamilyEnergy.For(_foe.ModelName));
+        _numbers = new DamageNumbers(this);
+        _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this, this);
         StartFight();
     }
 
@@ -72,7 +72,7 @@ public partial class CacheWarrenScene : Node3D
         // Seeded from the clock so each replay differs; a real delve seeds from
         // the save state plus a per-delve nonce instead.
         ulong seed = (ulong)Time.GetTicksUsec();
-        var encounter = new CombatEncounter(pet, foe, Approach.Clever, rates, seed);
+        var encounter = new CombatEncounter(pet, foe, _approach, rates, seed);
         encounter.RunToCompletion();
 
         _petName = pet.Name;
@@ -82,17 +82,33 @@ public partial class CacheWarrenScene : Node3D
         _petHP = _petMaxHP;
         _foeHP = _foeMaxHP;
 
+        _lunge.Cancel();
+        _hud ??= new CombatHud(this, _petName, _petMaxHP, _petEnergy,
+                               _foeName, _foeMaxHP, _foeEnergy);
+        _hud.Reset(_petMaxHP, _foeMaxHP);
         _pending.Clear();
         foreach (var e in encounter.Log) _pending.Enqueue(e);
         _beatTimer = 0;
         _line = "";
-        Play(_partyAnim, IdleHints);
-        Play(_foeAnim, IdleHints);
+        _party.Play(ActorAction.Idle, loop: true);
+        _foe.Play(ActorAction.Idle, loop: true);
         UpdateReadout();
     }
 
     public override void _Process(double delta)
     {
+        // Impact reactions animate on real time. The freeze applies to the
+        // fight, not to the shake and dust working their way out of it.
+        _impact.Tick(delta);
+        _hud?.Tick(delta);
+        if (_beatLength > 0) _hud?.SetBeat(1.0 - _beatTimer / _beatLength);
+
+        // The attacker freezes at the point of contact during hit-stop rather
+        // than sliding through the held frame.
+        _lunge.Tick(delta, _impact.IsHitStopped ? 0 : 1);
+
+        if (_impact.IsHitStopped) return;
+
         _beatTimer -= delta;
         if (_beatTimer > 0) return;
 
@@ -104,8 +120,43 @@ public partial class CacheWarrenScene : Node3D
 
         var next = _pending.Dequeue();
         _beatTimer = Apply(next) ? BeatSeconds : 0.0;
+        if (_lunge.IsBusy) _beatTimer = System.Math.Max(_beatTimer, AttackLunge.Duration + 0.12);
+        _beatLength = _beatTimer;
         UpdateReadout();
     }
+
+    /// Sends the attacker at its target and hangs the whole reaction off the
+    /// moment it arrives.
+    ///
+    /// The combatants stand ~11 units apart — over two body lengths — so an
+    /// attack played in place lands nowhere near the defender and the fight
+    /// reads as two models taking turns with animations. Closing the distance is
+    /// what makes it a collision; impact frames are the reaction to that
+    /// collision, and were previously firing at a contact that never happened.
+    private void ScheduleImpact(
+        StageActor attacker, StageActor defender, bool toFoe,
+        StrikeOutcome outcome, bool isSignature = false)
+    {
+        int maxHP = toFoe ? _foeMaxHP : _petMaxHP;
+        double severity = maxHP > 0 ? (double)outcome.Damage / maxHP : 0;
+        var direction = defender.Root.Position - attacker.Root.Position;
+        _lunge.Begin(attacker, defender, onContact: () =>
+        {
+            ApplyDamage(toFoe, outcome.Damage);
+            var energy = toFoe ? _petEnergy : _foeEnergy;
+            _impact.Strike(defender, direction, severity, outcome.DidCrit || isSignature, energy);
+            _numbers.Spawn(defender.Root.Position, outcome.Damage, energy,
+                           outcome.DidCrit || isSignature);
+            UpdateReadout();
+        });
+    }
+
+    /// A miss still commits — the attacker goes in and comes back with nothing
+    /// to show for it, which is what makes a miss read as a miss rather than as
+    /// a skipped turn.
+    private void ScheduleWhiff(StageActor attacker, StageActor defender) =>
+        _lunge.Begin(attacker, defender,
+                     onContact: () => _numbers.SpawnMiss(defender.Root.Position));
 
     /// Turns one event into what you see. Returns whether it deserves a beat —
     /// bookkeeping events (round markers, decision points) pass through instantly
@@ -117,44 +168,45 @@ public partial class CacheWarrenScene : Node3D
             case CombatEvent.Struck x:
             {
                 bool petAttacking = x.Attacker == _petName;
-                Play(petAttacking ? _partyAnim : _foeAnim, AttackHints);
+                var attacker = petAttacking ? _party : _foe;
+                var defender = petAttacking ? _foe : _party;
+                attacker.Play(ActorAction.Attack);
                 if (x.Outcome.DidHit)
                 {
-                    Play(petAttacking ? _foeAnim : _partyAnim, WinceHints);
-                    ApplyDamage(petAttacking, x.Outcome.Damage);
+                    ScheduleImpact(attacker, defender, petAttacking, x.Outcome);
                     _line = $"{x.Attacker} {(x.Outcome.DidCrit ? "crits" : "strikes")} for {x.Outcome.Damage}";
                 }
                 else
                 {
+                    ScheduleWhiff(attacker, defender);
                     _line = $"{x.Attacker} misses";
                 }
                 return true;
             }
             case CombatEvent.Signature x:
-                Play(_partyAnim, AttackHints);
-                Play(_foeAnim, WinceHints);
-                ApplyDamage(true, x.Outcome.Damage);
+                _party.Play(ActorAction.Signature);
+                ScheduleImpact(_party, _foe, true, x.Outcome, isSignature: true);
                 _line = $"{x.Attacker} unleashes for {x.Outcome.Damage}";
                 return true;
 
             case CombatEvent.Braced x:
-                Play(_partyAnim, IdleHints);
+                _party.Play(ActorAction.Idle, loop: true);
                 _petHP = System.Math.Min(_petMaxHP, _petHP + x.Regen);
                 _line = $"{x.Who} braces (+{x.Regen})";
                 return true;
 
             case CombatEvent.Grabbed x:
-                Play(_foeAnim, AttackHints);
+                _foe.Play(ActorAction.Attack);
                 _line = $"{x.Attacker} snares {x.Target} (-{x.AgilityLoss} Agility)";
                 return true;
 
             case CombatEvent.Phased x:
-                Play(_foeAnim, IdleHints);
+                _foe.Play(ActorAction.Idle, loop: true);
                 _line = $"{x.Who} blurs aside";
                 return true;
 
             case CombatEvent.Defeated x:
-                Play(x.Who == _petName ? _partyAnim : _foeAnim, WinceHints);
+                (x.Who == _petName ? _party : _foe).Play(ActorAction.Downed);
                 _line = $"{x.Who} is down";
                 return true;
 
@@ -162,8 +214,12 @@ public partial class CacheWarrenScene : Node3D
                 _line = x.Victory ? "Victory" : "Defeat";
                 return true;
 
+            case CombatEvent.RoundBegan x:
+                _round = x.Round;
+                return false;
+
             default:
-                return false;   // round markers, decision points, telegraphs
+                return false;   // decision points, telegraphs
         }
     }
 
@@ -173,42 +229,10 @@ public partial class CacheWarrenScene : Node3D
         else _petHP = System.Math.Max(0, _petHP - amount);
     }
 
-    private static void Play(AnimationPlayer? player, string[] hints)
+    private void UpdateReadout()
     {
-        if (player == null) return;
-        var names = player.GetAnimationList();
-        foreach (var hint in hints)
-        {
-            var match = names.FirstOrDefault(n => n.Contains(hint, System.StringComparison.OrdinalIgnoreCase));
-            if (match != null) { player.Play(match); return; }
-        }
+        _hud.SetHP(_petHP, _foeHP);
+        _hud.SetNarration(_line);
+        _hud.SetStatus($"Round {_round}  ·  {_approach}");
     }
-
-    private static AnimationPlayer? FindPlayer(Node node)
-    {
-        if (node is AnimationPlayer p) return p;
-        foreach (var child in node.GetChildren())
-        {
-            var found = FindPlayer(child);
-            if (found != null) return found;
-        }
-        return null;
-    }
-
-    private Label BuildReadout()
-    {
-        var layer = new CanvasLayer();
-        AddChild(layer);
-        var label = new Label
-        {
-            Position = new Vector2(24, 20),
-            Size = new Vector2(600, 120),
-        };
-        label.AddThemeFontSizeOverride("font_size", 22);
-        layer.AddChild(label);
-        return label;
-    }
-
-    private void UpdateReadout() =>
-        _readout.Text = $"{_petName}  {_petHP}/{_petMaxHP}\n{_foeName}  {_foeHP}/{_foeMaxHP}\n{_line}";
 }
