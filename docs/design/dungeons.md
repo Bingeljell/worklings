@@ -225,13 +225,38 @@ And the costs were real, on both sides:
 Baked sprites are *not* going away everywhere — they remain the format for the desktop
 pet, where the constraints are genuinely different. This decision is about the dungeon.
 
-**Cost of the new path:** export and animation wiring — rigged mesh out of Blender into
-SceneKit with its actions intact. Untested; the first real question is what SceneKit can
-ingest (`.dae` vs `.usdz` vs the existing GLB) with rigs and actions surviving, worth
-proving on one character before committing the pipeline.
-
 Note this is *independent* of impact frames, which need actors in the scene graph and
 don't care what those actors are made of.
+
+**Export pipeline: PROVEN 2026-09-01 (SceneKit path).** The Ram exports to USDZ and loads
+into SceneKit with skinning, textures and animation intact — verified by rendering it at
+the locked camera, not assumed. Findings worth keeping whichever engine wins:
+
+- **Blender 5.2 removed the Collada exporter.** DAE is gone; USDZ or glTF only.
+- **USD comes out Z-up.** SceneKit is Y-up, so an unrotated import stands along the depth
+  axis and sinks halfway through the floor. Fix at export, not with a runtime rotation.
+- **The exporter uses the *scene's* frame range, not the action's** — leave them
+  mismatched and a 32-frame walk exports as a 6-frame stub. Set the range per action.
+- **Modifiers on a skinned mesh are ignored** (base topology is written), so decimation
+  must be destructive, not a live modifier. Applied: 283k tris → 15k, 30.4 MB → 3.08 MB.
+- **A USDZ cannot hold multiple animations.** The pattern is one character file (mesh +
+  rig + textures) plus separate animation-only files applied to the loaded character at
+  runtime — which also stops the mesh being duplicated per action. glTF holds multiple
+  clips natively but needs a third-party loader for SceneKit; Godot reads it directly.
+- **`Crackle_Curvature` does not survive** even as the active colour attribute — Blender
+  writes it as a non-standard primvar. Baking curvature to a texture channel is the
+  portable route, since the mesh already has UVs.
+- **Decimation is a distribution-size lever, not a performance one.** At 2–4 characters
+  the triangle count is irrelevant; at 25 player characters plus ~5 foes per dungeon it
+  is the difference between roughly 450 MB and 4 GB. Textures overtake geometry as the
+  problem at that scale.
+
+**Engine choice is now an open fork** — see
+[rendering engine fork](../engineering/rendering-engine-fork.md). SceneKit entered soft
+deprecation at WWDC 2025 (critical fixes only), Windows is a firm want, and the live-3D
+call unblocks a large body of engine-specific effects work. **Decide before building that
+effects layer, not after** — everything built so far is cheap to abandon; effects code is
+not.
 
 **The stage is one flat floor** (2026-09-01). It was four depth bands near to far — party
 floor, an arena gap where attacks and VFX play out, a raised foe platform, and a back

@@ -2,6 +2,12 @@
 
 ## Status and intent
 
+> **See also: [Rendering engine fork](rendering-engine-fork.md) (2026-09-01).** The
+> engine question moved up from Phase 3: SceneKit entered soft deprecation at WWDC
+> 2025, the dungeon went live 3D, and the effects work that unblocks is the most
+> engine-specific code in the project. The recommendation there is to make the Godot
+> spike scoped below *be* the dungeon vertical slice rather than follow it.
+
 Worklings is currently a macOS application written in Swift, SwiftUI, and AppKit. That remains the right implementation for validating the product: the current simulation is small, Swift is native and performant, and Apple frameworks provide direct access to the window, menu-bar, display, filesystem, and accessibility behavior the macOS experience needs.
 
 There is no planned rewrite. This document records boundaries and decision points that should keep a later expansion possible without compromising the macOS product now. A platform or framework is not selected until its user experience, operating-system constraints, maintenance cost, and safety properties have been tested.
