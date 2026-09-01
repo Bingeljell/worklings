@@ -1,0 +1,11 @@
+# Godot extracts embedded textures next to the .glb on import. Derived files —
+# regenerated from the .glb, never edited by hand.
+*_Image_*.webp
+*_Image_*.png
+*_Image_*.import
+
+# Experiment exports (decimation ladders, texture comparisons). The pipeline
+# regenerates any variant in one command; see
+# docs/engineering/character-asset-pipeline.md.
+ram_*k.glb
+*_tex_*.glb

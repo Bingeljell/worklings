@@ -251,6 +251,11 @@ the locked camera, not assumed. Findings worth keeping whichever engine wins:
   is the difference between roughly 450 MB and 4 GB. Textures overtake geometry as the
   problem at that scale.
 
+**Character asset standard: 20k triangles, 1024² textures, ≤44-frame actions** — see
+[character asset pipeline](../engineering/character-asset-pipeline.md) for the reasoning
+and the export script. Locked 2026-09-01 after reviewing every level in Godot on the real
+lit stage. Brought the three rigged characters from ~73 MB to 23 MB total.
+
 **ENGINE DECIDED 2026-09-01: Godot** — see
 [rendering engine fork](../engineering/rendering-engine-fork.md) for the full reasoning.
 SceneKit is soft-deprecated and Apple-only; Windows is a firm ship target and Linux is
