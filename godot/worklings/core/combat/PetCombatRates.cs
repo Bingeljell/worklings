@@ -1,3 +1,5 @@
+using Worklings.Core.Pet;
+
 namespace Worklings.Core.Combat;
 
 /// The dungeon combat model's tunable numbers and the core resolution formulas.
@@ -166,4 +168,10 @@ public sealed class PetCombatRates
     /// The chance a landed Strike crits, from the attacker's Agility.
     public double CritChance(int agility) =>
         System.Math.Clamp(agility * CritChancePerAgility, 0, 1);
+
+    /// How much of its stat sheet a Workling actually brings to a fight. A
+    /// neglected one scales down to CombatEffectivenessFloor. Reuses the same
+    /// needs average as the XP multiplier, so care pays into both on one curve.
+    public double CombatEffectiveness(PetNeeds needs) =>
+        needs.XPMultiplier(CombatEffectivenessFloor);
 }
