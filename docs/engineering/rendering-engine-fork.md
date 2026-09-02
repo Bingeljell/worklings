@@ -24,6 +24,10 @@ moment to switch was before writing it, not after.
 **Sequencing:** the app keeps shipping from the Swift codebase until the Godot side can
 replace a mode outright. This is not a stop-the-world rewrite.
 
+**Where the port has actually got to** is tracked in
+[godot port status](godot-port-status.md) — kept current as slices land, rather than
+reconstructed from git history.
+
 This sits under [Cross-platform architecture](cross-platform-architecture.md), which
 already names Godot as the first non-macOS candidate and scopes a disposable spike. What
 is new is that three things landed at once and turned a Phase-3 question into a now

@@ -256,6 +256,12 @@ the locked camera, not assumed. Findings worth keeping whichever engine wins:
 and the export script. Locked 2026-09-01 after reviewing every level in Godot on the real
 lit stage. Brought the three rigged characters from ~73 MB to 23 MB total.
 
+**The dungeon runs in Godot as of 2026-09-01** — a real encounter resolved by the ported
+combat engine, with lagging health bars, world-space damage numbers, family-coloured hit
+sparks, an impact flash, hit-stop, camera shake and a beat countdown. Current state and
+what remains: [godot port status](../engineering/godot-port-status.md). Visual direction
+for the anime-combat stylization: the Strike Frame reference.
+
 **ENGINE DECIDED 2026-09-01: Godot** — see
 [rendering engine fork](../engineering/rendering-engine-fork.md) for the full reasoning.
 SceneKit is soft-deprecated and Apple-only; Windows is a firm ship target and Linux is
