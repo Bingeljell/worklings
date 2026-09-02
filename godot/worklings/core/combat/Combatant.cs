@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using Worklings.Core.Pet;
+using Worklings.Core.Progression;
 
 namespace Worklings.Core.Combat;
 
@@ -47,16 +49,52 @@ public sealed class Combatant
     /// Builds the pet's combatant from stats already scaled by condition
     /// effectiveness, with max HP derived from the scaled Vitality. Starts at
     /// full HP.
-    ///
-    /// Swift also has `pet(from: PetState)` overloads that unpack gear and
-    /// condition. Those are deliberately not ported yet — they pull in PetState,
-    /// Items and PetProgression, none of which combat needs. The caller supplies
-    /// scaled stats until that slice lands.
     public static Combatant Pet(string name, CombatStats scaledStats, int vitality, PetCombatRates rates)
     {
         int maxHP = rates.MaxHP(vitality);
         return new Combatant(name, scaledStats, maxHP, maxHP);
     }
+
+    /// Builds the pet's combatant from a stat sheet and current condition: the
+    /// base stats scaled by the condition->combat effectiveness, with max HP
+    /// derived from the scaled Vitality. Guard is stored as Defense, the same
+    /// split the design vocabulary makes everywhere else.
+    public static Combatant Pet(
+        string name, PetStats baseStats, PetNeeds needs, PetCombatRates rates)
+    {
+        double effectiveness = rates.CombatEffectiveness(needs);
+        // Swift's `.rounded()` rounds halves away from zero; C#'s Math.Round
+        // defaults to banker's rounding, which would send a stat of x.5 to the
+        // nearest *even* number and quietly disagree on every other draw.
+        int Scaled(int value) =>
+            (int)System.Math.Round(value * effectiveness, System.MidpointRounding.AwayFromZero);
+
+        int vitality = Scaled(baseStats.Vitality);
+        int maxHP = rates.MaxHP(vitality);
+        return new Combatant(
+            name,
+            new CombatStats(
+                power: Scaled(baseStats.Power),
+                defense: Scaled(baseStats.Defense),
+                agility: Scaled(baseStats.Agility),
+                wit: Scaled(baseStats.Wit)),
+            maxHP,
+            maxHP);
+    }
+
+    /// Builds the pet's combatant straight from its live PetState — name, the
+    /// stat sheet, and current condition — so the caller never has to unpack the
+    /// state itself.
+    ///
+    /// Reads EffectiveStats, not the persisted base, so equipped gear is in the
+    /// fight. Gear folds in *before* the condition multiplier, matching the
+    /// design's ladder (base -> sheet -> combat): a neglected Workling's gear is
+    /// scaled down along with everything else, so equipment raises the ceiling
+    /// without letting a player gear their way out of care.
+    public static Combatant Pet(
+        PetState state, PetCombatRates rates, ItemRates? itemRates = null) =>
+        Pet(state.Name, state.EffectiveStats(itemRates ?? ItemRates.Default),
+            state.Needs, rates);
 
     /// Builds a foe from its stat block. Foe HP is authored directly (the
     /// bestiary lists it), not derived from Vitality, and condition never scales

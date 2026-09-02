@@ -1,9 +1,7 @@
 using Godot;
+using Worklings.Core.Pet;
 
 namespace Worklings.Core.Stage;
-
-/// The five families and the colour each one's energy emits.
-public enum Family { Elemental, Wildkin, Relicborn, Glitchkin, Bloomglass }
 
 /// Family colour, in one place, because it drives everything visual about a
 /// combatant — HP bar, damage numbers, hit sparks, the impact flash tint.
@@ -27,25 +25,25 @@ public static class FamilyEnergy
     /// converging on the same orange.
     public static readonly Color Crit = new("FF5A3C");
 
-    public static Color Of(Family family) => family switch
+    public static Color Of(PetFamily family) => family switch
     {
-        Family.Elemental => Elemental,
-        Family.Wildkin => Wildkin,
-        Family.Relicborn => Relicborn,
-        Family.Glitchkin => Glitchkin,
-        Family.Bloomglass => Bloomglass,
+        PetFamily.Elemental => Elemental,
+        PetFamily.Wildkin => Wildkin,
+        PetFamily.Relicborn => Relicborn,
+        PetFamily.Glitchkin => Glitchkin,
+        PetFamily.Bloomglass => Bloomglass,
         _ => Bloomglass,
     };
 
     /// Which family a model belongs to. Keyed off the .glb basename for now;
     /// this moves to PetState once that slice is ported and the real roster
     /// carries its own family.
-    public static Family For(string modelName) => modelName switch
+    public static PetFamily For(string modelName) => modelName switch
     {
-        "tempest_ram" => Family.Elemental,
-        "forest_flicker" => Family.Wildkin,
-        "clockwork_pangolin" => Family.Relicborn,
-        _ => Family.Bloomglass,
+        "tempest_ram" => PetFamily.Elemental,
+        "forest_flicker" => PetFamily.Wildkin,
+        "clockwork_pangolin" => PetFamily.Relicborn,
+        _ => PetFamily.Bloomglass,
     };
 
     /// A lighter partner for gradients and bar fills.

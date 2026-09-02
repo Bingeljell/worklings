@@ -63,14 +63,37 @@ public struct SeededGenerator
     /// including the rejection loop, so a bounded draw consumes the same number
     /// of words from the stream as Swift does. That matters as much as the value
     /// itself: a stream that desynchronises makes every later roll diverge.
+    ///
+    /// The algorithm is **Lemire's multiply-shift**, not the modulo-with-
+    /// rejection that the name suggests. Swift computes the full 128-bit product
+    /// of the word and the bound and returns its HIGH half — so the result is
+    /// the word's *position* in the unit interval scaled to the bound, not its
+    /// remainder. For seed 1 and bound 5 the two disagree immediately: the raw
+    /// word mod 5 is 0, and Swift returns 2.
+    ///
+    /// Verified against reference values captured from the Swift implementation
+    /// across 17 bounds (including 1, powers of two, and UInt64.MaxValue) and 8
+    /// seeds. There is no power-of-two shortcut: bound 8 goes through the same
+    /// multiply as every other bound.
     public ulong NextBelow(ulong upperBound)
     {
         if (upperBound <= 1) return 0;
-        ulong tmp = (ulong.MaxValue % upperBound) + 1;
-        ulong range = tmp == upperBound ? 0 : tmp;
-        ulong random;
-        do { random = Next(); } while (random < range);
-        return random % upperBound;
+
+        ulong random = Next();
+        ulong high = System.Math.BigMul(random, upperBound, out ulong low);
+        if (low < upperBound)
+        {
+            // The one range of words that would bias the result. Swift redraws
+            // rather than correcting, so the stream position depends on the
+            // values drawn — reproducing the loop is what keeps it in step.
+            ulong t = (0UL - upperBound) % upperBound;
+            while (low < t)
+            {
+                random = Next();
+                high = System.Math.BigMul(random, upperBound, out low);
+            }
+        }
+        return high;
     }
 
     /// An integer in [lower, upper], matching Swift's `Int.random(in:using:)`.
