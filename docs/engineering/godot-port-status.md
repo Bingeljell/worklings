@@ -22,9 +22,16 @@ As of 2026-09-03 the scene **runs that delve** rather than one hand-built fight
 on a loop: `CacheWarrenScene` builds its fighter from a `PetState` through
 `Combatant.Pet`, drives `Delve` through briefing, the encounter chain, the
 bank-or-push choice and the closing summary, and writes the result back through
-`Delve.Resolution`. The pet it runs is a demo state held **in memory** — a run's
-XP, gear and condition carry into the next run and are lost when the scene
-closes, because nothing loads or saves a `PetState` yet.
+`Delve.Resolution`. The encounter is **stepped rather than pre-resolved**, so the
+fight pauses at its decision points and the player steers it — the Approach and
+the Unleash, beat four of the design's five. The pet it runs is a demo state held
+**in memory** — a run's XP, gear and condition carry into the next run and are
+lost when the scene closes, because nothing loads or saves a `PetState` yet.
+
+Measured against [the delve's five beats](../design/dungeons.md#the-delve-as-a-journey--encounter--delve-ux):
+briefing, fight, steer and bank-or-push all exist; **prep/loadout does not**. The
+core has everything it needs (`Loadout`, `AvailableItems`, `Equipping`) — what is
+missing is a screen to choose on.
 
 This is deliberate: the engine decision (see
 [rendering engine fork](rendering-engine-fork.md)) was taken on the condition
@@ -189,34 +196,40 @@ reference outputs next to the probes, with a runner that diffs them, would turn
 
 ## Open, in priority order
 
-1. **Store the probe references**, above, so the suite catches regressions.
-2. **Three of the four foes have no model.** The Scamp, the Snag and the
-   Monolith render as the Flicker's mesh at a different size and energy colour
-   (`CacheWarrenScene.PresenceFor`). Deliberate — the chain's pacing is judgeable
-   now rather than after four bakes — but the boss reading as a large cat is the
-   most obviously placeholder thing on screen.
-3. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
+1. **The prep/loadout beat does not exist.** Beat two of five: off the briefing
+   the player picks gear and a starting Approach, and it is the beat that makes
+   the briefing mean anything. The core supports it entirely; it needs a screen.
+   The same gear slots are the Character screen's, so this is not throwaway UI.
+2. **Store the probe references**, above, so the suite catches regressions.
+3. **The delve's beats are one line of placeholder text.** Briefing, steer
+   prompt, bank-or-push and summary all share the fight's narration label and
+   the round readout. The press-your-luck choice and the Unleash window are the
+   two moments the player actually plays; both currently look like a debug line.
+4. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
+   cues in alpha.8; none of it is in Godot. Nothing blocks it.
+5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
+   Monolith have no model at all. Today the Flicker stands in for the first
+   three at different sizes and the Pangolin — a pet model — stands in for the
+   Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
+   and want a look.
+6. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
    exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
    them back to back — so the re-time matters more than it did. Nikhil is
    revising the actions to be quicker and more impactful; contact points are
-   stored as fractions (Ram 0.86, Flicker 0.82) so they survive a re-time.
-4. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
+   stored as fractions (Ram 0.86, Flicker 0.82, Pangolin 0.85) so they survive a
+   re-time.
+7. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
    cycle underneath during the approach is the real fix.
-5. **The impact flash reads as invisible in motion** despite showing clearly in
+8. **The impact flash reads as invisible in motion** despite showing clearly in
    stills. Not diagnosed; may need more than a tint change.
-6. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
-   sizes, hit-stop duration, and now the briefing/summary dwell. All exported.
-7. **The combat panel** — narration and round/Approach are placeholder labels,
-   and the delve's own beats now share them: the briefing, the "[Space] push
-   deeper · [B] bank" prompt and the closing summary are all one line of text.
-   The press-your-luck choice is the emotional centre of a delve and currently
-   looks like a debug readout.
-8. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
-   3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
-9. **Action trimming.** The Ram ships 17 actions, most of them iteration
-   history; the Flicker has a clean five. Needs a human call on which variants
-   are the keepers — `keep_actions` takes the set.
+9. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
+   sizes, hit-stop duration, the briefing/summary dwell. All exported.
+10. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
+    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
+11. **Action trimming.** The Ram ships 17 actions, most of them iteration
+    history; the Flicker has a clean five. Needs a human call on which variants
+    are the keepers — `keep_actions` takes the set.
 
 ## Traps worth remembering
 
