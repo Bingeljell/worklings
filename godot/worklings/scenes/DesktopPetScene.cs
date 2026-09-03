@@ -75,6 +75,11 @@ public partial class DesktopPetScene : Node3D
     /// that snaps around reads as a sprite flipping.
     [Export] public float TurnSeconds { get; set; } = 0.45f;
 
+    /// How much to magnify the right-click menu. 0 asks the display — which on a
+    /// Retina screen is 2, and without it the menu draws at half the size of
+    /// every other menu on the machine.
+    [Export] public float MenuScale { get; set; }
+
     /// Which monitor to open on. -1 opens on whichever the window landed on.
     [Export] public int Screen { get; set; } = -1;
 
@@ -121,7 +126,7 @@ public partial class DesktopPetScene : Node3D
         _pet.Play(ActorAction.Idle, loop: true);
 
         LoadState();
-        _menu = new PetMenu(this);
+        _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
 
         Report();

@@ -49,6 +49,20 @@ public sealed class PetMenu
     private const int FeedBase = 100;
     private const int PlayBase = 200;
 
+    /// How much to magnify the menu. 0 asks the display.
+    ///
+    /// **The pet window disables content scaling** — that is what stops a square
+    /// window letterboxing the project's 16:9 render size — and a popup inherits
+    /// that. On a Retina display everything else on screen is drawn at 2x while
+    /// this menu is drawn at 1x, so it comes out half the size of every other
+    /// menu the player has ever seen. Scaling the popup is the fix; scaling the
+    /// window is not, because that brings the black bars back.
+    public float Scale { get; set; }
+
+    private float EffectiveScale => Scale > 0
+        ? Scale
+        : (float)DisplayServer.ScreenGetScale(DisplayServer.WindowGetCurrentScreen());
+
     public PetMenu(Node owner)
     {
         _feed.Name = "Feed";
@@ -106,7 +120,16 @@ public sealed class PetMenu
         _root.SetItemDisabled(_root.ItemCount - 1, true);
         _root.AddItem("Quit", (int)PetMenuChoice.Quit);
 
+        // Applied to the submenus too: each is its own OS window and inherits
+        // nothing from its parent.
+        float scale = EffectiveScale;
+        _root.ContentScaleFactor = scale;
+        _feed.ContentScaleFactor = scale;
+        _play.ContentScaleFactor = scale;
+
         _root.ResetSize();
+        _feed.ResetSize();
+        _play.ResetSize();
         _root.Popup(new Rect2I(atScreenPosition, Vector2I.Zero));
     }
 
