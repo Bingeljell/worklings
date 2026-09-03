@@ -87,6 +87,15 @@ public sealed class HealthPlate
         Layout(_shown / (float)_max, _lagRatio);
     }
 
+    /// Renames the plate and recolours its fill. The foe plate changes identity
+    /// every encounter of a delve, so this exists rather than rebuilding the HUD
+    /// four times a run.
+    public void SetIdentity(string name, Color energy)
+    {
+        _name.Text = name.ToUpperInvariant();
+        _fill.Color = energy;
+    }
+
     public void Reset(int maxHP)
     {
         _max = System.Math.Max(1, maxHP);

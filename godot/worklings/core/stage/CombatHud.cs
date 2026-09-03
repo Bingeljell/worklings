@@ -84,6 +84,14 @@ public sealed class CombatHud
         root.AddChild(_status);
     }
 
+    /// Points the foe plate at a new opponent — a delve runs four of them
+    /// through the same HUD.
+    public void SetFoe(string name, int maxHP, Color energy)
+    {
+        _foe.SetIdentity(name, energy);
+        _foe.Reset(maxHP);
+    }
+
     public void SetHP(int pet, int foe) { _pet.Set(pet); _foe.Set(foe); }
     public void Reset(int petMax, int foeMax) { _pet.Reset(petMax); _foe.Reset(foeMax); }
     public void SetNarration(string line) => _narration.Text = line;
