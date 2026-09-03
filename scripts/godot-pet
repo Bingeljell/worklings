@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#
+# Runs the desktop pet window.
+#
+#   scripts/godot-pet            # the pet, on your desktop
+#   scripts/godot-pet --editor   # open the project in the Godot editor instead
+#
+# Runs in the FOREGROUND on purpose: Ctrl-C kills it. A borderless, always-on-top
+# window with no title bar is genuinely hard to get rid of once it has been
+# detached from a terminal, and a stale one left over from an older build looks
+# exactly like a bug in the current one.
+#
+# Once it is up: Esc quits · Tab next monitor · C toggles click-through
+# · R toggles roaming · drag the pet to move it.
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+project="$repo_root/godot/worklings"
+godot="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+
+if [ ! -x "$godot" ]; then
+  printf 'Godot not found at %s — set GODOT to the binary.\n' "$godot" >&2
+  exit 1
+fi
+
+# Godot runs the compiled assembly, not the source, so a stale build silently
+# runs the previous version of the code.
+dotnet build "$project" -v q --nologo >/dev/null
+
+if [ "${1:-}" = "--editor" ]; then
+  exec "$godot" --editor --path "$project"
+fi
+
+exec "$godot" --path "$project" res://scenes/desktop_pet.tscn "$@"
