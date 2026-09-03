@@ -125,10 +125,6 @@ public sealed class PetMenu
         _root.AddSeparator();
 
         _root.AddItem("Character sheet…", (int)PetMenuChoice.CharacterSheet);
-        // Disabled rather than absent: the character screen is designed and not
-        // built, and a menu that shows what is coming reads better than one that
-        // silently lacks it.
-        _root.SetItemDisabled(_root.ItemCount - 1, true);
         _root.AddItem("Enter the Warren…", (int)PetMenuChoice.EnterTheWarren);
         _root.AddSeparator();
 

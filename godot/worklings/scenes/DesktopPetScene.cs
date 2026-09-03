@@ -118,6 +118,7 @@ public partial class DesktopPetScene : Node3D
     private StageActor _pet = null!;
     private PetMenu _menu = null!;
     private DungeonWindow _dungeon = null!;
+    private CharacterWindow _character = null!;
     private PetThought? _thought;
     /// True while a delve is running. The pet is not on the desktop then — it is
     /// down there — so nothing wanders, nothing responds to a click, and the
@@ -182,6 +183,16 @@ public partial class DesktopPetScene : Node3D
         _dungeon.Resolved += OnDelveResolved;
         _dungeon.Closed += OnDungeonClosed;
 
+        _character = new CharacterWindow(this);
+        // Gear changes are PetState operations and the pet owns the save, so the
+        // screen proposes and this writes.
+        _character.StateChanged += state =>
+        {
+            _state = state;
+            SaveState();
+            _character.Refresh(_state);
+        };
+
         Report();
         BeginResting();
     }
@@ -208,7 +219,7 @@ public partial class DesktopPetScene : Node3D
         GD.Print($"viewport visible rect: {GetViewport().GetVisibleRect()}");
         GD.Print($"click-through: {ClickThrough}  ·  roaming: {Roam}");
         GD.Print("Esc quit · Tab next monitor · C click-through · R roam · W Warren "
-               + "· right-click for the menu · drag to move");
+               + "· S sheet · right-click for the menu · drag to move");
     }
 
     private void PlaceOnScreen(int screen)
@@ -368,6 +379,7 @@ public partial class DesktopPetScene : Node3D
         var result = _brain.Perform(action, _state, System.DateTimeOffset.Now);
         _state = result.State;
         SaveState();
+        _character.Refresh(_state);
         Say(result.Reaction);
         GD.Print($"{_state.Name}: {result.Reaction.RawValue()} "
                + $"· Lv {_state.Level} · {_state.Mood}");
@@ -394,6 +406,9 @@ public partial class DesktopPetScene : Node3D
                 if (Roam) BeginResting();
                 else _pet.Play(ActorAction.Idle, loop: true);
                 GD.Print($"roaming: {Roam}");
+                break;
+            case PetMenuChoice.CharacterSheet:
+                _character.Open(_state, _screen);
                 break;
             case PetMenuChoice.EnterTheWarren:
                 EnterTheWarren();
@@ -437,6 +452,9 @@ public partial class DesktopPetScene : Node3D
     {
         _state = state;
         SaveState();
+        // A character screen left open during a delve should show what came back
+        // out of it, not what went in.
+        _character.Refresh(_state);
         GD.Print($"back from the Warren: {_state.Name} · Lv {_state.Level} · {_state.Mood}");
     }
 
@@ -588,6 +606,9 @@ public partial class DesktopPetScene : Node3D
                     return;
                 case Key.W:
                     EnterTheWarren();
+                    return;
+                case Key.S:
+                    _character.Open(_state, _screen);
                     return;
             }
         }
