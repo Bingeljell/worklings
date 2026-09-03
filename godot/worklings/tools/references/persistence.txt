@@ -1,0 +1,199 @@
+=== ENCODE fresh ===
+{
+  "dailyEventCount" : {
+    "value" : {
+
+    }
+  },
+  "dailyXP" : {
+    "value" : {
+
+    }
+  },
+  "family" : "wildkin",
+  "lastUpdatedAt" : 800000000,
+  "loadout" : {
+    "charm" : "rubberDuck"
+  },
+  "name" : "Pixel",
+  "needs" : {
+    "energy" : 80,
+    "happiness" : 70,
+    "hunger" : 15,
+    "trust" : 50
+  },
+  "ownedItems" : [
+    "rubberDuck"
+  ],
+  "petClass" : "wellspring",
+  "preferences" : {
+    "favouriteFood" : "berries",
+    "favouritePlayActivity" : "puzzle"
+  },
+  "schemaVersion" : 2,
+  "stats" : {
+    "agility" : 5,
+    "defense" : 5,
+    "power" : 5,
+    "vitality" : 5,
+    "wit" : 5
+  },
+  "totalXP" : 0,
+  "workLog" : {
+    "value" : 0
+  }
+}
+=== ENCODE full ===
+{
+  "dailyEventCount" : {
+    "date" : 800000000,
+    "value" : {
+      "commit" : 3,
+      "test" : 1
+    }
+  },
+  "dailyXP" : {
+    "date" : 800000000,
+    "value" : {
+      "commit" : 40.25,
+      "test" : 12
+    }
+  },
+  "family" : "relicborn",
+  "lastUpdatedAt" : 800000123.5,
+  "lastWorkLogAt" : 799999000,
+  "loadout" : {
+    "charm" : "rubberDuck",
+    "tool" : "mastersHone",
+    "ward" : "dentedBuckler"
+  },
+  "name" : "Nimbus",
+  "needs" : {
+    "energy" : 61.25,
+    "happiness" : 88,
+    "hunger" : 33.5,
+    "trust" : 47.75
+  },
+  "ownedItems" : [
+    "rubberDuck",
+    "mastersHone",
+    "dentedBuckler"
+  ],
+  "petClass" : "aegis",
+  "preferences" : {
+    "favouriteFood" : "noodles",
+    "favouritePlayActivity" : "dance"
+  },
+  "schemaVersion" : 2,
+  "stats" : {
+    "agility" : 6,
+    "defense" : 12,
+    "power" : 7,
+    "vitality" : 9,
+    "wit" : 8
+  },
+  "totalXP" : 1234.5,
+  "workLog" : {
+    "date" : 800000000,
+    "value" : 4
+  }
+}
+--- ROUNDTRIP fresh ---
+schemaVersion=2
+name=Pixel
+family=wildkin
+needs=15.0000 80.0000 70.0000 50.0000
+prefs=berries puzzle
+lastUpdatedAt=800000000.0000
+lastWorkLogAt=nil
+workLog.date=nil
+workLog.value=0
+totalXP=0.0000
+petClass=wellspring
+stats=5 5 5 5 5
+dailyXP.date=nil
+dailyXP.value=
+dailyEventCount.date=nil
+dailyEventCount.value=
+ownedItems=rubberDuck
+loadout=tool:-,ward:-,charm:rubberDuck
+--- ROUNDTRIP full ---
+schemaVersion=2
+name=Nimbus
+family=relicborn
+needs=33.5000 61.2500 88.0000 47.7500
+prefs=noodles dance
+lastUpdatedAt=800000123.5000
+lastWorkLogAt=799999000.0000
+workLog.date=800000000.0000
+workLog.value=4
+totalXP=1234.5000
+petClass=aegis
+stats=9 7 12 6 8
+dailyXP.date=800000000.0000
+dailyXP.value=commit:40.2500,test:12.0000
+dailyEventCount.date=800000000.0000
+dailyEventCount.value=commit:3,test:1
+ownedItems=rubberDuck,mastersHone,dentedBuckler
+loadout=tool:mastersHone,ward:dentedBuckler,charm:rubberDuck
+--- DECODE legacy v1 ---
+schemaVersion=1
+name=Legacy
+family=wildkin
+needs=20.0000 70.0000 60.0000 40.0000
+prefs=biscuit chase
+lastUpdatedAt=799999999.0000
+lastWorkLogAt=nil
+workLog.date=799990000.0000
+workLog.value=3
+totalXP=0.0000
+petClass=wellspring
+stats=5 5 5 5 5
+dailyXP.date=799995000.0000
+dailyXP.value=commit:25.5000
+dailyEventCount.date=nil
+dailyEventCount.value=
+ownedItems=rubberDuck
+loadout=tool:-,ward:-,charm:rubberDuck
+--- DECODE phantom ---
+schemaVersion=2
+name=Phantom
+family=elemental
+needs=10.0000 90.0000 50.0000 50.0000
+prefs=berries puzzle
+lastUpdatedAt=800000000.0000
+lastWorkLogAt=nil
+workLog.date=nil
+workLog.value=0
+totalXP=500.0000
+petClass=maverick
+stats=6 6 5 9 7
+dailyXP.date=nil
+dailyXP.value=
+dailyEventCount.date=nil
+dailyEventCount.value=
+ownedItems=stickyNote,bentPotLid
+loadout=tool:-,ward:-,charm:stickyNote
+=== STORE ===
+future: unsupportedSchema(found: 99, supported: 2)
+missing: nil
+save/load equal: true
+--- STORE legacy v1 ---
+schemaVersion=2
+name=Legacy
+family=wildkin
+needs=20.0000 70.0000 60.0000 40.0000
+prefs=biscuit chase
+lastUpdatedAt=799999999.0000
+lastWorkLogAt=nil
+workLog.date=799990000.0000
+workLog.value=3
+totalXP=0.0000
+petClass=wellspring
+stats=5 5 5 5 5
+dailyXP.date=799995000.0000
+dailyXP.value=commit:25.5000
+dailyEventCount.date=nil
+dailyEventCount.value=
+ownedItems=rubberDuck
+loadout=tool:-,ward:-,charm:rubberDuck

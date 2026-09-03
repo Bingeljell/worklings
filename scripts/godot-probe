@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+#
+# Runs the Godot port's probes and diffs each against its stored reference.
+#
+# A probe only prints; the diffing used to be done by hand against files kept
+# outside the repo, which verifies a port once and catches nothing afterwards.
+# That is exactly the failure mode the Lemire bug demonstrated — a broken method
+# sat under 107 identical fight events for the whole port because nothing called
+# it. A reference committed next to the probe turns "verified once" into "stays
+# verified".
+#
+#   scripts/godot-probe                 # every probe that has a reference
+#   scripts/godot-probe persistence     # just that one
+#   scripts/godot-probe --record persistence
+#
+# --record writes the current output as the new reference. Only ever run it when
+# the output has been checked against the Swift original — see
+# docs/engineering/godot-port-status.md for how a reference is captured.
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+project="$repo_root/godot/worklings"
+references="$project/tools/references"
+godot="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+
+record=false
+if [ "${1:-}" = "--record" ]; then
+  record=true
+  shift
+fi
+
+if [ ! -x "$godot" ]; then
+  printf 'Godot not found at %s — set GODOT to the binary.\n' "$godot" >&2
+  exit 1
+fi
+
+names=("$@")
+if [ "${#names[@]}" -eq 0 ]; then
+  for reference in "$references"/*.txt; do
+    [ -e "$reference" ] || continue
+    names+=("$(basename "$reference" .txt)")
+  done
+fi
+
+if [ "${#names[@]}" -eq 0 ]; then
+  printf 'No probes with stored references yet.\n' >&2
+  exit 1
+fi
+
+# Godot runs the compiled assembly, not the source, so a stale build silently
+# tests the previous version of the code.
+dotnet build "$project" -v q --nologo >/dev/null
+
+failures=0
+for name in "${names[@]}"; do
+  scene="$project/tools/${name}_probe.tscn"
+  if [ ! -f "$scene" ]; then
+    printf '%-20s no such probe (%s)\n' "$name" "$scene" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+
+  actual="$(mktemp)"
+  # Drop Godot's startup banner and the blank line under it; everything after is
+  # the probe. sed addresses count input lines, so deleting the banner would not
+  # renumber the blank line under it — awk skips leading blanks instead.
+  "$godot" --headless --path "$project" "res://tools/${name}_probe.tscn" 2>&1 \
+    | awk '/^Godot Engine v/ { next } !started && /^[[:space:]]*$/ { next } { started = 1; print }' \
+    > "$actual"
+
+  reference="$references/$name.txt"
+  if [ "$record" = true ]; then
+    mv "$actual" "$reference"
+    printf '%-20s recorded\n' "$name"
+    continue
+  fi
+
+  if [ ! -f "$reference" ]; then
+    printf '%-20s no reference — run with --record once the output is verified\n' "$name" >&2
+    rm -f "$actual"
+    failures=$((failures + 1))
+    continue
+  fi
+
+  if diff -u "$reference" "$actual" > /dev/null; then
+    printf '%-20s ok\n' "$name"
+  else
+    printf '%-20s DIFFERS\n' "$name"
+    diff -u "$reference" "$actual" || true
+    failures=$((failures + 1))
+  fi
+  rm -f "$actual"
+done
+
+exit $((failures > 0 ? 1 : 0))
