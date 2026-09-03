@@ -28,10 +28,10 @@ the Unleash, beat four of the design's five. The pet it runs is a demo state hel
 **in memory** — a run's XP, gear and condition carry into the next run and are
 lost when the scene closes, because nothing loads or saves a `PetState` yet.
 
-Measured against [the delve's five beats](../design/dungeons.md#the-delve-as-a-journey--encounter--delve-ux):
-briefing, fight, steer and bank-or-push all exist; **prep/loadout does not**. The
-core has everything it needs (`Loadout`, `AvailableItems`, `Equipping`) — what is
-missing is a screen to choose on.
+**All five of [the delve's beats](../design/dungeons.md#the-delve-as-a-journey--encounter--delve-ux)
+now exist** — briefing and prep on one screen, the fight, the steer, and
+bank-or-push. Prep is the only one with a designed surface; the other three
+share the fight's narration label.
 
 This is deliberate: the engine decision (see
 [rendering engine fork](rendering-engine-fork.md)) was taken on the condition
@@ -196,40 +196,62 @@ reference outputs next to the probes, with a runner that diffs them, would turn
 
 ## Open, in priority order
 
-1. **The prep/loadout beat does not exist.** Beat two of five: off the briefing
-   the player picks gear and a starting Approach, and it is the beat that makes
-   the briefing mean anything. The core supports it entirely; it needs a screen.
-   The same gear slots are the Character screen's, so this is not throwaway UI.
-2. **Store the probe references**, above, so the suite catches regressions.
-3. **The delve's beats are one line of placeholder text.** Briefing, steer
-   prompt, bank-or-push and summary all share the fight's narration label and
-   the round readout. The press-your-luck choice and the Unleash window are the
-   two moments the player actually plays; both currently look like a debug line.
-4. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
+1. **Store the probe references**, above, so the suite catches regressions.
+2. **Three of the five beats are still one line of placeholder text.** The steer
+   prompt, bank-or-push and the summary share the fight's narration label and
+   the round readout. Prep now has a real screen, which makes the contrast the
+   argument: the two moments the player actually plays still look like a debug
+   line. `LoadoutPanel` is the pattern to follow.
+3. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
    cues in alpha.8; none of it is in Godot. Nothing blocks it.
-5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
+4. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
    Monolith have no model at all. Today the Flicker stands in for the first
    three at different sizes and the Pangolin — a pet model — stands in for the
    Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
    and want a look.
-6. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
+5. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
    exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
    them back to back — so the re-time matters more than it did. Nikhil is
    revising the actions to be quicker and more impactful; contact points are
    stored as fractions (Ram 0.86, Flicker 0.82, Pangolin 0.85) so they survive a
    re-time.
-7. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
+6. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
    cycle underneath during the approach is the real fix.
-8. **The impact flash reads as invisible in motion** despite showing clearly in
+7. **The impact flash reads as invisible in motion** despite showing clearly in
    stills. Not diagnosed; may need more than a tint change.
-9. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
-   sizes, hit-stop duration, the briefing/summary dwell. All exported.
-10. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
-    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
-11. **Action trimming.** The Ram ships 17 actions, most of them iteration
+8. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
+   sizes, hit-stop duration, the summary dwell. All exported.
+9. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
+   3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
+10. **Action trimming.** The Ram ships 17 actions, most of them iteration
     history; the Flicker has a clean five. Needs a human call on which variants
     are the keepers — `keep_actions` takes the set.
+
+### The desktop pet, and why it is not on that list
+
+Nothing above unblocks it, and it is not one task. The dungeon needed ~59% of
+`CompanionCore`; the desktop pet needs most of the rest — `PetBrain` (543),
+`PetCareStatus`/`PetPresentation`/`PetStateFileStore` (520), `ScreenPlacement`
+(180) — plus the two things that are not ports at all:
+
+- **Persistence.** Deliberately unported, for the reasons recorded above. The
+  desktop pet is the first thing that genuinely cannot run without it: a dungeon
+  run is a session, a pet is a continuity. This is the real gate.
+- **The activity pipeline** (1,096 lines) — and its Windows and Linux
+  equivalents, which do not exist in any language yet. That is a cross-platform
+  cost the engine decision does not change; it would be owed under SceneKit too.
+
+Plus a Godot desktop shell that has no Swift original to port: a transparent,
+always-on-top, click-through, multi-monitor window. Godot can do it
+(`borderless`, `transparent_bg`, `always_on_top`, per-pixel input passthrough),
+but it is new work and it is where a "port" stops being a port.
+
+**The honest order** is persistence first — it is small, it gates everything,
+and the five migration rules are already written down — then the desktop shell
+proven as a window that just sits there, then `PetBrain` behind it. The activity
+pipeline last, because it is the only part that also has to be re-authored per
+platform.
 
 ## Traps worth remembering
 
