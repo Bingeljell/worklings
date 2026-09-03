@@ -263,6 +263,7 @@ public partial class DesktopPetScene : Node3D
     public override void _Process(double delta)
     {
         if (_away) return;
+        ReleaseIfButtonGone();
         TurnTowardTravel(delta);
         if (_away || !Roam || _dragging) return;
 
@@ -481,6 +482,37 @@ public partial class DesktopPetScene : Node3D
     /// nothing anyway.
     private void SetPetVisible(bool visible) => _pet.Root.Visible = visible;
 
+    /// Ends a drag whose mouse-up never arrived, which is most of them.
+    ///
+    /// The window moves under the cursor while dragging, and the button-up
+    /// lands wherever the pointer happens to be by then — outside the window's
+    /// interactive region, or swallowed by the move itself. Without this the pet
+    /// stays stuck to the mouse for the rest of the session, following it around
+    /// the screen, and nothing short of quitting gets it back.
+    ///
+    /// Polling the button state rather than trusting the event is the fix: the
+    /// button either is down or it is not, and that is true regardless of which
+    /// window the release was delivered to.
+    private void ReleaseIfButtonGone()
+    {
+        if (!_dragging || Input.IsMouseButtonPressed(MouseButton.Left))
+        {
+            return;
+        }
+        EndDrag();
+    }
+
+    /// A click that did not move the window is a click on the animal, and
+    /// clicking your pet should do the obvious thing.
+    private void EndDrag()
+    {
+        bool wasAClick = !_dragged;
+        _dragging = false;
+        _dragged = false;
+        if (wasAClick) Care(PetAction.Pet);
+        BeginResting();
+    }
+
     // MARK: - Input
 
     public override void _UnhandledInput(InputEvent @event)
@@ -541,14 +573,9 @@ public partial class DesktopPetScene : Node3D
                 _dragged = false;
                 _grabOffset = DisplayServer.MouseGetPosition() - GetWindow().Position;
             }
-            else
+            else if (_dragging)
             {
-                // A click that did not move the window is a click on the animal,
-                // and clicking your pet should do the obvious thing. The drag
-                // check is what stops every reposition also petting it.
-                if (_dragging && !_dragged) Care(PetAction.Pet);
-                _dragging = false;
-                BeginResting();
+                EndDrag();
             }
         }
         else if (@event is InputEventMouseMotion && _dragging)
