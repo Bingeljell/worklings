@@ -471,6 +471,43 @@ Two fixes made while chasing the wrong cause are keepers regardless:
   The pet's default spot is the top-right corner, which is the worst case for a
   menu that opens down and to the right.
 
+### Pet to Warren and back
+
+**The loop closes 2026-09-04.** Right-click the pet, choose *Enter the Warren…*,
+and the pet leaves the desktop in a puff of smoke while the dungeon opens in its
+own window. When the run resolves, the Workling that walked out comes back up and
+the pet writes it.
+
+**The pet owns the save.** The state is handed *across* into
+`CacheWarrenScene.HostedState` rather than re-read from disk, and handed back
+through `Resolved`, so exactly one live copy exists while a run is on. Two owners
+writing the same file is how a run's XP gets silently rolled back by a needs tick
+that started from a stale copy — the same shape of bug as the gear reset. Run on
+its own, the dungeon still loads and saves for itself, because that is still how
+it gets worked on in isolation.
+
+Three details that are not obvious and each cost a bug:
+
+- **The pet vanishes on the smoke's densest frame**, not at the start of it. The
+  puff covers the cut, and that is the difference between reading as *left* and
+  reading as *switched off*.
+- **While away, the pet window drops mouse events outright.** It is still there
+  and still on top, just empty, so without this a click on whatever is behind it
+  would pet an animal that is not on the desktop.
+- **The dungeon fires `Finished` when the summary has had its time** and there is
+  no next run. Without it a finished delve sat on its summary until closed by
+  hand — fine for a scene you are iterating on, wrong for a run you are waiting
+  to get back from.
+
+The window opens at the project's full **1920x1080**, shrunk to fit the screen and
+never upscaled past its own render size. 720p was the first guess and read as a
+thumbnail. The fit keeps 16:9 exactly, or the fixed-aspect stage letterboxes
+inside its own window.
+
+**Seen working:** Fren handed in at Lv 14, and his prep screen reading
+*"condition 50% — it is not at its best"* with max HP down from 68 to 59 because
+he was hungry. The care state genuinely feeds the delve.
+
 ### What the shell still does not do
 
 Not blockers for the next slice, but the list before this is a pet rather than a
@@ -492,10 +529,10 @@ demo:
 - **The walk faces the wrong way.** See above — 38 degrees is not enough turn,
   and the pet reads as facing the viewer while moving sideways. A one-knob fix
   (`TurnDegrees`), deliberately not taken yet.
-- **No mode switch.** Two windows is decided and proven in
-  `tools/two_window_probe`, but nothing in the app implements it — the pet scene
-  and the dungeon scene are still run separately, and the smoke transition
-  between them does not exist.
+- **The smoke is legacy pixel art.** It works and it is charming, and it is from
+  the direction the project has left. A better effect built in Godot — particles
+  tinted from `FamilyEnergy`, which the dungeon already uses for hit sparks — is
+  the intended replacement. Not urgent.
 - **The pet does not notice you working.** Care is in; the activity half of
   `PetBrain` is not, and cannot be until `ActivityEvent` and `ActivityContext`
   are ported. That is the product hook, and it is the largest thing still
@@ -602,34 +639,38 @@ recording a regression is exactly as easy as recording a fix.
 
 1. **Store the remaining nine probe references**, above, so the whole suite
    catches regressions rather than only the newest three slices.
-2. **Three of the five beats are still one line of placeholder text.** The steer
+2. **The dungeon's surfaces are text, not game UI.** `LoadoutPanel` is a real
+   screen in the sense that it has a layout and reads correctly; it is still a
+   wall of rows and labels, and it looks like a debug readout rather than
+   something you equip a Workling in. Raised 2026-09-04 and deferred to after
+   this batch of work. The same is true of the three beats below, more so.
+3. **Three of the five beats are still one line of placeholder text.** The steer
    prompt, bank-or-push and the summary share the fight's narration label and
-   the round readout. Prep now has a real screen, which makes the contrast the
-   argument: the two moments the player actually plays still look like a debug
-   line. `LoadoutPanel` is the pattern to follow.
-3. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
+   the round readout. Prep at least has a screen; the two moments the player
+   actually plays still look like a debug line.
+4. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
    cues in alpha.8; none of it is in Godot. Nothing blocks it.
-4. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
+5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
    Monolith have no model at all. Today the Flicker stands in for the first
    three at different sizes and the Pangolin — a pet model — stands in for the
    Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
    and want a look.
-5. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
+6. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
    exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
    them back to back — so the re-time matters more than it did. Nikhil is
    revising the actions to be quicker and more impactful; contact points are
    stored as fractions (Ram 0.86, Flicker 0.82, Pangolin 0.85) so they survive a
    re-time.
-6. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
+7. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
    cycle underneath during the approach is the real fix.
-7. **The impact flash reads as invisible in motion** despite showing clearly in
+8. **The impact flash reads as invisible in motion** despite showing clearly in
    stills. Not diagnosed; may need more than a tint change.
-8. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
+9. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
    sizes, hit-stop duration, the summary dwell. All exported.
-9. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
+10. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
-10. **Action trimming.** The Ram ships 17 actions, most of them iteration
+11. **Action trimming.** The Ram ships 17 actions, most of them iteration
     history; the Flicker has a clean five. Needs a human call on which variants
     are the keepers — `keep_actions` takes the set.
 
