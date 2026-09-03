@@ -3,7 +3,7 @@
 > Evolving doc, not a frozen spec — see [docs/README](../README.md).
 >
 > **The living answer to "where are we?"** Update it when a slice lands rather
-> than reconstructing the state from git log. Last updated 2026-09-04 (second slice).
+> than reconstructing the state from git log. Last updated 2026-09-04 (third slice).
 
 ## Picking this up cold
 
@@ -35,11 +35,9 @@ clickable area is currently a rectangle rather than the animal's shape.
 ordinary ports, with Swift references to diff against, into a window that now
 exists.
 
-**The open question nothing has answered: one window or two.** The pet and the
-dungeon are separate scenes. Whether the pet is the main window with the dungeon
-opening as a second one, or whether one window switches modes, decides the shape
-of the app — and `PetBrain` will assume one or the other. Worth settling before
-it lands.
+**Two windows.** Decided and proven 2026-09-04 — the pet is the main window, the
+dungeon opens as an ordinary second one. See
+[Two windows, and why not one](#two-windows-and-why-not-one).
 
 **Do not** point a test run at the real save. See
 [Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it).
@@ -345,6 +343,61 @@ re-run after: it boots and renders unchanged.
   pointer, so a delta read from the window's own mouse position chases itself and
   the pet slides away from the cursor.
 
+### Two windows, and why not one
+
+**Decided and proven 2026-09-04.** The pet is the **main** window. The dungeon
+opens as an **ordinary second OS window** and closes when the delve ends.
+
+The first instinct was one window switching modes, on the strength of the
+experience it buys: the pet *leaves* when a delve starts — a puff of smoke, then
+the dungeon — rather than shrinking into a corner or sitting beside the fight.
+That experience is right and is kept. It simply does not need one window: play the
+puff, empty the pet, show the dungeon. The pet still goes somewhere.
+
+What one window would have cost is that the window must **mutate mid-session** —
+transparency, always-on-top, borderless, 320px to 1280px, and content scaling,
+five live state changes across three operating systems. All five are proven when
+set *at launch* and none are proven when toggled. Per-pixel transparency is the
+one Godot's own documentation hedges about.
+
+Two windows configures each once, at creation, and never touches it again. The
+pet window stays exactly the thing already proven, and the new window is the most
+ordinary kind there is. Three further things push the same way:
+
+- **The letterboxing trap disappears rather than being managed.** Each window
+  owns its own content scaling: the pet disables it, the dungeon keeps 16:9.
+- **The character screen is a third scaling regime** — freely resizable, where the
+  dungeon is capped fixed-aspect and the pet is unscaled. One window would juggle
+  three.
+- **The pet survives the dungeon.** Closing or crashing a delve leaves the
+  companion standing.
+
+The cost: an extra entry in Mission Control, a second viewport's memory, and
+closing the dungeon must not quit the app.
+
+#### What `tools/two_window_probe` found
+
+Run it — it drives the whole cycle on a timer, no hands: pet alone, dungeon open
+with the pet gone, pet back. It loads the real `cache_warren.tscn` rather than a
+coloured rectangle, deliberately, and each of these is a thing a rectangle would
+not have surfaced:
+
+- **Godot embeds child windows *inside* the parent viewport by default.** A
+  1280x720 dungeon was drawn inside the 320x320 pet window and clipped to
+  nothing. It becomes a real OS window only with `GuiEmbedSubwindows` off on the
+  parent.
+- **A child window shares the parent's 3D world unless given its own.** Without an
+  explicit `World3D` the dungeon renders the *pet's* empty room, lit by the pet's
+  lights, with its own scene invisible inside it.
+- **Godot refuses to hide the main window** — "Can't change visibility of main
+  window". So the pet leaves by being **emptied**, not hidden, which for a
+  transparent window is the same thing and still needs no flag toggled.
+- **A new window in an app that is not frontmost opens behind everything.**
+  Entering a delve is a deliberate act, so it has to come forward and take focus.
+
+Verified by screenshot across the full cycle, including a real titled "The Cache
+Warren" window running Fren's actual prep screen while the desktop pet was gone.
+
 ### What the shell still does not do
 
 Not blockers for the next slice, but the list before this is a pet rather than a
@@ -359,6 +412,10 @@ demo:
   it is menubar-and-SwiftUI in the Swift app and none of it exists here. Esc is
   standing in for "quit", which is not where quit belongs. **This is the next
   thing the shell needs**, because every other surface hangs off it.
+- **No mode switch.** Two windows is decided and proven in
+  `tools/two_window_probe`, but nothing in the app implements it — the pet scene
+  and the dungeon scene are still run separately, and the smoke transition
+  between them does not exist.
 - **No care interaction.** Clicking the pet does nothing. Feed, play, pet and
   sleep are `PetState` operations that are already ported and have no way in.
   This is `PetBrain`-adjacent rather than shell work, but the click target is the
