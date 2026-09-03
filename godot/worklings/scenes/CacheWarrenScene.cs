@@ -2,6 +2,7 @@ using Godot;
 using System.Collections.Generic;
 using Worklings.Core.Combat;
 using Worklings.Core.Pet;
+using Worklings.Core.Progression;
 using Worklings.Core.Stage;
 
 /// The Cache Warren scene: the first dungeon, running a real delve.
@@ -92,7 +93,7 @@ public partial class CacheWarrenScene : Node3D
     /// The living pet. Every delve is built from it and every resolution is
     /// written back into it, so a run starts from the condition and gear the
     /// last one left behind.
-    private PetState _state = PetState.NewPet();
+    private PetState _state = DemoPet();
     private Delve _delve = null!;
     private CombatEncounter _encounter = null!;
     private Phase _phase = Phase.Briefing;
@@ -116,6 +117,26 @@ public partial class CacheWarrenScene : Node3D
         BeginDelve();
     }
 
+    /// The Workling the scene runs, standing in until there is a saved one to
+    /// load. Deliberately a few delves along rather than PetState.NewPet(): the
+    /// Cache Warren's curve is authored for a Workling with some levels on it,
+    /// and a level-one starter with 5 in every stat does 1 damage to the Snag
+    /// and retreats every run — which would demonstrate the wiring by never
+    /// showing the chain it exists to run.
+    ///
+    /// Elemental because the stage holds the Tempest Ram, so the family colour
+    /// the HUD and the hit sparks read off matches the body they are attached to.
+    private static PetState DemoPet() => new PetState(
+        name: "Pixel",
+        needs: new PetNeeds(hunger: 20, energy: 85, happiness: 80, trust: 75),
+        preferences: new PetPreferences(PetFood.Berries, PetPlayActivity.Puzzle),
+        lastUpdatedAt: System.DateTimeOffset.Now,
+        family: PetFamily.Elemental,
+        totalXP: 900,
+        stats: new PetStats(vitality: 22, power: 17, defense: 13, agility: 11, wit: 8),
+        ownedItems: PetState.StarterItems,
+        loadout: PetState.StarterLoadout);
+
     // MARK: - Driving the delve
 
     /// Builds a delve from the pet as it currently stands and opens on the
@@ -135,11 +156,14 @@ public partial class CacheWarrenScene : Node3D
             pet, _rates.CombatEffectiveness(_state.Needs), _rates, seed, _state.OwnedItems);
         _delve.Descend();
 
+        // The briefing already names the first foe. Without this the plate would
+        // still be showing whatever the *last* delve ended against — the second
+        // run opened on the Monolith at 63/90 before its first Scamp appeared.
+        ShowFoe(_delve.CurrentFoe!);
         _hud ??= new CombatHud(this, _petName, _petMaxHP, _petEnergy,
-                               _delve.CurrentFoe!.Name, _delve.CurrentFoe!.MaxHP,
-                               _foeEnergy);
-        _hud.Reset(_petMaxHP, _delve.CurrentFoe!.MaxHP);
-        _hud.SetHP(_petHP, _delve.CurrentFoe!.MaxHP);
+                               _foeName, _foeMaxHP, _foeEnergy);
+        _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
+        _hud.Reset(_petMaxHP, _foeMaxHP);
 
         _pending.Clear();
         _lunge.Cancel();
@@ -162,15 +186,9 @@ public partial class CacheWarrenScene : Node3D
         _encounter = _delve.MakeEncounter(_approach)!;
         _encounter.RunToCompletion();
 
-        _foeName = foe.Name;
-        _foeMaxHP = foe.MaxHP;
-        _foeHP = _foeMaxHP;
+        ShowFoe(foe);
         _petHP = _delve.CarriedHP;
-
-        var (scale, energy) = PresenceFor(foe.Name);
-        _foe.Root.Scale = _foeRestScale * scale;
-        _foeEnergy = energy;
-        _hud.SetFoe(foe.Name, _foeMaxHP, _foeEnergy);
+        _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
         _hud.Reset(_petMaxHP, _foeMaxHP);
         _hud.SetHP(_petHP, _foeHP);
 
@@ -479,6 +497,18 @@ public partial class CacheWarrenScene : Node3D
                     + $"  ·  Round {_round}  ·  {_approach}";
         }
         _hud.SetStatus(_status);
+    }
+
+    /// Puts a foe on the stage: its name and HP for the plate, and the mesh
+    /// standing in for it at the right size and colour.
+    private void ShowFoe(Foe foe)
+    {
+        _foeName = foe.Name;
+        _foeMaxHP = foe.MaxHP;
+        _foeHP = foe.MaxHP;
+        var (scale, energy) = PresenceFor(foe.Name);
+        _foe.Root.Scale = _foeRestScale * scale;
+        _foeEnergy = energy;
     }
 
     /// Stand-in staging for the three foes with no model yet: the Flicker's mesh
