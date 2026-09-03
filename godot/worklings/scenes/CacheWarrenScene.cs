@@ -41,7 +41,8 @@ public partial class CacheWarrenScene : Node3D
     /// Bookkeeping events (round markers, decision points) skip both.
     [Export] public float ActionSeconds { get; set; } = 1.0f;
 
-    /// How long the briefing and the closing summary hold on screen.
+    /// How long the closing summary holds on screen, and how long an unattended
+    /// run spends on a beat a player would take at their own pace.
     [Export] public float CardSeconds { get; set; } = 4.0f;
 
     /// Start the next delve when one ends, so the scene is never a still frame
@@ -69,7 +70,7 @@ public partial class CacheWarrenScene : Node3D
     /// Where the run is. The fight is one phase of four, not the whole scene —
     /// the briefing, the bank/push choice and the closing summary are beats of
     /// the delve and each holds the stage on its own terms.
-    private enum Phase { Briefing, Fighting, Steering, Choice, Summary }
+    private enum Phase { Prep, Fighting, Steering, Choice, Summary }
 
     private StageActor _party = null!;
     /// The stand-in bodies, by .glb basename. Three of the four foes have no
@@ -78,6 +79,7 @@ public partial class CacheWarrenScene : Node3D
     private readonly Dictionary<string, StageActor> _foeModels = new();
     private StageActor _foe = null!;
     private CombatHud _hud = null!;
+    private LoadoutPanel _prep = null!;
     private DamageNumbers _numbers = null!;
     private Color _petEnergy, _foeEnergy;
     private readonly Dictionary<string, Vector3> _foeRestScales = new();
@@ -107,7 +109,7 @@ public partial class CacheWarrenScene : Node3D
     /// so this is the whole bookkeeping needed to feed events in as rounds
     /// resolve rather than all at once.
     private int _logCursor;
-    private Phase _phase = Phase.Briefing;
+    private Phase _phase = Phase.Prep;
 
     private string _petName = "";
     private string _foeName = "";
@@ -126,7 +128,8 @@ public partial class CacheWarrenScene : Node3D
         _numbers = new DamageNumbers(this);
         _lunge.Travel = AttackersTravel;
         _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this, this);
-        BeginDelve();
+        _prep = new LoadoutPanel(this);
+        BeginRun();
     }
 
     /// The Workling the scene runs, standing in until there is a saved one to
@@ -151,27 +154,26 @@ public partial class CacheWarrenScene : Node3D
 
     // MARK: - Driving the delve
 
-    /// Builds a delve from the pet as it currently stands and opens on the
-    /// briefing. The seed comes off the clock so each run differs; a delve
-    /// launched from the app seeds from the save state plus a per-delve nonce
-    /// instead, which is what makes a run reproducible from a bug report.
-    private void BeginDelve()
+    /// The briefing, near-verbatim from the design: narration whose one gameplay
+    /// job is to tell the player what kind of prep this delve rewards.
+    private const string Briefing =
+        "A dungeon looms. If this is the Cache Warren, expect a nimble scamp, a "
+      + "grabbing Snag, an evasive Flicker — and something heavy at the bottom. "
+      + "You may want to pack for accuracy. Or bring a Ward.";
+
+    /// Opens a run on the prep screen — beat two, and the first thing the player
+    /// actually does. The delve itself is not built until prep is confirmed,
+    /// because the gear chosen here is folded into the fighter that enters it.
+    private void BeginRun()
     {
-        var pet = Combatant.Pet(_state, _rates);
-        _petName = pet.Name;
-        _petMaxHP = pet.MaxHP;
-        _petHP = pet.CurrentHP;
+        _petName = _state.Name;
         _petEnergy = FamilyEnergy.Of(_state.Family);
+        _petMaxHP = Combatant.Pet(_state, _rates).MaxHP;
+        _petHP = _petMaxHP;
 
-        ulong seed = (ulong)Time.GetTicksUsec();
-        _delve = Delve.CacheWarrenDelve(
-            pet, _rates.CombatEffectiveness(_state.Needs), _rates, seed, _state.OwnedItems);
-        _delve.Descend();
-
-        // The briefing already names the first foe. Without this the plate would
-        // still be showing whatever the *last* delve ended against — the second
-        // run opened on the Monolith at 63/90 before its first Scamp appeared.
-        ShowFoe(_delve.CurrentFoe!);
+        // The plate behind the prep screen already shows what is waiting at the
+        // top of the chain, which is what the briefing is talking about.
+        ShowFoe(Worklings.Core.Combat.CacheWarren.Encounters[0]);
         _hud ??= new CombatHud(this, _petName, _petMaxHP, _petEnergy,
                                _foeName, _foeMaxHP, _foeEnergy);
         _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
@@ -180,13 +182,36 @@ public partial class CacheWarrenScene : Node3D
         _pending.Clear();
         _lunge.Cancel();
         _party.Play(ActorAction.Idle, loop: true);
-        _foe.Play(ActorAction.Idle, loop: true);
 
-        _phase = Phase.Briefing;
-        _cardTimer = CardSeconds;
-        _line = $"{_petName} descends into the Cache Warren";
-        _status = $"Lv {_state.Level}  ·  {_delve.TotalEncounters} encounters  ·  {_approach}";
+        _phase = Phase.Prep;
+        _prep.Open(_state, _approach, "The Cache Warren", Briefing);
+        _cardTimer = AutoPlay ? CardSeconds : 0;
+        _line = "";
+        _status = "";
         UpdateReadout();
+    }
+
+    /// Prep is confirmed: take the gear and the Approach the player chose, build
+    /// the delve from the pet that results, and drop into the first encounter.
+    /// The seed comes off the clock so each run differs; a delve launched from
+    /// the app seeds from the save state plus a per-delve nonce instead, which is
+    /// what makes a run reproducible from a bug report.
+    private void Descend()
+    {
+        _state = _prep.Result;
+        _approach = _prep.Approach;
+        _prep.Close();
+
+        var pet = Combatant.Pet(_state, _rates);
+        _petName = pet.Name;
+        _petMaxHP = pet.MaxHP;
+        _petHP = pet.CurrentHP;
+
+        ulong seed = (ulong)Time.GetTicksUsec();
+        _delve = Delve.CacheWarrenDelve(
+            pet, _rates.CombatEffectiveness(_state.Needs), _rates, seed, _state.OwnedItems);
+        _delve.Descend();
+        StartEncounter();
     }
 
     /// Resolves the current encounter and hands its log to playback. The pet
@@ -325,6 +350,9 @@ public partial class CacheWarrenScene : Node3D
         if (@event is not InputEventKey { Pressed: true, Echo: false } key) return;
         switch (_phase)
         {
+            case Phase.Prep:
+                if (_prep.HandleKey(key.Keycode)) Descend();
+                break;
             case Phase.Steering:
                 switch (key.Keycode)
                 {
@@ -421,8 +449,9 @@ public partial class CacheWarrenScene : Node3D
         if (_cardTimer > 0) return;
         switch (_phase)
         {
-            case Phase.Briefing:
-                StartEncounter();
+            case Phase.Prep:
+                _prep.TakeBestAvailable();
+                Descend();
                 break;
             case Phase.Steering:
                 TakeDecision(_approach, unleash: false);
@@ -432,7 +461,7 @@ public partial class CacheWarrenScene : Node3D
                 StartEncounter();
                 break;
             case Phase.Summary:
-                if (Loop) BeginDelve();
+                if (Loop) BeginRun();
                 break;
         }
     }
