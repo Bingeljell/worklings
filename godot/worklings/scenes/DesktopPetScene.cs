@@ -66,6 +66,17 @@ public partial class DesktopPetScene : Node3D
     /// ported intent is left alone and a flattened copy is used instead.
     [Export] public bool HorizontalOnly { get; set; } = true;
 
+    /// The yaw at which the pet is actually looking at you, in degrees.
+    ///
+    /// **Not zero.** The camera sits off to one side — (2.2, 1.5, 3.8) in
+    /// `desktop_pet.tscn` — so a model at yaw 0 faces world +Z, which is about
+    /// 30 degrees away from the viewer. Turning symmetrically around 0 therefore
+    /// turns *unevenly* around the camera: one direction reads as a proper
+    /// profile and the other barely turns at all, and doubling the angle sends
+    /// the pet facing away from the screen entirely. Everything below is
+    /// measured from here rather than from zero.
+    [Export] public float FacingYaw { get; set; } = 30;
+
     /// How far the pet turns toward where it is going, in degrees off
     /// facing-you.
     ///
@@ -133,6 +144,7 @@ public partial class DesktopPetScene : Node3D
     private Vector2I _grabOffset;
     private float _facing;
     private float _facingTarget;
+    private bool _facingStarted;
 
     public override void _Ready()
     {
@@ -158,6 +170,9 @@ public partial class DesktopPetScene : Node3D
 
         _pet = new StageActor(GetNode<Node3D>("Pet"), "tempest_ram", ActorAnimations.TempestRam);
         _pet.Play(ActorAction.Idle, loop: true);
+        // Start looking at the viewer rather than easing round to it.
+        _facing = _facingTarget = FacingYaw;
+        _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
 
         LoadState();
         _menu = new PetMenu(this) { Scale = MenuScale };
@@ -222,7 +237,7 @@ public partial class DesktopPetScene : Node3D
     {
         _wander = Wander.Resting;
         _timer = PetRoamingPlanner.Intent(_sequence).RestDuration;
-        _facingTarget = 0;
+        _facingTarget = FacingYaw;
         _pet.Play(ActorAction.Idle, loop: true);
     }
 
@@ -256,7 +271,9 @@ public partial class DesktopPetScene : Node3D
         _travelTotal = distance / System.Math.Max(WalkSpeed, 1);
         _timer = _travelTotal;
         _wander = Wander.Travelling;
-        _facingTarget = dx >= 0 ? TurnDegrees : -TurnDegrees;
+        // Increasing yaw turns the pet toward screen-right, measured from
+        // facing-you rather than from zero.
+        _facingTarget = FacingYaw + (dx >= 0 ? TurnDegrees : -TurnDegrees);
         _pet.Play(ActorAction.Walk, loop: true);
     }
 

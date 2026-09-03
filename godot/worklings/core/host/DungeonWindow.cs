@@ -35,13 +35,20 @@ public sealed class DungeonWindow
         _host = host;
     }
 
-    /// Opens at the project's full 1920x1080, shrunk to fit if the screen cannot
-    /// hold it. The dungeon is a fixed-aspect scaling stage, so a smaller window
-    /// is *correct* rather than broken — but it is also small, and a delve
-    /// deserves the screen. 720p was the first guess and read as a thumbnail.
+    /// Opens at 90% of the screen, in 16:9.
     ///
-    /// The fit keeps 16:9 exactly: anything else and the stage letterboxes inside
-    /// its own window.
+    /// **Sized against the screen rather than to a pixel count**, because a
+    /// window's size is in *physical pixels*: asking for 1920x1080 on a 2x
+    /// display gives a window that occupies 960x540 points and looks like half a
+    /// 1080p window. That was the second guess and it looked barely larger than
+    /// the 720p first one, for exactly the reason the menu came out half-size.
+    ///
+    /// The stage still *renders* at 1920x1080 — `ContentScaleSize` below — and
+    /// scales that frame up to whatever the window is, which is what
+    /// "fixed-aspect scaling stage" means. Bigger window, same bake ceiling.
+    ///
+    /// The fit keeps 16:9 exactly: anything else and the stage letterboxes
+    /// inside its own window.
     public void Open(PetState state, int screen)
     {
         if (_window is not null)
@@ -56,12 +63,13 @@ public sealed class DungeonWindow
 
         var frame = DesktopWindow.UsableFrame(screen);
 
-        // 90% of the usable area at most, so the title bar and the dock are not
-        // fighting it, and never upscaled past the project's own render size.
-        double fit = System.Math.Min(1.0, System.Math.Min(
-            frame.Width * 0.9 / 1920.0, frame.Height * 0.9 / 1080.0));
+        // 90% of the usable area, so the menu bar and the dock are not fighting
+        // it, and 16:9 whichever axis is the binding one.
+        double width = System.Math.Min(frame.Width * 0.9, frame.Height * 0.9 * 16.0 / 9.0);
+        // A floor, for a screen too small to give it anything sensible.
+        width = System.Math.Max(width, 1280);
         var size = new Vector2I(
-            (int)System.Math.Round(1920 * fit), (int)System.Math.Round(1080 * fit));
+            (int)System.Math.Round(width), (int)System.Math.Round(width * 9.0 / 16.0));
 
         _window = new Window
         {
