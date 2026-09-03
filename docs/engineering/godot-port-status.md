@@ -29,7 +29,9 @@ the Unleash, beat four of the design's five.
 As of 2026-09-04 that Workling **persists**. `PetStateCodec` and
 `PetStateFileStore` are ported, the scene loads a save on open and writes it back
 when a run resolves, and XP, gear and condition survive the window closing. The
-save is byte-identical to the Swift app's, so the same file reads in both — see
+save is byte-identical to the Swift app's and the shipped build reads **the same
+file**, so there is one Workling across both apps — while a test run works on a
+copy, so it can never overwrite a real pet. See
 [The save file](#the-save-file) below.
 
 **All five of [the delve's beats](../design/dungeons.md#the-delve-as-a-journey--encounter--delve-ux)
@@ -127,20 +129,55 @@ and now each one a fixture in `tools/persistence_probe`:
   properties, or a save becomes the one path that can equip a phantom item.
 
 `PetStateFileStore` takes an absolute filesystem path and knows nothing about
-Godot, so the scene resolves `user://workling.json` through
-`ProjectSettings.GlobalizePath` and the probe points it at a scratch file. That
-is what keeps the save format testable without a running engine. It writes
-through a temp file and moves it into place, because .NET has no equivalent of
-Swift's `Data.write(options: .atomic)`.
+Godot, which is what keeps the save format testable without a running engine. It
+writes through a temp file and moves it into place, because .NET has no
+equivalent of Swift's `Data.write(options: .atomic)`.
 
-Two postures worth keeping:
+### Which file, and who is allowed to write it
 
-- **The Godot save is not the Swift app's save.** Same format, different file.
-  A prototype should not be able to overwrite a real Workling; when the two are
-  meant to share one, that is a decision to take on purpose.
-- **A save this build cannot read locks writing off for the session** rather than
-  being replaced. An unreadable file is far more likely a newer save or a real pet
-  than junk, and overwriting it to recover is the one move that cannot be undone.
+**A Workling is one pet across every build that can open it.** The exported
+`.app` reads and writes exactly the file the Swift app does:
+
+| Platform | Path |
+| --- | --- |
+| macOS | `~/Library/Application Support/Worklings/pet-state.json` |
+| Windows | `%APPDATA%\Worklings\pet-state.json` |
+| Linux | `$XDG_DATA_HOME/Worklings/pet-state.json` |
+
+The macOS path has to match `WorklingsDirectories.applicationSupport()` in the
+Swift app exactly, filename included, or the two builds hold separate pets while
+appearing to share a directory. On Windows and Linux the Godot build is the first
+thing to write there.
+
+**But only the shipped app writes it.** A run from the editor, from a terminal,
+or headless is a *test*, and a test that can rewrite a real pet with 9,000 XP on
+it is one stray autoplay loop away from being a data-loss bug — the delve is
+routinely driven at hacked timings with `AutoPlay` on, which is not a state
+anything should be saving from.
+
+So a test run **reads the real save and writes to a copy** of it, seeded on first
+use. Real stats to play against, the whole load/resolve/save chain still
+exercised, the file itself untouched. Delete the copy to re-seed it.
+
+`SaveLocation` makes the call, and the distinction is one Godot can actually
+answer: `OS.HasFeature("template")` is true only in an exported build — false in
+the editor, and false when the editor binary runs a project from a terminal. The
+headless check is the second half, since an exported build driven by a script is
+still a test. `WORKLINGS_SAVE` overrides both, because naming a file explicitly
+is a statement of intent.
+
+It lives in `core/host/` rather than `core/pet/`: it is the one thing in `core/`
+that asks the engine a question, and "how was I launched" is a property of the
+shell around the game, not of the Workling.
+
+**The path is printed every launch**, with whether it is the real save. Silence
+about which file is being written is exactly how a test run overwrites a real pet
+without anyone noticing until it is gone.
+
+One more posture worth keeping: **a save this build cannot read locks writing off
+for the session** rather than being replaced. An unreadable file is far more
+likely a newer save or a real pet than junk, and overwriting it to recover is the
+one move that cannot be undone.
 
 ## What exists on the Godot side that has no Swift original
 
@@ -154,6 +191,9 @@ New code, written for the renderer rather than ported:
   family-coloured sparks.
 - `core/stage/FamilyEnergy` — the five family colours, driving every visual.
 - `core/stage/CombatHud`, `HealthPlate`, `DamageNumbers`, `StageType` — the HUD.
+- `core/host/SaveLocation` — which save file a build is allowed to touch, and the
+  first thing to live under `host/`: the shell around the game rather than the
+  game.
 - `scenes/dungeon_stage.tscn`, `scenes/cache_warren.tscn` — the room and the
   delve: the phase machine around the fight (briefing, chain, bank-or-push,
   summary) and the event-to-animation mapping, both renderer-side by design.

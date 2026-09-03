@@ -1,6 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 using Worklings.Core.Combat;
+using Worklings.Core.Host;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
 using Worklings.Core.Stage;
@@ -28,9 +29,9 @@ using Worklings.Core.Stage;
 /// decisions replay identically; the decisions are simply now an input.
 ///
 /// The pet is loaded from disk on open and written back when a run resolves, so
-/// XP, gear and condition survive the scene closing. The save lives under Godot's
-/// own user directory, not next to the Swift app's — the two hold the same format
-/// but a prototype should not be able to overwrite a real Workling.
+/// XP, gear and condition survive the scene closing. Which file that is depends
+/// on how the build was launched — see SaveLocation. The short version: the
+/// shipped app uses the real one, a test run uses a copy of it.
 public partial class CacheWarrenScene : Node3D
 {
     /// The pause between one action finishing and the next beginning. Long
@@ -105,6 +106,7 @@ public partial class CacheWarrenScene : Node3D
     /// last one left behind — and now from what the last *session* left behind.
     private PetState _state = null!;
     private PetStateFileStore _store = null!;
+    private SaveLocation _save;
     /// Cleared when the save on disk could not be read. A run still plays, from
     /// the demo pet, but nothing is written back: a file this build cannot parse
     /// is more likely a newer save or a real Workling than junk, and overwriting
@@ -140,24 +142,25 @@ public partial class CacheWarrenScene : Node3D
         BeginRun();
     }
 
-    /// Where the Workling lives. `user://` is Godot's per-application data
-    /// directory; the store takes a real filesystem path, so it is globalized
-    /// here — that keeps the save format testable without a running engine, which
-    /// is the only reason it can be diffed against Swift at all.
-    private const string SavePath = "user://workling.json";
-
     /// Reads the saved Workling, or starts a fresh one. A missing file is a first
     /// run, not a failure; anything else is reported and locks saving off.
+    ///
+    /// The path is printed every launch, and says whether it is the real save or
+    /// a test copy. Silence about which file is being written is exactly how a
+    /// test run overwrites a real pet without anyone noticing until it is gone.
     private void LoadState()
     {
-        _store = new PetStateFileStore(ProjectSettings.GlobalizePath(SavePath));
+        _save = SaveLocation.Resolve();
+        _store = new PetStateFileStore(_save.Path);
+        GD.Print($"Workling: {_save.Path} "
+               + $"({(_save.IsShared ? "the real save" : "not the real save")} — {_save.Reason})");
         try
         {
             _state = _store.Load() ?? DemoPet();
         }
         catch (System.Exception error)
         {
-            GD.PushWarning($"Could not read {SavePath}: {error.Message}. "
+            GD.PushWarning($"Could not read {_save.Path}: {error.Message}. "
                          + "Running from the demo pet; this session will not save.");
             _state = DemoPet();
             _saves = false;
@@ -173,7 +176,7 @@ public partial class CacheWarrenScene : Node3D
         }
         catch (System.Exception error)
         {
-            GD.PushWarning($"Could not write {SavePath}: {error.Message}");
+            GD.PushWarning($"Could not write {_save.Path}: {error.Message}");
             _saves = false;
         }
     }
