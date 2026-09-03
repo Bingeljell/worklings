@@ -505,10 +505,12 @@ Three details that are not obvious and each cost a bug:
   hand — fine for a scene you are iterating on, wrong for a run you are waiting
   to get back from.
 
-The window opens at the project's full **1920x1080**, shrunk to fit the screen and
-never upscaled past its own render size. 720p was the first guess and read as a
-thumbnail. The fit keeps 16:9 exactly, or the fixed-aspect stage letterboxes
-inside its own window.
+The window is **sized against the screen** — 90% of the usable area in 16:9,
+which on a 3600x2080 display is 3240x1822 — rather than to a pixel count. Asking
+for "1920x1080" gives a window occupying 960x540 *points* on a 2x display, half
+the apparent size of a 1080p window and barely bigger than the 720p first guess.
+The stage still **renders** at 1920x1080 and scales that frame up, which is what
+a fixed-aspect scaling stage means: bigger window, same bake ceiling.
 
 **Seen working:** Fren handed in at Lv 14, and his prep screen reading
 *"condition 50% — it is not at its best"* with max HP down from 68 to 59 because
@@ -771,6 +773,21 @@ game is 16 MB and the engine plus .NET runtime is everything else.
 - **Swift's `Calendar.current` is the *local* calendar.** A day-scoped value
   compared in UTC passes every obvious test and rolls the day over at the wrong
   hour.
+- **Godot sizes windows and popups in PHYSICAL pixels.** On a 2x display that
+  makes everything half the apparent size it was asked for. This has now caused
+  three separate bugs — a half-size menu, a dungeon window that looked like a
+  thumbnail, and the letterbox bars — and it will cause more. Size against the
+  screen, or multiply by `DisplayServer.ScreenGetScale`.
+- **"Facing the camera" is not yaw zero.** The pet scene's camera sits off-axis,
+  so a model at yaw 0 is already 30 degrees off. Turning symmetrically around
+  zero turns *unevenly* around the viewer. Measure the angle to the camera —
+  `atan2(cameraX, cameraZ)` — and work from that.
+- **A node that frees itself leaves a disposed C# wrapper behind.** Calling
+  `QueueFree` on it throws, and the throw takes out whatever was going to happen
+  next. `IsInstanceValid` guards the call; `TreeExiting` clears the field at the
+  source.
+- **A drag's mouse-up often never arrives** when the window moves under the
+  cursor. Poll the button state instead of trusting the event.
 - **Swift's `Date` encodes as seconds since 2001-01-01 UTC**, not 1970. Using the
   Unix epoch is a 31-year error that still round-trips perfectly through C#.
 - **A nil optional is an absent key, not a `null`.** Swift's synthesized encoder
