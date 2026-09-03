@@ -35,10 +35,13 @@ public sealed class DungeonWindow
         _host = host;
     }
 
-    /// 1280x720 rather than the project's 1920x1080: the dungeon is a
-    /// fixed-aspect scaling stage, so it renders its full-size frame into
-    /// whatever window it is given. See the character-screen design note on the
-    /// one bake ceiling.
+    /// Opens at the project's full 1920x1080, shrunk to fit if the screen cannot
+    /// hold it. The dungeon is a fixed-aspect scaling stage, so a smaller window
+    /// is *correct* rather than broken — but it is also small, and a delve
+    /// deserves the screen. 720p was the first guess and read as a thumbnail.
+    ///
+    /// The fit keeps 16:9 exactly: anything else and the stage letterboxes inside
+    /// its own window.
     public void Open(PetState state, int screen)
     {
         if (_window is not null)
@@ -52,7 +55,13 @@ public sealed class DungeonWindow
         }
 
         var frame = DesktopWindow.UsableFrame(screen);
-        var size = new Vector2I(1280, 720);
+
+        // 90% of the usable area at most, so the title bar and the dock are not
+        // fighting it, and never upscaled past the project's own render size.
+        double fit = System.Math.Min(1.0, System.Math.Min(
+            frame.Width * 0.9 / 1920.0, frame.Height * 0.9 / 1080.0));
+        var size = new Vector2I(
+            (int)System.Math.Round(1920 * fit), (int)System.Math.Round(1080 * fit));
 
         _window = new Window
         {

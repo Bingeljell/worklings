@@ -81,6 +81,21 @@ public partial class DesktopPetScene : Node3D
     /// every other menu on the machine.
     [Export] public float MenuScale { get; set; }
 
+    /// How long the puff of smoke takes when the pet leaves or arrives. Short:
+    /// it is a transition, not a cutscene. 0 skips it entirely, which is the
+    /// state to be in when judging anything else about the handover.
+    [Export] public float SmokeSeconds { get; set; } = 0.7f;
+
+    /// How wide the puff is drawn, as a multiple of the window. Bigger than the
+    /// window on purpose: the cloud has to cover the animal, and the art only
+    /// fills the lower half of its own cell.
+    [Export] public float SmokeSpread { get; set; } = 1.6f;
+
+    /// Where the puff sits vertically, as a fraction of the window height. The
+    /// cloud is drawn low in its 256px cell, so centring the *sprite* leaves the
+    /// smoke under the pet's feet rather than over its body.
+    [Export] public float SmokeHeight { get; set; } = 0.38f;
+
     /// Which monitor to open on. -1 opens on whichever the window landed on.
     [Export] public int Screen { get; set; } = -1;
 
@@ -379,8 +394,15 @@ public partial class DesktopPetScene : Node3D
 
         _away = true;
         _dragging = false;
-        SetPetVisible(false);
-        _dungeon.Open(_state, _screen);
+
+        // The pet vanishes under the thickest frame of the smoke, not at the
+        // start of it. That is what makes it read as having left rather than as
+        // having been switched off — the puff covers the cut.
+        Puff(onCovered: () =>
+        {
+            SetPetVisible(false);
+            _dungeon.Open(_state, _screen);
+        });
     }
 
     /// The run resolved. What comes back is the Workling that walked out — XP,
@@ -396,8 +418,33 @@ public partial class DesktopPetScene : Node3D
     private void OnDungeonClosed()
     {
         _away = false;
-        SetPetVisible(true);
-        BeginResting();
+        // The same puff, played the same way round: a cloud that gathers and
+        // clears says "something happened here" in either direction, and the pet
+        // reappears under the cover of it.
+        Puff(onCovered: () =>
+        {
+            SetPetVisible(true);
+            BeginResting();
+        });
+    }
+
+    /// Plays a puff of smoke over the middle of the window, calling back on the
+    /// frame it is thickest. With SmokeSeconds at 0 the callback runs at once and
+    /// no smoke is drawn.
+    private void Puff(System.Action onCovered)
+    {
+        if (SmokeSeconds <= 0)
+        {
+            onCovered();
+            return;
+        }
+
+        var puff = new SmokePuff { Seconds = SmokeSeconds };
+        puff.Covered += onCovered;
+        AddChild(puff);
+        var size = (Vector2)GetWindow().Size;
+        puff.Position = new Vector2(size.X / 2, size.Y * SmokeHeight);
+        puff.FitTo(size.X * SmokeSpread);
     }
 
     /// Emptying the window rather than hiding it: Godot refuses to change the
