@@ -85,6 +85,11 @@ public sealed class DungeonWindow
         // alone, where a scene that stops is a scene you cannot see.
         _scene.Loop = false;
         _scene.Resolved += OnResolved;
+        // The run ends, the summary has its moment, and then the pet comes back
+        // up. Without this the window sits on a finished summary until the
+        // player closes it by hand — which is fine for working on the dungeon
+        // alone and wrong for a delve you sent your Workling on.
+        _scene.Finished += Close;
         _window.AddChild(_scene);
 
         _window.CloseRequested += Close;
@@ -108,6 +113,7 @@ public sealed class DungeonWindow
         if (_scene is not null)
         {
             _scene.Resolved -= OnResolved;
+            _scene.Finished -= Close;
             _scene = null;
         }
         var going = _window;

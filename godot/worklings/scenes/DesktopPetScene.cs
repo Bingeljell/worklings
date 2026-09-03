@@ -19,7 +19,8 @@ using Worklings.Core.Stage;
 /// Controls: **right-click the pet** for the menu — it is the only way in, since
 /// a borderless window has no chrome — and **click the pet** to pet it. The
 /// developer keys remain: **Esc** quits · **Tab** next monitor · **C** toggles
-/// click-through · **R** toggles roaming · **drag** to move it.
+/// click-through · **R** toggles roaming · **W** enters the Warren · **drag** to
+/// move it.
 public partial class DesktopPetScene : Node3D
 {
     /// Small enough to sit beside the work, big enough that the animal reads.
@@ -170,7 +171,8 @@ public partial class DesktopPetScene : Node3D
                + $"size={w.ContentScaleSize} factor={w.ContentScaleFactor}");
         GD.Print($"viewport visible rect: {GetViewport().GetVisibleRect()}");
         GD.Print($"click-through: {ClickThrough}  ·  roaming: {Roam}");
-        GD.Print("Esc quit · Tab next monitor · C click-through · R roam · drag to move");
+        GD.Print("Esc quit · Tab next monitor · C click-through · R roam · W Warren "
+               + "· right-click for the menu · drag to move");
     }
 
     private void PlaceOnScreen(int screen)
@@ -437,6 +439,9 @@ public partial class DesktopPetScene : Node3D
                     Roam = !Roam;
                     if (Roam) BeginResting();
                     GD.Print($"roaming: {Roam}");
+                    return;
+                case Key.W:
+                    EnterTheWarren();
                     return;
             }
         }

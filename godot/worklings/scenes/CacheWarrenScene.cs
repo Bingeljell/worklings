@@ -120,6 +120,11 @@ public partial class CacheWarrenScene : Node3D
 
     /// Fired when a run resolves, with the Workling that walked out of it.
     public event System.Action<PetState>? Resolved;
+
+    /// Fired once the closing summary has had its time and there is no next run.
+    /// A hosted delve closes its window on this; run on its own with Loop off,
+    /// nothing listens and the summary simply stays up.
+    public event System.Action? Finished;
     private PetStateFileStore _store = null!;
     private SaveLocation _save;
     /// Cleared when the save on disk could not be read. A run still plays, from
@@ -537,6 +542,7 @@ public partial class CacheWarrenScene : Node3D
                 break;
             case Phase.Summary:
                 if (Loop) BeginRun();
+                else Finished?.Invoke();
                 break;
         }
     }
