@@ -9,40 +9,53 @@
 
 If this session is gone, start here.
 
-**State:** persistence and the desktop shell are **merged to `main`** (PR #49,
-2026-09-04). The dungeon remembers its Workling between runs, and the desktop pet
-exists as a window with a Ram walking around in it. In flight on
-`feature/godot-menu-and-care`: the two-window proof, and the menu and care
-surfaces it unblocks.
+**State:** the port now has a working loop. A desktop pet lives on the screen,
+can be cared for, goes into the Cache Warren and comes back changed. Persistence,
+the desktop shell, the menu and care are **merged to `main`** (PRs #49, #50). In
+flight on `feature/godot-pet-to-dungeon`: the pet-to-Warren handover and the
+smoke transition.
 
 **Run it:**
 
 ```bash
-scripts/godot-pet      # the desktop pet
+scripts/godot-pet      # the desktop pet — this is the app
+scripts/godot-export   # a real Worklings.app in dist/godot/
 scripts/godot-probe    # every probe with a stored reference, diffed
-/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon
+/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon on its own
 ```
 
-**The next slice is the menu**, and it is the first piece of *app* rather than of
-port. Picking a pet, renaming, opening the character screen, entering the Warren,
-quitting — all of it is menubar-and-SwiftUI in the Swift app, none of it exists in
-Godot, and every other surface hangs off it, including the trigger for opening
-the dungeon window. Esc currently stands in for quit.
+Once the pet is up: **right-click it** for the menu, **click it** to pet it.
+Developer keys: **Esc** quit · **Tab** next monitor · **C** click-through ·
+**R** roaming · **W** the Warren.
 
-**Then care-on-click**: feed, play, pet and sleep are already ported `PetState`
-operations with no way in. The click target is the shell's to provide, and the
-clickable area is currently a rectangle rather than the animal's shape.
+**What is done:** the save file (byte-identical to the Swift app's), the shell
+(transparent, borderless, always-on-top, click-through, multi-monitor), export to
+a real `.app`, two windows, the right-click menu, the care half of `PetBrain`,
+the pet-to-Warren-and-back handover with its smoke transition, a shared theme,
+and floating reactions so care is visible.
 
-**Then `PetBrain`** (543 lines) and `PetCareStatus` / `PetPresentation` (~330) —
-ordinary ports, with Swift references to diff against, into a window that now
-exists.
+**What is next, in order:**
 
-**Two windows.** Decided and proven 2026-09-04 — the pet is the main window, the
-dungeon opens as an ordinary second one. See
-[Two windows, and why not one](#two-windows-and-why-not-one).
+1. **`ActivityEvent` / `ActivityContext`**, then `PetBrain`'s activity half, then
+   `ActivitySources`. This is the product hook — **the pet does not yet notice
+   you working** — and it is the only part that must also be re-authored for
+   Windows and Linux, where nothing exists in any language yet. About 1,100
+   lines of Swift plus whatever the two other platforms turn out to cost.
+2. **The dungeon's surfaces**, which are text rather than game UI. The theme
+   exists now; the prep screen, the steer prompt, bank-or-push and the summary
+   all want it and a designer's pass on top.
+3. **The remaining nine probe references**, so the whole suite catches
+   regressions rather than only the four newest slices.
 
-**Do not** point a test run at the real save. See
-[Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it).
+**Decisions already taken, do not relitigate without reading them:**
+
+- [Two windows, and why not one](#two-windows-and-why-not-one) — the pet is the
+  main window, the dungeon is an ordinary second one.
+- [Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it)
+  — **do not point a test run at the real save**, and the pet owns the state
+  while a delve is running.
+- [Exporting](#exporting) — the four requirements that are invisible in the
+  editor, the first of which fails silently.
 
 ## The one-line answer
 
@@ -289,13 +302,6 @@ per-pixel alpha, lit well enough to read against an arbitrary desktop behind it.
 It idles when parked and **walks when it moves**, turned partway toward where it
 is going: not all the way to profile, because the face is the point.
 
-**OPEN — it walks in profile, but it does not turn far enough.** `TurnDegrees` is
-38 degrees off facing-you, chosen so the face stays visible. On a real desktop
-that reads wrong: the Ram looks like it is facing *you* while sliding sideways,
-which is worse than a clean profile would be. It should turn to roughly a full
-profile while walking and come back to facing you when it stops. Noted 2026-09-04,
-not yet changed.
-
 **It only ever walks left or right.** The roaming pattern carries small vertical
 offsets (0.04 and -0.03 of the available height) and they are the reason a walk
 reads as a drift — there is one walk cycle, it walks sideways, and any vertical
@@ -471,6 +477,45 @@ Two fixes made while chasing the wrong cause are keepers regardless:
   The pet's default spot is the top-right corner, which is the worst case for a
   menu that opens down and to the right.
 
+### Pet to Warren and back
+
+**The loop closes 2026-09-04.** Right-click the pet, choose *Enter the Warren…*,
+and the pet leaves the desktop in a puff of smoke while the dungeon opens in its
+own window. When the run resolves, the Workling that walked out comes back up and
+the pet writes it.
+
+**The pet owns the save.** The state is handed *across* into
+`CacheWarrenScene.HostedState` rather than re-read from disk, and handed back
+through `Resolved`, so exactly one live copy exists while a run is on. Two owners
+writing the same file is how a run's XP gets silently rolled back by a needs tick
+that started from a stale copy — the same shape of bug as the gear reset. Run on
+its own, the dungeon still loads and saves for itself, because that is still how
+it gets worked on in isolation.
+
+Three details that are not obvious and each cost a bug:
+
+- **The pet vanishes on the smoke's densest frame**, not at the start of it. The
+  puff covers the cut, and that is the difference between reading as *left* and
+  reading as *switched off*.
+- **While away, the pet window drops mouse events outright.** It is still there
+  and still on top, just empty, so without this a click on whatever is behind it
+  would pet an animal that is not on the desktop.
+- **The dungeon fires `Finished` when the summary has had its time** and there is
+  no next run. Without it a finished delve sat on its summary until closed by
+  hand — fine for a scene you are iterating on, wrong for a run you are waiting
+  to get back from.
+
+The window is **sized against the screen** — 90% of the usable area in 16:9,
+which on a 3600x2080 display is 3240x1822 — rather than to a pixel count. Asking
+for "1920x1080" gives a window occupying 960x540 *points* on a 2x display, half
+the apparent size of a 1080p window and barely bigger than the 720p first guess.
+The stage still **renders** at 1920x1080 and scales that frame up, which is what
+a fixed-aspect scaling stage means: bigger window, same bake ceiling.
+
+**Seen working:** Fren handed in at Lv 14, and his prep screen reading
+*"condition 50% — it is not at its best"* with max HP down from 68 to 59 because
+he was hungry. The care state genuinely feeds the delve.
+
 ### What the shell still does not do
 
 Not blockers for the next slice, but the list before this is a pet rather than a
@@ -481,21 +526,16 @@ demo:
   is the question that decides whether the pet is the main window with the dungeon
   as a second one, or a mode switch on a single window.
 - **No hit region from the silhouette.** The click box is a rectangle.
-- **The menu has had no design pass at all.** It is Godot's default theme:
-  generic dark grey, chunky rows, nothing to do with Worklings. It works and it
-  is legible, and that is the whole of its merit. `LoadoutPanel` in the dungeon
-  already has a look worth matching and `docs/design` has the vocabulary.
-  Deferred on purpose — the *shape* was worth settling before the styling, and
-  it now is.
+- **The theme covers the menu and nothing else yet.** `WorklingsTheme` exists,
+  taken from `LoadoutPanel`; the dungeon's own surfaces still predate it.
 - **Character sheet and Rename sit in the menu, disabled.** Both are designed
   and unbuilt. Shown rather than hidden, so the menu says what is coming.
-- **The walk faces the wrong way.** See above — 38 degrees is not enough turn,
-  and the pet reads as facing the viewer while moving sideways. A one-knob fix
-  (`TurnDegrees`), deliberately not taken yet.
-- **No mode switch.** Two windows is decided and proven in
-  `tools/two_window_probe`, but nothing in the app implements it — the pet scene
-  and the dungeon scene are still run separately, and the smoke transition
-  between them does not exist.
+- **No hit region from the silhouette**, still. The click box is a rectangle, so
+  clicking near the pet rather than on it still pets it.
+- **The smoke is legacy pixel art.** It works and it is charming, and it is from
+  the direction the project has left. A better effect built in Godot — particles
+  tinted from `FamilyEnergy`, which the dungeon already uses for hit sparks — is
+  the intended replacement. Not urgent.
 - **The pet does not notice you working.** Care is in; the activity half of
   `PetBrain` is not, and cannot be until `ActivityEvent` and `ActivityContext`
   are ported. That is the product hook, and it is the largest thing still
@@ -602,34 +642,38 @@ recording a regression is exactly as easy as recording a fix.
 
 1. **Store the remaining nine probe references**, above, so the whole suite
    catches regressions rather than only the newest three slices.
-2. **Three of the five beats are still one line of placeholder text.** The steer
+2. **The dungeon's surfaces are text, not game UI.** `LoadoutPanel` is a real
+   screen in the sense that it has a layout and reads correctly; it is still a
+   wall of rows and labels, and it looks like a debug readout rather than
+   something you equip a Workling in. Raised 2026-09-04 and deferred to after
+   this batch of work. The same is true of the three beats below, more so.
+3. **Three of the five beats are still one line of placeholder text.** The steer
    prompt, bank-or-push and the summary share the fight's narration label and
-   the round readout. Prep now has a real screen, which makes the contrast the
-   argument: the two moments the player actually plays still look like a debug
-   line. `LoadoutPanel` is the pattern to follow.
-3. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
+   the round readout. Prep at least has a screen; the two moments the player
+   actually plays still look like a debug line.
+4. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
    cues in alpha.8; none of it is in Godot. Nothing blocks it.
-4. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
+5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
    Monolith have no model at all. Today the Flicker stands in for the first
    three at different sizes and the Pangolin — a pet model — stands in for the
    Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
    and want a look.
-5. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
+6. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
    exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
    them back to back — so the re-time matters more than it did. Nikhil is
    revising the actions to be quicker and more impactful; contact points are
    stored as fractions (Ram 0.86, Flicker 0.82, Pangolin 0.85) so they survive a
    re-time.
-6. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
+7. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
    cycle underneath during the approach is the real fix.
-7. **The impact flash reads as invisible in motion** despite showing clearly in
+8. **The impact flash reads as invisible in motion** despite showing clearly in
    stills. Not diagnosed; may need more than a tint change.
-8. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
+9. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
    sizes, hit-stop duration, the summary dwell. All exported.
-9. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
+10. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
-10. **Action trimming.** The Ram ships 17 actions, most of them iteration
+11. **Action trimming.** The Ram ships 17 actions, most of them iteration
     history; the Flicker has a clean five. Needs a human call on which variants
     are the keepers — `keep_actions` takes the set.
 
@@ -729,6 +773,21 @@ game is 16 MB and the engine plus .NET runtime is everything else.
 - **Swift's `Calendar.current` is the *local* calendar.** A day-scoped value
   compared in UTC passes every obvious test and rolls the day over at the wrong
   hour.
+- **Godot sizes windows and popups in PHYSICAL pixels.** On a 2x display that
+  makes everything half the apparent size it was asked for. This has now caused
+  three separate bugs — a half-size menu, a dungeon window that looked like a
+  thumbnail, and the letterbox bars — and it will cause more. Size against the
+  screen, or multiply by `DisplayServer.ScreenGetScale`.
+- **"Facing the camera" is not yaw zero.** The pet scene's camera sits off-axis,
+  so a model at yaw 0 is already 30 degrees off. Turning symmetrically around
+  zero turns *unevenly* around the viewer. Measure the angle to the camera —
+  `atan2(cameraX, cameraZ)` — and work from that.
+- **A node that frees itself leaves a disposed C# wrapper behind.** Calling
+  `QueueFree` on it throws, and the throw takes out whatever was going to happen
+  next. `IsInstanceValid` guards the call; `TreeExiting` clears the field at the
+  source.
+- **A drag's mouse-up often never arrives** when the window moves under the
+  cursor. Poll the button state instead of trusting the event.
 - **Swift's `Date` encodes as seconds since 2001-01-01 UTC**, not 1970. Using the
   Unix epoch is a 31-year error that still round-trips perfectly through C#.
 - **A nil optional is an absent key, not a `null`.** Swift's synthesized encoder

@@ -19,7 +19,8 @@ using Worklings.Core.Stage;
 /// Controls: **right-click the pet** for the menu — it is the only way in, since
 /// a borderless window has no chrome — and **click the pet** to pet it. The
 /// developer keys remain: **Esc** quits · **Tab** next monitor · **C** toggles
-/// click-through · **R** toggles roaming · **drag** to move it.
+/// click-through · **R** toggles roaming · **W** enters the Warren · **drag** to
+/// move it.
 public partial class DesktopPetScene : Node3D
 {
     /// Small enough to sit beside the work, big enough that the animal reads.
@@ -65,11 +66,27 @@ public partial class DesktopPetScene : Node3D
     /// ported intent is left alone and a flattened copy is used instead.
     [Export] public bool HorizontalOnly { get; set; } = true;
 
+    /// The yaw at which the pet is actually looking at you, in degrees.
+    ///
+    /// **Not zero.** The camera sits off to one side — (2.2, 1.5, 3.8) in
+    /// `desktop_pet.tscn` — so a model at yaw 0 faces world +Z, which is about
+    /// 30 degrees away from the viewer. Turning symmetrically around 0 therefore
+    /// turns *unevenly* around the camera: one direction reads as a proper
+    /// profile and the other barely turns at all, and doubling the angle sends
+    /// the pet facing away from the screen entirely. Everything below is
+    /// measured from here rather than from zero.
+    [Export] public float FacingYaw { get; set; } = 30;
+
     /// How far the pet turns toward where it is going, in degrees off
-    /// facing-you. It walks across the screen, so it should not be walking
-    /// sideways — but a full 90 degrees turns its face away, and the face is the
-    /// point. Negate this if it turns the wrong way.
-    [Export] public float TurnDegrees { get; set; } = 38;
+    /// facing-you.
+    ///
+    /// **Near enough to a full profile.** This was 38 degrees, chosen so the face
+    /// stayed visible, and on a real desktop it read as the animal facing *you*
+    /// while sliding sideways — worse than a clean profile, because the eye
+    /// reads the direction the body is pointing and disbelieves the movement. It
+    /// turns properly now and comes back to face you when it stops, which is
+    /// when the face actually matters. Negate to turn the other way.
+    [Export] public float TurnDegrees { get; set; } = 78;
 
     /// How long the turn takes. Slower than it sounds like it should be: a pet
     /// that snaps around reads as a sprite flipping.
@@ -80,11 +97,32 @@ public partial class DesktopPetScene : Node3D
     /// every other menu on the machine.
     [Export] public float MenuScale { get; set; }
 
+    /// How long the puff of smoke takes when the pet leaves or arrives. Short:
+    /// it is a transition, not a cutscene. 0 skips it entirely, which is the
+    /// state to be in when judging anything else about the handover.
+    [Export] public float SmokeSeconds { get; set; } = 0.7f;
+
+    /// How wide the puff is drawn, as a multiple of the window. Bigger than the
+    /// window on purpose: the cloud has to cover the animal, and the art only
+    /// fills the lower half of its own cell.
+    [Export] public float SmokeSpread { get; set; } = 1.6f;
+
+    /// Where the puff sits vertically, as a fraction of the window height. The
+    /// cloud is drawn low in its 256px cell, so centring the *sprite* leaves the
+    /// smoke under the pet's feet rather than over its body.
+    [Export] public float SmokeHeight { get; set; } = 0.38f;
+
     /// Which monitor to open on. -1 opens on whichever the window landed on.
     [Export] public int Screen { get; set; } = -1;
 
     private StageActor _pet = null!;
     private PetMenu _menu = null!;
+    private DungeonWindow _dungeon = null!;
+    private PetThought? _thought;
+    /// True while a delve is running. The pet is not on the desktop then — it is
+    /// down there — so nothing wanders, nothing responds to a click, and the
+    /// menu offers to bring the dungeon forward rather than to open a second one.
+    private bool _away;
     private PetState _state = null!;
     private PetStateFileStore _store = null!;
     private SaveLocation _save;
@@ -106,6 +144,7 @@ public partial class DesktopPetScene : Node3D
     private Vector2I _grabOffset;
     private float _facing;
     private float _facingTarget;
+    private bool _facingStarted;
 
     public override void _Ready()
     {
@@ -131,10 +170,17 @@ public partial class DesktopPetScene : Node3D
 
         _pet = new StageActor(GetNode<Node3D>("Pet"), "tempest_ram", ActorAnimations.TempestRam);
         _pet.Play(ActorAction.Idle, loop: true);
+        // Start looking at the viewer rather than easing round to it.
+        _facing = _facingTarget = FacingYaw;
+        _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
 
         LoadState();
         _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
+
+        _dungeon = new DungeonWindow(this);
+        _dungeon.Resolved += OnDelveResolved;
+        _dungeon.Closed += OnDungeonClosed;
 
         Report();
         BeginResting();
@@ -161,7 +207,8 @@ public partial class DesktopPetScene : Node3D
                + $"size={w.ContentScaleSize} factor={w.ContentScaleFactor}");
         GD.Print($"viewport visible rect: {GetViewport().GetVisibleRect()}");
         GD.Print($"click-through: {ClickThrough}  ·  roaming: {Roam}");
-        GD.Print("Esc quit · Tab next monitor · C click-through · R roam · drag to move");
+        GD.Print("Esc quit · Tab next monitor · C click-through · R roam · W Warren "
+               + "· right-click for the menu · drag to move");
     }
 
     private void PlaceOnScreen(int screen)
@@ -190,7 +237,7 @@ public partial class DesktopPetScene : Node3D
     {
         _wander = Wander.Resting;
         _timer = PetRoamingPlanner.Intent(_sequence).RestDuration;
-        _facingTarget = 0;
+        _facingTarget = FacingYaw;
         _pet.Play(ActorAction.Idle, loop: true);
     }
 
@@ -224,14 +271,18 @@ public partial class DesktopPetScene : Node3D
         _travelTotal = distance / System.Math.Max(WalkSpeed, 1);
         _timer = _travelTotal;
         _wander = Wander.Travelling;
-        _facingTarget = dx >= 0 ? TurnDegrees : -TurnDegrees;
+        // Increasing yaw turns the pet toward screen-right, measured from
+        // facing-you rather than from zero.
+        _facingTarget = FacingYaw + (dx >= 0 ? TurnDegrees : -TurnDegrees);
         _pet.Play(ActorAction.Walk, loop: true);
     }
 
     public override void _Process(double delta)
     {
+        if (_away) return;
+        ReleaseIfButtonGone();
         TurnTowardTravel(delta);
-        if (!Roam || _dragging) return;
+        if (_away || !Roam || _dragging) return;
 
         _timer -= delta;
         if (_wander == Wander.Resting)
@@ -317,6 +368,7 @@ public partial class DesktopPetScene : Node3D
         var result = _brain.Perform(action, _state, System.DateTimeOffset.Now);
         _state = result.State;
         SaveState();
+        Say(result.Reaction);
         GD.Print($"{_state.Name}: {result.Reaction.RawValue()} "
                + $"· Lv {_state.Level} · {_state.Mood}");
     }
@@ -344,7 +396,7 @@ public partial class DesktopPetScene : Node3D
                 GD.Print($"roaming: {Roam}");
                 break;
             case PetMenuChoice.EnterTheWarren:
-                GD.Print("Enter the Warren: not wired yet");
+                EnterTheWarren();
                 break;
             case PetMenuChoice.Quit:
                 GetTree().Quit();
@@ -352,10 +404,165 @@ public partial class DesktopPetScene : Node3D
         }
     }
 
+    // MARK: - The Warren
+
+    /// The pet goes down. Its body leaves the desktop and the delve opens in its
+    /// own window; the Workling itself is handed across rather than re-read, so
+    /// there is exactly one live copy of it while the run is on.
+    private void EnterTheWarren()
+    {
+        if (_away)
+        {
+            _dungeon.Open(_state, _screen);
+            return;
+        }
+
+        _away = true;
+        _dragging = false;
+
+        // The pet vanishes under the thickest frame of the smoke, not at the
+        // start of it. That is what makes it read as having left rather than as
+        // having been switched off — the puff covers the cut.
+        Puff(onCovered: () =>
+        {
+            SetPetVisible(false);
+            _dungeon.Open(_state, _screen);
+        });
+    }
+
+    /// The run resolved. What comes back is the Workling that walked out — XP,
+    /// gear and condition — and the pet, which owns the save, is the thing that
+    /// writes it.
+    private void OnDelveResolved(PetState state)
+    {
+        _state = state;
+        SaveState();
+        GD.Print($"back from the Warren: {_state.Name} · Lv {_state.Level} · {_state.Mood}");
+    }
+
+    private void OnDungeonClosed()
+    {
+        _away = false;
+        // The same puff, played the same way round: a cloud that gathers and
+        // clears says "something happened here" in either direction, and the pet
+        // reappears under the cover of it.
+        Puff(onCovered: () =>
+        {
+            SetPetVisible(true);
+            BeginResting();
+        });
+    }
+
+    /// Plays a puff of smoke over the middle of the window, calling back on the
+    /// frame it is thickest. With SmokeSeconds at 0 the callback runs at once and
+    /// no smoke is drawn.
+    private void Puff(System.Action onCovered)
+    {
+        if (SmokeSeconds <= 0)
+        {
+            onCovered();
+            return;
+        }
+
+        var puff = new SmokePuff { Seconds = SmokeSeconds };
+        puff.Covered += onCovered;
+        AddChild(puff);
+        var size = (Vector2)GetWindow().Size;
+        puff.Position = new Vector2(size.X / 2, size.Y * SmokeHeight);
+        puff.FitTo(size.X * SmokeSpread);
+    }
+
+    /// Floats what the pet thought over its head. One at a time — a second
+    /// action while a line is still up replaces it rather than stacking, because
+    /// two thoughts overlapping read as neither.
+    private void Say(PetReaction reaction)
+    {
+        string text = PetThought.Thought(reaction);
+        if (text.Length == 0) return;
+
+        // A thought frees itself when it has faded, which leaves this field
+        // holding a disposed object. Calling QueueFree on it throws, and the
+        // throw happened *before* the new line was built — so the first click
+        // after a line expired silently produced no line at all, and every one
+        // after that too.
+        //
+        // IsInstanceValid is the check that survives a disposed wrapper;
+        // TreeExiting below clears the field at the source so this is a
+        // second line of defence rather than the only one.
+        if (GodotObject.IsInstanceValid(_thought))
+        {
+            _thought!.QueueFree();
+        }
+        _thought = null;
+
+        var size = (Vector2)GetWindow().Size;
+        _thought = new PetThought
+        {
+            Text = text,
+            Scale2D = MenuScale > 0
+                ? MenuScale
+                : (float)DisplayServer.ScreenGetScale(DisplayServer.WindowGetCurrentScreen()),
+            // Above the animal's head, not over its face.
+            Position = new Vector2(size.X / 2, size.Y * 0.17f),
+        };
+        // Cleared at the source the moment it leaves the tree, however it
+        // leaves — faded out, replaced, or taken down with the scene.
+        var thought = _thought;
+        thought.TreeExiting += () =>
+        {
+            if (_thought == thought) _thought = null;
+        };
+        AddChild(thought);
+    }
+
+    /// Emptying the window rather than hiding it: Godot refuses to change the
+    /// main window's visibility, and a transparent window drawing nothing is
+    /// nothing anyway.
+    private void SetPetVisible(bool visible) => _pet.Root.Visible = visible;
+
+    /// Ends a drag whose mouse-up never arrived, which is most of them.
+    ///
+    /// The window moves under the cursor while dragging, and the button-up
+    /// lands wherever the pointer happens to be by then — outside the window's
+    /// interactive region, or swallowed by the move itself. Without this the pet
+    /// stays stuck to the mouse for the rest of the session, following it around
+    /// the screen, and nothing short of quitting gets it back.
+    ///
+    /// Polling the button state rather than trusting the event is the fix: the
+    /// button either is down or it is not, and that is true regardless of which
+    /// window the release was delivered to.
+    private void ReleaseIfButtonGone()
+    {
+        if (!_dragging || Input.IsMouseButtonPressed(MouseButton.Left))
+        {
+            return;
+        }
+        EndDrag();
+    }
+
+    /// A click that did not move the window is a click on the animal, and
+    /// clicking your pet should do the obvious thing.
+    private void EndDrag()
+    {
+        bool wasAClick = !_dragged;
+        _dragging = false;
+        _dragged = false;
+        if (wasAClick) Care(PetAction.Pet);
+        BeginResting();
+    }
+
     // MARK: - Input
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        // While the pet is in the Warren its window is empty, but it is still
+        // there and still on top. Without this a click on whatever is behind it
+        // would pet an animal that is not on the desktop.
+        if (_away && @event is InputEventMouse)
+        {
+            return;
+        }
+
         if (@event is InputEventKey { Pressed: true, Echo: false } key)
         {
             switch (key.Keycode)
@@ -379,6 +586,9 @@ public partial class DesktopPetScene : Node3D
                     if (Roam) BeginResting();
                     GD.Print($"roaming: {Roam}");
                     return;
+                case Key.W:
+                    EnterTheWarren();
+                    return;
             }
         }
 
@@ -401,14 +611,9 @@ public partial class DesktopPetScene : Node3D
                 _dragged = false;
                 _grabOffset = DisplayServer.MouseGetPosition() - GetWindow().Position;
             }
-            else
+            else if (_dragging)
             {
-                // A click that did not move the window is a click on the animal,
-                // and clicking your pet should do the obvious thing. The drag
-                // check is what stops every reposition also petting it.
-                if (_dragging && !_dragged) Care(PetAction.Pet);
-                _dragging = false;
-                BeginResting();
+                EndDrag();
             }
         }
         else if (@event is InputEventMouseMotion && _dragging)

@@ -105,6 +105,26 @@ public partial class CacheWarrenScene : Node3D
     /// written back into it, so a run starts from the condition and gear the
     /// last one left behind — and now from what the last *session* left behind.
     private PetState _state = null!;
+
+    /// The Workling handed in by whoever opened this window, if anyone did.
+    ///
+    /// When the desktop pet hosts a delve, **the pet owns the save**: it hands
+    /// the state in here and takes the result back through Resolved, and this
+    /// scene neither loads nor writes. Two owners writing the same file is how a
+    /// run's XP gets silently rolled back by a needs tick that started from a
+    /// stale copy.
+    ///
+    /// Null when the scene is run on its own, which is still how the dungeon is
+    /// worked on in isolation — then it loads and saves for itself as before.
+    public PetState? HostedState { get; set; }
+
+    /// Fired when a run resolves, with the Workling that walked out of it.
+    public event System.Action<PetState>? Resolved;
+
+    /// Fired once the closing summary has had its time and there is no next run.
+    /// A hosted delve closes its window on this; run on its own with Loop off,
+    /// nothing listens and the summary simply stays up.
+    public event System.Action? Finished;
     private PetStateFileStore _store = null!;
     private SaveLocation _save;
     /// Cleared when the save on disk could not be read. A run still plays, from
@@ -150,6 +170,14 @@ public partial class CacheWarrenScene : Node3D
     /// test run overwrites a real pet without anyone noticing until it is gone.
     private void LoadState()
     {
+        if (HostedState is not null)
+        {
+            _state = HostedState;
+            _saves = false;
+            GD.Print($"Workling: handed in by the host — {_state.Name}, Lv {_state.Level}");
+            return;
+        }
+
         _save = SaveLocation.Resolve();
         _store = new PetStateFileStore(_save.Path);
         GD.Print($"Workling: {_save.Path} "
@@ -376,8 +404,10 @@ public partial class CacheWarrenScene : Node3D
         var resolution = _delve.Resolution(_state);
         if (resolution == null) return;
         _state = resolution.State;
-        // The one write per run, in the one place the pet changes.
+        // The one write per run, in the one place the pet changes. A hosted run
+        // writes nothing here and hands the result up instead.
         SaveState();
+        Resolved?.Invoke(_state);
 
         string headline = resolution.BossDefeated ? "Delve complete"
                         : resolution.Banked ? "Banked"
@@ -512,6 +542,7 @@ public partial class CacheWarrenScene : Node3D
                 break;
             case Phase.Summary:
                 if (Loop) BeginRun();
+                else Finished?.Invoke();
                 break;
         }
     }
