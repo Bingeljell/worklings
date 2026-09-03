@@ -24,3 +24,7 @@ window/per_pixel_transparency/allowed=true
 [dotnet]
 
 project/assembly_name="Worklings"
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true
