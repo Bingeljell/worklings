@@ -3,20 +3,35 @@
 > Evolving doc, not a frozen spec — see [docs/README](../README.md).
 >
 > **The living answer to "where are we?"** Update it when a slice lands rather
-> than reconstructing the state from git log. Last updated 2026-09-02.
+> than reconstructing the state from git log. Last updated 2026-09-03.
 
 ## The one-line answer
 
 **The Swift app is still the product.** Godot has a working dungeon prototype —
-a real encounter, resolved by ported combat logic, with a HUD and impact
-frames — and nothing else. Roughly **59% of `CompanionCore` is ported and none
-of the app around it is.**
+a real four-encounter delve, resolved by ported combat logic, with a HUD and
+impact frames — and nothing else. Roughly **59% of `CompanionCore` is ported and
+none of the app around it is.**
 
 As of 2026-09-02 the **whole dungeon-facing half is ported**. A Workling with a
 level, gear and condition can be built, fight a four-encounter delve, bank or
 push deeper, take drops, and have the result written back. What remains is the
 desktop pet and the activity pipeline — real work, but not work the dungeon
 waits on.
+
+As of 2026-09-03 the scene **runs that delve** rather than one hand-built fight
+on a loop: `CacheWarrenScene` builds its fighter from a `PetState` through
+`Combatant.Pet`, drives `Delve` through briefing, the encounter chain, the
+bank-or-push choice and the closing summary, and writes the result back through
+`Delve.Resolution`. The encounter is **stepped rather than pre-resolved**, so the
+fight pauses at its decision points and the player steers it — the Approach and
+the Unleash, beat four of the design's five. The pet it runs is a demo state held
+**in memory** — a run's XP, gear and condition carry into the next run and are
+lost when the scene closes, because nothing loads or saves a `PetState` yet.
+
+**All five of [the delve's beats](../design/dungeons.md#the-delve-as-a-journey--encounter--delve-ux)
+now exist** — briefing and prep on one screen, the fight, the steer, and
+bank-or-push. Prep is the only one with a designed surface; the other three
+share the fight's narration label.
 
 This is deliberate: the engine decision (see
 [rendering engine fork](rendering-engine-fork.md)) was taken on the condition
@@ -92,7 +107,9 @@ New code, written for the renderer rather than ported:
   family-coloured sparks.
 - `core/stage/FamilyEnergy` — the five family colours, driving every visual.
 - `core/stage/CombatHud`, `HealthPlate`, `DamageNumbers`, `StageType` — the HUD.
-- `scenes/dungeon_stage.tscn`, `scenes/cache_warren.tscn` — the room and the fight.
+- `scenes/dungeon_stage.tscn`, `scenes/cache_warren.tscn` — the room and the
+  delve: the phase machine around the fight (briefing, chain, bank-or-push,
+  summary) and the event-to-animation mapping, both renderer-side by design.
 
 ## Why verification mattered
 
@@ -179,30 +196,62 @@ reference outputs next to the probes, with a runner that diffs them, would turn
 
 ## Open, in priority order
 
-1. **Wire the ported layers into the scene.** `CacheWarrenScene` still builds its
-   combatants by hand. Everything it needs now exists — `Combatant.Pet(state,
-   rates)` folds gear in ahead of condition — so the dungeon can run a real
-   `Delve` against a real `PetState` instead of one fight on a loop. This is the
-   payoff for the whole port and nothing else blocks it.
-2. **Store the probe references**, above, so the suite catches regressions.
-3. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
-   exchange runs ~5s. Nikhil is revising the actions to be quicker and more
-   impactful; contact points are stored as fractions (Ram 0.86, Flicker 0.82) so
-   they survive a re-time.
-4. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
+1. **Store the probe references**, above, so the suite catches regressions.
+2. **Three of the five beats are still one line of placeholder text.** The steer
+   prompt, bank-or-push and the summary share the fight's narration label and
+   the round readout. Prep now has a real screen, which makes the contrast the
+   argument: the two moments the player actually plays still look like a debug
+   line. `LoadoutPanel` is the pattern to follow.
+3. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
+   cues in alpha.8; none of it is in Godot. Nothing blocks it.
+4. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
+   Monolith have no model at all. Today the Flicker stands in for the first
+   three at different sizes and the Pangolin — a pet model — stands in for the
+   Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
+   and want a look.
+5. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
+   exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
+   them back to back — so the re-time matters more than it did. Nikhil is
+   revising the actions to be quicker and more impactful; contact points are
+   stored as fractions (Ram 0.86, Flicker 0.82, Pangolin 0.85) so they survive a
+   re-time.
+6. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
    cycle underneath during the approach is the real fix.
-5. **The impact flash reads as invisible in motion** despite showing clearly in
+7. **The impact flash reads as invisible in motion** despite showing clearly in
    stills. Not diagnosed; may need more than a tint change.
-6. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
-   sizes, hit-stop duration. All exported.
-7. **The combat panel** — narration and round/Approach are placeholder labels,
-   not a designed panel.
-8. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
+8. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
+   sizes, hit-stop duration, the summary dwell. All exported.
+9. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
-9. **Action trimming.** The Ram ships 17 actions, most of them iteration
-   history; the Flicker has a clean five. Needs a human call on which variants
-   are the keepers — `keep_actions` takes the set.
+10. **Action trimming.** The Ram ships 17 actions, most of them iteration
+    history; the Flicker has a clean five. Needs a human call on which variants
+    are the keepers — `keep_actions` takes the set.
+
+### The desktop pet, and why it is not on that list
+
+Nothing above unblocks it, and it is not one task. The dungeon needed ~59% of
+`CompanionCore`; the desktop pet needs most of the rest — `PetBrain` (543),
+`PetCareStatus`/`PetPresentation`/`PetStateFileStore` (520), `ScreenPlacement`
+(180) — plus the two things that are not ports at all:
+
+- **Persistence.** Deliberately unported, for the reasons recorded above. The
+  desktop pet is the first thing that genuinely cannot run without it: a dungeon
+  run is a session, a pet is a continuity. This is the real gate.
+- **The activity pipeline** (1,096 lines) — and its Windows and Linux
+  equivalents, which do not exist in any language yet. That is a cross-platform
+  cost the engine decision does not change; it would be owed under SceneKit too.
+
+Plus a Godot desktop shell that has no Swift original to port: a transparent,
+always-on-top, click-through, multi-monitor window. Godot can do it
+(`borderless`, `transparent_bg`, `always_on_top`, per-pixel input passthrough),
+but it is new work and it is where a "port" stops being a port.
+
+**The honest order** is persistence first — it is small, it gates everything,
+and the five migration rules are already written down — then the desktop shell
+proven as a window that just sits there, then `PetBrain` behind it. The activity
+pipeline last, because it is the only part that also has to be re-authored per
+platform.
 
 ## Traps worth remembering
 

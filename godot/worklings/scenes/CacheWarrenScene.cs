@@ -1,25 +1,35 @@
 using Godot;
 using System.Collections.Generic;
-using System.Linq;
 using Worklings.Core.Combat;
+using Worklings.Core.Pet;
+using Worklings.Core.Progression;
 using Worklings.Core.Stage;
 
-/// The Cache Warren scene: the first dungeon, playing a real encounter.
+/// The Cache Warren scene: the first dungeon, running a real delve.
 ///
 /// Named ...Scene rather than CacheWarren because Godot requires script classes
 /// in the global namespace, where it would shadow the bestiary's
 /// Worklings.Core.Combat.CacheWarren for every file importing that namespace.
 ///
-/// The fight itself is resolved by CombatEncounter, which knows nothing about
-/// rendering — it emits a stream of CombatEvents. This script's only job is to
-/// consume that stream and turn each event into animation and text. That seam is
-/// deliberate: the rules stay verifiable headlessly, and the renderer stays
-/// swappable.
+/// The rules are resolved by the ported core and nothing here knows them: a
+/// PetState carries the pet, Combatant.Pet folds gear and condition into a
+/// fighter, Delve chains the four encounters and holds the press-your-luck
+/// choice, and CombatEncounter emits the stream of CombatEvents this script
+/// turns into animation and text. That seam is deliberate — the rules stay
+/// verifiable headlessly (see tools/*_probe), and the renderer stays swappable.
 ///
-/// The whole fight resolves instantly at _Ready; playback is then a replay of
-/// the recorded log at a watchable pace. That is a real property of the design
-/// rather than a shortcut — a seeded encounter is fully determined the moment it
-/// starts, so nothing is lost by resolving first and animating after.
+/// An encounter is stepped, not pre-resolved. It used to run to completion at
+/// the top and replay its log, which was true to the rules and quietly removed
+/// the player from the fight: CombatEncounter pauses at decision points for a
+/// re-chosen Approach and the Unleash, and a fight already resolved has nothing
+/// left to decide. So the scene advances a round at a time, animates the events
+/// that round produced, and hands the pause back to the player when the
+/// encounter asks for one. Determinism is unchanged — the same seed and the same
+/// decisions replay identically; the decisions are simply now an input.
+///
+/// The pet state persists across delves in memory only. Loading and saving it
+/// waits on the persistence slice; until then a run's XP, gear and condition
+/// carry into the next run and are lost when the scene closes.
 public partial class CacheWarrenScene : Node3D
 {
     /// The pause between one action finishing and the next beginning. Long
@@ -31,9 +41,20 @@ public partial class CacheWarrenScene : Node3D
     /// Bookkeeping events (round markers, decision points) skip both.
     [Export] public float ActionSeconds { get; set; } = 1.0f;
 
-    /// Restart the fight from the top once it ends, so the scene is never a
-    /// still frame when you come back to it.
+    /// How long the closing summary holds on screen, and how long an unattended
+    /// run spends on a beat a player would take at their own pace.
+    [Export] public float CardSeconds { get; set; } = 4.0f;
+
+    /// Start the next delve when one ends, so the scene is never a still frame
+    /// when you come back to it.
     [Export] public bool Loop { get; set; } = true;
+
+    /// Take every choice automatically — hold the Approach at each decision
+    /// point, never Unleash, always push deeper — so the scene runs a full chain
+    /// to the mini-boss unattended. With this off, the run waits for the player
+    /// at both of the beats the design gives them: steering the fight, and the
+    /// press-your-luck bank or push.
+    [Export] public bool AutoPlay { get; set; } = false;
 
     /// Whether an attacker crosses the floor to its target, or stays on its
     /// mark and plays the attack in place. Contact timing, impact frames,
@@ -46,11 +67,22 @@ public partial class CacheWarrenScene : Node3D
     /// than argued about.
     [Export] public bool AttackersTravel { get; set; } = false;
 
+    /// Where the run is. The fight is one phase of four, not the whole scene —
+    /// the briefing, the bank/push choice and the closing summary are beats of
+    /// the delve and each holds the stage on its own terms.
+    private enum Phase { Prep, Fighting, Steering, Choice, Summary }
+
     private StageActor _party = null!;
+    /// The stand-in bodies, by .glb basename. Three of the four foes have no
+    /// model of their own, so the scene keeps every model it has in the tree and
+    /// shows one at a time.
+    private readonly Dictionary<string, StageActor> _foeModels = new();
     private StageActor _foe = null!;
     private CombatHud _hud = null!;
+    private LoadoutPanel _prep = null!;
     private DamageNumbers _numbers = null!;
     private Color _petEnergy, _foeEnergy;
+    private readonly Dictionary<string, Vector3> _foeRestScales = new();
 
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
@@ -62,61 +94,294 @@ public partial class CacheWarrenScene : Node3D
     private double _lastLungeDuration;
     private double _beatTimer;
     private double _beatLength;
+    private double _cardTimer;
     private int _round;
     private Approach _approach = Approach.Clever;
-    private string _petName = "Ram";
-    private string _foeName = "Flicker";
+
+    private readonly PetCombatRates _rates = new();
+    /// The living pet. Every delve is built from it and every resolution is
+    /// written back into it, so a run starts from the condition and gear the
+    /// last one left behind.
+    private PetState _state = DemoPet();
+    private Delve _delve = null!;
+    private CombatEncounter _encounter = null!;
+    /// How far into the encounter's log playback has read. The log only grows,
+    /// so this is the whole bookkeeping needed to feed events in as rounds
+    /// resolve rather than all at once.
+    private int _logCursor;
+    private Phase _phase = Phase.Prep;
+
+    private string _petName = "";
+    private string _foeName = "";
     private int _petHP, _petMaxHP, _foeHP, _foeMaxHP;
     private string _line = "";
+    private string _status = "";
 
     public override void _Ready()
     {
         _party = new StageActor(GetNode<Node3D>("Party"), "tempest_ram", ActorAnimations.TempestRam);
-        _foe = new StageActor(GetNode<Node3D>("Foe"), "forest_flicker", ActorAnimations.ForestFlicker);
-        _petEnergy = FamilyEnergy.Of(FamilyEnergy.For(_party.ModelName));
+        AddFoeModel("Flicker", "forest_flicker");
+        AddFoeModel("Pangolin", "clockwork_pangolin");
+        _foe = _foeModels["forest_flicker"];
+        _petEnergy = FamilyEnergy.Of(_state.Family);
         _foeEnergy = FamilyEnergy.Of(FamilyEnergy.For(_foe.ModelName));
         _numbers = new DamageNumbers(this);
         _lunge.Travel = AttackersTravel;
         _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this, this);
-        StartFight();
+        _prep = new LoadoutPanel(this);
+        BeginRun();
     }
 
-    private void StartFight()
+    /// The Workling the scene runs, standing in until there is a saved one to
+    /// load. Deliberately a few delves along rather than PetState.NewPet(): the
+    /// Cache Warren's curve is authored for a Workling with some levels on it,
+    /// and a level-one starter with 5 in every stat does 1 damage to the Snag
+    /// and retreats every run — which would demonstrate the wiring by never
+    /// showing the chain it exists to run.
+    ///
+    /// Elemental because the stage holds the Tempest Ram, so the family colour
+    /// the HUD and the hit sparks read off matches the body they are attached to.
+    private static PetState DemoPet() => new PetState(
+        name: "Pixel",
+        needs: new PetNeeds(hunger: 20, energy: 85, happiness: 80, trust: 75),
+        preferences: new PetPreferences(PetFood.Berries, PetPlayActivity.Puzzle),
+        lastUpdatedAt: System.DateTimeOffset.Now,
+        family: PetFamily.Elemental,
+        totalXP: 900,
+        stats: new PetStats(vitality: 22, power: 17, defense: 13, agility: 11, wit: 8),
+        ownedItems: PetState.StarterItems,
+        loadout: PetState.StarterLoadout);
+
+    // MARK: - Driving the delve
+
+    /// The briefing, near-verbatim from the design: narration whose one gameplay
+    /// job is to tell the player what kind of prep this delve rewards.
+    private const string Briefing =
+        "A dungeon looms. If this is the Cache Warren, expect a nimble scamp, a "
+      + "grabbing Snag, an evasive Flicker — and something heavy at the bottom. "
+      + "You may want to pack for accuracy. Or bring a Ward.";
+
+    /// Opens a run on the prep screen — beat two, and the first thing the player
+    /// actually does. The delve itself is not built until prep is confirmed,
+    /// because the gear chosen here is folded into the fighter that enters it.
+    private void BeginRun()
     {
-        var rates = new PetCombatRates();
-
-        // Stats stand in for a real PetState until that slice is ported; the
-        // Flicker is the foe because it is the one the milestone scopes.
-        var petStats = new CombatStats(power: 11, defense: 6, agility: 9, wit: 7);
-        int petMax = rates.MaxHP(vitality: 7);
-        var pet = new Combatant(_petName, petStats, petMax, petMax);
-        var foe = Worklings.Core.Combat.CacheWarren.Flicker;
-
-        // Seeded from the clock so each replay differs; a real delve seeds from
-        // the save state plus a per-delve nonce instead.
-        ulong seed = (ulong)Time.GetTicksUsec();
-        var encounter = new CombatEncounter(pet, foe, _approach, rates, seed);
-        encounter.RunToCompletion();
-
-        _petName = pet.Name;
-        _foeName = foe.Name;
-        _petMaxHP = pet.MaxHP;
-        _foeMaxHP = foe.MaxHP;
+        _petName = _state.Name;
+        _petEnergy = FamilyEnergy.Of(_state.Family);
+        _petMaxHP = Combatant.Pet(_state, _rates).MaxHP;
         _petHP = _petMaxHP;
-        _foeHP = _foeMaxHP;
 
-        _lunge.Cancel();
+        // The plate behind the prep screen already shows what is waiting at the
+        // top of the chain, which is what the briefing is talking about.
+        ShowFoe(Worklings.Core.Combat.CacheWarren.Encounters[0]);
         _hud ??= new CombatHud(this, _petName, _petMaxHP, _petEnergy,
                                _foeName, _foeMaxHP, _foeEnergy);
+        _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
         _hud.Reset(_petMaxHP, _foeMaxHP);
+
         _pending.Clear();
-        foreach (var e in encounter.Log) _pending.Enqueue(e);
+        _lunge.Cancel();
+        _party.Play(ActorAction.Idle, loop: true);
+
+        _phase = Phase.Prep;
+        _prep.Open(_state, _approach, "The Cache Warren", Briefing);
+        _cardTimer = AutoPlay ? CardSeconds : 0;
+        _line = "";
+        _status = "";
+        UpdateReadout();
+    }
+
+    /// Prep is confirmed: take the gear and the Approach the player chose, build
+    /// the delve from the pet that results, and drop into the first encounter.
+    /// The seed comes off the clock so each run differs; a delve launched from
+    /// the app seeds from the save state plus a per-delve nonce instead, which is
+    /// what makes a run reproducible from a bug report.
+    private void Descend()
+    {
+        _state = _prep.Result;
+        _approach = _prep.Approach;
+        _prep.Close();
+
+        var pet = Combatant.Pet(_state, _rates);
+        _petName = pet.Name;
+        _petMaxHP = pet.MaxHP;
+        _petHP = pet.CurrentHP;
+
+        ulong seed = (ulong)Time.GetTicksUsec();
+        _delve = Delve.CacheWarrenDelve(
+            pet, _rates.CombatEffectiveness(_state.Needs), _rates, seed, _state.OwnedItems);
+        _delve.Descend();
+        StartEncounter();
+    }
+
+    /// Resolves the current encounter and hands its log to playback. The pet
+    /// enters at the HP the delve carried in, not at full — that carry is the
+    /// whole reason pushing deeper is a gamble.
+    private void StartEncounter()
+    {
+        var foe = _delve.CurrentFoe!;
+        _encounter = _delve.MakeEncounter(_approach)!;
+        _logCursor = 0;
+
+        ShowFoe(foe);
+        _petHP = _delve.CarriedHP;
+        _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
+        _hud.Reset(_petMaxHP, _foeMaxHP);
+        _hud.SetHP(_petHP, _foeHP);
+
+        _lunge.Cancel();
+        _pending.Clear();
+        DrainLog();
+        _round = 0;
         _beatTimer = 0;
+        _actionTimer = 0;
         _line = "";
         _party.Play(ActorAction.Idle, loop: true);
         _foe.Play(ActorAction.Idle, loop: true);
+        _phase = Phase.Fighting;
         UpdateReadout();
     }
+
+    /// Queues every event the encounter has logged since playback last looked.
+    private void DrainLog()
+    {
+        for (; _logCursor < _encounter.Log.Count; _logCursor++)
+        {
+            _pending.Enqueue(_encounter.Log[_logCursor]);
+        }
+    }
+
+    /// Everything queued has been animated, so the fight can move. Either it
+    /// wants a decision from the player, or it is over, or it resolves another
+    /// round and hands back whatever that produced.
+    private void PumpEncounter()
+    {
+        if (_encounter.Status.IsAwaitingDecision) { EnterSteer(); return; }
+        if (!_encounter.Status.IsOngoing) { FinishEncounter(); return; }
+        _encounter.Step();
+        DrainLog();
+    }
+
+    /// The fight has paused for guidance — beat four of the delve. The player
+    /// re-chooses the Approach and decides whether to spend the once-per-fight
+    /// Signature; both carry, so an Approach picked here is also the one the
+    /// next encounter opens on.
+    private void EnterSteer()
+    {
+        _phase = Phase.Steering;
+        _line = _encounter.Status.Reason switch
+        {
+            DecisionReason.LowHP => $"{_petName} is faltering",
+            DecisionReason.Opening => $"{_foeName} over-extends — an opening",
+            DecisionReason.Telegraph => $"{_foeName} is winding up — brace, or eat it",
+            _ => $"How should {_petName} press on?",
+        };
+        _status = AutoPlay
+            ? $"Holding {_approach}..."
+            : "[1] Aggressive  [2] Careful  [3] Clever  ·  [Space] hold"
+              + (_encounter.SignatureReady ? "  ·  [U] unleash" : "");
+        // A held Approach is a real choice, so an unattended run takes it on the
+        // same short pause a player would have spent reading the prompt.
+        _cardTimer = AutoPlay ? CardSeconds * 0.25 : 0;
+        UpdateReadout();
+    }
+
+    /// Commits a decision and resumes the fight.
+    private void TakeDecision(Approach approach, bool unleash)
+    {
+        _approach = approach;
+        _encounter.Decide(approach, unleash);
+        DrainLog();
+        _phase = Phase.Fighting;
+        UpdateReadout();
+    }
+
+    /// The log has played out. The delve decides what that meant: a retreat, a
+    /// finished chain, or the bank/push choice.
+    private void FinishEncounter()
+    {
+        _delve.RecordOutcome(_encounter);
+        switch (_delve.Status.Kind)
+        {
+            case DelveStatusKind.AwaitingPushChoice:
+                _phase = Phase.Choice;
+                _line = _delve.LastDrop is Item drop
+                    ? $"{_foeName} down — {drop.DisplayName()} recovered"
+                    : $"{_foeName} down";
+                _status = AutoPlay
+                    ? "Pushing deeper..."
+                    : "[Space] push deeper   ·   [B] bank and leave";
+                _cardTimer = AutoPlay ? CardSeconds * 0.5 : 0;
+                break;
+            default:
+                ShowSummary();
+                break;
+        }
+        UpdateReadout();
+    }
+
+    /// The run is over either way. Resolution is where the delve touches the pet
+    /// at all: XP, needs and gear move **once**, here, from the HP walked out
+    /// with — never per encounter.
+    private void ShowSummary()
+    {
+        var resolution = _delve.Resolution(_state);
+        if (resolution == null) return;
+        _state = resolution.State;
+
+        string headline = resolution.BossDefeated ? "Delve complete"
+                        : resolution.Banked ? "Banked"
+                        : "Retreated";
+        var spoils = new List<string>();
+        foreach (var item in resolution.ItemsDropped) spoils.Add(item.DisplayName());
+        _line = $"{headline} — {resolution.ClearedCount}/{_delve.TotalEncounters} cleared, "
+              + $"+{resolution.XPGained:0} XP"
+              + (spoils.Count > 0 ? $", {string.Join(", ", spoils)}" : "");
+        _status = $"Exit: {resolution.Tier.RawValue()}  ·  Lv {_state.Level}  ·  {_state.Mood}";
+        _phase = Phase.Summary;
+        _cardTimer = CardSeconds;
+    }
+
+    /// Bank or push. Both are guarded by the delve itself, so a stray keypress
+    /// outside the choice does nothing.
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (AutoPlay) return;
+        if (@event is not InputEventKey { Pressed: true, Echo: false } key) return;
+        switch (_phase)
+        {
+            case Phase.Prep:
+                if (_prep.HandleKey(key.Keycode)) Descend();
+                break;
+            case Phase.Steering:
+                switch (key.Keycode)
+                {
+                    case Key.Key1: TakeDecision(Approach.Aggressive, unleash: false); break;
+                    case Key.Key2: TakeDecision(Approach.Careful, unleash: false); break;
+                    case Key.Key3: TakeDecision(Approach.Clever, unleash: false); break;
+                    case Key.U: TakeDecision(_approach, unleash: true); break;
+                    case Key.Space or Key.Enter or Key.KpEnter:
+                        TakeDecision(_approach, unleash: false); break;
+                }
+                break;
+            case Phase.Choice:
+                switch (key.Keycode)
+                {
+                    case Key.Space or Key.Enter or Key.KpEnter:
+                        _delve.PushDeeper();
+                        StartEncounter();
+                        break;
+                    case Key.B:
+                        _delve.Bank();
+                        ShowSummary();
+                        UpdateReadout();
+                        break;
+                }
+                break;
+        }
+    }
+
+    // MARK: - Playback
 
     public override void _Process(double delta)
     {
@@ -130,6 +395,12 @@ public partial class CacheWarrenScene : Node3D
         _lunge.Tick(delta, _impact.IsHitStopped ? 0 : 1);
 
         if (_impact.IsHitStopped) return;
+
+        if (_phase != Phase.Fighting)
+        {
+            TickCard(delta);
+            return;
+        }
 
         // Phase one: the action is playing. No countdown — the attack is not
         // the wait.
@@ -150,7 +421,8 @@ public partial class CacheWarrenScene : Node3D
 
         if (_pending.Count == 0)
         {
-            if (Loop) StartFight();
+            _hud?.ClearBeat();
+            PumpEncounter();
             return;
         }
 
@@ -166,6 +438,32 @@ public partial class CacheWarrenScene : Node3D
             _hud?.ClearBeat();
         }
         UpdateReadout();
+    }
+
+    /// The between-fight beats. A choice with AutoPlay off has no timer and
+    /// simply waits for the player.
+    private void TickCard(double delta)
+    {
+        if (_cardTimer <= 0) return;
+        _cardTimer -= delta;
+        if (_cardTimer > 0) return;
+        switch (_phase)
+        {
+            case Phase.Prep:
+                _prep.TakeBestAvailable();
+                Descend();
+                break;
+            case Phase.Steering:
+                TakeDecision(_approach, unleash: false);
+                break;
+            case Phase.Choice:
+                _delve.PushDeeper();
+                StartEncounter();
+                break;
+            case Phase.Summary:
+                if (Loop) BeginRun();
+                break;
+        }
     }
 
     /// Sends the attacker at its target and hangs the whole reaction off the
@@ -236,6 +534,33 @@ public partial class CacheWarrenScene : Node3D
                 _line = $"{x.Attacker} unleashes for {x.Outcome.Damage}";
                 return true;
 
+            // The Monolith's telegraphed slam — the foe's answer to a signature,
+            // and the reason the boss encounter reads differently from the three
+            // above it.
+            case CombatEvent.Slammed x:
+                _foe.Play(ActorAction.Signature);
+                if (x.Outcome.DidHit)
+                {
+                    ScheduleImpact(_foe, _party, false, x.Outcome, isSignature: true);
+                    _line = $"{x.Attacker} slams for {x.Outcome.Damage}";
+                }
+                else
+                {
+                    ScheduleWhiff(_foe, _party);
+                    _line = $"{x.Attacker} slams — {x.Defender} slips it";
+                }
+                return true;
+
+            // A wind-up with no contact. It earns a beat precisely because the
+            // pause is the information: the slam is coming.
+            case CombatEvent.Telegraphed x:
+                _line = $"{x.Who} winds up";
+                return true;
+
+            case CombatEvent.Hardened x:
+                _line = $"{x.Who} hardens (+{x.GuardGain} Guard)";
+                return true;
+
             case CombatEvent.Braced x:
                 _party.Play(ActorAction.Idle, loop: true);
                 _petHP = System.Math.Min(_petMaxHP, _petHP + x.Regen);
@@ -266,7 +591,7 @@ public partial class CacheWarrenScene : Node3D
                 return false;
 
             default:
-                return false;   // decision points, telegraphs
+                return false;   // encounter markers, decision points
         }
     }
 
@@ -280,6 +605,56 @@ public partial class CacheWarrenScene : Node3D
     {
         _hud.SetHP(_petHP, _foeHP);
         _hud.SetNarration(_line);
-        _hud.SetStatus($"Round {_round}  ·  {_approach}");
+        if (_phase == Phase.Fighting)
+        {
+            _status = $"Encounter {_delve.EncounterNumber}/{_delve.TotalEncounters}"
+                    + $"  ·  Round {_round}  ·  {_approach}";
+        }
+        _hud.SetStatus(_status);
     }
+
+    /// Registers one of the stand-in bodies, hidden until a foe needs it.
+    private void AddFoeModel(string nodeName, string modelName)
+    {
+        var root = GetNode<Node3D>($"Foe/{nodeName}");
+        var actor = new StageActor(root, modelName, ActorAnimations.For(modelName)!);
+        _foeModels[modelName] = actor;
+        _foeRestScales[modelName] = root.Scale;
+        root.Visible = false;
+    }
+
+    /// Puts a foe on the stage: its name and HP for the plate, and the body
+    /// standing in for it at the right size and colour.
+    private void ShowFoe(Foe foe)
+    {
+        _foeName = foe.Name;
+        _foeMaxHP = foe.MaxHP;
+        _foeHP = foe.MaxHP;
+        var (model, scale, energy) = PresenceFor(foe.Name);
+        _foe = _foeModels[model];
+        foreach (var (name, actor) in _foeModels) actor.Root.Visible = name == model;
+        _foe.Root.Scale = _foeRestScales[model] * scale;
+        _foeEnergy = energy;
+        _foe.Play(ActorAction.Idle, loop: true);
+    }
+
+    /// Stand-in staging for the three foes with no model of their own. Only the
+    /// Flicker is rigged; the Snag's mesh exists but is not rigged yet, and the
+    /// Scamp and Monolith have none — so the Flicker's body covers the small and
+    /// mid foes at different sizes and energy colours, and the Pangolin (a pet
+    /// model, borrowed) covers the Monolith, because a heavy armoured slammer
+    /// reads as a Colossus where a scaled-up cat reads as a large cat.
+    ///
+    /// Placeholder on purpose — the chain and its pacing are what this scene is
+    /// for, and they are judgeable now rather than after four rigs. The scales
+    /// are eyeballed against the models' own sizes and want a look before they
+    /// are trusted.
+    private static (string Model, float Scale, Color Energy) PresenceFor(string foeName) => foeName switch
+    {
+        "Dungeon Scamp" => ("forest_flicker", 0.55f, FamilyEnergy.Glitchkin),
+        "Snag" => ("forest_flicker", 1.15f, FamilyEnergy.Wildkin),
+        "Flicker" => ("forest_flicker", 1.0f, FamilyEnergy.Wildkin),
+        "Monolith" => ("clockwork_pangolin", 1.3f, FamilyEnergy.Relicborn),
+        _ => ("forest_flicker", 1.0f, FamilyEnergy.Bloomglass),
+    };
 }
