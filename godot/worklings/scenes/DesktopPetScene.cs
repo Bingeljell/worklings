@@ -337,6 +337,12 @@ public partial class DesktopPetScene : Node3D
             case PetMenuChoice.Sleep:
                 Care(PetAction.Sleep);
                 break;
+            case PetMenuChoice.StayPut:
+                Roam = !Roam;
+                if (Roam) BeginResting();
+                else _pet.Play(ActorAction.Idle, loop: true);
+                GD.Print($"roaming: {Roam}");
+                break;
             case PetMenuChoice.EnterTheWarren:
                 GD.Print("Enter the Warren: not wired yet");
                 break;
@@ -380,7 +386,7 @@ public partial class DesktopPetScene : Node3D
         // window has nothing else to click.
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true })
         {
-            _menu.Open(_state, DisplayServer.MouseGetPosition());
+            _menu.Open(_state, Roam, DisplayServer.MouseGetPosition());
             return;
         }
 

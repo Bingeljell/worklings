@@ -12,6 +12,7 @@ public enum PetMenuChoice
     Play,
     Pet,
     Sleep,
+    StayPut,
     CharacterSheet,
     EnterTheWarren,
     Rename,
@@ -96,7 +97,9 @@ public sealed class PetMenu
     /// Rebuilt on every open rather than built once, because the header carries
     /// the pet's name, level and mood — a menu that opened showing yesterday's
     /// level would be worse than no header at all.
-    public void Open(PetState state, Vector2I atScreenPosition)
+    /// `roaming` is passed in rather than held here, because the scene owns
+    /// whether the pet wanders and the menu only reports it.
+    public void Open(PetState state, bool roaming, Vector2I atScreenPosition)
     {
         _root.Clear();
 
@@ -117,6 +120,13 @@ public sealed class PetMenu
         _root.AddSubmenuNodeItem("Play", _play);
         _root.AddItem("Pet", (int)PetMenuChoice.Pet);
         _root.AddItem("Let it sleep", (int)PetMenuChoice.Sleep);
+        _root.AddSeparator();
+
+        // A checkbox rather than two items, so the current state is visible
+        // without opening anything. Wandering is charming until you are trying
+        // to work under it.
+        _root.AddCheckItem("Stay put", (int)PetMenuChoice.StayPut);
+        _root.SetItemChecked(_root.ItemCount - 1, !roaming);
         _root.AddSeparator();
 
         _root.AddItem("Character sheet…", (int)PetMenuChoice.CharacterSheet);
