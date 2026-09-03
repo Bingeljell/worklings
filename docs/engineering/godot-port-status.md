@@ -31,20 +31,21 @@ Developer keys: **Esc** quit · **Tab** next monitor · **C** click-through ·
 **What is done:** the save file (byte-identical to the Swift app's), the shell
 (transparent, borderless, always-on-top, click-through, multi-monitor), export to
 a real `.app`, two windows, the right-click menu, the care half of `PetBrain`,
-and the pet-to-Warren-and-back handover.
+the pet-to-Warren-and-back handover with its smoke transition, a shared theme,
+and floating reactions so care is visible.
 
 **What is next, in order:**
 
-1. **A shared theme.** The menu is Godot's default: legible and nothing more. The
-   dungeon's surfaces are text rather than game UI. One theme both can inherit.
-2. **Reaction feedback.** Petting a Workling prints `comforted` to a log nobody
-   sees. Care is currently invisible.
-3. **The walk facing fix** — 38 degrees is not enough turn; the pet reads as
-   facing you while walking sideways.
-4. **`ActivityEvent` / `ActivityContext`**, then `PetBrain`'s activity half. This
-   is the product hook — **the pet does not yet notice you working** — and it is
-   the only part that must also be re-authored for Windows and Linux, where
-   nothing exists in any language yet.
+1. **`ActivityEvent` / `ActivityContext`**, then `PetBrain`'s activity half, then
+   `ActivitySources`. This is the product hook — **the pet does not yet notice
+   you working** — and it is the only part that must also be re-authored for
+   Windows and Linux, where nothing exists in any language yet. About 1,100
+   lines of Swift plus whatever the two other platforms turn out to cost.
+2. **The dungeon's surfaces**, which are text rather than game UI. The theme
+   exists now; the prep screen, the steer prompt, bank-or-push and the summary
+   all want it and a designer's pass on top.
+3. **The remaining nine probe references**, so the whole suite catches
+   regressions rather than only the four newest slices.
 
 **Decisions already taken, do not relitigate without reading them:**
 
@@ -301,13 +302,6 @@ per-pixel alpha, lit well enough to read against an arbitrary desktop behind it.
 It idles when parked and **walks when it moves**, turned partway toward where it
 is going: not all the way to profile, because the face is the point.
 
-**OPEN — it walks in profile, but it does not turn far enough.** `TurnDegrees` is
-38 degrees off facing-you, chosen so the face stays visible. On a real desktop
-that reads wrong: the Ram looks like it is facing *you* while sliding sideways,
-which is worse than a clean profile would be. It should turn to roughly a full
-profile while walking and come back to facing you when it stops. Noted 2026-09-04,
-not yet changed.
-
 **It only ever walks left or right.** The roaming pattern carries small vertical
 offsets (0.04 and -0.03 of the available height) and they are the reason a walk
 reads as a drift — there is one walk cycle, it walks sideways, and any vertical
@@ -530,17 +524,12 @@ demo:
   is the question that decides whether the pet is the main window with the dungeon
   as a second one, or a mode switch on a single window.
 - **No hit region from the silhouette.** The click box is a rectangle.
-- **The menu has had no design pass at all.** It is Godot's default theme:
-  generic dark grey, chunky rows, nothing to do with Worklings. It works and it
-  is legible, and that is the whole of its merit. `LoadoutPanel` in the dungeon
-  already has a look worth matching and `docs/design` has the vocabulary.
-  Deferred on purpose — the *shape* was worth settling before the styling, and
-  it now is.
+- **The theme covers the menu and nothing else yet.** `WorklingsTheme` exists,
+  taken from `LoadoutPanel`; the dungeon's own surfaces still predate it.
 - **Character sheet and Rename sit in the menu, disabled.** Both are designed
   and unbuilt. Shown rather than hidden, so the menu says what is coming.
-- **The walk faces the wrong way.** See above — 38 degrees is not enough turn,
-  and the pet reads as facing the viewer while moving sideways. A one-knob fix
-  (`TurnDegrees`), deliberately not taken yet.
+- **No hit region from the silhouette**, still. The click box is a rectangle, so
+  clicking near the pet rather than on it still pets it.
 - **The smoke is legacy pixel art.** It works and it is charming, and it is from
   the direction the project has left. A better effect built in Godot — particles
   tinted from `FamilyEnergy`, which the dungeon already uses for hit sparks — is
