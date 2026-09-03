@@ -9,40 +9,52 @@
 
 If this session is gone, start here.
 
-**State:** persistence and the desktop shell are **merged to `main`** (PR #49,
-2026-09-04). The dungeon remembers its Workling between runs, and the desktop pet
-exists as a window with a Ram walking around in it. In flight on
-`feature/godot-menu-and-care`: the two-window proof, and the menu and care
-surfaces it unblocks.
+**State:** the port now has a working loop. A desktop pet lives on the screen,
+can be cared for, goes into the Cache Warren and comes back changed. Persistence,
+the desktop shell, the menu and care are **merged to `main`** (PRs #49, #50). In
+flight on `feature/godot-pet-to-dungeon`: the pet-to-Warren handover and the
+smoke transition.
 
 **Run it:**
 
 ```bash
-scripts/godot-pet      # the desktop pet
+scripts/godot-pet      # the desktop pet — this is the app
+scripts/godot-export   # a real Worklings.app in dist/godot/
 scripts/godot-probe    # every probe with a stored reference, diffed
-/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon
+/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon on its own
 ```
 
-**The next slice is the menu**, and it is the first piece of *app* rather than of
-port. Picking a pet, renaming, opening the character screen, entering the Warren,
-quitting — all of it is menubar-and-SwiftUI in the Swift app, none of it exists in
-Godot, and every other surface hangs off it, including the trigger for opening
-the dungeon window. Esc currently stands in for quit.
+Once the pet is up: **right-click it** for the menu, **click it** to pet it.
+Developer keys: **Esc** quit · **Tab** next monitor · **C** click-through ·
+**R** roaming · **W** the Warren.
 
-**Then care-on-click**: feed, play, pet and sleep are already ported `PetState`
-operations with no way in. The click target is the shell's to provide, and the
-clickable area is currently a rectangle rather than the animal's shape.
+**What is done:** the save file (byte-identical to the Swift app's), the shell
+(transparent, borderless, always-on-top, click-through, multi-monitor), export to
+a real `.app`, two windows, the right-click menu, the care half of `PetBrain`,
+and the pet-to-Warren-and-back handover.
 
-**Then `PetBrain`** (543 lines) and `PetCareStatus` / `PetPresentation` (~330) —
-ordinary ports, with Swift references to diff against, into a window that now
-exists.
+**What is next, in order:**
 
-**Two windows.** Decided and proven 2026-09-04 — the pet is the main window, the
-dungeon opens as an ordinary second one. See
-[Two windows, and why not one](#two-windows-and-why-not-one).
+1. **A shared theme.** The menu is Godot's default: legible and nothing more. The
+   dungeon's surfaces are text rather than game UI. One theme both can inherit.
+2. **Reaction feedback.** Petting a Workling prints `comforted` to a log nobody
+   sees. Care is currently invisible.
+3. **The walk facing fix** — 38 degrees is not enough turn; the pet reads as
+   facing you while walking sideways.
+4. **`ActivityEvent` / `ActivityContext`**, then `PetBrain`'s activity half. This
+   is the product hook — **the pet does not yet notice you working** — and it is
+   the only part that must also be re-authored for Windows and Linux, where
+   nothing exists in any language yet.
 
-**Do not** point a test run at the real save. See
-[Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it).
+**Decisions already taken, do not relitigate without reading them:**
+
+- [Two windows, and why not one](#two-windows-and-why-not-one) — the pet is the
+  main window, the dungeon is an ordinary second one.
+- [Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it)
+  — **do not point a test run at the real save**, and the pet owns the state
+  while a delve is running.
+- [Exporting](#exporting) — the four requirements that are invisible in the
+  editor, the first of which fails silently.
 
 ## The one-line answer
 
