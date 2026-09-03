@@ -70,11 +70,29 @@ public sealed class ActorAnimations
         },
         attackImpactPoint: 0.82);
 
+    /// The Clockwork Pangolin. A pet model doing placeholder duty as the
+    /// Monolith: the mini-boss has no model of its own, and a heavy armoured
+    /// thing that slams reads far closer to a Colossus than a scaled-up cat
+    /// does. The root-locked tail swipe is the one to use — AttackLunge moves
+    /// the node itself, so a clip that also translates the body would fight it.
+    public static readonly ActorAnimations ClockworkPangolin = new(
+        new Dictionary<ActorAction, string>
+        {
+            [ActorAction.Idle] = "Pangolin_Rest_BreatheLook_v01",
+            [ActorAction.Walk] = "Pangolin_Walk_InPlace_v01",
+            [ActorAction.Attack] = "Pangolin_Attack_TailSwipe_L_RootLocked_v01",
+            [ActorAction.Signature] = "Pangolin_Special_RearSlam_Sprite_v04",
+            [ActorAction.Wince] = "Pangolin_HitReact_HeadTuck_Sprite_v01",
+            [ActorAction.Downed] = "Pangolin_HitReact_HeadTuck_Sprite_v01",
+        },
+        attackImpactPoint: 0.85);
+
     /// Looked up by the .glb basename the actor was loaded from.
     public static ActorAnimations? For(string modelName) => modelName switch
     {
         "tempest_ram" => TempestRam,
         "forest_flicker" => ForestFlicker,
+        "clockwork_pangolin" => ClockworkPangolin,
         _ => null,
     };
 }

@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/CacheWarrenScene.cs" id="script"]
 [ext_resource type="PackedScene" path="res://scenes/dungeon_stage.tscn" id="stage"]
 [ext_resource type="PackedScene" path="res://assets/characters/tempest_ram.glb" id="ram"]
 [ext_resource type="PackedScene" path="res://assets/characters/forest_flicker.glb" id="flicker"]
+[ext_resource type="PackedScene" path="res://assets/characters/clockwork_pangolin.glb" id="pangolin"]
 
 [node name="CacheWarren" type="Node3D"]
 script = ExtResource("script")
@@ -13,5 +14,11 @@ script = ExtResource("script")
 [node name="Party" parent="." instance=ExtResource("ram")]
 transform = Transform3D(-3.69848, 0.00000, -0.10589, 0.00000, 3.70000, 0.00000, 0.10589, 0.00000, -3.69848, -3.00, 0.00, 8.50)
 
-[node name="Foe" parent="." instance=ExtResource("flicker")]
+[node name="Foe" type="Node3D" parent="."]
+
+[node name="Flicker" parent="Foe" instance=ExtResource("flicker")]
 transform = Transform3D(2.79429, 0.00000, -0.17874, 0.00000, 2.80000, 0.00000, 0.17874, 0.00000, 2.79429, 0.00, 0.00, -2.00)
+
+[node name="Pangolin" parent="Foe" instance=ExtResource("pangolin")]
+transform = Transform3D(2.79429, 0.00000, -0.17874, 0.00000, 2.80000, 0.00000, 0.17874, 0.00000, 2.79429, 0.00, 0.00, -2.00)
+visible = false
