@@ -133,6 +133,42 @@ diff against it, and only then move on. Three of the four bugs above came from
 reasoning about the Swift stdlib; all four were caught by reading captured
 values instead.
 
+### How to run a probe, and how a reference is captured
+
+Not obvious from the files, and rediscovering it costs half an hour.
+
+**Run one probe.** Each lives in `godot/worklings/tools/` as a C# script plus a
+one-node scene. Build first — Godot runs the compiled assembly, not the source:
+
+```bash
+cd godot/worklings
+dotnet build
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . res://tools/delve_probe.tscn
+```
+
+The probes, in dependency order: `rng_probe`, `bounded_draw_probe`,
+`resolve_probe`, `fight_probe`, `progression_probe`, `items_probe`,
+`daily_tally_probe`, `pet_state_probe`, `combatant_bridge_probe`,
+`combat_rewards_probe`, `delve_probe`, `character_sheet_probe`.
+
+**Capture the Swift side.** `CompanionCore` is a library with no runnable entry
+point, and SPM leaves no linkable archive to build against, so the reference
+generator is compiled *alongside the sources*. The file must be named
+`main.swift` — Swift only allows top-level statements there — and must not
+`import CompanionCore`, since it is being compiled into the same module:
+
+```bash
+swiftc -O Sources/CompanionCore/*.swift /tmp/scratch/main.swift -o /tmp/scratch/ref
+/tmp/scratch/ref > /tmp/scratch/ref.txt
+```
+
+Then diff the probe's output against `ref.txt`. Print the same labels in the same
+order from both sides and the diff points straight at the diverging value.
+
+**Format the numbers explicitly.** Swift's default `Double` description and C#'s
+differ (`12.0` vs `12`), so both sides format through `%.4f` / `"F4"` or the diff
+fills with false positives.
+
 ### OPEN: the probes are not regression tests yet
 
 They print. The diffing was done by hand against reference files that live
