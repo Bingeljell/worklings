@@ -96,7 +96,11 @@ public partial class DesktopPetScene : Node3D
             GD.Print($"  screen {i}: usable ({frame.X}, {frame.Y}) {frame.Width}x{frame.Height}"
                    + $" scale {DisplayServer.ScreenGetScale(i)}");
         }
-        GD.Print($"on screen {_screen} at {GetWindow().Position}, size {GetWindow().Size}");
+        var w = GetWindow();
+        GD.Print($"on screen {_screen} at {w.Position}, size {w.Size}");
+        GD.Print($"content scale: mode={w.ContentScaleMode} aspect={w.ContentScaleAspect} "
+               + $"size={w.ContentScaleSize} factor={w.ContentScaleFactor}");
+        GD.Print($"viewport visible rect: {GetViewport().GetVisibleRect()}");
         GD.Print($"click-through: {ClickThrough}  ·  roaming: {Roam}");
         GD.Print("Esc quit · Tab next monitor · C click-through · R roam · drag to move");
     }
