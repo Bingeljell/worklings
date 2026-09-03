@@ -3,20 +3,28 @@
 > Evolving doc, not a frozen spec — see [docs/README](../README.md).
 >
 > **The living answer to "where are we?"** Update it when a slice lands rather
-> than reconstructing the state from git log. Last updated 2026-09-02.
+> than reconstructing the state from git log. Last updated 2026-09-03.
 
 ## The one-line answer
 
 **The Swift app is still the product.** Godot has a working dungeon prototype —
-a real encounter, resolved by ported combat logic, with a HUD and impact
-frames — and nothing else. Roughly **59% of `CompanionCore` is ported and none
-of the app around it is.**
+a real four-encounter delve, resolved by ported combat logic, with a HUD and
+impact frames — and nothing else. Roughly **59% of `CompanionCore` is ported and
+none of the app around it is.**
 
 As of 2026-09-02 the **whole dungeon-facing half is ported**. A Workling with a
 level, gear and condition can be built, fight a four-encounter delve, bank or
 push deeper, take drops, and have the result written back. What remains is the
 desktop pet and the activity pipeline — real work, but not work the dungeon
 waits on.
+
+As of 2026-09-03 the scene **runs that delve** rather than one hand-built fight
+on a loop: `CacheWarrenScene` builds its fighter from a `PetState` through
+`Combatant.Pet`, drives `Delve` through briefing, the encounter chain, the
+bank-or-push choice and the closing summary, and writes the result back through
+`Delve.Resolution`. The pet it runs is a demo state held **in memory** — a run's
+XP, gear and condition carry into the next run and are lost when the scene
+closes, because nothing loads or saves a `PetState` yet.
 
 This is deliberate: the engine decision (see
 [rendering engine fork](rendering-engine-fork.md)) was taken on the condition
@@ -92,7 +100,9 @@ New code, written for the renderer rather than ported:
   family-coloured sparks.
 - `core/stage/FamilyEnergy` — the five family colours, driving every visual.
 - `core/stage/CombatHud`, `HealthPlate`, `DamageNumbers`, `StageType` — the HUD.
-- `scenes/dungeon_stage.tscn`, `scenes/cache_warren.tscn` — the room and the fight.
+- `scenes/dungeon_stage.tscn`, `scenes/cache_warren.tscn` — the room and the
+  delve: the phase machine around the fight (briefing, chain, bank-or-push,
+  summary) and the event-to-animation mapping, both renderer-side by design.
 
 ## Why verification mattered
 
@@ -179,25 +189,29 @@ reference outputs next to the probes, with a runner that diffs them, would turn
 
 ## Open, in priority order
 
-1. **Wire the ported layers into the scene.** `CacheWarrenScene` still builds its
-   combatants by hand. Everything it needs now exists — `Combatant.Pet(state,
-   rates)` folds gear in ahead of condition — so the dungeon can run a real
-   `Delve` against a real `PetState` instead of one fight on a loop. This is the
-   payoff for the whole port and nothing else blocks it.
-2. **Store the probe references**, above, so the suite catches regressions.
+1. **Store the probe references**, above, so the suite catches regressions.
+2. **Three of the four foes have no model.** The Scamp, the Snag and the
+   Monolith render as the Flicker's mesh at a different size and energy colour
+   (`CacheWarrenScene.PresenceFor`). Deliberate — the chain's pacing is judgeable
+   now rather than after four bakes — but the boss reading as a large cat is the
+   most obviously placeholder thing on screen.
 3. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
-   exchange runs ~5s. Nikhil is revising the actions to be quicker and more
-   impactful; contact points are stored as fractions (Ram 0.86, Flicker 0.82) so
-   they survive a re-time.
+   exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
+   them back to back — so the re-time matters more than it did. Nikhil is
+   revising the actions to be quicker and more impactful; contact points are
+   stored as fractions (Ram 0.86, Flicker 0.82) so they survive a re-time.
 4. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
    cycle underneath during the approach is the real fix.
 5. **The impact flash reads as invisible in motion** despite showing clearly in
    stills. Not diagnosed; may need more than a tint change.
 6. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
-   sizes, hit-stop duration. All exported.
+   sizes, hit-stop duration, and now the briefing/summary dwell. All exported.
 7. **The combat panel** — narration and round/Approach are placeholder labels,
-   not a designed panel.
+   and the delve's own beats now share them: the briefing, the "[Space] push
+   deeper · [B] bank" prompt and the closing summary are all one line of text.
+   The press-your-luck choice is the emotional centre of a delve and currently
+   looks like a debug readout.
 8. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
 9. **Action trimming.** The Ram ships 17 actions, most of them iteration
