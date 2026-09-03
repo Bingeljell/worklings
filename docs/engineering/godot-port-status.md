@@ -5,6 +5,45 @@
 > **The living answer to "where are we?"** Update it when a slice lands rather
 > than reconstructing the state from git log. Last updated 2026-09-04 (second slice).
 
+## Picking this up cold
+
+If this session is gone, start here.
+
+**State:** the branch `feature/godot-persistence` holds two slices — persistence
+and the desktop shell — and both are finished and verified. The dungeon
+remembers its Workling between runs, and the desktop pet exists as a window with
+a Ram walking around in it.
+
+**Run it:**
+
+```bash
+scripts/godot-pet      # the desktop pet
+scripts/godot-probe    # every probe with a stored reference, diffed
+/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon
+```
+
+**The next slice is the menu**, and it is the first piece of *app* rather than of
+port. Picking a pet, renaming, opening the character screen, quitting — all of it
+is menubar-and-SwiftUI in the Swift app, none of it exists in Godot, and every
+other surface hangs off it. Esc currently stands in for quit.
+
+**Then care-on-click**: feed, play, pet and sleep are already ported `PetState`
+operations with no way in. The click target is the shell's to provide, and the
+clickable area is currently a rectangle rather than the animal's shape.
+
+**Then `PetBrain`** (543 lines) and `PetCareStatus` / `PetPresentation` (~330) —
+ordinary ports, with Swift references to diff against, into a window that now
+exists.
+
+**The open question nothing has answered: one window or two.** The pet and the
+dungeon are separate scenes. Whether the pet is the main window with the dungeon
+opening as a second one, or whether one window switches modes, decides the shape
+of the app — and `PetBrain` will assume one or the other. Worth settling before
+it lands.
+
+**Do not** point a test run at the real save. See
+[Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it).
+
 ## The one-line answer
 
 **The Swift app is still the product.** Godot has a working dungeon prototype —
@@ -249,6 +288,12 @@ per-pixel alpha, lit well enough to read against an arbitrary desktop behind it.
 It idles when parked and **walks when it moves**, turned partway toward where it
 is going: not all the way to profile, because the face is the point.
 
+**It only ever walks left or right.** The roaming pattern carries small vertical
+offsets (0.04 and -0.03 of the available height) and they are the reason a walk
+reads as a drift — there is one walk cycle, it walks sideways, and any vertical
+component is the model sliding rather than stepping. The pattern is flattened
+renderer-side rather than edited, so the ported intent stays faithful to Swift.
+
 **Walking speed replaces the roaming pattern's travel durations**, which is a
 deliberate divergence from the port. Those durations are fixed per leg — 2.2 to 3
 seconds regardless of distance — which is right for a pet that slides and wrong
@@ -264,8 +309,9 @@ needs start and stop variants of the walk clip, which the Ram does not have.
 
 Seen working, by screenshot: **transparency** (terminal text is legible straight
 through the window up to the animal's outline), **borderless**, **placement**,
-**roaming**, and the **walk** — the Ram crossed 275px of desktop in five seconds
-at the 55 px/s it was set to, turned toward where it was going, legs moving.
+**roaming**, and the **walk** — the Ram crossed 229px of desktop in five seconds
+at the 44 px/s it was set to, turned toward where it was going, legs moving, and
+with its vertical position unchanged between captures.
 
 **Always-on-top and click-through are confirmed too**, by Nikhil on 2026-09-04 —
 neither is judgeable from a screenshot. Click-through behaves as designed: clicks

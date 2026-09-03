@@ -53,7 +53,15 @@ public partial class DesktopPetScene : Node3D
     /// the ground. Deriving the duration from the distance instead means one
     /// speed, and the walk reads as walking. The pattern still owns *where* the
     /// pet goes and how long it rests.
-    [Export] public float WalkSpeed { get; set; } = 55;
+    [Export] public float WalkSpeed { get; set; } = 44;
+
+    /// Keeps the pet on one horizontal line. The roaming pattern carries small
+    /// vertical offsets — 0.04 and -0.03 of the available height — and they are
+    /// the reason a walk can read as a drift: there is one walk cycle, it walks
+    /// left and right, and any vertical component is the model sliding rather
+    /// than stepping. Flattening the pattern is a renderer-side decision, so the
+    /// ported intent is left alone and a flattened copy is used instead.
+    [Export] public bool HorizontalOnly { get; set; } = true;
 
     /// How far the pet turns toward where it is going, in degrees off
     /// facing-you. It walks across the screen, so it should not be walking
@@ -163,6 +171,11 @@ public partial class DesktopPetScene : Node3D
     {
         var window = GetWindow();
         var intent = PetRoamingPlanner.Intent(_sequence);
+        if (HorizontalOnly)
+        {
+            intent = new PetRoamingIntent(
+                intent.HorizontalOffset, 0, intent.RestDuration, intent.TravelDuration);
+        }
         _from = DesktopWindow.OriginOf(window);
         _to = ScreenPlacement.RoamingOrigin(
             _from, intent, DesktopWindow.SizeOf(window),
