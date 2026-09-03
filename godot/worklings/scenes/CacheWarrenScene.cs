@@ -1,6 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 using Worklings.Core.Combat;
+using Worklings.Core.Host;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
 using Worklings.Core.Stage;
@@ -27,9 +28,10 @@ using Worklings.Core.Stage;
 /// encounter asks for one. Determinism is unchanged — the same seed and the same
 /// decisions replay identically; the decisions are simply now an input.
 ///
-/// The pet state persists across delves in memory only. Loading and saving it
-/// waits on the persistence slice; until then a run's XP, gear and condition
-/// carry into the next run and are lost when the scene closes.
+/// The pet is loaded from disk on open and written back when a run resolves, so
+/// XP, gear and condition survive the scene closing. Which file that is depends
+/// on how the build was launched — see SaveLocation. The short version: the
+/// shipped app uses the real one, a test run uses a copy of it.
 public partial class CacheWarrenScene : Node3D
 {
     /// The pause between one action finishing and the next beginning. Long
@@ -101,8 +103,15 @@ public partial class CacheWarrenScene : Node3D
     private readonly PetCombatRates _rates = new();
     /// The living pet. Every delve is built from it and every resolution is
     /// written back into it, so a run starts from the condition and gear the
-    /// last one left behind.
-    private PetState _state = DemoPet();
+    /// last one left behind — and now from what the last *session* left behind.
+    private PetState _state = null!;
+    private PetStateFileStore _store = null!;
+    private SaveLocation _save;
+    /// Cleared when the save on disk could not be read. A run still plays, from
+    /// the demo pet, but nothing is written back: a file this build cannot parse
+    /// is more likely a newer save or a real Workling than junk, and overwriting
+    /// it to recover is the one unrecoverable move.
+    private bool _saves = true;
     private Delve _delve = null!;
     private CombatEncounter _encounter = null!;
     /// How far into the encounter's log playback has read. The log only grows,
@@ -119,6 +128,7 @@ public partial class CacheWarrenScene : Node3D
 
     public override void _Ready()
     {
+        LoadState();
         _party = new StageActor(GetNode<Node3D>("Party"), "tempest_ram", ActorAnimations.TempestRam);
         AddFoeModel("Flicker", "forest_flicker");
         AddFoeModel("Pangolin", "clockwork_pangolin");
@@ -132,12 +142,50 @@ public partial class CacheWarrenScene : Node3D
         BeginRun();
     }
 
-    /// The Workling the scene runs, standing in until there is a saved one to
-    /// load. Deliberately a few delves along rather than PetState.NewPet(): the
-    /// Cache Warren's curve is authored for a Workling with some levels on it,
-    /// and a level-one starter with 5 in every stat does 1 damage to the Snag
-    /// and retreats every run — which would demonstrate the wiring by never
-    /// showing the chain it exists to run.
+    /// Reads the saved Workling, or starts a fresh one. A missing file is a first
+    /// run, not a failure; anything else is reported and locks saving off.
+    ///
+    /// The path is printed every launch, and says whether it is the real save or
+    /// a test copy. Silence about which file is being written is exactly how a
+    /// test run overwrites a real pet without anyone noticing until it is gone.
+    private void LoadState()
+    {
+        _save = SaveLocation.Resolve();
+        _store = new PetStateFileStore(_save.Path);
+        GD.Print($"Workling: {_save.Path} "
+               + $"({(_save.IsShared ? "the real save" : "not the real save")} — {_save.Reason})");
+        try
+        {
+            _state = _store.Load() ?? DemoPet();
+        }
+        catch (System.Exception error)
+        {
+            GD.PushWarning($"Could not read {_save.Path}: {error.Message}. "
+                         + "Running from the demo pet; this session will not save.");
+            _state = DemoPet();
+            _saves = false;
+        }
+    }
+
+    private void SaveState()
+    {
+        if (!_saves) return;
+        try
+        {
+            _store.Save(_state);
+        }
+        catch (System.Exception error)
+        {
+            GD.PushWarning($"Could not write {_save.Path}: {error.Message}");
+            _saves = false;
+        }
+    }
+
+    /// The Workling a first run starts from. Deliberately a few delves along
+    /// rather than PetState.NewPet(): the Cache Warren's curve is authored for a
+    /// Workling with some levels on it, and a level-one starter with 5 in every
+    /// stat does 1 damage to the Snag and retreats every run — which would
+    /// demonstrate the wiring by never showing the chain it exists to run.
     ///
     /// Elemental because the stage holds the Tempest Ram, so the family colour
     /// the HUD and the hit sparks read off matches the body they are attached to.
@@ -328,6 +376,8 @@ public partial class CacheWarrenScene : Node3D
         var resolution = _delve.Resolution(_state);
         if (resolution == null) return;
         _state = resolution.State;
+        // The one write per run, in the one place the pet changes.
+        SaveState();
 
         string headline = resolution.BossDefeated ? "Delve complete"
                         : resolution.Banked ? "Banked"

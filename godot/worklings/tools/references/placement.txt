@@ -1,0 +1,51 @@
+== defaultOrigin ==
+laptop 220.0000x220.0000: (1268.0000, 49.0000)
+laptop 640.0000x480.0000: (848.0000, 49.0000)
+second 220.0000x220.0000: (-244.0000, -376.0000)
+second 640.0000x480.0000: (-664.0000, -376.0000)
+tiny 220.0000x220.0000: (124.0000, 124.0000)
+tiny 640.0000x480.0000: (124.0000, 124.0000)
+margin 0: (1292.0000, 25.0000)
+margin 200: (1092.0000, 225.0000)
+== clampedOrigin ==
+laptop inside: (400.0000, 300.0000)
+laptop inside m24: (400.0000, 300.0000)
+second inside: (-244.0000, 300.0000)
+laptop off left: (0.0000, 300.0000)
+laptop off left m24: (24.0000, 300.0000)
+second off left: (-900.0000, 300.0000)
+laptop off right: (1292.0000, 300.0000)
+laptop off right m24: (1268.0000, 300.0000)
+second off right: (-244.0000, 300.0000)
+laptop off top: (400.0000, 25.0000)
+laptop off top m24: (400.0000, 49.0000)
+second off top: (-244.0000, -376.0000)
+laptop off bottom: (400.0000, 725.0000)
+laptop off bottom m24: (400.0000, 701.0000)
+second off bottom: (-244.0000, 796.0000)
+laptop both corners: (0.0000, 725.0000)
+laptop both corners m24: (24.0000, 701.0000)
+second both corners: (-2536.0000, 796.0000)
+oversized: (124.0000, 124.0000)
+== roaming intents ==
+0: h=-0.2400 v=0.0000 rest=7.0000 travel=2.8000
+1: h=0.1800 v=0.0400 rest=9.0000 travel=2.4000
+2: h=-0.1200 v=-0.0300 rest=12.0000 travel=2.2000
+3: h=0.2600 v=0.0000 rest=8.0000 travel=3.0000
+4: h=-0.2400 v=0.0000 rest=7.0000 travel=2.8000
+5: h=0.1800 v=0.0400 rest=9.0000 travel=2.4000
+9: h=0.1800 v=0.0400 rest=9.0000 travel=2.4000
+clamped: h=1.0000 v=-1.0000 rest=0.0000 travel=0.0000
+== roamingOrigin ==
+start: (1268.0000, 49.0000)
+step 0: (969.4400, 49.0000)
+step 1: (1193.3600, 75.0800)
+step 2: (1044.0800, 55.5200)
+step 3: (1268.0000, 55.5200)
+step 4: (969.4400, 55.5200)
+step 5: (1193.3600, 81.6000)
+step 6: (1044.0800, 62.0400)
+step 7: (1268.0000, 62.0400)
+flip from corner: (646.0000, 375.0000)
+tiny step: (24.0000, 49.0000)
+second monitor step: (-787.4400, 246.8800)
