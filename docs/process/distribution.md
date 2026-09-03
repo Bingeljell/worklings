@@ -129,6 +129,80 @@ The verifier confirms the external checksum and DMG integrity, mounts the image 
 
 Tagging and publishing are deliberate release actions. Packaging scripts must not create Git tags, push commits, or publish GitHub Releases automatically.
 
+## The Godot build
+
+A second, parallel artifact while the port runs. It is **not** a release channel
+yet — nothing has been published from it — but it exports, runs, and is the shape
+the eventual product takes.
+
+```bash
+scripts/godot-export     # dist/godot/Worklings.app
+```
+
+Same posture as the Swift app: **Apple Silicon only**, macOS 14 minimum. Intel
+and universal builds may follow once there is a reason; there is not one now, and
+a universal binary carries the engine and the .NET runtime **twice**, which is
+half the bundle.
+
+Its bundle identifier is `com.bingeljell.worklings.godot`, deliberately distinct
+from the Swift app's `com.bingeljell.worklings`, so both can be installed while
+the port runs without macOS treating them as the same application. **At cutover
+the Godot build should take the real identifier**, so an existing install
+upgrades in place rather than appearing as a second app. They already share the
+save file, so the data side of that transition is done.
+
+Unsigned today. The distribution flow above — ad-hoc signing, the DMG, the
+checksums — has not been pointed at it.
+
+### What it weighs, and why
+
+The first universal export was **336 MB**, against the Swift app's 4.7 MB. The
+breakdown is the whole explanation:
+
+| Part | Size |
+| --- | --- |
+| Godot engine binary (both architectures) | 163 MB |
+| .NET runtime, Apple Silicon | 82 MB |
+| .NET runtime, Intel | 75 MB |
+| **The game itself** — every scene, model, texture and line of our code | **16 MB** |
+
+**The game is 16 MB.** Everything else is engine and runtime, and in a universal
+build all of it ships twice.
+
+The Swift app is 4.7 MB because it borrows almost everything from the operating
+system: AppKit, SwiftUI and SceneKit are already on the machine. Godot ships its
+own renderer, physics, audio and UI toolkit, and .NET brings its own runtime,
+because none of that can be assumed to exist on Windows or Linux. **The size is
+the price of cross-platform**, showing up as megabytes rather than as a second
+codebase — which was the trade the engine decision made on purpose.
+
+Dropping Intel takes it to roughly **180 MB** and costs a single config line.
+That is done.
+
+### Deferred: getting it below 180 MB
+
+**Not before an alpha ships from it.** This is a distribution problem, not an
+architecture one — nothing built on top gets harder because the bundle is large,
+so it does not compound and it does not gate anything. Revisit when there is a
+build worth publishing, around alpha.11 or whichever version the port first
+ships as.
+
+Two levers, in order of effort:
+
+1. **Trim the .NET runtime.** `PublishTrimmed` strips framework code nothing
+   calls, which is most of it — plausibly 80 MB down to 30-40 MB. The risk is
+   real: trimming removes what it cannot see being used, and reflection is
+   invisible to it. Godot's own bindings use reflection, so this needs testing
+   rather than enabling.
+2. **A custom Godot build with unused modules compiled out.** We use none of
+   navigation meshes, WebXR, GDScript, or most of the physics engine. This is
+   where the largest single win is, and it means building and maintaining our own
+   engine binary — including re-doing it on every Godot upgrade.
+
+A realistic floor with both is somewhere near 100 MB. Worth knowing that the
+16 MB of actual game is not the thing to optimise; art budget is not the problem
+here.
+
 ## Deferred production hardening
 
 - Developer ID signing and Apple notarization.

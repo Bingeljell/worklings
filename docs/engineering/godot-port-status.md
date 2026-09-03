@@ -288,6 +288,13 @@ per-pixel alpha, lit well enough to read against an arbitrary desktop behind it.
 It idles when parked and **walks when it moves**, turned partway toward where it
 is going: not all the way to profile, because the face is the point.
 
+**OPEN — it walks in profile, but it does not turn far enough.** `TurnDegrees` is
+38 degrees off facing-you, chosen so the face stays visible. On a real desktop
+that reads wrong: the Ram looks like it is facing *you* while sliding sideways,
+which is worse than a clean profile would be. It should turn to roughly a full
+profile while walking and come back to facing you when it stops. Noted 2026-09-04,
+not yet changed.
+
 **It only ever walks left or right.** The roaming pattern carries small vertical
 offsets (0.04 and -0.03 of the available height) and they are the reason a walk
 reads as a drift — there is one walk cycle, it walks sideways, and any vertical
@@ -414,6 +421,9 @@ demo:
   it is menubar-and-SwiftUI in the Swift app and none of it exists here. Esc is
   standing in for "quit", which is not where quit belongs. **This is the next
   thing the shell needs**, because every other surface hangs off it.
+- **The walk faces the wrong way.** See above — 38 degrees is not enough turn,
+  and the pet reads as facing the viewer while moving sideways. A one-knob fix
+  (`TurnDegrees`), deliberately not taken yet.
 - **No mode switch.** Two windows is decided and proven in
   `tools/two_window_probe`, but nothing in the app implements it — the pet scene
   and the dungeon scene are still run separately, and the smoke transition
@@ -587,6 +597,47 @@ The pet and the dungeon are separate scenes today, and how you get from standing
 on the desktop to a delve decides whether the pet is the main window with the
 dungeon as a second one, or a mode switch on a single window. Worth deciding
 before `PetBrain` lands rather than after.
+
+## Exporting
+
+**The project could not be exported at all until 2026-09-04**, and nothing in the
+editor would ever have said so. `scripts/godot-export` carries the four
+requirements; the one worth repeating here is the first, because it fails
+*silently*:
+
+**Godot's .NET export needs a solution file.** The editor builds the `.csproj`
+directly, so development works perfectly while export is broken. Without
+`Worklings.sln` the export reports success and produces an app with **no managed
+assemblies in it** — it launches, initialises Metal, loads no C# whatsoever, and
+exits without an error. The three behind it: the solution needs
+`ExportDebug`/`ExportRelease` configurations (not the `Debug`/`Release` that
+`dotnet sln add` writes), it must be a `.sln` and not the `.slnx` a current SDK
+generates by default, and Apple Silicon refuses a build unless ETC2 ASTC texture
+compression is enabled.
+
+**What an exported build proved**, which an editor run could not:
+
+- **Per-pixel transparency survives export on macOS.** This was the open risk —
+  there are reports of transparency working in the editor and rendering black in
+  exported builds, particularly on Linux. It holds here: a real `Worklings.app`
+  with terminal text legible straight through the window.
+- **Borderless, always-on-top, roaming and the walk all hold.**
+- **`SaveLocation` flips correctly.** The exported app is the first build for
+  which `OS.HasFeature("template")` is true, so it was the first thing ever
+  permitted to touch the real save. It resolved the real path rather than a test
+  copy, and the file's checksum was identical before and after — the pet only
+  reads; only a resolved delve writes.
+
+**Still only claimed, not demonstrated: Windows and Linux.** No machine here for
+either. Cross-platform was the whole argument for Godot over SceneKit and it
+remains an argument. One documented caveat to carry: **Linux per-pixel
+transparency needs a compositing window manager**, which GNOME and KDE enable by
+default and lightweight desktops such as Xfce and LXQt do not — so the pet can
+fail to be transparent because of the user's setup rather than our code.
+
+Size, and what is deferred about it, is in
+[distribution](../process/distribution.md#the-godot-build). Short version: the
+game is 16 MB and the engine plus .NET runtime is everything else.
 
 ## Traps worth remembering
 
