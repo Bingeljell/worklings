@@ -44,8 +44,11 @@ and floating reactions so care is visible.
 2. **The dungeon's surfaces**, which are text rather than game UI. The theme
    exists now; the prep screen, the steer prompt, bank-or-push and the summary
    all want it and a designer's pass on top.
-3. **The remaining nine probe references**, so the whole suite catches
-   regressions rather than only the four newest slices.
+3. **An effects vocabulary, built in Godot**, used both on the desktop and in the
+   fight. Today the desktop has one legacy pixel puff and nothing else, and every
+   attack in the dungeon looks like every other attack.
+4. **The remaining nine probe references**, so the whole suite catches
+   regressions rather than only the newest slices.
 
 **Decisions already taken, do not relitigate without reading them:**
 
@@ -532,10 +535,21 @@ demo:
   and unbuilt. Shown rather than hidden, so the menu says what is coming.
 - **No hit region from the silhouette**, still. The click box is a rectangle, so
   clicking near the pet rather than on it still pets it.
-- **The smoke is legacy pixel art.** It works and it is charming, and it is from
-  the direction the project has left. A better effect built in Godot — particles
-  tinted from `FamilyEnergy`, which the dungeon already uses for hit sparks — is
-  the intended replacement. Not urgent.
+- **Effects are placeholder or absent, in two places.** Raised 2026-09-04 and
+  parked as one job, because they are the same job:
+  - **On the desktop.** The smoke is legacy pixel art from the direction the
+    project has left. It works and it is charming, and a Godot-built effect —
+    particles tinted from `FamilyEnergy` — is the intended replacement. Beyond
+    the puff, the pet has *no* effects at all: nothing when it is fed, levels up,
+    is petted, or comes back from a delve.
+  - **In the dungeon.** `ImpactFrames` does hit-stop, shake, knockback, a flash
+    and family-coloured sparks, and that is the whole vocabulary — every attack
+    looks like every other attack. Signature moves, the Unleash, statuses like
+    Snare and Blur, and the Monolith's telegraphed Slam all read identically.
+    The impact flash is also still [invisible in motion](#open-in-priority-order).
+
+  These want doing together: one effects vocabulary, built in Godot, used on the
+  desktop and in the fight, rather than two unrelated piles of particles.
 - **The pet does not notice you working.** Care is in; the activity half of
   `PetBrain` is not, and cannot be until `ActivityEvent` and `ActivityContext`
   are ported. That is the product hook, and it is the largest thing still
