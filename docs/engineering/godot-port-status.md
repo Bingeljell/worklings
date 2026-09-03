@@ -9,10 +9,11 @@
 
 If this session is gone, start here.
 
-**State:** the branch `feature/godot-persistence` holds two slices — persistence
-and the desktop shell — and both are finished and verified. The dungeon
-remembers its Workling between runs, and the desktop pet exists as a window with
-a Ram walking around in it.
+**State:** persistence and the desktop shell are **merged to `main`** (PR #49,
+2026-09-04). The dungeon remembers its Workling between runs, and the desktop pet
+exists as a window with a Ram walking around in it. In flight on
+`feature/godot-menu-and-care`: the two-window proof, and the menu and care
+surfaces it unblocks.
 
 **Run it:**
 
@@ -23,9 +24,10 @@ scripts/godot-probe    # every probe with a stored reference, diffed
 ```
 
 **The next slice is the menu**, and it is the first piece of *app* rather than of
-port. Picking a pet, renaming, opening the character screen, quitting — all of it
-is menubar-and-SwiftUI in the Swift app, none of it exists in Godot, and every
-other surface hangs off it. Esc currently stands in for quit.
+port. Picking a pet, renaming, opening the character screen, entering the Warren,
+quitting — all of it is menubar-and-SwiftUI in the Swift app, none of it exists in
+Godot, and every other surface hangs off it, including the trigger for opening
+the dungeon window. Esc currently stands in for quit.
 
 **Then care-on-click**: feed, play, pet and sleep are already ported `PetState`
 operations with no way in. The click target is the shell's to provide, and the
