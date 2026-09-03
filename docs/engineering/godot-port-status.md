@@ -3,7 +3,7 @@
 > Evolving doc, not a frozen spec — see [docs/README](../README.md).
 >
 > **The living answer to "where are we?"** Update it when a slice lands rather
-> than reconstructing the state from git log. Last updated 2026-09-03.
+> than reconstructing the state from git log. Last updated 2026-09-04.
 
 ## The one-line answer
 
@@ -24,9 +24,13 @@ on a loop: `CacheWarrenScene` builds its fighter from a `PetState` through
 bank-or-push choice and the closing summary, and writes the result back through
 `Delve.Resolution`. The encounter is **stepped rather than pre-resolved**, so the
 fight pauses at its decision points and the player steers it — the Approach and
-the Unleash, beat four of the design's five. The pet it runs is a demo state held
-**in memory** — a run's XP, gear and condition carry into the next run and are
-lost when the scene closes, because nothing loads or saves a `PetState` yet.
+the Unleash, beat four of the design's five.
+
+As of 2026-09-04 that Workling **persists**. `PetStateCodec` and
+`PetStateFileStore` are ported, the scene loads a save on open and writes it back
+when a run resolves, and XP, gear and condition survive the window closing. The
+save is byte-identical to the Swift app's, so the same file reads in both — see
+[The save file](#the-save-file) below.
 
 **All five of [the delve's beats](../design/dungeons.md#the-delve-as-a-journey--encounter--delve-ux)
 now exist** — briefing and prep on one screen, the fight, the steer, and
@@ -58,10 +62,11 @@ until the Godot side can replace a mode outright.
 | `CombatRewards` | 130 | `core/combat/CombatRewards.cs` | 42 lines, including four real seeded fights written back |
 | `Delve` | 364 | `core/combat/Delve.cs` | 74 lines: four full runs, bank, retreat, guards, determinism |
 | `CharacterSheet` | 123 | `core/pet/CharacterSheet.cs` | 70 lines over seven pets, all three rungs of the ladder |
+| `PetStateFileStore` + the `Codable` conformances | 50 + ~90 | `core/pet/PetStateFileStore.cs`, `core/pet/PetStateCodec.cs` | 176 lines: both encodings byte-identical, every migration rule, a phantom-gear save, a future schema |
 
-**~3,166 of 5,351 lines.** Verification is against reference output captured
+**~3,306 of 5,351 lines.** Verification is against reference output captured
 from the running Swift implementation, not against expectations — see
-"Why verification mattered" below. **461 reference lines across ten probes**,
+"Why verification mattered" below. **637 reference lines across eleven probes**,
 all diffing clean.
 
 ## What is not ported
@@ -72,16 +77,45 @@ will want it:
 | Swift | Lines | Why it matters next |
 | --- | --- | --- |
 | `PetBrain` | 543 | Desktop-pet behaviour — not needed for the dungeon at all. Also holds `grantingXP`, where the daily caps and milestone decay actually live. |
-| `PetCareStatus`, `PetPresentation`, `PetStateFileStore`, `DailyTally` | 520 | Condition, presentation, saves. |
+| `PetCareStatus`, `PetPresentation` | ~330 | Condition and presentation. |
 | `ActivityEvent`, `ActivityInbox`, `ActivitySources`, `ToolConnector`, `HookConfigMerger` | 1,096 | The activity pipeline. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
 | `ScreenPlacement` | 180 | Desktop-pet window placement. |
 
-Plus **persistence**, deliberately. Swift's `PetState.init(from decoder:)` folds
-the pre-v2 flat daily fields into the unified tallies and defaults every field
-added since. That is the file store's job, `PetStateFileStore` is unported, and
-porting decode logic with no JSON layer to verify it against would be writing
-untested migration code. The rules it has to honour, recorded here so they are
-not lost with the decision:
+And none of the **app**: menubar host, character screen, inventory, care UI,
+desktop pet. Those are SwiftUI and have no Godot counterpart yet.
+
+## The save file
+
+Persistence was the last thing deliberately left unported, and it was the one
+thing the desktop pet genuinely cannot run without: a delve is a session, a pet
+is a continuity. It landed on 2026-09-04.
+
+Swift gets its save format from `Codable` — mostly synthesized, hand-written for
+`PetState`, `PetNeeds` and `Loadout`. C# has no analogue of a synthesized
+conformance, so the whole shape is spelled out in one file, `PetStateCodec`. That
+turned out to be the right shape anyway: the save format is one contract with one
+owner, and the field defaults in the decoder *are* the migration rules.
+
+**The encoder is byte-identical to Foundation's, and that is a requirement rather
+than a flourish.** The same file has to be readable by the Swift app and the Godot
+build for as long as both exist. Matching to the byte means the two can be
+compared by `diff` instead of by eye — which is how the whole port has been
+verified, and the only reason a claim like "Swift can open this" is checkable at
+all. It cost reproducing three of Foundation's pretty-printing habits:
+
+- keys sorted ordinally, two-space indent, and `" : "` — with spaces — between a
+  key and its value;
+- an empty object written as a blank line between the braces, not as `{}`;
+- an integral `Double` written as `12`, not `12.0`. (`ToString("R")` does this.)
+
+`Utf8JsonWriter` can do none of them, so the encoder walks a small value tree of
+its own. Two other details are Swift's rather than choices made here: a `Date` is
+a bare number of seconds since **2001-01-01 UTC**, not 1970; and a nil optional
+is an **absent key**, not a `null`, because the synthesized encoder uses
+`encodeIfPresent`.
+
+The migration rules the decoder honours — recorded here when they were deferred,
+and now each one a fixture in `tools/persistence_probe`:
 
 - `workLog` falls back to the legacy `workLogCountToday` / `workLogCountDate` pair.
 - `dailyXP` falls back to `dailyXPBySource` / `dailyXPDate`.
@@ -92,8 +126,21 @@ not lost with the decision:
 - Decoding routes through the validating initialiser, never the stored
   properties, or a save becomes the one path that can equip a phantom item.
 
-And none of the **app**: menubar host, character screen, inventory, care UI,
-desktop pet. Those are SwiftUI and have no Godot counterpart yet.
+`PetStateFileStore` takes an absolute filesystem path and knows nothing about
+Godot, so the scene resolves `user://workling.json` through
+`ProjectSettings.GlobalizePath` and the probe points it at a scratch file. That
+is what keeps the save format testable without a running engine. It writes
+through a temp file and moves it into place, because .NET has no equivalent of
+Swift's `Data.write(options: .atomic)`.
+
+Two postures worth keeping:
+
+- **The Godot save is not the Swift app's save.** Same format, different file.
+  A prototype should not be able to overwrite a real Workling; when the two are
+  meant to share one, that is a decision to take on purpose.
+- **A save this build cannot read locks writing off for the session** rather than
+  being replaced. An unreadable file is far more likely a newer save or a real pet
+  than junk, and overwriting it to recover is the one move that cannot be undone.
 
 ## What exists on the Godot side that has no Swift original
 
@@ -186,17 +233,29 @@ order from both sides and the diff points straight at the diverging value.
 differ (`12.0` vs `12`), so both sides format through `%.4f` / `"F4"` or the diff
 fills with false positives.
 
-### OPEN: the probes are not regression tests yet
+### The probes as regression tests
 
-They print. The diffing was done by hand against reference files that live
-outside the repo, so they verify a port once and catch nothing afterwards —
-exactly the failure mode the Lemire bug demonstrates. Committing the ten
-reference outputs next to the probes, with a runner that diffs them, would turn
-"verified once" into "stays verified". Small, and not yet done.
+They print, and the diffing used to be done by hand against reference files kept
+outside the repo — which verifies a port once and catches nothing afterwards,
+exactly the failure mode the Lemire bug demonstrates. `scripts/godot-probe`
+closes that: it builds, runs a probe, and diffs its output against a reference
+committed next to it.
+
+```bash
+scripts/godot-probe                 # every probe that has a reference
+scripts/godot-probe persistence     # just that one
+scripts/godot-probe --record persistence
+```
+
+**Only `persistence` has a stored reference so far**; the other ten want the same
+treatment, which is a re-capture from Swift each, not a rename. `--record` is
+only correct once the new output has been checked against the Swift original —
+recording a regression is exactly as easy as recording a fix.
 
 ## Open, in priority order
 
-1. **Store the probe references**, above, so the suite catches regressions.
+1. **Store the remaining ten probe references**, above, so the whole suite
+   catches regressions rather than only the save format.
 2. **Three of the five beats are still one line of placeholder text.** The steer
    prompt, bank-or-push and the summary share the fight's narration label and
    the round readout. Prep now has a real screen, which makes the contrast the
@@ -232,12 +291,11 @@ reference outputs next to the probes, with a runner that diffs them, would turn
 
 Nothing above unblocks it, and it is not one task. The dungeon needed ~59% of
 `CompanionCore`; the desktop pet needs most of the rest — `PetBrain` (543),
-`PetCareStatus`/`PetPresentation`/`PetStateFileStore` (520), `ScreenPlacement`
-(180) — plus the two things that are not ports at all:
+`PetCareStatus`/`PetPresentation` (~330), `ScreenPlacement` (180) — plus the two
+things that were not ports at all:
 
-- **Persistence.** Deliberately unported, for the reasons recorded above. The
-  desktop pet is the first thing that genuinely cannot run without it: a dungeon
-  run is a session, a pet is a continuity. This is the real gate.
+- ~~**Persistence.**~~ Done, 2026-09-04 — see [The save file](#the-save-file).
+  This was the real gate and it is open.
 - **The activity pipeline** (1,096 lines) — and its Windows and Linux
   equivalents, which do not exist in any language yet. That is a cross-platform
   cost the engine decision does not change; it would be owed under SceneKit too.
@@ -247,11 +305,13 @@ always-on-top, click-through, multi-monitor window. Godot can do it
 (`borderless`, `transparent_bg`, `always_on_top`, per-pixel input passthrough),
 but it is new work and it is where a "port" stops being a port.
 
-**The honest order** is persistence first — it is small, it gates everything,
-and the five migration rules are already written down — then the desktop shell
-proven as a window that just sits there, then `PetBrain` behind it. The activity
-pipeline last, because it is the only part that also has to be re-authored per
-platform.
+**The honest order** was persistence first — done — then the **desktop shell**
+proven as a window that just sits there: transparent, always-on-top,
+click-through, multi-monitor, and nothing in it. That is the piece with no Swift
+original to port, so it is the biggest unknown, and it is cheap to prove. If
+Godot is bad at it, that is worth knowing before `PetBrain` is ported rather than
+after. `PetBrain` and care/presentation come behind it, and the activity pipeline
+last, because it is the only part that also has to be re-authored per platform.
 
 ## Traps worth remembering
 
@@ -276,3 +336,10 @@ platform.
 - **Swift's `Calendar.current` is the *local* calendar.** A day-scoped value
   compared in UTC passes every obvious test and rolls the day over at the wrong
   hour.
+- **Swift's `Date` encodes as seconds since 2001-01-01 UTC**, not 1970. Using the
+  Unix epoch is a 31-year error that still round-trips perfectly through C#.
+- **A nil optional is an absent key, not a `null`.** Swift's synthesized encoder
+  uses `encodeIfPresent`. Both decode the same, so this only shows up as a diff.
+- **`sed` addresses count input lines.** Deleting line 1 does not renumber line 2,
+  so `sed -e '/banner/d' -e '1{/^$/d;}'` leaves the blank line under the banner in
+  place — which is enough to make a stored probe reference never match.
