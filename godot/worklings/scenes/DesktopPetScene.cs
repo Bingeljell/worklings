@@ -43,6 +43,28 @@ public partial class DesktopPetScene : Node3D
     /// started, which is the state to be in when judging anything else.
     [Export] public bool Roam { get; set; } = true;
 
+    /// How fast the pet crosses the desktop, in screen pixels per second.
+    ///
+    /// **This replaces the roaming pattern's own travel durations**, which is a
+    /// deliberate divergence from the port. Those durations were authored for a
+    /// pet that slid: 2.2 to 3 seconds regardless of distance, which works out
+    /// near 110 px/s on a long leg and much slower on a short one — so the same
+    /// walk cycle would have to play at two different speeds to keep its feet on
+    /// the ground. Deriving the duration from the distance instead means one
+    /// speed, and the walk reads as walking. The pattern still owns *where* the
+    /// pet goes and how long it rests.
+    [Export] public float WalkSpeed { get; set; } = 55;
+
+    /// How far the pet turns toward where it is going, in degrees off
+    /// facing-you. It walks across the screen, so it should not be walking
+    /// sideways — but a full 90 degrees turns its face away, and the face is the
+    /// point. Negate this if it turns the wrong way.
+    [Export] public float TurnDegrees { get; set; } = 38;
+
+    /// How long the turn takes. Slower than it sounds like it should be: a pet
+    /// that snaps around reads as a sprite flipping.
+    [Export] public float TurnSeconds { get; set; } = 0.45f;
+
     /// Which monitor to open on. -1 opens on whichever the window landed on.
     [Export] public int Screen { get; set; } = -1;
 
@@ -58,6 +80,8 @@ public partial class DesktopPetScene : Node3D
 
     private bool _dragging;
     private Vector2I _grabOffset;
+    private float _facing;
+    private float _facingTarget;
 
     public override void _Ready()
     {
@@ -131,6 +155,8 @@ public partial class DesktopPetScene : Node3D
     {
         _wander = Wander.Resting;
         _timer = PetRoamingPlanner.Intent(_sequence).RestDuration;
+        _facingTarget = 0;
+        _pet.Play(ActorAction.Idle, loop: true);
     }
 
     private void BeginTravelling()
@@ -141,13 +167,30 @@ public partial class DesktopPetScene : Node3D
         _to = ScreenPlacement.RoamingOrigin(
             _from, intent, DesktopWindow.SizeOf(window),
             DesktopWindow.UsableFrame(_screen), Margin);
-        _travelTotal = System.Math.Max(intent.TravelDuration, 0.01);
+
+        double dx = _to.X - _from.X;
+        double dy = _to.Y - _from.Y;
+        double distance = System.Math.Sqrt(dx * dx + dy * dy);
+
+        // A leg the roaming pattern folded back onto where the pet already is —
+        // nothing to walk, so rest again rather than play a walk cycle in place.
+        if (distance < 1)
+        {
+            _sequence += 1;
+            BeginResting();
+            return;
+        }
+
+        _travelTotal = distance / System.Math.Max(WalkSpeed, 1);
         _timer = _travelTotal;
         _wander = Wander.Travelling;
+        _facingTarget = dx >= 0 ? TurnDegrees : -TurnDegrees;
+        _pet.Play(ActorAction.Walk, loop: true);
     }
 
     public override void _Process(double delta)
     {
+        TurnTowardTravel(delta);
         if (!Roam || _dragging) return;
 
         _timer -= delta;
@@ -157,20 +200,34 @@ public partial class DesktopPetScene : Node3D
             return;
         }
 
-        // Eased rather than linear: a pet that starts and stops at full speed
-        // reads as a window being moved by a script, which is exactly what it is
-        // and exactly what it should not look like.
+        // Linear, not eased. An eased position with a constant-speed walk cycle
+        // slides the feet at both ends — the pet covers ground faster than its
+        // legs are moving in the middle and slower at the edges. Accelerating
+        // properly needs start and stop variants of the walk clip, which the Ram
+        // does not have; see the animation-timing note in the port status doc.
         double progress = System.Math.Clamp(1 - _timer / _travelTotal, 0, 1);
-        double eased = progress * progress * (3 - 2 * progress);
         DesktopWindow.MoveTo(GetWindow(), new PlacementPoint(
-            _from.X + (_to.X - _from.X) * eased,
-            _from.Y + (_to.Y - _from.Y) * eased));
+            _from.X + (_to.X - _from.X) * progress,
+            _from.Y + (_to.Y - _from.Y) * progress));
 
         if (_timer <= 0)
         {
             _sequence += 1;
             BeginResting();
         }
+    }
+
+    /// Eases the pet around to face where it is walking, and back to facing you
+    /// when it stops. Runs whether or not it is roaming, so a turn already under
+    /// way finishes rather than freezing mid-swing when roaming is switched off.
+    private void TurnTowardTravel(double delta)
+    {
+        if (Mathf.IsEqualApprox(_facing, _facingTarget)) return;
+        // Rated so the widest swing there is — one side to the other — takes
+        // TurnSeconds, which makes a turn back to facing you take half as long.
+        float rate = System.Math.Abs(TurnDegrees) * 2 / System.Math.Max(TurnSeconds, 0.01f);
+        _facing = Mathf.MoveToward(_facing, _facingTarget, rate * (float)delta);
+        _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
     }
 
     // MARK: - Input

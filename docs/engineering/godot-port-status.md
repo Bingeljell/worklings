@@ -243,18 +243,36 @@ so every affordance is a key.
   a silhouette: Godot wants a polygon, not an alpha test, so a per-pixel hit
   region would mean generating a hull from the mesh every frame it moves.
 
-The body is the Tempest Ram on its idle loop rather than a coloured square. A
-square would prove the window is transparent and nothing about the hard part — a
-3D viewport with per-pixel alpha, lit well enough to read against an arbitrary
-desktop behind it.
+The body is the Tempest Ram rather than a coloured square. A square would prove
+the window is transparent and nothing about the hard part — a 3D viewport with
+per-pixel alpha, lit well enough to read against an arbitrary desktop behind it.
+It idles when parked and **walks when it moves**, turned partway toward where it
+is going: not all the way to profile, because the face is the point.
+
+**Walking speed replaces the roaming pattern's travel durations**, which is a
+deliberate divergence from the port. Those durations are fixed per leg — 2.2 to 3
+seconds regardless of distance — which is right for a pet that slides and wrong
+for one with legs: the same walk cycle would have to play at two speeds to keep
+its feet on the ground. The duration comes from the distance and one speed
+instead. The pattern still owns *where* the pet goes and how long it rests.
+
+Travel is linear rather than eased, for the same reason. An eased position under
+a constant-speed walk cycle slides the feet at both ends; accelerating properly
+needs start and stop variants of the walk clip, which the Ram does not have.
 
 ### What is proven and what is not
 
 Seen working, by screenshot: **transparency** (terminal text is legible straight
-through the window up to the animal's outline), **borderless**, **placement**, and
-**roaming** — the Ram moved across the desktop between two captures on the ported
-pattern, revealing what had been behind it. **Always-on-top and click-through are
-set and want a human to feel**; neither is judgeable from a screenshot.
+through the window up to the animal's outline), **borderless**, **placement**,
+**roaming**, and the **walk** — the Ram crossed 275px of desktop in five seconds
+at the 55 px/s it was set to, turned toward where it was going, legs moving.
+
+**Always-on-top and click-through are confirmed too**, by Nikhil on 2026-09-04 —
+neither is judgeable from a screenshot. Click-through behaves as designed: clicks
+land on whatever is behind everywhere except the pet's own box.
+
+So the shell is proven on all four traits. Nothing found here argues against
+porting `PetBrain` into it.
 
 Enabling per-pixel transparency is a project-wide setting, so the dungeon was
 re-run after: it boots and renders unchanged.
@@ -291,8 +309,16 @@ demo:
   is the question that decides whether the pet is the main window with the dungeon
   as a second one, or a mode switch on a single window.
 - **No hit region from the silhouette.** The click box is a rectangle.
-- **Nothing about menus, notifications, or a dock/menu-bar presence**, which the
-  Swift app has and which is where "quit" belongs rather than on Esc.
+- **No menu.** Picking a pet, renaming, the character screen, quitting — all of
+  it is menubar-and-SwiftUI in the Swift app and none of it exists here. Esc is
+  standing in for "quit", which is not where quit belongs. **This is the next
+  thing the shell needs**, because every other surface hangs off it.
+- **No care interaction.** Clicking the pet does nothing. Feed, play, pet and
+  sleep are `PetState` operations that are already ported and have no way in.
+  This is `PetBrain`-adjacent rather than shell work, but the click target is the
+  shell's to provide — and the click box is currently a rectangle, not the
+  animal.
+- **Nothing about notifications or a dock/menu-bar presence.**
 - **Multi-monitor is placement only.** Nothing reacts to a monitor being unplugged
   while the pet is standing on it.
 
