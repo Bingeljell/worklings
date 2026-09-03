@@ -9,56 +9,98 @@
 
 If this session is gone, start here.
 
-**State:** the port now has a working loop. A desktop pet lives on the screen,
-can be cared for, goes into the Cache Warren and comes back changed. Persistence,
-the desktop shell, the menu and care are **merged to `main`** (PRs #49, #50). In
-flight on `feature/godot-pet-to-dungeon`: the pet-to-Warren handover and the
-smoke transition.
+### Where the work is
 
-**Run it:**
+`main` has the full loop: a pet on the desktop, care, and a delve it walks into
+and back out of (PRs #49, #50, #51).
+
+**In flight on `feature/godot-character-and-activity`** — pushed, no PR yet, a
+combined one goes up when the branch is done. Two commits so far: the character
+window, and this plan. Nothing on the branch is half-finished; it is a clean
+place to resume from.
+
+### Run it
 
 ```bash
 scripts/godot-pet      # the desktop pet — this is the app
 scripts/godot-export   # a real Worklings.app in dist/godot/
 scripts/godot-probe    # every probe with a stored reference, diffed
-/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon on its own
+/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon alone
 ```
 
-Once the pet is up: **right-click it** for the menu, **click it** to pet it.
-Developer keys: **Esc** quit · **Tab** next monitor · **C** click-through ·
-**R** roaming · **W** the Warren.
+**Right-click** the pet for the menu, **click** it to pet it. Developer keys:
+**Esc** quit · **Tab** next monitor · **C** click-through · **R** roaming ·
+**W** the Warren · **S** the character sheet.
 
-**What is done:** the save file (byte-identical to the Swift app's), the shell
-(transparent, borderless, always-on-top, click-through, multi-monitor), export to
-a real `.app`, two windows, the right-click menu, the care half of `PetBrain`,
-the pet-to-Warren-and-back handover with its smoke transition, a shared theme,
-and floating reactions so care is visible.
+### The plan, in order
 
-**What is next, in order:**
+Agreed 2026-09-04. **The next alpha ships from the Godot build, not the Swift
+one** — deferrable if it comes to it, but that is the target.
 
-1. **`ActivityEvent` / `ActivityContext`**, then `PetBrain`'s activity half, then
-   `ActivitySources`. This is the product hook — **the pet does not yet notice
-   you working** — and it is the only part that must also be re-authored for
-   Windows and Linux, where nothing exists in any language yet. About 1,100
-   lines of Swift plus whatever the two other platforms turn out to cost.
-2. **The dungeon's surfaces**, which are text rather than game UI. The theme
-   exists now; the prep screen, the steer prompt, bank-or-push and the summary
-   all want it and a designer's pass on top.
-3. **An effects vocabulary, built in Godot**, used both on the desktop and in the
-   fight. Today the desktop has one legacy pixel puff and nothing else, and every
-   attack in the dungeon looks like every other attack.
-4. **The remaining nine probe references**, so the whole suite catches
-   regressions rather than only the newest slices.
+**A. The character window** — 1 of 5 commits left.
 
-**Decisions already taken, do not relitigate without reading them:**
+1. ~~The window and its tabs.~~ Done.
+2. ~~The Character tab.~~ Done.
+3. ~~The Inventory tab, with equip and unequip.~~ Done.
+4. ~~Wire "Character sheet…" in the menu.~~ Done.
+5. **The model bay** — the actual Workling standing in the window. `StageActor`
+   already does this twice, and `CharacterWindow` already gives the window its
+   own `World3D` for it. This is the only piece outstanding.
+
+**B. The activity pipeline** — 6 commits, and the product hook. **The pet does
+not yet notice you working**, which is the whole premise of the thing.
+
+6. **`ActivityEvent` + `ActivityContext`** (195 lines) with a probe. Everything
+   else is blocked on these. `ActivityContext` is subtler than it looks: it
+   tracks `awaySince` and `workingSince` *separately* from `lastEventAt`,
+   precisely so a repeated "still away" ping can refresh expiry without erasing
+   how long the absence has been.
+7. **`PetBrain.observe`** — the activity half, ~290 lines, probed against Swift
+   like the care half was. This is the commit where the pet starts noticing.
+8. **`ActivityInbox`** (165 lines) — the queue events arrive on and drain from.
+9. **`ActivitySources`** (153 lines), including the local-git source, which is
+   the one that works with no setup at all.
+10. **Wire it into the pet** — reactions fire on real events, and the XP path
+    that has been ported since day one finally has something feeding it.
+11. **`ToolConnector` + `HookConfigMerger`** (583 lines) — Claude Code and Codex.
+
+> **Where the estimate breaks: commit 11.** Everything before it is a port with a
+> Swift reference to diff against, which is predictable work. These two write
+> into other tools' config files, and on Windows and Linux those paths, formats
+> and conventions do not exist in this codebase in any language. That is not a
+> port, it is new design on two platforms with no machine here to test on. It
+> could be one commit or six. **Do not fold it into an estimate with the rest.**
+
+**C. Making it presentable** — 4 commits.
+
+12. **The dungeon's surfaces get the theme.** `WorklingsTheme` exists and the
+    prep screen is the natural first, since it already has a layout.
+13. **The three surface-less beats** — steer prompt, bank-or-push, summary. They
+    currently share the fight's narration label.
+14. **The remaining nine probe references**, so the suite catches regressions
+    rather than only the newest slices.
+15. **Export, sign, and cut alpha.11** off the Godot build.
+
+### Decisions already taken — read before relitigating
 
 - [Two windows, and why not one](#two-windows-and-why-not-one) — the pet is the
-  main window, the dungeon is an ordinary second one.
+  main window; the dungeon and the character screen are ordinary ones.
 - [Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it)
-  — **do not point a test run at the real save**, and the pet owns the state
-  while a delve is running.
-- [Exporting](#exporting) — the four requirements that are invisible in the
-  editor, the first of which fails silently.
+  — **never point a test run at the real save**, and the pet owns the state while
+  a delve is running.
+- [Exporting](#exporting) — four requirements invisible in the editor, the first
+  of which fails silently.
+- **Godot sizes windows and popups in physical pixels.** This has caused four
+  bugs now. It is in [Traps worth remembering](#traps-worth-remembering); read
+  that list before building any new surface.
+
+### Not on the critical path, but promised
+
+- **An effects vocabulary** for the desktop and the fight, built in Godot. See
+  "what the shell still does not do".
+- **The dungeon's UI is text**, not game UI.
+- **Windows and Linux are claimed, not demonstrated.** Nothing has ever run on
+  either.
 
 ## The one-line answer
 
