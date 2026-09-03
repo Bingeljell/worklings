@@ -261,6 +261,13 @@ re-run after: it boots and renders unchanged.
 
 ### Traps found here
 
+- **The project's 1920x1080 render size letterboxes the pet window — in opaque
+  black.** `window/stretch/mode="canvas_items"` with the aspect kept is right for
+  the dungeon and wrong for a square 320x320 companion window: the 16:9 content
+  is fitted inside it and the leftover is filled with black, so a perfectly
+  transparent window arrives wearing two bars. Content scaling is disabled for
+  this window. This one is worth remembering because it looks like a
+  transparency failure and is not — the alpha was working the whole time.
 - **Godot reports screen rects in physical pixels; macOS `screencapture -R` takes
   points.** On a scale-2 display the two differ by a factor of two, which presents
   as "rect does not intersect any displays" rather than as an offset.

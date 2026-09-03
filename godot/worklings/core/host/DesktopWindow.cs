@@ -37,6 +37,14 @@ public static class DesktopWindow
         DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.AlwaysOnTop, true);
         DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.Transparent, true);
         window.TransparentBg = true;
+
+        // The project renders at 1920x1080 with the aspect kept, which is right
+        // for the dungeon and wrong here: a square pet window letterboxes the
+        // 16:9 content and fills the leftover with *opaque black*, so the pet
+        // arrives wearing two bars. Content scaling is off for this window — it
+        // renders at whatever size the window is.
+        window.ContentScaleMode = Window.ContentScaleModeEnum.Disabled;
+        window.ContentScaleAspect = Window.ContentScaleAspectEnum.Ignore;
     }
 
     /// Whether the build is actually able to be transparent. False means the
