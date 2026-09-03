@@ -67,10 +67,15 @@ public partial class DesktopPetScene : Node3D
     [Export] public bool HorizontalOnly { get; set; } = true;
 
     /// How far the pet turns toward where it is going, in degrees off
-    /// facing-you. It walks across the screen, so it should not be walking
-    /// sideways — but a full 90 degrees turns its face away, and the face is the
-    /// point. Negate this if it turns the wrong way.
-    [Export] public float TurnDegrees { get; set; } = 38;
+    /// facing-you.
+    ///
+    /// **Near enough to a full profile.** This was 38 degrees, chosen so the face
+    /// stayed visible, and on a real desktop it read as the animal facing *you*
+    /// while sliding sideways — worse than a clean profile, because the eye
+    /// reads the direction the body is pointing and disbelieves the movement. It
+    /// turns properly now and comes back to face you when it stops, which is
+    /// when the face actually matters. Negate to turn the other way.
+    [Export] public float TurnDegrees { get; set; } = 78;
 
     /// How long the turn takes. Slower than it sounds like it should be: a pet
     /// that snaps around reads as a sprite flipping.
@@ -102,6 +107,7 @@ public partial class DesktopPetScene : Node3D
     private StageActor _pet = null!;
     private PetMenu _menu = null!;
     private DungeonWindow _dungeon = null!;
+    private PetThought? _thought;
     /// True while a delve is running. The pet is not on the desktop then — it is
     /// down there — so nothing wanders, nothing responds to a click, and the
     /// menu offers to bring the dungeon forward rather than to open a second one.
@@ -344,6 +350,7 @@ public partial class DesktopPetScene : Node3D
         var result = _brain.Perform(action, _state, System.DateTimeOffset.Now);
         _state = result.State;
         SaveState();
+        Say(result.Reaction);
         GD.Print($"{_state.Name}: {result.Reaction.RawValue()} "
                + $"· Lv {_state.Level} · {_state.Mood}");
     }
@@ -445,6 +452,28 @@ public partial class DesktopPetScene : Node3D
         var size = (Vector2)GetWindow().Size;
         puff.Position = new Vector2(size.X / 2, size.Y * SmokeHeight);
         puff.FitTo(size.X * SmokeSpread);
+    }
+
+    /// Floats what the pet thought over its head. One at a time — a second
+    /// action while a line is still up replaces it rather than stacking, because
+    /// two thoughts overlapping read as neither.
+    private void Say(PetReaction reaction)
+    {
+        string text = PetThought.Thought(reaction);
+        if (text.Length == 0) return;
+
+        _thought?.QueueFree();
+        var size = (Vector2)GetWindow().Size;
+        _thought = new PetThought
+        {
+            Text = text,
+            Scale2D = MenuScale > 0
+                ? MenuScale
+                : (float)DisplayServer.ScreenGetScale(DisplayServer.WindowGetCurrentScreen()),
+            // Above the animal's head, not over its face.
+            Position = new Vector2(size.X / 2, size.Y * 0.17f),
+        };
+        AddChild(_thought);
     }
 
     /// Emptying the window rather than hiding it: Godot refuses to change the
