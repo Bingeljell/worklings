@@ -18,12 +18,14 @@ using Worklings.Core.Stage;
 /// turns into animation and text. That seam is deliberate — the rules stay
 /// verifiable headlessly (see tools/*_probe), and the renderer stays swappable.
 ///
-/// Each encounter resolves instantly the moment it starts; playback is then a
-/// replay of the recorded log at a watchable pace. That is a real property of
-/// the design rather than a shortcut — a seeded encounter is fully determined
-/// from the moment it begins, so nothing is lost by resolving first and
-/// animating after. The delve *around* it is not pre-resolved: bank-or-push is
-/// a live choice, and the next encounter is only built once it is made.
+/// An encounter is stepped, not pre-resolved. It used to run to completion at
+/// the top and replay its log, which was true to the rules and quietly removed
+/// the player from the fight: CombatEncounter pauses at decision points for a
+/// re-chosen Approach and the Unleash, and a fight already resolved has nothing
+/// left to decide. So the scene advances a round at a time, animates the events
+/// that round produced, and hands the pause back to the player when the
+/// encounter asks for one. Determinism is unchanged — the same seed and the same
+/// decisions replay identically; the decisions are simply now an input.
 ///
 /// The pet state persists across delves in memory only. Loading and saving it
 /// waits on the persistence slice; until then a run's XP, gear and condition
@@ -46,11 +48,12 @@ public partial class CacheWarrenScene : Node3D
     /// when you come back to it.
     [Export] public bool Loop { get; set; } = true;
 
-    /// Take the bank/push decision automatically — always pushing deeper — so
-    /// the scene runs a full chain to the mini-boss unattended. With this off,
-    /// the run waits at each choice for Space (push) or B (bank), which is the
-    /// press-your-luck beat as designed.
-    [Export] public bool AutoPush { get; set; } = false;
+    /// Take every choice automatically — hold the Approach at each decision
+    /// point, never Unleash, always push deeper — so the scene runs a full chain
+    /// to the mini-boss unattended. With this off, the run waits for the player
+    /// at both of the beats the design gives them: steering the fight, and the
+    /// press-your-luck bank or push.
+    [Export] public bool AutoPlay { get; set; } = false;
 
     /// Whether an attacker crosses the floor to its target, or stays on its
     /// mark and plays the attack in place. Contact timing, impact frames,
@@ -66,14 +69,18 @@ public partial class CacheWarrenScene : Node3D
     /// Where the run is. The fight is one phase of four, not the whole scene —
     /// the briefing, the bank/push choice and the closing summary are beats of
     /// the delve and each holds the stage on its own terms.
-    private enum Phase { Briefing, Fighting, Choice, Summary }
+    private enum Phase { Briefing, Fighting, Steering, Choice, Summary }
 
     private StageActor _party = null!;
+    /// The stand-in bodies, by .glb basename. Three of the four foes have no
+    /// model of their own, so the scene keeps every model it has in the tree and
+    /// shows one at a time.
+    private readonly Dictionary<string, StageActor> _foeModels = new();
     private StageActor _foe = null!;
     private CombatHud _hud = null!;
     private DamageNumbers _numbers = null!;
     private Color _petEnergy, _foeEnergy;
-    private Vector3 _foeRestScale;
+    private readonly Dictionary<string, Vector3> _foeRestScales = new();
 
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
@@ -96,6 +103,10 @@ public partial class CacheWarrenScene : Node3D
     private PetState _state = DemoPet();
     private Delve _delve = null!;
     private CombatEncounter _encounter = null!;
+    /// How far into the encounter's log playback has read. The log only grows,
+    /// so this is the whole bookkeeping needed to feed events in as rounds
+    /// resolve rather than all at once.
+    private int _logCursor;
     private Phase _phase = Phase.Briefing;
 
     private string _petName = "";
@@ -107,8 +118,9 @@ public partial class CacheWarrenScene : Node3D
     public override void _Ready()
     {
         _party = new StageActor(GetNode<Node3D>("Party"), "tempest_ram", ActorAnimations.TempestRam);
-        _foe = new StageActor(GetNode<Node3D>("Foe"), "forest_flicker", ActorAnimations.ForestFlicker);
-        _foeRestScale = _foe.Root.Scale;
+        AddFoeModel("Flicker", "forest_flicker");
+        AddFoeModel("Pangolin", "clockwork_pangolin");
+        _foe = _foeModels["forest_flicker"];
         _petEnergy = FamilyEnergy.Of(_state.Family);
         _foeEnergy = FamilyEnergy.Of(FamilyEnergy.For(_foe.ModelName));
         _numbers = new DamageNumbers(this);
@@ -184,7 +196,7 @@ public partial class CacheWarrenScene : Node3D
     {
         var foe = _delve.CurrentFoe!;
         _encounter = _delve.MakeEncounter(_approach)!;
-        _encounter.RunToCompletion();
+        _logCursor = 0;
 
         ShowFoe(foe);
         _petHP = _delve.CarriedHP;
@@ -194,13 +206,67 @@ public partial class CacheWarrenScene : Node3D
 
         _lunge.Cancel();
         _pending.Clear();
-        foreach (var e in _encounter.Log) _pending.Enqueue(e);
+        DrainLog();
         _round = 0;
         _beatTimer = 0;
         _actionTimer = 0;
         _line = "";
         _party.Play(ActorAction.Idle, loop: true);
         _foe.Play(ActorAction.Idle, loop: true);
+        _phase = Phase.Fighting;
+        UpdateReadout();
+    }
+
+    /// Queues every event the encounter has logged since playback last looked.
+    private void DrainLog()
+    {
+        for (; _logCursor < _encounter.Log.Count; _logCursor++)
+        {
+            _pending.Enqueue(_encounter.Log[_logCursor]);
+        }
+    }
+
+    /// Everything queued has been animated, so the fight can move. Either it
+    /// wants a decision from the player, or it is over, or it resolves another
+    /// round and hands back whatever that produced.
+    private void PumpEncounter()
+    {
+        if (_encounter.Status.IsAwaitingDecision) { EnterSteer(); return; }
+        if (!_encounter.Status.IsOngoing) { FinishEncounter(); return; }
+        _encounter.Step();
+        DrainLog();
+    }
+
+    /// The fight has paused for guidance — beat four of the delve. The player
+    /// re-chooses the Approach and decides whether to spend the once-per-fight
+    /// Signature; both carry, so an Approach picked here is also the one the
+    /// next encounter opens on.
+    private void EnterSteer()
+    {
+        _phase = Phase.Steering;
+        _line = _encounter.Status.Reason switch
+        {
+            DecisionReason.LowHP => $"{_petName} is faltering",
+            DecisionReason.Opening => $"{_foeName} over-extends — an opening",
+            DecisionReason.Telegraph => $"{_foeName} is winding up — brace, or eat it",
+            _ => $"How should {_petName} press on?",
+        };
+        _status = AutoPlay
+            ? $"Holding {_approach}..."
+            : "[1] Aggressive  [2] Careful  [3] Clever  ·  [Space] hold"
+              + (_encounter.SignatureReady ? "  ·  [U] unleash" : "");
+        // A held Approach is a real choice, so an unattended run takes it on the
+        // same short pause a player would have spent reading the prompt.
+        _cardTimer = AutoPlay ? CardSeconds * 0.25 : 0;
+        UpdateReadout();
+    }
+
+    /// Commits a decision and resumes the fight.
+    private void TakeDecision(Approach approach, bool unleash)
+    {
+        _approach = approach;
+        _encounter.Decide(approach, unleash);
+        DrainLog();
         _phase = Phase.Fighting;
         UpdateReadout();
     }
@@ -217,10 +283,10 @@ public partial class CacheWarrenScene : Node3D
                 _line = _delve.LastDrop is Item drop
                     ? $"{_foeName} down — {drop.DisplayName()} recovered"
                     : $"{_foeName} down";
-                _status = AutoPush
+                _status = AutoPlay
                     ? "Pushing deeper..."
                     : "[Space] push deeper   ·   [B] bank and leave";
-                _cardTimer = AutoPush ? CardSeconds * 0.5 : 0;
+                _cardTimer = AutoPlay ? CardSeconds * 0.5 : 0;
                 break;
             default:
                 ShowSummary();
@@ -255,18 +321,34 @@ public partial class CacheWarrenScene : Node3D
     /// outside the choice does nothing.
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (_phase != Phase.Choice || AutoPush) return;
+        if (AutoPlay) return;
         if (@event is not InputEventKey { Pressed: true, Echo: false } key) return;
-        switch (key.Keycode)
+        switch (_phase)
         {
-            case Key.Space or Key.Enter or Key.KpEnter:
-                _delve.PushDeeper();
-                StartEncounter();
+            case Phase.Steering:
+                switch (key.Keycode)
+                {
+                    case Key.Key1: TakeDecision(Approach.Aggressive, unleash: false); break;
+                    case Key.Key2: TakeDecision(Approach.Careful, unleash: false); break;
+                    case Key.Key3: TakeDecision(Approach.Clever, unleash: false); break;
+                    case Key.U: TakeDecision(_approach, unleash: true); break;
+                    case Key.Space or Key.Enter or Key.KpEnter:
+                        TakeDecision(_approach, unleash: false); break;
+                }
                 break;
-            case Key.B:
-                _delve.Bank();
-                ShowSummary();
-                UpdateReadout();
+            case Phase.Choice:
+                switch (key.Keycode)
+                {
+                    case Key.Space or Key.Enter or Key.KpEnter:
+                        _delve.PushDeeper();
+                        StartEncounter();
+                        break;
+                    case Key.B:
+                        _delve.Bank();
+                        ShowSummary();
+                        UpdateReadout();
+                        break;
+                }
                 break;
         }
     }
@@ -312,7 +394,7 @@ public partial class CacheWarrenScene : Node3D
         if (_pending.Count == 0)
         {
             _hud?.ClearBeat();
-            FinishEncounter();
+            PumpEncounter();
             return;
         }
 
@@ -330,7 +412,7 @@ public partial class CacheWarrenScene : Node3D
         UpdateReadout();
     }
 
-    /// The between-fight beats. A choice with AutoPush off has no timer and
+    /// The between-fight beats. A choice with AutoPlay off has no timer and
     /// simply waits for the player.
     private void TickCard(double delta)
     {
@@ -341,6 +423,9 @@ public partial class CacheWarrenScene : Node3D
         {
             case Phase.Briefing:
                 StartEncounter();
+                break;
+            case Phase.Steering:
+                TakeDecision(_approach, unleash: false);
                 break;
             case Phase.Choice:
                 _delve.PushDeeper();
@@ -499,28 +584,48 @@ public partial class CacheWarrenScene : Node3D
         _hud.SetStatus(_status);
     }
 
-    /// Puts a foe on the stage: its name and HP for the plate, and the mesh
+    /// Registers one of the stand-in bodies, hidden until a foe needs it.
+    private void AddFoeModel(string nodeName, string modelName)
+    {
+        var root = GetNode<Node3D>($"Foe/{nodeName}");
+        var actor = new StageActor(root, modelName, ActorAnimations.For(modelName)!);
+        _foeModels[modelName] = actor;
+        _foeRestScales[modelName] = root.Scale;
+        root.Visible = false;
+    }
+
+    /// Puts a foe on the stage: its name and HP for the plate, and the body
     /// standing in for it at the right size and colour.
     private void ShowFoe(Foe foe)
     {
         _foeName = foe.Name;
         _foeMaxHP = foe.MaxHP;
         _foeHP = foe.MaxHP;
-        var (scale, energy) = PresenceFor(foe.Name);
-        _foe.Root.Scale = _foeRestScale * scale;
+        var (model, scale, energy) = PresenceFor(foe.Name);
+        _foe = _foeModels[model];
+        foreach (var (name, actor) in _foeModels) actor.Root.Visible = name == model;
+        _foe.Root.Scale = _foeRestScales[model] * scale;
         _foeEnergy = energy;
+        _foe.Play(ActorAction.Idle, loop: true);
     }
 
-    /// Stand-in staging for the three foes with no model yet: the Flicker's mesh
-    /// at a different size and energy colour, so a Scamp does not read as a
-    /// Monolith. Placeholder on purpose — the chain and its pacing are what this
-    /// scene is for, and they are judgeable now rather than after four bakes.
-    private static (float Scale, Color Energy) PresenceFor(string foeName) => foeName switch
+    /// Stand-in staging for the three foes with no model of their own. Only the
+    /// Flicker is rigged; the Snag's mesh exists but is not rigged yet, and the
+    /// Scamp and Monolith have none — so the Flicker's body covers the small and
+    /// mid foes at different sizes and energy colours, and the Pangolin (a pet
+    /// model, borrowed) covers the Monolith, because a heavy armoured slammer
+    /// reads as a Colossus where a scaled-up cat reads as a large cat.
+    ///
+    /// Placeholder on purpose — the chain and its pacing are what this scene is
+    /// for, and they are judgeable now rather than after four rigs. The scales
+    /// are eyeballed against the models' own sizes and want a look before they
+    /// are trusted.
+    private static (string Model, float Scale, Color Energy) PresenceFor(string foeName) => foeName switch
     {
-        "Dungeon Scamp" => (0.55f, FamilyEnergy.Glitchkin),
-        "Snag" => (1.15f, FamilyEnergy.Wildkin),
-        "Flicker" => (1.0f, FamilyEnergy.Wildkin),
-        "Monolith" => (1.75f, FamilyEnergy.Relicborn),
-        _ => (1.0f, FamilyEnergy.Bloomglass),
+        "Dungeon Scamp" => ("forest_flicker", 0.55f, FamilyEnergy.Glitchkin),
+        "Snag" => ("forest_flicker", 1.15f, FamilyEnergy.Wildkin),
+        "Flicker" => ("forest_flicker", 1.0f, FamilyEnergy.Wildkin),
+        "Monolith" => ("clockwork_pangolin", 1.3f, FamilyEnergy.Relicborn),
+        _ => ("forest_flicker", 1.0f, FamilyEnergy.Bloomglass),
     };
 }
