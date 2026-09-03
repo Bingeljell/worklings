@@ -463,7 +463,21 @@ public partial class DesktopPetScene : Node3D
         string text = PetThought.Thought(reaction);
         if (text.Length == 0) return;
 
-        _thought?.QueueFree();
+        // A thought frees itself when it has faded, which leaves this field
+        // holding a disposed object. Calling QueueFree on it throws, and the
+        // throw happened *before* the new line was built — so the first click
+        // after a line expired silently produced no line at all, and every one
+        // after that too.
+        //
+        // IsInstanceValid is the check that survives a disposed wrapper;
+        // TreeExiting below clears the field at the source so this is a
+        // second line of defence rather than the only one.
+        if (GodotObject.IsInstanceValid(_thought))
+        {
+            _thought!.QueueFree();
+        }
+        _thought = null;
+
         var size = (Vector2)GetWindow().Size;
         _thought = new PetThought
         {
@@ -474,7 +488,14 @@ public partial class DesktopPetScene : Node3D
             // Above the animal's head, not over its face.
             Position = new Vector2(size.X / 2, size.Y * 0.17f),
         };
-        AddChild(_thought);
+        // Cleared at the source the moment it leaves the tree, however it
+        // leaves — faded out, replaced, or taken down with the scene.
+        var thought = _thought;
+        thought.TreeExiting += () =>
+        {
+            if (_thought == thought) _thought = null;
+        };
+        AddChild(thought);
     }
 
     /// Emptying the window rather than hiding it: Godot refuses to change the
