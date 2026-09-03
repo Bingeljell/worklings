@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Worklings"
-run/main_scene="res://scenes/cache_warren.tscn"
+run/main_scene="res://scenes/desktop_pet.tscn"
 config/features=PackedStringArray("4.7", "C#")
 
 [display]
@@ -24,3 +24,7 @@ window/per_pixel_transparency/allowed=true
 [dotnet]
 
 project/assembly_name="Worklings"
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true

@@ -1,5 +1,6 @@
 using Godot;
 using Worklings.Core.Host;
+using Worklings.Core.Pet;
 using Worklings.Core.Stage;
 
 /// The desktop pet's window, with a Workling standing in it and nothing else.
@@ -15,9 +16,10 @@ using Worklings.Core.Stage;
 /// about the hard part: a 3D viewport with per-pixel alpha, lit well enough to
 /// read against an arbitrary desktop behind it.
 ///
-/// Controls, since a borderless window has no chrome to click:
-/// **Esc** quits · **Tab** next monitor · **C** toggles click-through ·
-/// **R** toggles roaming · **drag** the pet to move it.
+/// Controls: **right-click the pet** for the menu — it is the only way in, since
+/// a borderless window has no chrome — and **click the pet** to pet it. The
+/// developer keys remain: **Esc** quits · **Tab** next monitor · **C** toggles
+/// click-through · **R** toggles roaming · **drag** to move it.
 public partial class DesktopPetScene : Node3D
 {
     /// Small enough to sit beside the work, big enough that the animal reads.
@@ -73,10 +75,23 @@ public partial class DesktopPetScene : Node3D
     /// that snaps around reads as a sprite flipping.
     [Export] public float TurnSeconds { get; set; } = 0.45f;
 
+    /// How much to magnify the right-click menu. 0 asks the display — which on a
+    /// Retina screen is 2, and without it the menu draws at half the size of
+    /// every other menu on the machine.
+    [Export] public float MenuScale { get; set; }
+
     /// Which monitor to open on. -1 opens on whichever the window landed on.
     [Export] public int Screen { get; set; } = -1;
 
     private StageActor _pet = null!;
+    private PetMenu _menu = null!;
+    private PetState _state = null!;
+    private PetStateFileStore _store = null!;
+    private SaveLocation _save;
+    private readonly PetBrain _brain = new();
+    /// Cleared when the save could not be read, so a file this build cannot
+    /// parse is never overwritten. Same posture as the dungeon.
+    private bool _saves = true;
     private int _screen;
 
     private enum Wander { Resting, Travelling }
@@ -87,6 +102,7 @@ public partial class DesktopPetScene : Node3D
     private double _travelTotal;
 
     private bool _dragging;
+    private bool _dragged;
     private Vector2I _grabOffset;
     private float _facing;
     private float _facingTarget;
@@ -96,6 +112,13 @@ public partial class DesktopPetScene : Node3D
         var window = GetWindow();
         DesktopWindow.MakeCompanion(window);
         window.Size = WindowSize;
+
+        // The menu must be a real OS window, not one drawn inside this one.
+        // Godot embeds child windows in the parent viewport by default, which
+        // for a 320x320 pet window means the right-click menu is rendered inside
+        // it and clipped to it — presenting as a menu that is tiny, cut off at
+        // the edges, and whose submenus open on top of their own parent.
+        window.GuiEmbedSubwindows = false;
 
         // Clamped, not trusted. A headless run reports zero screens and
         // WindowGetCurrentScreen answers -1, which asks DisplayServer for the
@@ -108,6 +131,10 @@ public partial class DesktopPetScene : Node3D
 
         _pet = new StageActor(GetNode<Node3D>("Pet"), "tempest_ram", ActorAnimations.TempestRam);
         _pet.Play(ActorAction.Idle, loop: true);
+
+        LoadState();
+        _menu = new PetMenu(this) { Scale = MenuScale };
+        _menu.Chosen += OnMenuChoice;
 
         Report();
         BeginResting();
@@ -243,6 +270,88 @@ public partial class DesktopPetScene : Node3D
         _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
     }
 
+    // MARK: - The pet itself
+
+    /// Reads the saved Workling and advances it to now, so a pet left overnight
+    /// is hungry when the app opens rather than frozen where it was left.
+    private void LoadState()
+    {
+        _save = SaveLocation.Resolve();
+        _store = new PetStateFileStore(_save.Path);
+        GD.Print($"Workling: {_save.Path} "
+               + $"({(_save.IsShared ? "the real save" : "not the real save")} — {_save.Reason})");
+        try
+        {
+            _state = _store.Load() ?? PetState.NewPet(now: System.DateTimeOffset.Now);
+        }
+        catch (System.Exception error)
+        {
+            GD.PushWarning($"Could not read {_save.Path}: {error.Message}. "
+                         + "Running from a new pet; this session will not save.");
+            _state = PetState.NewPet(now: System.DateTimeOffset.Now);
+            _saves = false;
+        }
+        _state = _brain.Advance(_state, System.DateTimeOffset.Now);
+        GD.Print($"{_state.Name} · Lv {_state.Level} · {_state.Mood}");
+    }
+
+    private void SaveState()
+    {
+        if (!_saves) return;
+        try
+        {
+            _store.Save(_state);
+        }
+        catch (System.Exception error)
+        {
+            GD.PushWarning($"Could not write {_save.Path}: {error.Message}");
+            _saves = false;
+        }
+    }
+
+    /// Performs a care action and writes the result. Saving on every action
+    /// rather than on a timer is deliberate: a desktop pet has no natural
+    /// moment to close, so anything not written immediately is written never.
+    private void Care(PetAction action)
+    {
+        var result = _brain.Perform(action, _state, System.DateTimeOffset.Now);
+        _state = result.State;
+        SaveState();
+        GD.Print($"{_state.Name}: {result.Reaction.RawValue()} "
+               + $"· Lv {_state.Level} · {_state.Mood}");
+    }
+
+    private void OnMenuChoice(PetMenuChoice choice, PetFood? food, PetPlayActivity? play)
+    {
+        switch (choice)
+        {
+            case PetMenuChoice.Feed when food.HasValue:
+                Care(PetAction.Feed(food.Value));
+                break;
+            case PetMenuChoice.Play when play.HasValue:
+                Care(PetAction.Playing(play.Value));
+                break;
+            case PetMenuChoice.Pet:
+                Care(PetAction.Pet);
+                break;
+            case PetMenuChoice.Sleep:
+                Care(PetAction.Sleep);
+                break;
+            case PetMenuChoice.StayPut:
+                Roam = !Roam;
+                if (Roam) BeginResting();
+                else _pet.Play(ActorAction.Idle, loop: true);
+                GD.Print($"roaming: {Roam}");
+                break;
+            case PetMenuChoice.EnterTheWarren:
+                GD.Print("Enter the Warren: not wired yet");
+                break;
+            case PetMenuChoice.Quit:
+                GetTree().Quit();
+                break;
+        }
+    }
+
     // MARK: - Input
 
     public override void _UnhandledInput(InputEvent @event)
@@ -273,24 +382,42 @@ public partial class DesktopPetScene : Node3D
             }
         }
 
+        // Right-click opens the menu. It is the only way in — a borderless
+        // window has nothing else to click.
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true })
+        {
+            _menu.Open(_state, Roam, DisplayServer.MouseGetPosition());
+            return;
+        }
+
         // Dragging works in screen coordinates, not window ones: the window is
         // moving underneath the pointer, so a delta read from the window's own
         // mouse position chases itself and the pet slides away from the cursor.
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left } click)
         {
-            _dragging = click.Pressed;
-            if (_dragging)
+            if (click.Pressed)
             {
+                _dragging = true;
+                _dragged = false;
                 _grabOffset = DisplayServer.MouseGetPosition() - GetWindow().Position;
             }
             else
             {
+                // A click that did not move the window is a click on the animal,
+                // and clicking your pet should do the obvious thing. The drag
+                // check is what stops every reposition also petting it.
+                if (_dragging && !_dragged) Care(PetAction.Pet);
+                _dragging = false;
                 BeginResting();
             }
         }
         else if (@event is InputEventMouseMotion && _dragging)
         {
-            GetWindow().Position = DisplayServer.MouseGetPosition() - _grabOffset;
+            var moved = DisplayServer.MouseGetPosition() - _grabOffset;
+            // A few pixels of slop, because a click is never perfectly still and
+            // a hand that twitches should still be petting rather than dragging.
+            if (moved.DistanceSquaredTo(GetWindow().Position) > 9) _dragged = true;
+            GetWindow().Position = moved;
         }
     }
 }

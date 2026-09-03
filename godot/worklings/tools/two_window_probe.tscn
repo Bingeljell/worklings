@@ -1,0 +1,35 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://tools/TwoWindowProbe.cs" id="script"]
+[ext_resource type="PackedScene" path="res://assets/characters/tempest_ram.glb" id="ram"]
+
+[sub_resource type="Environment" id="Environment_pet"]
+background_mode = 0
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.57, 0.62, 1)
+ambient_light_energy = 1.2
+tonemap_mode = 2
+
+[node name="TwoWindowProbe" type="Node3D"]
+script = ExtResource("script")
+
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_pet")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.70710677, 0.49999997, -0.49999997, 0, 0.70710677, 0.70710677, 0.70710677, -0.49999997, 0.49999997, 0, 0, 0)
+light_color = Color(1, 0.94, 0.86, 1)
+light_energy = 1.8
+
+[node name="FillLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.70710677, -0.35355338, 0.6123724, 0, 0.8660254, 0.5, -0.70710677, 0.35355338, -0.6123724, 0, 0, 0)
+light_color = Color(0.75, 0.82, 1, 1)
+light_energy = 0.7
+
+[node name="Pet" parent="." instance=ExtResource("ram")]
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, -0.55, 0)
+
+[node name="PetCamera" type="Camera3D" parent="."]
+transform = Transform3D(0.86602545, -0.17677669, 0.4677072, 0, 0.9354143, 0.35355338, -0.5, -0.30618623, 0.81009257, 2.2, 1.5, 3.8)
+current = true
+fov = 34.0

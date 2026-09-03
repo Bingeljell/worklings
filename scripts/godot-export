@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# Builds a real, runnable Worklings.app.
+#
+#   scripts/godot-export            # macOS universal, unsigned, into dist/godot/
+#
+# Why this exists as a script: the export has four requirements that are all
+# invisible in the editor, and rediscovering them costs an evening.
+#
+#   1. Godot's .NET export needs a SOLUTION file (Worklings.sln), not just the
+#      .csproj the editor builds. Without it the export "succeeds" and produces
+#      an app with no managed assemblies, which launches and exits in silence.
+#   2. The solution needs ExportDebug / ExportRelease configurations. A solution
+#      written by `dotnet sln add` has Debug/Release and will not do.
+#   3. `dotnet new sln` on a current SDK writes a .slnx. Godot wants a .sln.
+#   4. Apple Silicon needs ETC2 ASTC texture compression enabled in
+#      project.godot, or a universal export refuses outright.
+#
+# The exported app is the FIRST build allowed to write the real save — see
+# core/host/SaveLocation.cs. Back up ~/Library/Application Support/Worklings/
+# pet-state.json before running a delve in it for the first time.
+#
+# Unsigned. It runs locally; distributing it needs signing and notarization or
+# Gatekeeper refuses to open it.
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+project="$repo_root/godot/worklings"
+out="$repo_root/dist/godot/Worklings.app"
+godot="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+
+if [ ! -x "$godot" ]; then
+  printf 'Godot not found at %s — set GODOT to the binary.\n' "$godot" >&2
+  exit 1
+fi
+
+if [ ! -d "$HOME/Library/Application Support/Godot/export_templates" ]; then
+  printf 'No export templates installed. Download the mono .tpz for this Godot\n'
+  printf 'version from its GitHub release and unzip templates/* into\n'
+  printf '  ~/Library/Application Support/Godot/export_templates/<version>.mono/\n' >&2
+  exit 1
+fi
+
+dotnet build "$project/Worklings.sln" -c ExportRelease -v q --nologo
+
+rm -rf "$out"
+mkdir -p "$(dirname "$out")"
+"$godot" --headless --path "$project" --export-release "macOS" "$out"
+
+printf '\n%s\n' "$out"
+du -sh "$out"

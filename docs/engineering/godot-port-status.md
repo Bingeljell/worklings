@@ -3,16 +3,17 @@
 > Evolving doc, not a frozen spec — see [docs/README](../README.md).
 >
 > **The living answer to "where are we?"** Update it when a slice lands rather
-> than reconstructing the state from git log. Last updated 2026-09-04 (second slice).
+> than reconstructing the state from git log. Last updated 2026-09-04 (third slice).
 
 ## Picking this up cold
 
 If this session is gone, start here.
 
-**State:** the branch `feature/godot-persistence` holds two slices — persistence
-and the desktop shell — and both are finished and verified. The dungeon
-remembers its Workling between runs, and the desktop pet exists as a window with
-a Ram walking around in it.
+**State:** persistence and the desktop shell are **merged to `main`** (PR #49,
+2026-09-04). The dungeon remembers its Workling between runs, and the desktop pet
+exists as a window with a Ram walking around in it. In flight on
+`feature/godot-menu-and-care`: the two-window proof, and the menu and care
+surfaces it unblocks.
 
 **Run it:**
 
@@ -23,9 +24,10 @@ scripts/godot-probe    # every probe with a stored reference, diffed
 ```
 
 **The next slice is the menu**, and it is the first piece of *app* rather than of
-port. Picking a pet, renaming, opening the character screen, quitting — all of it
-is menubar-and-SwiftUI in the Swift app, none of it exists in Godot, and every
-other surface hangs off it. Esc currently stands in for quit.
+port. Picking a pet, renaming, opening the character screen, entering the Warren,
+quitting — all of it is menubar-and-SwiftUI in the Swift app, none of it exists in
+Godot, and every other surface hangs off it, including the trigger for opening
+the dungeon window. Esc currently stands in for quit.
 
 **Then care-on-click**: feed, play, pet and sleep are already ported `PetState`
 operations with no way in. The click target is the shell's to provide, and the
@@ -35,11 +37,9 @@ clickable area is currently a rectangle rather than the animal's shape.
 ordinary ports, with Swift references to diff against, into a window that now
 exists.
 
-**The open question nothing has answered: one window or two.** The pet and the
-dungeon are separate scenes. Whether the pet is the main window with the dungeon
-opening as a second one, or whether one window switches modes, decides the shape
-of the app — and `PetBrain` will assume one or the other. Worth settling before
-it lands.
+**Two windows.** Decided and proven 2026-09-04 — the pet is the main window, the
+dungeon opens as an ordinary second one. See
+[Two windows, and why not one](#two-windows-and-why-not-one).
 
 **Do not** point a test run at the real save. See
 [Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it).
@@ -111,10 +111,11 @@ until the Godot side can replace a mode outright.
 | `CharacterSheet` | 123 | `core/pet/CharacterSheet.cs` | 70 lines over seven pets, all three rungs of the ladder |
 | `PetStateFileStore` + the `Codable` conformances | 50 + ~90 | `core/pet/PetStateFileStore.cs`, `core/pet/PetStateCodec.cs` | 176 lines: both encodings byte-identical, every migration rule, a phantom-gear save, a future schema |
 | `ScreenPlacement` | 180 | `core/host/ScreenPlacement.cs` | 60 lines: a negative-origin second monitor, a window larger than its screen, the roaming cycle and its minimum-travel flip |
+| `PetBrain` — the **care half** | ~250 of 543 | `core/pet/PetBrain.cs` | 110 lines: a negative elapsed time, the week-long offline cap, the distress thresholds, the too-tired-to-play boundary, the daily cap, a level-crossing grant, gear surviving a care action |
 
-**~3,486 of 5,351 lines.** Verification is against reference output captured
+**~3,736 of 5,351 lines.** Verification is against reference output captured
 from the running Swift implementation, not against expectations — see
-"Why verification mattered" below. **697 reference lines across twelve probes**,
+"Why verification mattered" below. **735 reference lines across thirteen probes**,
 all diffing clean.
 
 ## What is not ported
@@ -124,7 +125,7 @@ will want it:
 
 | Swift | Lines | Why it matters next |
 | --- | --- | --- |
-| `PetBrain` | 543 | Desktop-pet behaviour — not needed for the dungeon at all. Also holds `grantingXP`, where the daily caps and milestone decay actually live. |
+| `PetBrain` — the **activity half** | ~290 of 543 | `observe`, `workLogAvailability` and the response machinery. Blocked on `ActivityEvent`/`ActivityContext`; the care half is ported. |
 | `PetCareStatus`, `PetPresentation` | ~330 | Condition and presentation. |
 | `ActivityEvent`, `ActivityInbox`, `ActivitySources`, `ToolConnector`, `HookConfigMerger` | 1,096 | The activity pipeline. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
 
@@ -288,6 +289,13 @@ per-pixel alpha, lit well enough to read against an arbitrary desktop behind it.
 It idles when parked and **walks when it moves**, turned partway toward where it
 is going: not all the way to profile, because the face is the point.
 
+**OPEN — it walks in profile, but it does not turn far enough.** `TurnDegrees` is
+38 degrees off facing-you, chosen so the face stays visible. On a real desktop
+that reads wrong: the Ram looks like it is facing *you* while sliding sideways,
+which is worse than a clean profile would be. It should turn to roughly a full
+profile while walking and come back to facing you when it stops. Noted 2026-09-04,
+not yet changed.
+
 **It only ever walks left or right.** The roaming pattern carries small vertical
 offsets (0.04 and -0.03 of the available height) and they are the reason a walk
 reads as a drift — there is one walk cycle, it walks sideways, and any vertical
@@ -345,6 +353,124 @@ re-run after: it boots and renders unchanged.
   pointer, so a delta read from the window's own mouse position chases itself and
   the pet slides away from the cursor.
 
+### Two windows, and why not one
+
+**Decided and proven 2026-09-04.** The pet is the **main** window. The dungeon
+opens as an **ordinary second OS window** and closes when the delve ends.
+
+The first instinct was one window switching modes, on the strength of the
+experience it buys: the pet *leaves* when a delve starts — a puff of smoke, then
+the dungeon — rather than shrinking into a corner or sitting beside the fight.
+That experience is right and is kept. It simply does not need one window: play the
+puff, empty the pet, show the dungeon. The pet still goes somewhere.
+
+What one window would have cost is that the window must **mutate mid-session** —
+transparency, always-on-top, borderless, 320px to 1280px, and content scaling,
+five live state changes across three operating systems. All five are proven when
+set *at launch* and none are proven when toggled. Per-pixel transparency is the
+one Godot's own documentation hedges about.
+
+Two windows configures each once, at creation, and never touches it again. The
+pet window stays exactly the thing already proven, and the new window is the most
+ordinary kind there is. Three further things push the same way:
+
+- **The letterboxing trap disappears rather than being managed.** Each window
+  owns its own content scaling: the pet disables it, the dungeon keeps 16:9.
+- **The character screen is a third scaling regime** — freely resizable, where the
+  dungeon is capped fixed-aspect and the pet is unscaled. One window would juggle
+  three.
+- **The pet survives the dungeon.** Closing or crashing a delve leaves the
+  companion standing.
+
+The cost: an extra entry in Mission Control, a second viewport's memory, and
+closing the dungeon must not quit the app.
+
+#### What `tools/two_window_probe` found
+
+Run it — it drives the whole cycle on a timer, no hands: pet alone, dungeon open
+with the pet gone, pet back. It loads the real `cache_warren.tscn` rather than a
+coloured rectangle, deliberately, and each of these is a thing a rectangle would
+not have surfaced:
+
+- **Godot embeds child windows *inside* the parent viewport by default.** A
+  1280x720 dungeon was drawn inside the 320x320 pet window and clipped to
+  nothing. It becomes a real OS window only with `GuiEmbedSubwindows` off on the
+  parent.
+- **A child window shares the parent's 3D world unless given its own.** Without an
+  explicit `World3D` the dungeon renders the *pet's* empty room, lit by the pet's
+  lights, with its own scene invisible inside it.
+- **Godot refuses to hide the main window** — "Can't change visibility of main
+  window". So the pet leaves by being **emptied**, not hidden, which for a
+  transparent window is the same thing and still needs no flag toggled.
+- **A new window in an app that is not frontmost opens behind everything.**
+  Entering a delve is a deliberate act, so it has to come forward and take focus.
+
+Verified by screenshot across the full cycle, including a real titled "The Cache
+Warren" window running Fren's actual prep screen while the desktop pet was gone.
+
+### The menu, and care
+
+**The first piece of app rather than of port.** A borderless window has no chrome,
+so **right-clicking the pet is the only way in**, and everything the Swift app
+keeps in a menubar item hangs off it:
+
+```
+Fren  ·  Lv 14          (disabled header, rebuilt every open)
+Hungry
+────────────────
+Feed             ▸      Berries / Biscuit / Noodles
+Play             ▸      Chase / Dance / Puzzle
+Pet
+Let it sleep
+────────────────
+☐ Stay put
+────────────────
+Character sheet…        (disabled — designed, unbuilt)
+Enter the Warren…
+────────────────
+Rename…                 (disabled — designed, unbuilt)
+Quit
+```
+
+**Clicking the animal pets it.** A drag check is what stops every reposition also
+petting it, with a few pixels of slop because a click is never perfectly still.
+
+Feed and Play are **submenus rather than flat items** because *which* food and
+*which* activity are real mechanics — a Workling has a favourite of each and pays
+roughly double for it. Flattening them would hide the only choice in the
+interaction.
+
+**Stay put** is a checkbox rather than two items, so the current state is visible
+without opening anything. Wandering is charming until you are trying to work
+under it.
+
+Care **saves immediately** rather than on a timer: a desktop pet has no natural
+moment to close, so anything not written at once is written never. The pet also
+**advances on load**, which is what makes a Workling left overnight hungry when
+the app opens rather than frozen where it was left.
+
+#### Three bugs, one cause, and two keepers
+
+The menu arrived tiny, clipped at every edge, with submenus opening on top of
+their own parent. All three were **one cause**: Godot embeds child windows inside
+the parent viewport by default, so the menu was rendered *inside* a 320x320
+window and clipped to it. Its reported position was `(6, 0)` — the top-left of
+the pet, not of the screen. `tools/two_window_probe` had found and documented
+this exact trap two hours earlier and it was not applied here.
+
+Two fixes made while chasing the wrong cause are keepers regardless:
+
+- **The menu is sized by font, not by content scale.** A popup's `Size` is in
+  *physical pixels*, so on a 2x display a menu built at the default font is half
+  the size of every other menu on the machine. Overriding the font makes
+  `PopupMenu` measure itself bigger, and row height, padding and separators all
+  follow from it. Scaling the *window* is not the fix — that brings the
+  letterbox bars back.
+- **It is held on screen by `ScreenPlacement.ClampedOrigin`** — the same
+  arithmetic that places the pet's own window, negative-origin monitors included.
+  The pet's default spot is the top-right corner, which is the worst case for a
+  menu that opens down and to the right.
+
 ### What the shell still does not do
 
 Not blockers for the next slice, but the list before this is a pet rather than a
@@ -355,15 +481,25 @@ demo:
   is the question that decides whether the pet is the main window with the dungeon
   as a second one, or a mode switch on a single window.
 - **No hit region from the silhouette.** The click box is a rectangle.
-- **No menu.** Picking a pet, renaming, the character screen, quitting — all of
-  it is menubar-and-SwiftUI in the Swift app and none of it exists here. Esc is
-  standing in for "quit", which is not where quit belongs. **This is the next
-  thing the shell needs**, because every other surface hangs off it.
-- **No care interaction.** Clicking the pet does nothing. Feed, play, pet and
-  sleep are `PetState` operations that are already ported and have no way in.
-  This is `PetBrain`-adjacent rather than shell work, but the click target is the
-  shell's to provide — and the click box is currently a rectangle, not the
-  animal.
+- **The menu has had no design pass at all.** It is Godot's default theme:
+  generic dark grey, chunky rows, nothing to do with Worklings. It works and it
+  is legible, and that is the whole of its merit. `LoadoutPanel` in the dungeon
+  already has a look worth matching and `docs/design` has the vocabulary.
+  Deferred on purpose — the *shape* was worth settling before the styling, and
+  it now is.
+- **Character sheet and Rename sit in the menu, disabled.** Both are designed
+  and unbuilt. Shown rather than hidden, so the menu says what is coming.
+- **The walk faces the wrong way.** See above — 38 degrees is not enough turn,
+  and the pet reads as facing the viewer while moving sideways. A one-knob fix
+  (`TurnDegrees`), deliberately not taken yet.
+- **No mode switch.** Two windows is decided and proven in
+  `tools/two_window_probe`, but nothing in the app implements it — the pet scene
+  and the dungeon scene are still run separately, and the smoke transition
+  between them does not exist.
+- **The pet does not notice you working.** Care is in; the activity half of
+  `PetBrain` is not, and cannot be until `ActivityEvent` and `ActivityContext`
+  are ported. That is the product hook, and it is the largest thing still
+  missing.
 - **Nothing about notifications or a dock/menu-bar presence.**
 - **Multi-monitor is placement only.** Nothing reacts to a monitor being unplugged
   while the pet is standing on it.
@@ -457,15 +593,15 @@ scripts/godot-probe persistence     # just that one
 scripts/godot-probe --record persistence
 ```
 
-**`persistence` and `placement` have stored references**; the other ten want the
-same treatment, which is a re-capture from Swift each, not a rename. `--record` is
+**`persistence`, `placement` and `care` have stored references**; the other nine
+want the same treatment, which is a re-capture from Swift each, not a rename. `--record` is
 only correct once the new output has been checked against the Swift original —
 recording a regression is exactly as easy as recording a fix.
 
 ## Open, in priority order
 
-1. **Store the remaining ten probe references**, above, so the whole suite
-   catches regressions rather than only the save format and placement.
+1. **Store the remaining nine probe references**, above, so the whole suite
+   catches regressions rather than only the newest three slices.
 2. **Three of the five beats are still one line of placeholder text.** The steer
    prompt, bank-or-push and the summary share the fight's narration label and
    the round readout. Prep now has a real screen, which makes the contrast the
@@ -528,6 +664,47 @@ The pet and the dungeon are separate scenes today, and how you get from standing
 on the desktop to a delve decides whether the pet is the main window with the
 dungeon as a second one, or a mode switch on a single window. Worth deciding
 before `PetBrain` lands rather than after.
+
+## Exporting
+
+**The project could not be exported at all until 2026-09-04**, and nothing in the
+editor would ever have said so. `scripts/godot-export` carries the four
+requirements; the one worth repeating here is the first, because it fails
+*silently*:
+
+**Godot's .NET export needs a solution file.** The editor builds the `.csproj`
+directly, so development works perfectly while export is broken. Without
+`Worklings.sln` the export reports success and produces an app with **no managed
+assemblies in it** — it launches, initialises Metal, loads no C# whatsoever, and
+exits without an error. The three behind it: the solution needs
+`ExportDebug`/`ExportRelease` configurations (not the `Debug`/`Release` that
+`dotnet sln add` writes), it must be a `.sln` and not the `.slnx` a current SDK
+generates by default, and Apple Silicon refuses a build unless ETC2 ASTC texture
+compression is enabled.
+
+**What an exported build proved**, which an editor run could not:
+
+- **Per-pixel transparency survives export on macOS.** This was the open risk —
+  there are reports of transparency working in the editor and rendering black in
+  exported builds, particularly on Linux. It holds here: a real `Worklings.app`
+  with terminal text legible straight through the window.
+- **Borderless, always-on-top, roaming and the walk all hold.**
+- **`SaveLocation` flips correctly.** The exported app is the first build for
+  which `OS.HasFeature("template")` is true, so it was the first thing ever
+  permitted to touch the real save. It resolved the real path rather than a test
+  copy, and the file's checksum was identical before and after — the pet only
+  reads; only a resolved delve writes.
+
+**Still only claimed, not demonstrated: Windows and Linux.** No machine here for
+either. Cross-platform was the whole argument for Godot over SceneKit and it
+remains an argument. One documented caveat to carry: **Linux per-pixel
+transparency needs a compositing window manager**, which GNOME and KDE enable by
+default and lightweight desktops such as Xfce and LXQt do not — so the pet can
+fail to be transparent because of the user's setup rather than our code.
+
+Size, and what is deferred about it, is in
+[distribution](../process/distribution.md#the-godot-build). Short version: the
+game is 16 MB and the engine plus .NET runtime is everything else.
 
 ## Traps worth remembering
 
