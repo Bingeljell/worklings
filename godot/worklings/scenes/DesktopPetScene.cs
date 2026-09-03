@@ -85,6 +85,11 @@ public partial class DesktopPetScene : Node3D
 
     private StageActor _pet = null!;
     private PetMenu _menu = null!;
+    private DungeonWindow _dungeon = null!;
+    /// True while a delve is running. The pet is not on the desktop then — it is
+    /// down there — so nothing wanders, nothing responds to a click, and the
+    /// menu offers to bring the dungeon forward rather than to open a second one.
+    private bool _away;
     private PetState _state = null!;
     private PetStateFileStore _store = null!;
     private SaveLocation _save;
@@ -135,6 +140,10 @@ public partial class DesktopPetScene : Node3D
         LoadState();
         _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
+
+        _dungeon = new DungeonWindow(this);
+        _dungeon.Resolved += OnDelveResolved;
+        _dungeon.Closed += OnDungeonClosed;
 
         Report();
         BeginResting();
@@ -230,8 +239,9 @@ public partial class DesktopPetScene : Node3D
 
     public override void _Process(double delta)
     {
+        if (_away) return;
         TurnTowardTravel(delta);
-        if (!Roam || _dragging) return;
+        if (_away || !Roam || _dragging) return;
 
         _timer -= delta;
         if (_wander == Wander.Resting)
@@ -344,7 +354,7 @@ public partial class DesktopPetScene : Node3D
                 GD.Print($"roaming: {Roam}");
                 break;
             case PetMenuChoice.EnterTheWarren:
-                GD.Print("Enter the Warren: not wired yet");
+                EnterTheWarren();
                 break;
             case PetMenuChoice.Quit:
                 GetTree().Quit();
@@ -352,10 +362,59 @@ public partial class DesktopPetScene : Node3D
         }
     }
 
+    // MARK: - The Warren
+
+    /// The pet goes down. Its body leaves the desktop and the delve opens in its
+    /// own window; the Workling itself is handed across rather than re-read, so
+    /// there is exactly one live copy of it while the run is on.
+    private void EnterTheWarren()
+    {
+        if (_away)
+        {
+            _dungeon.Open(_state, _screen);
+            return;
+        }
+
+        _away = true;
+        _dragging = false;
+        SetPetVisible(false);
+        _dungeon.Open(_state, _screen);
+    }
+
+    /// The run resolved. What comes back is the Workling that walked out — XP,
+    /// gear and condition — and the pet, which owns the save, is the thing that
+    /// writes it.
+    private void OnDelveResolved(PetState state)
+    {
+        _state = state;
+        SaveState();
+        GD.Print($"back from the Warren: {_state.Name} · Lv {_state.Level} · {_state.Mood}");
+    }
+
+    private void OnDungeonClosed()
+    {
+        _away = false;
+        SetPetVisible(true);
+        BeginResting();
+    }
+
+    /// Emptying the window rather than hiding it: Godot refuses to change the
+    /// main window's visibility, and a transparent window drawing nothing is
+    /// nothing anyway.
+    private void SetPetVisible(bool visible) => _pet.Root.Visible = visible;
+
     // MARK: - Input
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        // While the pet is in the Warren its window is empty, but it is still
+        // there and still on top. Without this a click on whatever is behind it
+        // would pet an animal that is not on the desktop.
+        if (_away && @event is InputEventMouse)
+        {
+            return;
+        }
+
         if (@event is InputEventKey { Pressed: true, Echo: false } key)
         {
             switch (key.Keycode)
