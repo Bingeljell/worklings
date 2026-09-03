@@ -113,6 +113,13 @@ public partial class DesktopPetScene : Node3D
         DesktopWindow.MakeCompanion(window);
         window.Size = WindowSize;
 
+        // The menu must be a real OS window, not one drawn inside this one.
+        // Godot embeds child windows in the parent viewport by default, which
+        // for a 320x320 pet window means the right-click menu is rendered inside
+        // it and clipped to it — presenting as a menu that is tiny, cut off at
+        // the edges, and whose submenus open on top of their own parent.
+        window.GuiEmbedSubwindows = false;
+
         // Clamped, not trusted. A headless run reports zero screens and
         // WindowGetCurrentScreen answers -1, which asks DisplayServer for the
         // usable rect of a monitor that does not exist.

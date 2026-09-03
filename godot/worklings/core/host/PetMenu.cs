@@ -49,6 +49,11 @@ public sealed class PetMenu
     private const int FeedBase = 100;
     private const int PlayBase = 200;
 
+    /// The menu's font size, before the display scale is applied. Everything
+    /// else in a PopupMenu — row height, padding, separators — is derived from
+    /// the font, so this one number sizes the whole menu.
+    public int BaseFontSize { get; set; } = 15;
+
     /// How much to magnify the menu. 0 asks the display.
     ///
     /// **The pet window disables content scaling** — that is what stops a square
@@ -98,8 +103,14 @@ public sealed class PetMenu
         // A disabled first item, used as a header. Godot has no title on a
         // PopupMenu, and the alternative — a separate label — cannot be part of
         // the same OS popup.
-        _root.AddItem($"{state.Name}  ·  Lv {state.Level}  ·  {MoodWord(state.Mood)}", 0);
+        // Two short lines rather than one long one. A single
+        // "Fren · Lv 14 · Hungry" is the widest thing in the menu by some way,
+        // and a menu sized to its own header is wider than it needs to be
+        // everywhere else.
+        _root.AddItem($"{state.Name}  ·  Lv {state.Level}", 0);
         _root.SetItemDisabled(0, true);
+        _root.AddItem(MoodWord(state.Mood), 1);
+        _root.SetItemDisabled(1, true);
         _root.AddSeparator();
 
         _root.AddSubmenuNodeItem("Feed", _feed);
@@ -120,17 +131,42 @@ public sealed class PetMenu
         _root.SetItemDisabled(_root.ItemCount - 1, true);
         _root.AddItem("Quit", (int)PetMenuChoice.Quit);
 
+        // Sized by font rather than by ContentScaleFactor. A popup's Size is in
+        // *physical pixels*, so on a 2x display a menu built at the default font
+        // is half the size of every other menu on the machine — and scaling the
+        // content did not fix it, because the window it draws into was still
+        // measured in pixels. Overriding the font makes PopupMenu measure itself
+        // bigger, and row height, padding and separators all follow from it.
+        //
         // Applied to the submenus too: each is its own OS window and inherits
         // nothing from its parent.
-        float scale = EffectiveScale;
-        _root.ContentScaleFactor = scale;
-        _feed.ContentScaleFactor = scale;
-        _play.ContentScaleFactor = scale;
+        int fontSize = System.Math.Max(1, (int)System.Math.Round(BaseFontSize * EffectiveScale));
+        foreach (var popup in new[] { _root, _feed, _play })
+        {
+            popup.AddThemeFontSizeOverride("font_size", fontSize);
+            popup.ResetSize();
+        }
+        // Held on screen. The pet's default spot is the top-right corner, which
+        // is the worst case for a menu that opens down and to the right: without
+        // this it hangs off the edge and the submenus, finding no room beside
+        // them, open on top of their own parent.
+        //
+        // ScreenPlacement already does exactly this arithmetic for the pet's own
+        // window, negative-origin monitors included, so it does it here too.
+        int screen = DisplayServer.WindowGetCurrentScreen();
+        var frame = DesktopWindow.UsableFrame(screen);
+        var placed = ScreenPlacement.ClampedOrigin(
+            new PlacementPoint(atScreenPosition.X, atScreenPosition.Y),
+            new PlacementSize(_root.Size.X, _root.Size.Y),
+            frame,
+            margin: 8);
 
-        _root.ResetSize();
-        _feed.ResetSize();
-        _play.ResetSize();
-        _root.Popup(new Rect2I(atScreenPosition, Vector2I.Zero));
+        _root.Popup(new Rect2I(
+            new Vector2I((int)System.Math.Round(placed.X), (int)System.Math.Round(placed.Y)),
+            Vector2I.Zero));
+        GD.Print($"menu: font={fontSize} size={_root.Size} at {_root.Position} "
+               + $"in ({frame.X},{frame.Y} {frame.Width}x{frame.Height}) "
+               + $"right={_root.Position.X + _root.Size.X} bottom={_root.Position.Y + _root.Size.Y}");
     }
 
     public bool IsOpen => _root.Visible;
