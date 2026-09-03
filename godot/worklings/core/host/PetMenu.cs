@@ -50,11 +50,6 @@ public sealed class PetMenu
     private const int FeedBase = 100;
     private const int PlayBase = 200;
 
-    /// The menu's font size, before the display scale is applied. Everything
-    /// else in a PopupMenu — row height, padding, separators — is derived from
-    /// the font, so this one number sizes the whole menu.
-    public int BaseFontSize { get; set; } = 15;
-
     /// How much to magnify the menu. 0 asks the display.
     ///
     /// **The pet window disables content scaling** — that is what stops a square
@@ -141,19 +136,16 @@ public sealed class PetMenu
         _root.SetItemDisabled(_root.ItemCount - 1, true);
         _root.AddItem("Quit", (int)PetMenuChoice.Quit);
 
-        // Sized by font rather than by ContentScaleFactor. A popup's Size is in
-        // *physical pixels*, so on a 2x display a menu built at the default font
-        // is half the size of every other menu on the machine — and scaling the
-        // content did not fix it, because the window it draws into was still
-        // measured in pixels. Overriding the font makes PopupMenu measure itself
-        // bigger, and row height, padding and separators all follow from it.
+        // One theme, carrying the font size with it. A popup's Size is in
+        // *physical pixels*, so everything in the theme is scaled to the display
+        // or the menu comes out half the size of every other menu on the machine.
         //
         // Applied to the submenus too: each is its own OS window and inherits
         // nothing from its parent.
-        int fontSize = System.Math.Max(1, (int)System.Math.Round(BaseFontSize * EffectiveScale));
+        var theme = WorklingsTheme.For(EffectiveScale);
         foreach (var popup in new[] { _root, _feed, _play })
         {
-            popup.AddThemeFontSizeOverride("font_size", fontSize);
+            popup.Theme = theme;
             popup.ResetSize();
         }
         // Held on screen. The pet's default spot is the top-right corner, which
@@ -174,9 +166,6 @@ public sealed class PetMenu
         _root.Popup(new Rect2I(
             new Vector2I((int)System.Math.Round(placed.X), (int)System.Math.Round(placed.Y)),
             Vector2I.Zero));
-        GD.Print($"menu: font={fontSize} size={_root.Size} at {_root.Position} "
-               + $"in ({frame.X},{frame.Y} {frame.Width}x{frame.Height}) "
-               + $"right={_root.Position.X + _root.Size.X} bottom={_root.Position.Y + _root.Size.Y}");
     }
 
     public bool IsOpen => _root.Visible;
