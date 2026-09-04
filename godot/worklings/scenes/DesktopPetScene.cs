@@ -130,6 +130,7 @@ public partial class DesktopPetScene : Node3D
     private const double TickSeconds = 60;
 
     private PetSession _session = null!;
+    private ActivityInboxWatcher _inbox = null!;
     private WakeStamp _wake = null!;
     /// Seconds until the next needs tick. Without one the pet only ages when it
     /// is interacted with, which is exactly backwards for a creature whose whole
@@ -193,6 +194,11 @@ public partial class DesktopPetScene : Node3D
         // Gear changes are PetState operations and the session owns the save, so
         // the screen proposes and the session writes.
         _character.StateChanged += _session.Replace;
+
+        // The one thing that makes any of the activity work visible: something
+        // outside the app dropping a file, and the pet noticing.
+        _inbox = new ActivityInboxWatcher(_session);
+        AddChild(_inbox);
 
         // Last, once every window and listener exists. Greeting any earlier
         // means the pet changes before there is anything to show it on — which
@@ -363,7 +369,7 @@ public partial class DesktopPetScene : Node3D
                + $" — {_session.Save.Reason})");
 
         _session.Woke += _wake.Write;
-        _session.Reacted += Say;
+        _session.Reacted += OnReaction;
         // One place the screen is refreshed from, rather than every path that
         // changes the pet remembering to.
         // Null-guarded: the session is built before the windows are, and the
@@ -380,11 +386,18 @@ public partial class DesktopPetScene : Node3D
     {
         // The session refuses an action the pet does not need — feeding one that
         // is already full — and the menu greys those out, so a refusal here is
-        // only ever reached by a click on the animal itself.
-        if (_session.Perform(action, System.DateTimeOffset.Now) is not PetReaction reaction)
-        {
-            return;
-        }
+        // only ever reached by a click on the animal itself. The reaction, if
+        // there is one, arrives through Reacted like every other.
+        _session.Perform(action, System.DateTimeOffset.Now);
+    }
+
+    /// Everything the pet reacts to, from either direction — a button you
+    /// pressed or an event it noticed — arrives here. Printed as well as spoken,
+    /// because a thought over a pet's head cannot be seen in a headless run and
+    /// the activity path is otherwise entirely silent.
+    private void OnReaction(PetReaction reaction)
+    {
+        Say(reaction);
         GD.Print($"{_session.State.Name}: {reaction.RawValue()} "
                + $"· Lv {_session.State.Level} · {_session.State.Mood}");
     }
