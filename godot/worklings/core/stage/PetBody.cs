@@ -16,9 +16,16 @@ public static class PetBody
 {
     /// The `.glb` a family wears, or null while it has none.
     ///
-    /// Only Relicborn has its body in the project today. Everything else still
-    /// renders as the Tempest Ram, which is what `DesktopPetScene` and the
-    /// Warren load regardless — wiring this up is its own piece of work.
+    /// **Nothing reads this yet.** Every family renders as the Tempest Ram,
+    /// which is what `DesktopPetScene` and the Warren load unconditionally.
+    /// Wiring it up is its own piece of work; this is the shape that work will
+    /// need, filled in as far as the truth goes today.
+    ///
+    /// Relicborn's entry is the Pangolin that is already in the project, but as
+    /// a *foe* stand-in — it is a pet model doing Monolith duty in the Warren.
+    /// Setting it up as a pet body means going back to
+    /// `worklings-blender-work/clockwork-pangolin-rigify.blend` and exporting it
+    /// the way the Ram was, with the pet action set rather than the foe one.
     public static string? Model(PetFamily family) => family switch
     {
         PetFamily.Relicborn => "clockwork_pangolin",
@@ -27,11 +34,18 @@ public static class PetBody
 
     /// Whether a family can be picked.
     ///
-    /// Relicborn's Clockwork Pangolin is in the project. Wildkin's Moss-Fox is
-    /// baked and waiting to be brought in, so it is offered — the gap between
-    /// choosing it and seeing it is short and deliberate. Elemental, Glitchkin
-    /// and Bloomglass have no body and are listed but not pickable, so the
-    /// roster still reads as five.
+    /// Wildkin is pickable because it is the default family and the one the live
+    /// Workling belongs to — greying it would tell a player their own pet is
+    /// "coming soon". Its Moss-Fox body is still to be rigged and animated.
+    ///
+    /// Relicborn is pickable because the Clockwork Pangolin is the nearest body
+    /// to being ready; see `Model` for what "ready" still costs.
+    ///
+    /// Elemental, Glitchkin and Bloomglass are listed and not pickable, so the
+    /// roster still reads as five. Elemental is the odd one: the Tempest Ram is
+    /// *its* body by `FamilyEnergy.For`, and every Workling is currently wearing
+    /// it regardless of family. That resolves itself the moment the model swap
+    /// is wired.
     public static bool IsPickable(PetFamily family) =>
         family is PetFamily.Wildkin or PetFamily.Relicborn;
 }
