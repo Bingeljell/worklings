@@ -258,13 +258,16 @@ true before the Swift app could be removed and nothing would be missed?**
 `CompanionCore` is not the answer — that is ported in full. Everything below is
 app code, which was always going to be rebuilt rather than ported.
 
+**Audio is done** (2026-09-04): the bed, the boss theme, and all sixteen cues.
+Signing is deliberately last — it moves with the alpha-to-beta line, not with
+this list.
+
 | Missing | Where Swift does it | Size |
 | --- | --- | --- |
-| **Audio.** No sound of any kind in the Godot build — no dungeon BGM, no boss theme, no per-action cues. The assets exist under `assets/audio/`; nothing plays them. | `CombatAudio.swift` | 117 lines |
 | **Renaming a Workling.** The menu item is there and disabled. | `AppDelegate`, `PetSession.rename` | small |
 | **Choosing a family or a class.** `PetState` supports both and no surface offers either, so a Godot-only player is stuck with what they were born as. | `CharacterScreenView` | part of 977 |
 | **The ambient status layer.** `PetCareStatus.HoverSummary` is computed and shown nowhere; hovering the pet says nothing. | `HoverSummaryPanelController` | 84 lines |
-| **Signing and notarization.** The export is unsigned, so it runs locally and Gatekeeper refuses it anywhere else. | `build_app_bundle`, `verify_release` | — |
+| **Signing and notarization.** The export is unsigned, so it runs locally and Gatekeeper refuses it anywhere else. **Deferred to beta on purpose** — an alpha tester can be told it is unsigned, and the repo is public if they would rather build it. | `build_app_bundle`, `verify_release` | — |
 
 Two more that are not parity gaps but would be felt: the dungeon's surfaces are
 still text rather than game UI (slice C), and **Windows and Linux have still
@@ -806,8 +809,8 @@ recording a regression is exactly as easy as recording a fix.
    prompt, bank-or-push and the summary share the fight's narration label and
    the round readout. Prep at least has a screen; the two moments the player
    actually plays still look like a debug line.
-4. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
-   cues in alpha.8; none of it is in Godot. Nothing blocks it.
+4. ~~No audio.~~ Done — `core/stage/CombatAudio.cs`, the bed plus sixteen cues,
+   fired from the same beats the Swift panel fires them from.
 5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
    Monolith have no model at all. Today the Flicker stands in for the first
    three at different sizes and the Pangolin — a pet model — stands in for the

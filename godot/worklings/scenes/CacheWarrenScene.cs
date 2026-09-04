@@ -88,6 +88,11 @@ public partial class CacheWarrenScene : Node3D
 
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
+    private CombatAudio _audio = null!;
+
+    /// The last whole second the beat countdown was seen at, so a tick fires
+    /// once per second rather than once per frame.
+    private int _lastTickSecond = -1;
     private readonly AttackLunge _lunge = new();
     /// A beat runs in two phases: the action plays, then the countdown to the
     /// next one. Separating them is what lets the countdown mean "next attack
@@ -158,6 +163,8 @@ public partial class CacheWarrenScene : Node3D
         _numbers = new DamageNumbers(this);
         _lunge.Travel = AttackersTravel;
         _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this, this);
+        _audio = new CombatAudio();
+        AddChild(_audio);
         _prep = new LoadoutPanel(this);
         BeginRun();
     }
@@ -409,6 +416,12 @@ public partial class CacheWarrenScene : Node3D
         SaveState();
         Resolved?.Invoke(_state);
 
+        // The bed stops before the sting, so the two never overlap.
+        _audio.StopBgm();
+        _audio.Play(resolution.Tier == ExitTier.Downed
+            ? CombatSound.Defeat
+            : CombatSound.Victory, volume: 0.9f);
+
         string headline = resolution.BossDefeated ? "Delve complete"
                         : resolution.Banked ? "Banked"
                         : "Retreated";
@@ -496,7 +509,16 @@ public partial class CacheWarrenScene : Node3D
         {
             _beatTimer -= delta;
             _hud?.SetBeat(1.0 - _beatTimer / _beatLength, _beatTimer);
+            // One tick per whole second of the countdown, not one per frame.
+            // The bar shows the time; the tick is what makes it felt.
+            int second = (int)System.Math.Ceiling(_beatTimer);
+            if (second != _lastTickSecond && second > 0)
+            {
+                _lastTickSecond = second;
+                _audio.Play(CombatSound.Tick, volume: 0.5f);
+            }
             if (_beatTimer > 0) return;
+            _lastTickSecond = -1;
         }
 
         if (_pending.Count == 0)
@@ -542,7 +564,14 @@ public partial class CacheWarrenScene : Node3D
                 break;
             case Phase.Summary:
                 if (Loop) BeginRun();
-                else Finished?.Invoke();
+                else
+                {
+                    // The way back up. Played here rather than on the desktop so
+                    // that all of the audio, and all of the files it holds open,
+                    // live and die with the delve.
+                    _audio.Play(CombatSound.ReturnChime);
+                    Finished?.Invoke();
+                }
                 break;
         }
     }
@@ -600,11 +629,13 @@ public partial class CacheWarrenScene : Node3D
                 if (x.Outcome.DidHit)
                 {
                     ScheduleImpact(attacker, defender, petAttacking, x.Outcome);
+                    _audio.Play(x.Outcome.DidCrit ? CombatSound.Crit : CombatSound.Hit);
                     _line = $"{x.Attacker} {(x.Outcome.DidCrit ? "crits" : "strikes")} for {x.Outcome.Damage}";
                 }
                 else
                 {
                     ScheduleWhiff(attacker, defender);
+                    _audio.Play(CombatSound.Dodge);
                     _line = $"{x.Attacker} misses";
                 }
                 return true;
@@ -612,6 +643,7 @@ public partial class CacheWarrenScene : Node3D
             case CombatEvent.Signature x:
                 _party.Play(ActorAction.Signature);
                 ScheduleImpact(_party, _foe, true, x.Outcome, isSignature: true);
+                _audio.Play(CombatSound.Unleash);
                 _line = $"{x.Attacker} unleashes for {x.Outcome.Damage}";
                 return true;
 
@@ -620,6 +652,7 @@ public partial class CacheWarrenScene : Node3D
             // above it.
             case CombatEvent.Slammed x:
                 _foe.Play(ActorAction.Signature);
+                _audio.Play(CombatSound.Slam);
                 if (x.Outcome.DidHit)
                 {
                     ScheduleImpact(_foe, _party, false, x.Outcome, isSignature: true);
@@ -635,31 +668,40 @@ public partial class CacheWarrenScene : Node3D
             // A wind-up with no contact. It earns a beat precisely because the
             // pause is the information: the slam is coming.
             case CombatEvent.Telegraphed x:
+                _audio.Play(CombatSound.Telegraph);
                 _line = $"{x.Who} winds up";
                 return true;
 
             case CombatEvent.Hardened x:
+                _audio.Play(CombatSound.Harden);
                 _line = $"{x.Who} hardens (+{x.GuardGain} Guard)";
                 return true;
 
             case CombatEvent.Braced x:
                 _party.Play(ActorAction.Idle, loop: true);
+                _audio.Play(CombatSound.Brace);
                 _petHP = System.Math.Min(_petMaxHP, _petHP + x.Regen);
                 _line = $"{x.Who} braces (+{x.Regen})";
                 return true;
 
             case CombatEvent.Grabbed x:
                 _foe.Play(ActorAction.Attack);
+                _audio.Play(CombatSound.Snare);
                 _line = $"{x.Attacker} snares {x.Target} (-{x.AgilityLoss} Agility)";
                 return true;
 
             case CombatEvent.Phased x:
                 _foe.Play(ActorAction.Idle, loop: true);
+                _audio.Play(CombatSound.Phase);
                 _line = $"{x.Who} blurs aside";
                 return true;
 
             case CombatEvent.Defeated x:
                 (x.Who == _petName ? _party : _foe).Play(ActorAction.Downed);
+                // The poof is the foe leaving the stage. A downed Workling gets
+                // the defeat sting at the end of the run instead, which is where
+                // that news actually lands.
+                if (x.Who != _petName) _audio.Play(CombatSound.Poof);
                 _line = $"{x.Who} is down";
                 return true;
 
@@ -717,6 +759,11 @@ public partial class CacheWarrenScene : Node3D
         _foe.Root.Scale = _foeRestScales[model] * scale;
         _foeEnergy = energy;
         _foe.Play(ActorAction.Idle, loop: true);
+
+        _audio.Play(CombatSound.Enter);
+        // The boss gets its own heavier bed, and swapping it mid-delve is the
+        // only warning the player gets that this encounter is different.
+        _audio.StartBgm(boss: _delve?.IsBossEncounter ?? false);
     }
 
     /// Stand-in staging for the three foes with no model of their own. Only the

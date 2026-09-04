@@ -2,6 +2,7 @@ using Godot;
 using Worklings.Core.Connect;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
+using Worklings.Core.Stage;
 
 namespace Worklings.Core.Host;
 
@@ -23,6 +24,7 @@ public enum PetMenuChoice
     ConnectRepo,
     ToggleClaudeCode,
     ToggleCodex,
+    MuteAudio,
 }
 
 /// The right-click menu: the first piece of *app* on the Godot side rather than
@@ -184,6 +186,11 @@ public sealed class PetMenu
         // to work under it.
         _root.AddCheckItem("Stay put", (int)PetMenuChoice.StayPut);
         _root.SetItemChecked(_root.ItemCount - 1, !roaming);
+        // Read from the setting rather than from a live player: the dungeon's
+        // audio only exists while a delve is running, and this menu is not
+        // reachable while one is.
+        _root.AddCheckItem("Mute the dungeon", (int)PetMenuChoice.MuteAudio);
+        _root.SetItemChecked(_root.ItemCount - 1, CombatAudio.Muted);
         _root.AddSeparator();
 
         // Each tool's own state, read fresh every time the menu opens: another

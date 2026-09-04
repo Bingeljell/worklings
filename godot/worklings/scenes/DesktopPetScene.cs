@@ -445,6 +445,10 @@ public partial class DesktopPetScene : Node3D
                 else _pet.Play(ActorAction.Idle, loop: true);
                 GD.Print($"roaming: {Roam}");
                 break;
+            case PetMenuChoice.MuteAudio:
+                CombatAudio.Muted = !CombatAudio.Muted;
+                GD.Print($"dungeon audio muted: {CombatAudio.Muted}");
+                break;
             case PetMenuChoice.ToggleClaudeCode:
                 ToggleTool(ConnectableTool.ClaudeCode);
                 break;
