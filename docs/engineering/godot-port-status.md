@@ -815,24 +815,36 @@ recording a regression is exactly as easy as recording a fix.
 4. ~~No audio.~~ Done — `core/stage/CombatAudio.cs`, the bed plus sixteen cues,
    fired from the same beats the Swift panel fires them from.
 5. **Pet bodies, and the model swap.** Every Workling renders as the Tempest Ram
-   regardless of family, because both scenes load it unconditionally. The roster
-   as it actually stands — confirmed 2026-09-04 — is the table in
-   `core/stage/PetBody.cs`:
+   regardless of race, because both scenes load it unconditionally. The
+   vocabulary, from
+   [the race and creature roster](../design/worklings_race_creature_roster.md):
+   a **race** is Wildkin/Elemental/Relicborn/Bloomglass/Glitchkin (`PetFamily` in
+   code), a **creature** is one animal within a race, and a **class** is a
+   separate axis. **A body is a creature, not a race** — `PetState` has no
+   creature field yet, so which animal within a race you are is a real choice the
+   save cannot currently hold.
 
-   | Family | Body | State |
-   | --- | --- | --- |
-   | Elemental | Tempest Ram | in the project, rigged as a pet; what everything wears today |
-   | Relicborn | Clockwork Pangolin | in the project as a **foe** stand-in; needs a pet export from `worklings-blender-work/clockwork-pangolin-rigify.blend` |
-   | Wildkin | Moss-Fox | not made yet — still to be rigged and animated |
-   | Glitchkin, Bloomglass | — | no model at all |
+   The state of it, confirmed 2026-09-04, is the table in `core/stage/PetBody.cs`:
 
-   Only Elemental is pickable, and the two reasons a family is not are worded
-   differently in the menu — "body not set up yet" is waiting on an export,
-   "coming soon" on the animal existing. **Note the live Workling is Wildkin**,
-   so it is checked and unpickable at once, which is the truth rather than a bug.
-   `PetBody.Model` is the mapping the swap will read; the two places that will
-   read it both name `PetBody.DefaultModel` today, so they are easy to find.
-6. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
+   | Race | Creature | 2D | 3D |
+   | --- | --- | --- | --- |
+   | Elemental | Tempest Ram | sheet in `assets/` | rigged as a pet, in the project |
+   | Relicborn | Key-back Pangolin | sheet in `assets/` | in the project as a **foe** rig; needs a pet export from `clockwork-pangolin-rigify.blend` |
+   | Wildkin | Moss Fox | sheet in `assets/`, **live in the Swift app** | not modelled yet |
+   | Glitchkin, Bloomglass | — | — | — |
+
+   **Only Elemental is pickable** — the gate is "can this build render it",
+   agreed 2026-09-04. Note `PetFamily.HasArt` is *not* wrong: it answers whether
+   a race has a sprite sheet, and correctly. It is a different question from the
+   one this build asks.
+
+   **Choices are deliberately unlocked.** Race, class and name can all be changed
+   at any time. Onboarding and lore will lock race and class at creation, and the
+   name is expected to lock when multiplayer arrives.
+6. **Foe bodies.** Foes are drawn from the same five races as Worklings, so the
+   bestiary reads as one universe; which race each foe belongs to is still open.
+   The Forest Flicker is a foe, which is why it is not in the roster's race
+   lists. The Snag's mesh exists but is not rigged; the Scamp and the
    Monolith have no model at all. Today the Flicker stands in for the first
    three at different sizes and the Pangolin — a pet model — stands in for the
    Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
