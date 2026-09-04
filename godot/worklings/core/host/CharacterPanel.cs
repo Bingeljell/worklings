@@ -109,9 +109,12 @@ public partial class CharacterPanel : PanelContainer
         column.AddChild(_bay);
 
         column.AddChild(NameField(sheet.Name, state));
-        column.AddChild(Line(
-            $"{sheet.Family.DisplayName()}  ·  {sheet.PetClass.DisplayName()}  ·  Level {sheet.Level}",
-            WorklingsTheme.Muted));
+        // Family and class are choices, not labels. They were shown as text
+        // here while nothing could change them, which made a Godot-only player
+        // permanently stuck with whatever their Workling was born as.
+        column.AddChild(FamilyPicker(state));
+        column.AddChild(ClassPicker(state));
+        column.AddChild(Line($"Level {sheet.Level}", WorklingsTheme.Muted));
 
         // The XP bar, with the numbers beside it. A bar alone tells you roughly
         // where you are; the numbers tell you whether one more delve does it.
@@ -310,6 +313,75 @@ public partial class CharacterPanel : PanelContainer
         margin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         margin.AddChild(inner);
         return margin;
+    }
+
+    /// Which family the Workling belongs to.
+    ///
+    /// All five are listed and two are greyed out, which is deliberate: the
+    /// roster reads as five so the shape of the design is visible, and Glitchkin
+    /// and Bloomglass un-grey on their own the day their art is baked.
+    ///
+    /// A caveat this screen cannot show: in the Godot build **every** family
+    /// currently renders as the Tempest Ram, because nothing maps a family to a
+    /// model yet. `HasArt` is about the legacy sprite sheets, and it is the
+    /// honest gate until that mapping exists.
+    private Control FamilyPicker(PetState state)
+    {
+        var picker = Picker("Family");
+        var families = PetFamilyExtensions.AllCases;
+        for (int i = 0; i < families.Length; i++)
+        {
+            var family = families[i];
+            picker.AddItem(
+                family.HasArt()
+                    ? family.DisplayName()
+                    : $"{family.DisplayName()} (coming soon)", i);
+            picker.SetItemDisabled(i, !family.HasArt());
+            if (family == state.Family) picker.Selected = i;
+        }
+        picker.ItemSelected += index =>
+            StateChanged?.Invoke(state.SelectingFamily(families[(int)index]));
+        return Row("Family", picker);
+    }
+
+    /// Which class it fights as. The signature stat and the growth weighting both
+    /// come from here, so this is the single largest choice on the screen.
+    private Control ClassPicker(PetState state)
+    {
+        var picker = Picker("Class");
+        var classes = PetClassExtensions.AllCases;
+        for (int i = 0; i < classes.Length; i++)
+        {
+            var petClass = classes[i];
+            // The role, because "Aegis" says nothing to someone meeting it for
+            // the first time and "Aegis — Tank" says all of it.
+            picker.AddItem($"{petClass.DisplayName()} — {petClass.Role()}", i);
+            if (petClass == state.PetClass) picker.Selected = i;
+        }
+        picker.ItemSelected += index =>
+            StateChanged?.Invoke(state.SelectingClass(classes[(int)index]));
+        return Row("Class", picker);
+    }
+
+    private OptionButton Picker(string name)
+    {
+        var picker = new OptionButton { Name = name, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        picker.AddThemeFontSizeOverride("font_size", S(14));
+        // Its own popup is a separate window and inherits nothing from here.
+        picker.GetPopup().Theme = WorklingsTheme.For(_scale);
+        return picker;
+    }
+
+    /// A labelled row, so the two pickers read as a pair of settings rather than
+    /// as two unexplained dropdowns.
+    private Control Row(string label, Control control)
+    {
+        var line = new HBoxContainer();
+        var caption = Line(label, WorklingsTheme.Muted);
+        caption.CustomMinimumSize = new Vector2(S(64), 0);
+        line.AddChild(caption);
+        line.AddChild(control);
+        return line;
     }
 
     /// The Workling's name, editable in place.
