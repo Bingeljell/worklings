@@ -346,9 +346,9 @@ public sealed class PetMenu
         return $"…/{parts[^2]}/{parts[^1]}";
     }
 
-    /// All five families, with the two design-stage ones listed and unpickable —
-    /// the roster reads as five so the shape of the design is visible, and they
-    /// un-grey on their own the day their art is baked.
+    /// All five families, with the ones that have no body listed and unpickable
+    /// — the roster reads as five so the shape of the design is visible, and each
+    /// un-greys on its own the day its model lands. See `PetBody`.
     private void BuildFamilies(PetState state)
     {
         _families.Clear();
@@ -356,13 +356,12 @@ public sealed class PetMenu
         for (int i = 0; i < families.Length; i++)
         {
             var family = families[i];
+            bool pickable = PetBody.IsPickable(family);
             _families.AddRadioCheckItem(
-                family.HasArt()
-                    ? family.DisplayName()
-                    : $"{family.DisplayName()} (coming soon)",
+                pickable ? family.DisplayName() : $"{family.DisplayName()} (coming soon)",
                 FamilyBase + i);
             _families.SetItemChecked(i, family == state.Family);
-            _families.SetItemDisabled(i, !family.HasArt());
+            _families.SetItemDisabled(i, !pickable);
         }
     }
 

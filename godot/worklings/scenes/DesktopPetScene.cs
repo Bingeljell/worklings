@@ -123,6 +123,7 @@ public partial class DesktopPetScene : Node3D
     private CharacterWindow _character = null!;
     private PetThought? _thought;
     private HoverSummary _hover = null!;
+    private FileDialog? _picker;
     /// True while a delve is running. The pet is not on the desktop then — it is
     /// down there — so nothing wanders, nothing responds to a click, and the
     /// menu offers to bring the dungeon forward rather than to open a second one.
@@ -543,37 +544,68 @@ public partial class DesktopPetScene : Node3D
 
     /// Asks for a folder and hands it to the git watcher.
     ///
-    /// The OS's own dialog rather than Godot's `FileDialog`, which would draw
-    /// inside a 320-pixel transparent window — the same trap the right-click
-    /// menu fell into. Picking a directory is the whole interaction: connecting
-    /// a repository IS the opt-in to the git source, so there is nothing else to
-    /// confirm afterwards.
+    /// **Godot's own dialog, not the OS one.** `DisplayServer.FileDialogShow`
+    /// opened correctly and its callback never arrived — the folder was chosen
+    /// and nothing happened, with no error to go on. Rather than guess at why a
+    /// native callback goes missing, this uses a `FileDialog`, whose signal is
+    /// ordinary Godot plumbing and can be verified without a person clicking
+    /// anything. Uglier than the macOS panel; it works, which beats it.
+    ///
+    /// It becomes its own OS window because the pet window sets
+    /// `GuiEmbedSubwindows = false` — the same reason the right-click menu is a
+    /// real menu and not a 320-pixel drawing of one.
+    ///
+    /// **Not always-on-top**, and that is not a preference. macOS refuses to make
+    /// an on-top window transient, `Popup` makes it transient to its parent, and
+    /// the combination errors out and leaves you with a dialog that never
+    /// appears. The pet floats over a corner of it instead, which is fine.
+    ///
+    /// Built once and reopened, so the picker remembers where you were last.
     private void ConnectARepository()
     {
-        var chosen = Callable.From((bool ok, string[] paths, int _) =>
+        if (_picker is null)
         {
-            if (!ok || paths.Length == 0) return;
-            if (_git.Connect(paths[0]) is string refusal)
+            _picker = new FileDialog
             {
-                // Said, not just printed. A folder picker that closes and does
-                // nothing visible is indistinguishable from one that worked.
-                GD.Print($"git: {refusal}");
-                Say(refusal.EndsWith("is already connected.")
-                    ? "Already watching that one."
-                    : "That's not a repository.");
-                return;
-            }
-            Say($"Watching {System.IO.Path.GetFileName(paths[0].TrimEnd('/'))}!");
-        });
+                FileMode = FileDialog.FileModeEnum.OpenDir,
+                Access = FileDialog.AccessEnum.Filesystem,
+                // Explicitly off: true would hand this back to the native dialog
+                // whose callback never came.
+                UseNativeDialog = false,
+                Title = "Connect a repository",
+                Theme = WorklingsTheme.For(MenuScale > 0
+                    ? MenuScale
+                    : (float)DisplayServer.ScreenGetScale(_screen)),
+            };
+            _picker.DirSelected += OnRepositoryChosen;
+            // OpenDir still emits FileSelected when the user confirms while a
+            // directory is merely highlighted rather than entered, which is what
+            // most people actually do.
+            _picker.FileSelected += OnRepositoryChosen;
+            AddChild(_picker);
+        }
 
-        DisplayServer.FileDialogShow(
-            title: "Connect a repository",
-            currentDirectory: OS.GetSystemDir(OS.SystemDir.Documents),
-            fileName: "",
-            showHidden: false,
-            mode: DisplayServer.FileDialogMode.OpenDir,
-            filters: System.Array.Empty<string>(),
-            callback: chosen);
+        var frame = DesktopWindow.UsableFrame(_screen);
+        var size = new Vector2I(
+            (int)System.Math.Min(frame.Width * 0.6, 1100),
+            (int)System.Math.Min(frame.Height * 0.6, 800));
+        _picker.PopupCentered(size);
+    }
+
+    private void OnRepositoryChosen(string path)
+    {
+        GD.Print($"git: asked to connect {path}");
+        if (_git.Connect(path) is string refusal)
+        {
+            // Said, not just printed. A picker that closes and does nothing
+            // visible is indistinguishable from one that worked.
+            GD.Print($"git: {refusal}");
+            Say(refusal.EndsWith("is already connected.")
+                ? "Already watching that one."
+                : "That's not a repository.");
+            return;
+        }
+        Say($"Watching {System.IO.Path.GetFileName(path.TrimEnd('/'))}!");
     }
 
     // MARK: - The Warren

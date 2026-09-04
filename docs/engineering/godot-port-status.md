@@ -958,6 +958,15 @@ game is 16 MB and the engine plus .NET runtime is everything else.
   transform out of a scene file into code silently rotates the whole rig
   somewhere else — the model lands hundreds of pixels off-frame and the viewport
   renders a clean, convincing empty box. `ModelBay.Rig` transposes on the way in.
+- **macOS refuses to make an always-on-top window transient**, and `Window.Popup`
+  makes a window transient to its parent. The combination logs
+  `Windows with the 'on top' can't become transient` and leaves you with a dialog
+  that never appears. Drop the on-top flag, not the popup.
+- **A native `DisplayServer.FileDialogShow` callback can simply never arrive.**
+  The dialog opened, a folder was chosen, and nothing happened — no error, no
+  signal. Godot's own `FileDialog` emits an ordinary signal that can be driven
+  from a check without a person clicking anything, which is worth more than the
+  nicer-looking panel.
 - **`sed` addresses count input lines.** Deleting line 1 does not renumber line 2,
   so `sed -e '/banner/d' -e '1{/^$/d;}'` leaves the blank line under the banner in
   place — which is enough to make a stored probe reference never match.

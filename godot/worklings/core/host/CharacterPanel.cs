@@ -2,6 +2,7 @@ using Godot;
 using System.Collections.Generic;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
+using Worklings.Core.Stage;
 
 namespace Worklings.Core.Host;
 
@@ -317,14 +318,14 @@ public partial class CharacterPanel : PanelContainer
 
     /// Which family the Workling belongs to.
     ///
-    /// All five are listed and two are greyed out, which is deliberate: the
-    /// roster reads as five so the shape of the design is visible, and Glitchkin
-    /// and Bloomglass un-grey on their own the day their art is baked.
+    /// All five are listed and the ones with no body are greyed out — the roster
+    /// reads as five so the shape of the design is visible, and each un-greys on
+    /// its own the day its model lands. `PetBody` is the gate, not Swift's
+    /// `HasArt`, which is about sprite sheets this build does not use.
     ///
-    /// A caveat this screen cannot show: in the Godot build **every** family
-    /// currently renders as the Tempest Ram, because nothing maps a family to a
-    /// model yet. `HasArt` is about the legacy sprite sheets, and it is the
-    /// honest gate until that mapping exists.
+    /// A caveat this screen cannot show: choosing a family changes the pet's
+    /// mechanics and **not** its body. Every family still renders as the Tempest
+    /// Ram until the model swap is wired up.
     private Control FamilyPicker(PetState state)
     {
         var picker = Picker("Family");
@@ -332,11 +333,10 @@ public partial class CharacterPanel : PanelContainer
         for (int i = 0; i < families.Length; i++)
         {
             var family = families[i];
+            bool pickable = PetBody.IsPickable(family);
             picker.AddItem(
-                family.HasArt()
-                    ? family.DisplayName()
-                    : $"{family.DisplayName()} (coming soon)", i);
-            picker.SetItemDisabled(i, !family.HasArt());
+                pickable ? family.DisplayName() : $"{family.DisplayName()} (coming soon)", i);
+            picker.SetItemDisabled(i, !pickable);
             if (family == state.Family) picker.Selected = i;
         }
         picker.ItemSelected += index =>
