@@ -251,7 +251,6 @@ public sealed class PetMenu
         _root.AddSeparator();
 
         _root.AddItem("Rename…", (int)PetMenuChoice.Rename);
-        _root.SetItemDisabled(_root.ItemCount - 1, true);
         _root.AddItem("Quit", (int)PetMenuChoice.Quit);
 
         // One theme, carrying the font size with it. A popup's Size is in

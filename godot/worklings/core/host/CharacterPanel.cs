@@ -108,7 +108,7 @@ public partial class CharacterPanel : PanelContainer
         _bay ??= new ModelBay(S(230), _scale);
         column.AddChild(_bay);
 
-        column.AddChild(Heading(sheet.Name));
+        column.AddChild(NameField(sheet.Name, state));
         column.AddChild(Line(
             $"{sheet.Family.DisplayName()}  ·  {sheet.PetClass.DisplayName()}  ·  Level {sheet.Level}",
             WorklingsTheme.Muted));
@@ -310,6 +310,68 @@ public partial class CharacterPanel : PanelContainer
         margin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         margin.AddChild(inner);
         return margin;
+    }
+
+    /// The Workling's name, editable in place.
+    ///
+    /// A field rather than a dialog, and here rather than in the menu, because
+    /// this is the screen about *who the pet is* — the same place family and
+    /// class belong. The menu item now opens this screen instead of being
+    /// permanently greyed out.
+    ///
+    /// Committed on Enter or on losing focus, never per keystroke: a rename that
+    /// fired on every character would write the save two dozen times and show
+    /// the pet being called "F", then "Fr", then "Fre".
+    private Control NameField(string name, PetState state)
+    {
+        var field = new LineEdit
+        {
+            Text = name,
+            // The cap PetState enforces anyway. Enforcing it here too means the
+            // field cannot show a name that would be silently refused.
+            MaxLength = PetState.MaximumNameLength,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+        };
+        field.AddThemeFontOverride(
+            "font", GD.Load<Font>("res://assets/fonts/ChakraPetch-Bold.ttf"));
+        field.AddThemeFontSizeOverride("font_size", S(21));
+        field.AddThemeColorOverride("font_color", WorklingsTheme.Ink);
+
+        // It has to LOOK like a field. Drawn with the theme's default
+        // LineEdit background it was indistinguishable from the heading it
+        // replaced, so the one new thing on this screen was invisible — the same
+        // way the repository picker was, and for the same reason.
+        var box = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.05f) };
+        box.SetCornerRadiusAll(S(5));
+        box.ContentMarginLeft = box.ContentMarginRight = S(8);
+        box.ContentMarginTop = box.ContentMarginBottom = S(4);
+        var focused = new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.09f) };
+        focused.SetCornerRadiusAll(S(5));
+        focused.ContentMarginLeft = focused.ContentMarginRight = S(8);
+        focused.ContentMarginTop = focused.ContentMarginBottom = S(4);
+        focused.BorderWidthBottom = S(2);
+        focused.BorderColor = WorklingsTheme.Brass with { A = 1 };
+        field.AddThemeStyleboxOverride("normal", box);
+        field.AddThemeStyleboxOverride("focus", focused);
+
+        void Commit()
+        {
+            // PetState.Renamed refuses an empty or over-long name by returning
+            // the state unchanged, so the field is put back to whatever the pet
+            // is actually called rather than left showing a name it does not
+            // have.
+            var renamed = state.Renamed(field.Text);
+            if (!renamed.Equals(state))
+            {
+                StateChanged?.Invoke(renamed);
+                return;
+            }
+            field.Text = state.Name;
+        }
+
+        field.TextSubmitted += _ => Commit();
+        field.FocusExited += Commit;
+        return field;
     }
 
     private Label Heading(string text)

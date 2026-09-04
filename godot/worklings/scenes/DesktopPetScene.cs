@@ -458,6 +458,9 @@ public partial class DesktopPetScene : Node3D
             case PetMenuChoice.ConnectRepo:
                 ConnectARepository();
                 break;
+            // Renaming lives on the character screen, next to the rest of who
+            // the Workling is, so the menu item takes you there.
+            case PetMenuChoice.Rename:
             case PetMenuChoice.CharacterSheet:
                 _character.Open(_session.State, _screen);
                 break;
