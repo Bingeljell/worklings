@@ -17,8 +17,8 @@ and back out of (PRs #49, #50, #51).
 **In flight on `feature/godot-character-and-activity`** — pushed, no PR yet, a
 combined one goes up when the branch is done. The character window is finished,
 model bay included; the plan below is on the branch too. Nothing is
-half-finished; it is a clean place to resume from. **Next up is commit 7,
-`PetBrain.observe` — the commit where the pet starts noticing.**
+half-finished; it is a clean place to resume from. **Next up is commit 8,
+`ActivityInbox` — the queue events arrive on.**
 
 ### Run it
 
@@ -56,8 +56,9 @@ one** — deferrable if it comes to it, but that is the target.
    pet's light rig and lens, pulled in to 80% of its distance because the bay is
    a letterbox where the pet's window is a square. Drag it to turn the Workling.
 
-**B. The activity pipeline** — 5 of 6 commits left, and the product hook. **The pet does
-not yet notice you working**, which is the whole premise of the thing.
+**B. The activity pipeline** — 4 of 6 commits left, and the product hook. **The
+pet knows how to notice you working and has nothing telling it that you are**,
+which is the whole premise of the thing still waiting on a delivery mechanism.
 
 6. ~~`ActivityEvent` + `ActivityContext`~~ — done, and byte-identical to Swift
    over 44 reference lines. The subtlety was where it was expected: `awaySince`
@@ -65,8 +66,12 @@ not yet notice you working**, which is the whole premise of the thing.
    "still away" ping refreshes expiry without erasing how long the absence has
    been, and a return slides an open work block's start forward by the time
    spent away rather than counting it as focus.
-7. **`PetBrain.observe`** — the activity half, ~290 lines, probed against Swift
-   like the care half was. This is the commit where the pet starts noticing.
+7. ~~`PetBrain.observe`~~ — done, the activity half probed against Swift like
+   the care half was, byte-identical over 62 reference lines. `Advance` takes
+   an `ActivityContext` again, so working burns hunger and energy faster and an
+   absence drains trust at one of two rates. `PetSimulationRates.Scaled` and
+   `PetActionAvailability` came across with it. **The pet can now notice — but
+   nothing delivers it an event yet, which is commits 8 and 9.**
 8. **`ActivityInbox`** (165 lines) — the queue events arrive on and drain from.
 9. **`ActivitySources`** (153 lines), including the local-git source, which is
    the one that works with no setup at all.
@@ -181,10 +186,12 @@ until the Godot side can replace a mode outright.
 | `ScreenPlacement` | 180 | `core/host/ScreenPlacement.cs` | 60 lines: a negative-origin second monitor, a window larger than its screen, the roaming cycle and its minimum-travel flip |
 | `ActivityEvent` — kinds, the event, `ActivityContext`, the simulated source | 195 | `core/pet/ActivityEvent.cs` | 44 lines: every kind's reducer, the idle heartbeat that must not restart the absence, the return that slides an open work block forward, both sides of every expiry boundary |
 | `PetBrain` — the **care half** | ~250 of 543 | `core/pet/PetBrain.cs` | 110 lines: a negative elapsed time, the week-long offline cap, the distress thresholds, the too-tired-to-play boundary, the daily cap, a level-crossing grant, gear surviving a care action |
+| `PetBrain` — the **activity half** | ~290 of 543 | `core/pet/PetBrain.cs` | 62 lines: every kind observed on a healthy and on a tired pet, the working multipliers, both away tiers and the grace boundary exactly, a focus session either side of its minimum and one truncated by an absence, the Log Work cooldown and daily cap, scaled rates |
+| `PetActionAvailability` | 9 of 330 (`PetCareStatus`) | `core/pet/PetBrain.cs` | with `WorkLogAvailability`, above |
 
-**~3,931 of 5,351 lines.** Verification is against reference output captured
+**~4,230 of 5,351 lines.** Verification is against reference output captured
 from the running Swift implementation, not against expectations — see
-"Why verification mattered" below. **779 reference lines across fourteen probes**,
+"Why verification mattered" below. **841 reference lines across fifteen probes**,
 all diffing clean.
 
 ## What is not ported
@@ -194,9 +201,9 @@ will want it:
 
 | Swift | Lines | Why it matters next |
 | --- | --- | --- |
-| `PetBrain` — the **activity half** | ~290 of 543 | `observe`, `workLogAvailability` and the response machinery. **Unblocked** — `ActivityEvent`/`ActivityContext` are ported; the care half already is. This is the next commit. |
-| `PetCareStatus`, `PetPresentation` | ~330 | Condition and presentation. |
-| `ActivityInbox`, `ActivitySources`, `ToolConnector`, `HookConfigMerger` | 901 | The rest of the activity pipeline. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
+| `ActivityInbox`, `ActivitySources` | ~318 | How an event actually reaches the pet. `PetBrain.Observe` exists and nothing calls it yet; this is what makes the premise real. |
+| `PetCareStatus`, `PetPresentation` | ~321 | Condition and presentation. `PetActionAvailability` came across with `WorkLogAvailability`; the rest has not. |
+| `ToolConnector`, `HookConfigMerger` | 583 | The Claude Code and Codex connectors. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
 
 And none of the **app**: menubar host, character screen, inventory, care UI,
 desktop pet. Those are SwiftUI and have no Godot counterpart yet.
@@ -603,9 +610,10 @@ demo:
 
   These want doing together: one effects vocabulary, built in Godot, used on the
   desktop and in the fight, rather than two unrelated piles of particles.
-- **The pet does not notice you working.** Care is in; the activity half of
-  `PetBrain` is not, and cannot be until `ActivityEvent` and `ActivityContext`
-  are ported. That is the product hook, and it is the largest thing still
+- **Nothing tells the pet you are working.** Care is in and so is the activity
+  half of `PetBrain` — `Observe` handles every kind of event and is verified
+  against Swift — but `ActivityInbox` and `ActivitySources` are not, so nothing
+  ever calls it. That is the product hook, and it is the largest thing still
   missing.
 - **Nothing about notifications or a dock/menu-bar presence.**
 - **Multi-monitor is placement only.** Nothing reacts to a monitor being unplugged
@@ -667,7 +675,7 @@ The probes, in dependency order: `rng_probe`, `bounded_draw_probe`,
 `resolve_probe`, `fight_probe`, `progression_probe`, `items_probe`,
 `daily_tally_probe`, `pet_state_probe`, `combatant_bridge_probe`,
 `combat_rewards_probe`, `delve_probe`, `character_sheet_probe`,
-`activity_probe`.
+`activity_probe`, `observe_probe`.
 
 **Capture the Swift side.** `CompanionCore` is a library with no runnable entry
 point, and SPM leaves no linkable archive to build against, so the reference
@@ -701,8 +709,8 @@ scripts/godot-probe persistence     # just that one
 scripts/godot-probe --record persistence
 ```
 
-**`activity`, `persistence`, `placement` and `care` have stored references**; the
-other nine want the same treatment, which is a re-capture from Swift each, not a rename. `--record` is
+**`activity`, `observe`, `persistence`, `placement` and `care` have stored
+references**; the other nine want the same treatment, which is a re-capture from Swift each, not a rename. `--record` is
 only correct once the new output has been checked against the Swift original —
 recording a regression is exactly as easy as recording a fix.
 

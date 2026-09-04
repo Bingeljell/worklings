@@ -1,0 +1,62 @@
+== advance under a context ==
++2h quiet: needs=28.0000 74.0000 68.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
++2h working: needs=30.0000 72.2000 68.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
++2h away 30m: needs=28.0000 74.0000 68.0000 46.0000 xp=0.0000 lv=1 log=0 lastLog=-
++2h away exactly 1h: needs=28.0000 74.0000 68.0000 46.0000 xp=0.0000 lv=1 log=0 lastLog=-
++2h away 90m: needs=28.0000 74.0000 68.0000 49.6000 xp=0.0000 lv=1 log=0 lastLog=-
++2h away and working: needs=30.0000 72.2000 68.0000 49.6000 xp=0.0000 lv=1 log=0 lastLog=-
+== observe, every kind ==
+dailyWake [happyToSeeYou]: needs=24.0000 77.0000 72.0000 51.0000 xp=13.6000 lv=1 log=0 lastLog=-
+workStarted [startedWorking]: needs=24.0000 77.0000 69.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+workEnded [tookABreak]: needs=24.0000 77.0000 69.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+taskCompleted [celebratedTask]: needs=24.0000 77.0000 73.0000 50.0000 xp=10.2000 lv=1 log=0 lastLog=-
+taskFailed [sharedSetback]: needs=28.0000 74.0000 66.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+awaitingInput [waitingOnYou]: needs=24.0000 77.0000 69.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+milestone [proudOfMilestone]: needs=24.0000 77.0000 75.0000 52.0000 xp=27.2000 lv=1 log=0 lastLog=-
+userIdle [noticedYouAreAway]: needs=24.0000 77.0000 69.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+userReturned [gladYouAreBack]: needs=24.0000 77.0000 69.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+workLogged [loggedWork]: needs=24.0000 77.0000 72.0000 50.0000 xp=3.4000 lv=1 log=1 lastLog=3600.0000
+== observe on a tired pet ==
+dailyWake [happyToSeeYou]: needs=89.0000 9.0000 31.1675 25.7780 xp=4.0000 lv=1 log=0 lastLog=-
+workStarted [startedWorking]: needs=89.0000 9.0000 28.1675 24.7780 xp=0.0000 lv=1 log=0 lastLog=-
+workEnded [tookABreak]: needs=89.0000 9.0000 28.1675 24.7780 xp=0.0000 lv=1 log=0 lastLog=-
+taskCompleted [celebratedTask]: needs=89.0000 9.0000 32.1675 24.7780 xp=3.0000 lv=1 log=0 lastLog=-
+taskFailed [sharedSetback]: needs=93.0000 6.0000 25.1675 24.7780 xp=0.0000 lv=1 log=0 lastLog=-
+awaitingInput [waitingOnYou]: needs=89.0000 9.0000 28.1675 24.7780 xp=0.0000 lv=1 log=0 lastLog=-
+milestone [proudOfMilestone]: needs=89.0000 9.0000 34.1675 26.7780 xp=8.0000 lv=1 log=0 lastLog=-
+userIdle [noticedYouAreAway]: needs=89.0000 9.0000 28.1675 24.7780 xp=0.0000 lv=1 log=0 lastLog=-
+userReturned [gladYouAreBack]: needs=89.0000 9.0000 28.1675 24.7780 xp=0.0000 lv=1 log=0 lastLog=-
+workLogged [loggedWork]: needs=89.0000 9.0000 31.1675 24.7780 xp=1.0000 lv=1 log=1 lastLog=3600.0000
+== a focus session ==
+0.0000m [tookABreak]: needs=20.0000 80.0000 70.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+9.0000m [tookABreak]: needs=20.7500 79.4150 69.8500 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+10.0000m [tookABreak]: needs=20.8333 79.3500 69.8333 50.0000 xp=13.9175 lv=1 log=0 lastLog=-
+11.0000m [tookABreak]: needs=20.9167 79.2850 69.8167 50.0000 xp=15.3002 lv=1 log=0 lastLog=-
+45.0000m [tookABreak]: needs=23.7500 77.0750 69.2500 50.0000 xp=61.3294 lv=1 log=0 lastLog=-
+600.0000m [tookABreak]: needs=70.0000 41.0000 60.0000 50.0000 xp=200.0000 lv=2 log=0 lastLog=-
+no workingSince [tookABreak]: needs=25.0000 76.1000 69.0000 50.0000 xp=0.0000 lv=1 log=0 lastLog=-
+ended while away [tookABreak]: needs=25.0000 76.1000 69.0000 48.0000 xp=40.2150 lv=1 log=0 lastLog=-
+away before the block [tookABreak]: needs=25.0000 76.1000 69.0000 48.0000 xp=0.0000 lv=1 log=0 lastLog=-
+== logging work ==
+log 1 [loggedWork]: needs=24.0000 77.0000 72.0000 50.0000 xp=3.4000 lv=1 log=1 lastLog=3600.0000
+log 2 [loggedWork]: needs=28.0000 74.0000 74.0000 50.0000 xp=6.7375 lv=1 log=2 lastLog=7200.0000
+log 3 [loggedWork]: needs=32.0000 71.0000 76.0000 50.0000 xp=10.0125 lv=1 log=3 lastLog=10800.0000
+log 4 [loggedWork]: needs=36.0000 68.0000 78.0000 50.0000 xp=13.2250 lv=1 log=4 lastLog=14400.0000
+log 5 [loggedWork]: needs=40.0000 65.0000 80.0000 50.0000 xp=16.3750 lv=1 log=5 lastLog=18000.0000
+log 6 [loggedWork]: needs=44.0000 62.0000 82.0000 50.0000 xp=19.4625 lv=1 log=6 lastLog=21600.0000
+log 7 [loggedWork]: needs=48.0000 59.0000 84.0000 50.0000 xp=22.4875 lv=1 log=7 lastLog=25200.0000
+log 8 [loggedWork]: needs=52.0000 56.0000 86.0000 50.0000 xp=25.4500 lv=1 log=8 lastLog=28800.0000
+== log availability ==
+never logged: enabled=true why=-
+0.0000m after a log: enabled=false why=Give it 30 more minutes before logging again.
+1.0000m after a log: enabled=false why=Give it 29 more minutes before logging again.
+29.0000m after a log: enabled=false why=Give it a minute before logging again.
+29.5000m after a log: enabled=false why=Give it a minute before logging again.
+30.0000m after a log: enabled=true why=-
+45.0000m after a log: enabled=true why=-
+at the daily cap: enabled=false why=Fixture has logged enough work for today.
+== scaled rates ==
+x1.0000: hunger=4.0000 energy=3.0000 happiness=1.0000 offline=168.0000 away=2.0000 grace=1.0000 longAway=0.2000 cooldown=30.0000 cap=6 gain=3.0000
+x60.0000: hunger=240.0000 energy=180.0000 happiness=60.0000 offline=168.0000 away=120.0000 grace=0.0167 longAway=12.0000 cooldown=0.5000 cap=6 gain=3.0000
+x0.5000: hunger=2.0000 energy=1.5000 happiness=0.5000 offline=168.0000 away=1.0000 grace=2.0000 longAway=0.1000 cooldown=60.0000 cap=6 gain=3.0000
+x0.0000: hunger=0.0000 energy=0.0000 happiness=0.0000 offline=168.0000 away=0.0000 grace=1.0000 longAway=0.0000 cooldown=30.0000 cap=6 gain=3.0000
