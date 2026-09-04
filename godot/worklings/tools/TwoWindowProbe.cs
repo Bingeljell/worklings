@@ -98,7 +98,6 @@ public partial class TwoWindowProbe : Node3D
         // A new window in an app that is not frontmost opens *behind* whatever
         // the user is looking at. Entering a delve is a deliberate act, so it
         // comes forward and takes focus.
-        _dungeon.MoveToForeground();
         _dungeon.GrabFocus();
 
         // The pet leaves. NOT by hiding the window — Godot refuses to change the

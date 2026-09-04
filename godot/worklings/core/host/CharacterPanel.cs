@@ -21,6 +21,8 @@ public partial class CharacterPanel : PanelContainer
     private readonly float _scale;
     private TabContainer _tabs = null!;
     private PetState _state = null!;
+    /// Built once and carried across rebuilds — see `Show`.
+    private ModelBay? _bay;
 
     public event System.Action<PetState>? StateChanged;
 
@@ -56,6 +58,12 @@ public partial class CharacterPanel : PanelContainer
         // Which tab the player was on survives a rebuild — equipping an item
         // should not throw them back to the Character tab.
         int current = _tabs.CurrentTab;
+        // The model bay survives the rebuild. It is the one child here that is
+        // expensive and stateful: freeing it would reload the .glb and restart
+        // the idle from frame one every time the player equips something, so
+        // the Workling would twitch on every button press. Pulled out of the
+        // old tree before the tabs are freed, and re-added by BuildCharacter.
+        _bay?.GetParent()?.RemoveChild(_bay);
         foreach (var child in _tabs.GetChildren())
         {
             child.QueueFree();
@@ -94,6 +102,11 @@ public partial class CharacterPanel : PanelContainer
     private Control BuildCharacter(CharacterSheet sheet, PetState state)
     {
         var column = Column();
+
+        // The Workling first, then who it is. The bay is the reason this screen
+        // exists rather than a stat readout in the menu.
+        _bay ??= new ModelBay(S(230), _scale);
+        column.AddChild(_bay);
 
         column.AddChild(Heading(sheet.Name));
         column.AddChild(Line(

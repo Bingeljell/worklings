@@ -49,7 +49,7 @@ public partial class SmokePuff : Node2D
         var texture = GD.Load<Texture2D>("res://assets/effects/smoke_puff.png");
         var frames = new SpriteFrames();
         frames.SetAnimationSpeed("default", FrameCount / System.Math.Max(Seconds, 0.05f));
-        frames.SetAnimationLoop("default", false);
+        frames.SetAnimationLoopMode("default", SpriteFrames.LoopMode.None);
 
         for (int i = 0; i < FrameCount; i++)
         {

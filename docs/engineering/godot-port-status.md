@@ -15,9 +15,10 @@ If this session is gone, start here.
 and back out of (PRs #49, #50, #51).
 
 **In flight on `feature/godot-character-and-activity`** — pushed, no PR yet, a
-combined one goes up when the branch is done. Two commits so far: the character
-window, and this plan. Nothing on the branch is half-finished; it is a clean
-place to resume from.
+combined one goes up when the branch is done. The character window is finished,
+model bay included; the plan below is on the branch too. Nothing is
+half-finished; it is a clean place to resume from. **Next up is commit 6,
+`ActivityEvent` + `ActivityContext`.**
 
 ### Run it
 
@@ -26,7 +27,13 @@ scripts/godot-pet      # the desktop pet — this is the app
 scripts/godot-export   # a real Worklings.app in dist/godot/
 scripts/godot-probe    # every probe with a stored reference, diffed
 /Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon alone
+/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://tools/character_shot.tscn   # two frames of the character window, to user://
 ```
+
+`character_shot` is the sibling of `fight_shot`: the model bay either renders or
+comes up as a black rectangle, and no text probe can tell the difference. It also
+prints the idle's playhead, because a still model and a live one are identical in
+a screenshot.
 
 **Right-click** the pet for the menu, **click** it to pet it. Developer keys:
 **Esc** quit · **Tab** next monitor · **C** click-through · **R** roaming ·
@@ -37,15 +44,17 @@ scripts/godot-probe    # every probe with a stored reference, diffed
 Agreed 2026-09-04. **The next alpha ships from the Godot build, not the Swift
 one** — deferrable if it comes to it, but that is the target.
 
-**A. The character window** — 1 of 5 commits left.
+**A. The character window** — done.
 
 1. ~~The window and its tabs.~~ Done.
 2. ~~The Character tab.~~ Done.
 3. ~~The Inventory tab, with equip and unequip.~~ Done.
 4. ~~Wire "Character sheet…" in the menu.~~ Done.
-5. **The model bay** — the actual Workling standing in the window. `StageActor`
-   already does this twice, and `CharacterWindow` already gives the window its
-   own `World3D` for it. This is the only piece outstanding.
+5. ~~The model bay~~ — done. A `SubViewport` inside the Character tab rather
+   than a camera hung off the window: the bay has to sit in the tab's layout,
+   and only a viewport inside a `Control` does that. It carries the desktop
+   pet's light rig and lens, pulled in to 80% of its distance because the bay is
+   a letterbox where the pet's window is a square. Drag it to turn the Workling.
 
 **B. The activity pipeline** — 6 commits, and the product hook. **The pet does
 not yet notice you working**, which is the whole premise of the thing.
@@ -848,6 +857,11 @@ game is 16 MB and the engine plus .NET runtime is everything else.
   Unix epoch is a 31-year error that still round-trips perfectly through C#.
 - **A nil optional is an absent key, not a `null`.** Swift's synthesized encoder
   uses `encodeIfPresent`. Both decode the same, so this only shows up as a diff.
+- **A `.tscn` writes a basis as ROWS; the C# `Transform3D` constructor takes
+  COLUMNS.** The same twelve numbers, transposed. Copying a camera or a light
+  transform out of a scene file into code silently rotates the whole rig
+  somewhere else — the model lands hundreds of pixels off-frame and the viewport
+  renders a clean, convincing empty box. `ModelBay.Rig` transposes on the way in.
 - **`sed` addresses count input lines.** Deleting line 1 does not renumber line 2,
   so `sed -e '/banner/d' -e '1{/^$/d;}'` leaves the blank line under the banner in
   place — which is enough to make a stored probe reference never match.

@@ -42,7 +42,6 @@ public sealed class CharacterWindow
         if (_window is not null)
         {
             _panel?.Show(state);
-            _window.MoveToForeground();
             _window.GrabFocus();
             return;
         }
@@ -65,9 +64,6 @@ public sealed class CharacterWindow
             Position = new Vector2I(
                 (int)(frame.X + (frame.Width - size.X) / 2),
                 (int)(frame.Y + (frame.Height - size.Y) / 2)),
-            // Its own 3D world, for the model bay. Without it the bay renders
-            // whatever the pet's window is looking at.
-            World3D = new World3D(),
         };
         _host.AddChild(_window);
 
@@ -79,7 +75,6 @@ public sealed class CharacterWindow
 
         _window.CloseRequested += Close;
         _window.Show();
-        _window.MoveToForeground();
         _window.GrabFocus();
     }
 

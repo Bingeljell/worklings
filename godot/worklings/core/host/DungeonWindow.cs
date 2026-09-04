@@ -56,7 +56,6 @@ public sealed class DungeonWindow
             // Already down there. Bring it forward rather than opening a second
             // delve on the same pet — two runs resolving into one Workling would
             // each write back a result computed from the same starting state.
-            _window.MoveToForeground();
             _window.GrabFocus();
             return;
         }
@@ -113,7 +112,6 @@ public sealed class DungeonWindow
         _window.Show();
         // A new window in an app that is not frontmost opens behind whatever the
         // player is looking at. Entering a delve is a deliberate act.
-        _window.MoveToForeground();
         _window.GrabFocus();
     }
 
