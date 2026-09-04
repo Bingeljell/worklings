@@ -14,11 +14,16 @@ If this session is gone, start here.
 `main` has the full loop: a pet on the desktop, care, and a delve it walks into
 and back out of (PRs #49, #50, #51).
 
-**In flight on `feature/godot-character-and-activity`** — pushed, no PR yet, a
-combined one goes up when the branch is done. The character window is finished,
-model bay included; the plan below is on the branch too. Nothing is
-half-finished; it is a clean place to resume from. **Next up is commit 10, wiring the
-pipeline into the pet** — the first point at which any of this is visible.
+**Up as [PR #52](https://github.com/Bingeljell/worklings/pull/52)** from
+`feature/godot-character-and-activity`: the character window finished, model bay
+included, and the whole activity pipeline's logic ported and probed. That branch
+is done; **the next work starts from a fresh one off `main`.**
+
+**Next is commit 10, wiring the pipeline into the pet** — the first point at
+which any of the activity work is visible — and then commit 11, the connectors.
+Both are a different kind of work from everything above: I/O rather than logic,
+with no Swift output to diff against on Windows or Linux, and the first thing
+here that has to be sat down with and manually tested.
 
 ### Run it
 
