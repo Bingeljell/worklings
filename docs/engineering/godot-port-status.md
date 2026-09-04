@@ -16,14 +16,16 @@ and back out of (PRs #49, #50, #51).
 
 **Up as [PR #52](https://github.com/Bingeljell/worklings/pull/52)** from
 `feature/godot-character-and-activity`: the character window finished, model bay
-included, and the whole activity pipeline's logic ported and probed. That branch
-is done; **the next work starts from a fresh one off `main`.**
+included, and the whole activity pipeline's logic ported and probed.
 
-**Next is commit 10, wiring the pipeline into the pet** — the first point at
-which any of the activity work is visible — and then commit 11, the connectors.
-Both are a different kind of work from everything above: I/O rather than logic,
-with no Swift output to diff against on Windows or Linux, and the first thing
-here that has to be sat down with and manually tested.
+**In flight on `feature/godot-activity-wiring`**, branched off that PR rather
+than off `main` because it depends on it. **When #52 merges — as a squash —
+this branch must be rebased**, or it carries nine commits' worth of the same
+work twice.
+
+**The pet now notices you working.** Commit 10 is done: a session that owns the
+live Workling, a spool watcher, a presence poll and a git watcher. What is left
+is **commit 11, the connectors** — the flagged unknown, and still flagged.
 
 ### Run it
 
@@ -33,7 +35,21 @@ scripts/godot-export   # a real Worklings.app in dist/godot/
 scripts/godot-probe    # every probe with a stored reference, diffed
 /Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon alone
 /Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://tools/character_shot.tscn   # two frames of the character window, to user://
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot/worklings res://tools/presence_check.tscn   # the idle clock and both crossings
+WORKLINGS_GIT_CHECK=<repo> /Applications/Godot.app/Contents/MacOS/Godot --headless --path godot/worklings res://tools/git_check.tscn   # the git source against a real repo
 ```
+
+**Feeding the pet an event by hand**, which is how the inbox was tested:
+
+```bash
+WORKLINGS_INBOX_DIR=/tmp/inbox scripts/godot-pet &
+echo '{"kind":"milestone","sourceId":"codex"}' > /tmp/inbox/a.json
+```
+
+`WORKLINGS_INBOX_DIR` and `WORKLINGS_SAVE` both point a run away from the real
+thing. For the inbox that matters more than for the save: the inbox is
+drain-and-delete, so a test run on the real directory would *eat* the app's
+events rather than merely read them.
 
 `character_shot` is the sibling of `fight_shot`: the model bay either renders or
 comes up as a black rectangle, and no text probe can tell the difference. It also
@@ -85,9 +101,24 @@ which is the whole premise of the thing still waiting on a delivery mechanism.
 9. ~~`ActivityInbox`~~ — done. The trust boundary: one small JSON file per
    event, decoded and validated, with **no field for content of any kind**, so
    the privacy promise is structural rather than a policy.
-10. **Wire it into the pet** — reactions fire on real events, and the XP path
-    that has been ported since day one finally has something feeding it.
+10. ~~Wire it into the pet~~ — done, in four commits. `PetSession` owns the
+    live Workling and is the one place that decides when to save and when the
+    pet may speak. `ActivityInboxWatcher` drains the spool directory,
+    `PresenceWatcher` reads the machine's idle clock, and `GitCommitWatcher`
+    turns forward commits into milestones. The pet also ages on a timer now,
+    which it did not before — its needs only moved when it was interacted with.
+
+    **Verified by driving it, not by reading it.** Seven files into a running
+    pet's inbox: two landed, five refused by name, the directory came back
+    empty. Five milestones at once emoted once and paid all five. A repo with
+    three commits paid nothing at connect; one made while watching paid once;
+    an amend paid nothing. And `away` stayed pinned while `last` advanced,
+    which is the entire reason those two clocks are kept apart.
 11. **`ToolConnector` + `HookConfigMerger`** (583 lines) — Claude Code and Codex.
+    Now the only thing between here and an alpha off the Godot build. Note that
+    the inbox it writes adapters *for* is live and tested: a file dropped into
+    the spool directory already reaches the pet, so this commit is about
+    installing the hooks that write those files, not about the path they take.
 
 > **Where the estimate breaks: commit 11.** Everything before it is a port with a
 > Swift reference to diff against, which is predictable work. These two write
@@ -623,12 +654,17 @@ demo:
 
   These want doing together: one effects vocabulary, built in Godot, used on the
   desktop and in the fight, rather than two unrelated piles of particles.
-- **Nothing tells the pet you are working.** Every piece of the pipeline's
-  *logic* is now ported and verified — `Observe`, the inbox's trust boundary,
-  the sources' decisions — and nothing calls any of it. What is missing is the
-  wiring and the I/O around it: something to watch the spool directory, poll for
-  idleness, and read a repository's HEAD. That is the product hook, and it is
-  the largest thing still missing.
+- **The pet notices you working, and nothing installs the hooks that tell it.**
+  The pipeline is live end to end — an adapter that drops a file into the spool
+  directory reaches the pet today, and presence and local git need no adapter at
+  all. What is missing is `ToolConnector` and `HookConfigMerger`, which write
+  the hook configuration into Claude Code and Codex so that dropping the file
+  happens without the user doing it by hand.
+- **Presence is macOS only.** The idle clock is CoreGraphics; Windows has
+  `GetLastInputInfo` and Linux has the X11/Wayland idle extensions, and neither
+  exists here in any language. The watcher says so and stays inert.
+- **A connected repository cannot be disconnected from the menu.** It means
+  editing `user://connected-repos.json` by hand.
 - **Nothing about notifications or a dock/menu-bar presence.**
 - **Multi-monitor is placement only.** Nothing reacts to a monitor being unplugged
   while the pet is standing on it.
