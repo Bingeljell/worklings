@@ -131,6 +131,7 @@ public partial class DesktopPetScene : Node3D
 
     private PetSession _session = null!;
     private ActivityInboxWatcher _inbox = null!;
+    private PresenceWatcher _presence = null!;
     private WakeStamp _wake = null!;
     /// Seconds until the next needs tick. Without one the pet only ages when it
     /// is interacted with, which is exactly backwards for a creature whose whole
@@ -199,6 +200,9 @@ public partial class DesktopPetScene : Node3D
         // outside the app dropping a file, and the pet noticing.
         _inbox = new ActivityInboxWatcher(_session);
         AddChild(_inbox);
+
+        _presence = new PresenceWatcher(_session);
+        AddChild(_presence);
 
         // Last, once every window and listener exists. Greeting any earlier
         // means the pet changes before there is anything to show it on — which
