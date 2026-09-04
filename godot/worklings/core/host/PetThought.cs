@@ -10,10 +10,9 @@ namespace Worklings.Core.Host;
 /// — and did nothing at all on screen. An interaction the player cannot see the
 /// result of is one they stop performing.
 ///
-/// The lines are lifted verbatim from `PetReaction.thought` in
+/// The lines come from `PetPresentation`, the port of
 /// Sources/CompanionCore/PetPresentation.swift, so the two apps say the same
-/// things in the same voice. Only the reactions care can produce are here; the
-/// activity ones arrive with the activity pipeline.
+/// things in the same voice.
 public partial class PetThought : Node2D
 {
     /// How long the line hangs before it has gone entirely.
@@ -26,27 +25,11 @@ public partial class PetThought : Node2D
     private double _elapsed;
     private Vector2 _from;
 
-    public static string Thought(PetReaction reaction) => reaction switch
-    {
-        PetReaction.LikedFood => "Tasty!",
-        PetReaction.LovedFood => "My favourite!",
-        PetReaction.EnjoyedPlay => "That was fun!",
-        PetReaction.LovedPlay => "Again, again!",
-        PetReaction.Comforted => "I like you.",
-        PetReaction.Rested => "Much better.",
-        PetReaction.TooTiredToPlay => "Maybe after a nap…",
-        PetReaction.HappyToSeeYou => "A new day!",
-        PetReaction.CelebratedTask => "We did it!",
-        PetReaction.SharedSetback => "We'll get the next one.",
-        PetReaction.ProudOfMilestone => "Shipped!",
-        PetReaction.GladYouAreBack => "You're back!",
-        PetReaction.StartedWorking => "Let's get to work!",
-        PetReaction.TookABreak => "Taking a breather.",
-        PetReaction.WaitingOnYou => "Waiting on you…",
-        PetReaction.NoticedYouAreAway => "Oh, you're away…",
-        PetReaction.LoggedWork => "Logged!",
-        _ => "",
-    };
+    /// Delegated to `PetPresentation`, which is where the Swift original keeps
+    /// this table. It used to live here, back when PetPresentation was
+    /// unported — one copy is the whole point of the type.
+    public static string Thought(PetReaction reaction) =>
+        PetPresentation.ThoughtFor(reaction);
 
     public string Text { get; set; } = "";
 

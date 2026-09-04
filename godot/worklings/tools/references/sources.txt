@@ -1,0 +1,54 @@
+== source ids ==
+system: id=system kind=workStarted
+manual: id=manual kind=workLogged
+git: id=git kind=milestone
+simulated: id=simulated kind=milestone
+== git commit delta ==
+unchanged head: 0
+unchanged head, phantom count: 0
+one commit: 1
+three commits: 3
+rewritten history: 0
+over the cap: 10
+cap of zero: 0
+negative cap: 0
+negative count: 0
+empty repo, first commit: 1
+empty repo, several: 4
+empty repo, none yet: 0
+== emote throttle ==
+never emoted: true
++0.0s: false
++1.0s: false
++4.9s: false
++5.0s: true
++5.1s: true
++60.0s: true
+zero interval: true
+negative interval: true
+custom 60s at 30s: false
+custom 60s at 60s: true
+== daily wake ==
+never woken: true
++0.0h: false
++1.0h: false
++6.0h: false
++12.0h: false
++18.0h: true
++24.0h: true
++48.0h: true
+== presence ==
+idle 0s wasIdle false: -
+idle 0s wasIdle true: returned
+idle 60s wasIdle false: -
+idle 60s wasIdle true: returned
+idle 299s wasIdle false: -
+idle 299s wasIdle true: returned
+idle 300s wasIdle false: wentIdle
+idle 300s wasIdle true: stillIdle
+idle 301s wasIdle false: wentIdle
+idle 301s wasIdle true: stillIdle
+idle 3600s wasIdle false: wentIdle
+idle 3600s wasIdle true: stillIdle
+custom threshold 60, idle 59s: -
+custom threshold 60, idle 60s: wentIdle

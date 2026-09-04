@@ -1,0 +1,81 @@
+== who may emit what ==
+dailyWake: false
+workStarted: true
+workEnded: true
+taskCompleted: true
+taskFailed: true
+awaitingInput: true
+milestone: true
+userIdle: false
+userReturned: false
+workLogged: false
+accepted kinds: 6
+reserved system: true
+reserved manual: true
+reserved simulated: true
+reserved git: false
+reserved codex: false
+limits: age=1800.0 skew=120.0 bytes=4096 idLength=64
+== source ids ==
+"codex": true
+"claude-code": true
+"a": true
+"0": true
+"a.b_c-d": true
+"": false
+"-leading": false
+".leading": false
+"_leading": false
+"trailing-": true
+"Upper": false
+"has space": false
+"has/slash": false
+"has:colon": false
+"emoji✅": false
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": true
+"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": false
+== decode, the shape of the file ==
+valid, no timestamp: ok kind=taskCompleted source=codex at=0.000
+valid, explicit timestamp: ok kind=milestone source=codex at=-60.000
+uppercase source id: ok kind=milestone source=codex at=-60.000
+null timestamp: ok kind=milestone source=codex at=0.000
+extra fields ignored: ok kind=milestone source=codex at=0.000
+not json: refused unreadablePayload
+json array: refused unreadablePayload
+json string: refused unreadablePayload
+empty object: refused unreadablePayload
+missing sourceId: refused unreadablePayload
+missing kind: refused unreadablePayload
+kind is a number: refused unreadablePayload
+timestamp is a number: refused unreadablePayload
+unknown kind: refused unknownKind
+reserved kind, dailyWake: refused kindNotAccepted
+reserved kind, workLogged: refused kindNotAccepted
+reserved kind, userIdle: refused kindNotAccepted
+reserved source, system: refused reservedSourceId
+reserved source, manual: refused reservedSourceId
+reserved source, simulated: refused reservedSourceId
+git is not reserved: ok kind=milestone source=git at=0.000
+bad source id: refused invalidSourceId
+oversized but valid: refused payloadTooLarge
+== decode, the clock ==
+now: ok kind=milestone source=codex at=0.000
+a minute old: ok kind=milestone source=codex at=-60.000
+exactly the age limit: ok kind=milestone source=codex at=-1800.000
+a second past it: refused staleTimestamp
+exactly the skew limit: ok kind=milestone source=codex at=120.000
+a second past that: refused futureTimestamp
+fractional seconds: ok kind=milestone source=codex at=-0.500
+an offset zone: ok kind=milestone source=codex at=-60.000
+an offset with no colon: ok kind=milestone source=codex at=-60.000
+no zone at all: refused invalidTimestamp
+a date only: refused invalidTimestamp
+not a date: refused invalidTimestamp
+empty: refused invalidTimestamp
+== delivery order ==
+  workStarted codex -900.0
+  milestone git -500.0
+  taskCompleted codex -500.0
+  workEnded codex -100.0
+  awaitingInput codex 0.0
+empty: 0

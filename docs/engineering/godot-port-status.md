@@ -9,53 +9,123 @@
 
 If this session is gone, start here.
 
-**State:** the port now has a working loop. A desktop pet lives on the screen,
-can be cared for, goes into the Cache Warren and comes back changed. Persistence,
-the desktop shell, the menu and care are **merged to `main`** (PRs #49, #50). In
-flight on `feature/godot-pet-to-dungeon`: the pet-to-Warren handover and the
-smoke transition.
+### Where the work is
 
-**Run it:**
+`main` has the full loop: a pet on the desktop, care, and a delve it walks into
+and back out of (PRs #49, #50, #51).
+
+**Up as [PR #52](https://github.com/Bingeljell/worklings/pull/52)** from
+`feature/godot-character-and-activity`: the character window finished, model bay
+included, and the whole activity pipeline's logic ported and probed. That branch
+is done; **the next work starts from a fresh one off `main`.**
+
+**Next is commit 10, wiring the pipeline into the pet** — the first point at
+which any of the activity work is visible — and then commit 11, the connectors.
+Both are a different kind of work from everything above: I/O rather than logic,
+with no Swift output to diff against on Windows or Linux, and the first thing
+here that has to be sat down with and manually tested.
+
+### Run it
 
 ```bash
 scripts/godot-pet      # the desktop pet — this is the app
 scripts/godot-export   # a real Worklings.app in dist/godot/
 scripts/godot-probe    # every probe with a stored reference, diffed
-/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon on its own
+/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon alone
+/Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://tools/character_shot.tscn   # two frames of the character window, to user://
 ```
 
-Once the pet is up: **right-click it** for the menu, **click it** to pet it.
-Developer keys: **Esc** quit · **Tab** next monitor · **C** click-through ·
-**R** roaming · **W** the Warren.
+`character_shot` is the sibling of `fight_shot`: the model bay either renders or
+comes up as a black rectangle, and no text probe can tell the difference. It also
+prints the idle's playhead, because a still model and a live one are identical in
+a screenshot.
 
-**What is done:** the save file (byte-identical to the Swift app's), the shell
-(transparent, borderless, always-on-top, click-through, multi-monitor), export to
-a real `.app`, two windows, the right-click menu, the care half of `PetBrain`,
-the pet-to-Warren-and-back handover with its smoke transition, a shared theme,
-and floating reactions so care is visible.
+**Right-click** the pet for the menu, **click** it to pet it. Developer keys:
+**Esc** quit · **Tab** next monitor · **C** click-through · **R** roaming ·
+**W** the Warren · **S** the character sheet.
 
-**What is next, in order:**
+### The plan, in order
 
-1. **`ActivityEvent` / `ActivityContext`**, then `PetBrain`'s activity half, then
-   `ActivitySources`. This is the product hook — **the pet does not yet notice
-   you working** — and it is the only part that must also be re-authored for
-   Windows and Linux, where nothing exists in any language yet. About 1,100
-   lines of Swift plus whatever the two other platforms turn out to cost.
-2. **The dungeon's surfaces**, which are text rather than game UI. The theme
-   exists now; the prep screen, the steer prompt, bank-or-push and the summary
-   all want it and a designer's pass on top.
-3. **The remaining nine probe references**, so the whole suite catches
-   regressions rather than only the four newest slices.
+Agreed 2026-09-04. **The next alpha ships from the Godot build, not the Swift
+one** — deferrable if it comes to it, but that is the target.
 
-**Decisions already taken, do not relitigate without reading them:**
+**A. The character window** — done.
+
+1. ~~The window and its tabs.~~ Done.
+2. ~~The Character tab.~~ Done.
+3. ~~The Inventory tab, with equip and unequip.~~ Done.
+4. ~~Wire "Character sheet…" in the menu.~~ Done.
+5. ~~The model bay~~ — done. A `SubViewport` inside the Character tab rather
+   than a camera hung off the window: the bay has to sit in the tab's layout,
+   and only a viewport inside a `Control` does that. It carries the desktop
+   pet's light rig and lens, pulled in to 80% of its distance because the bay is
+   a letterbox where the pet's window is a square. Drag it to turn the Workling.
+
+**B. The activity pipeline** — 2 of 6 commits left, and the product hook. **The
+pet knows how to notice you working and has nothing telling it that you are**,
+which is the whole premise of the thing still waiting on a delivery mechanism.
+
+6. ~~`ActivityEvent` + `ActivityContext`~~ — done, and byte-identical to Swift
+   over 44 reference lines. The subtlety was where it was expected: `awaySince`
+   and `workingSince` are tracked *separately* from `lastEventAt`, so a repeated
+   "still away" ping refreshes expiry without erasing how long the absence has
+   been, and a return slides an open work block's start forward by the time
+   spent away rather than counting it as focus.
+7. ~~`PetBrain.observe`~~ — done, the activity half probed against Swift like
+   the care half was, byte-identical over 62 reference lines. `Advance` takes
+   an `ActivityContext` again, so working burns hunger and energy faster and an
+   absence drains trust at one of two rates. `PetSimulationRates.Scaled` and
+   `PetActionAvailability` came across with it. **The pet can now notice — but
+   nothing delivers it an event yet, which is commits 8 and 9.**
+8. ~~`ActivitySources`~~ — done. Ported **before** the inbox rather than after,
+   because the inbox's reserved-id list is built out of these source ids and
+   would otherwise have been written twice. All four decisions are pure: which
+   HEAD movements are forward progress, when a burst of events collapses to one
+   emote, when a new day has started, and where the idle threshold is crossed.
+9. ~~`ActivityInbox`~~ — done. The trust boundary: one small JSON file per
+   event, decoded and validated, with **no field for content of any kind**, so
+   the privacy promise is structural rather than a policy.
+10. **Wire it into the pet** — reactions fire on real events, and the XP path
+    that has been ported since day one finally has something feeding it.
+11. **`ToolConnector` + `HookConfigMerger`** (583 lines) — Claude Code and Codex.
+
+> **Where the estimate breaks: commit 11.** Everything before it is a port with a
+> Swift reference to diff against, which is predictable work. These two write
+> into other tools' config files, and on Windows and Linux those paths, formats
+> and conventions do not exist in this codebase in any language. That is not a
+> port, it is new design on two platforms with no machine here to test on. It
+> could be one commit or six. **Do not fold it into an estimate with the rest.**
+
+**C. Making it presentable** — 4 commits.
+
+12. **The dungeon's surfaces get the theme.** `WorklingsTheme` exists and the
+    prep screen is the natural first, since it already has a layout.
+13. **The three surface-less beats** — steer prompt, bank-or-push, summary. They
+    currently share the fight's narration label.
+14. **The remaining nine probe references**, so the suite catches regressions
+    rather than only the newest slices.
+15. **Export, sign, and cut alpha.11** off the Godot build.
+
+### Decisions already taken — read before relitigating
 
 - [Two windows, and why not one](#two-windows-and-why-not-one) — the pet is the
-  main window, the dungeon is an ordinary second one.
+  main window; the dungeon and the character screen are ordinary ones.
 - [Which file, and who is allowed to write it](#which-file-and-who-is-allowed-to-write-it)
-  — **do not point a test run at the real save**, and the pet owns the state
-  while a delve is running.
-- [Exporting](#exporting) — the four requirements that are invisible in the
-  editor, the first of which fails silently.
+  — **never point a test run at the real save**, and the pet owns the state while
+  a delve is running.
+- [Exporting](#exporting) — four requirements invisible in the editor, the first
+  of which fails silently.
+- **Godot sizes windows and popups in physical pixels.** This has caused four
+  bugs now. It is in [Traps worth remembering](#traps-worth-remembering); read
+  that list before building any new surface.
+
+### Not on the critical path, but promised
+
+- **An effects vocabulary** for the desktop and the fight, built in Godot. See
+  "what the shell still does not do".
+- **The dungeon's UI is text**, not game UI.
+- **Windows and Linux are claimed, not demonstrated.** Nothing has ever run on
+  either.
 
 ## The one-line answer
 
@@ -124,11 +194,17 @@ until the Godot side can replace a mode outright.
 | `CharacterSheet` | 123 | `core/pet/CharacterSheet.cs` | 70 lines over seven pets, all three rungs of the ladder |
 | `PetStateFileStore` + the `Codable` conformances | 50 + ~90 | `core/pet/PetStateFileStore.cs`, `core/pet/PetStateCodec.cs` | 176 lines: both encodings byte-identical, every migration rule, a phantom-gear save, a future schema |
 | `ScreenPlacement` | 180 | `core/host/ScreenPlacement.cs` | 60 lines: a negative-origin second monitor, a window larger than its screen, the roaming cycle and its minimum-travel flip |
+| `ActivityEvent` — kinds, the event, `ActivityContext`, the simulated source | 195 | `core/pet/ActivityEvent.cs` | 44 lines: every kind's reducer, the idle heartbeat that must not restart the absence, the return that slides an open work block forward, both sides of every expiry boundary |
 | `PetBrain` — the **care half** | ~250 of 543 | `core/pet/PetBrain.cs` | 110 lines: a negative elapsed time, the week-long offline cap, the distress thresholds, the too-tired-to-play boundary, the daily cap, a level-crossing grant, gear surviving a care action |
+| `PetBrain` — the **activity half** | ~290 of 543 | `core/pet/PetBrain.cs` | 62 lines: every kind observed on a healthy and on a tired pet, the working multipliers, both away tiers and the grace boundary exactly, a focus session either side of its minimum and one truncated by an absence, the Log Work cooldown and daily cap, scaled rates |
+| `ActivitySources` | 153 | `core/pet/ActivitySources.cs` | 54 lines: every HEAD movement a git watcher can see, the emote window either side of its interval, the day rollover, both idle-threshold crossings |
+| `PetCareStatus` | 237 | `core/pet/PetCareStatus.cs` | 92 lines with `PetPresentation`: every threshold on its boundary and one either side, the rank when several needs are true at once, and what the menu may offer |
+| `PetPresentation` | 199 | `core/pet/PetPresentation.cs` | as above — every mood, every reaction's face and thought, the learning-rate rounding, the transition's obscuring frame |
+| `ActivityInbox` | 165 | `core/pet/ActivityInbox.cs` | 81 lines: every kind's emittability, seventeen source ids, malformed and mistyped payloads, the reserved kinds and ids, and both time limits one second either side |
 
-**~3,736 of 5,351 lines.** Verification is against reference output captured
+**~4,984 of 5,351 lines.** Verification is against reference output captured
 from the running Swift implementation, not against expectations — see
-"Why verification mattered" below. **735 reference lines across thirteen probes**,
+"Why verification mattered" below. **1,068 reference lines across eighteen probes**,
 all diffing clean.
 
 ## What is not ported
@@ -138,12 +214,12 @@ will want it:
 
 | Swift | Lines | Why it matters next |
 | --- | --- | --- |
-| `PetBrain` — the **activity half** | ~290 of 543 | `observe`, `workLogAvailability` and the response machinery. Blocked on `ActivityEvent`/`ActivityContext`; the care half is ported. |
-| `PetCareStatus`, `PetPresentation` | ~330 | Condition and presentation. |
-| `ActivityEvent`, `ActivityInbox`, `ActivitySources`, `ToolConnector`, `HookConfigMerger` | 1,096 | The activity pipeline. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
+| `ToolConnector`, `HookConfigMerger` | 583 | The Claude Code and Codex connectors. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
 
-And none of the **app**: menubar host, character screen, inventory, care UI,
-desktop pet. Those are SwiftUI and have no Godot counterpart yet.
+**That is all of `CompanionCore` except the two connectors.** What is left is
+not logic to port but wiring and I/O — something to watch the spool directory,
+poll for idleness, and read a repository's HEAD — plus the SwiftUI app around
+it, which has no Godot counterpart and is being rebuilt rather than ported.
 
 ## The save file
 
@@ -532,14 +608,27 @@ demo:
   and unbuilt. Shown rather than hidden, so the menu says what is coming.
 - **No hit region from the silhouette**, still. The click box is a rectangle, so
   clicking near the pet rather than on it still pets it.
-- **The smoke is legacy pixel art.** It works and it is charming, and it is from
-  the direction the project has left. A better effect built in Godot — particles
-  tinted from `FamilyEnergy`, which the dungeon already uses for hit sparks — is
-  the intended replacement. Not urgent.
-- **The pet does not notice you working.** Care is in; the activity half of
-  `PetBrain` is not, and cannot be until `ActivityEvent` and `ActivityContext`
-  are ported. That is the product hook, and it is the largest thing still
-  missing.
+- **Effects are placeholder or absent, in two places.** Raised 2026-09-04 and
+  parked as one job, because they are the same job:
+  - **On the desktop.** The smoke is legacy pixel art from the direction the
+    project has left. It works and it is charming, and a Godot-built effect —
+    particles tinted from `FamilyEnergy` — is the intended replacement. Beyond
+    the puff, the pet has *no* effects at all: nothing when it is fed, levels up,
+    is petted, or comes back from a delve.
+  - **In the dungeon.** `ImpactFrames` does hit-stop, shake, knockback, a flash
+    and family-coloured sparks, and that is the whole vocabulary — every attack
+    looks like every other attack. Signature moves, the Unleash, statuses like
+    Snare and Blur, and the Monolith's telegraphed Slam all read identically.
+    The impact flash is also still [invisible in motion](#open-in-priority-order).
+
+  These want doing together: one effects vocabulary, built in Godot, used on the
+  desktop and in the fight, rather than two unrelated piles of particles.
+- **Nothing tells the pet you are working.** Every piece of the pipeline's
+  *logic* is now ported and verified — `Observe`, the inbox's trust boundary,
+  the sources' decisions — and nothing calls any of it. What is missing is the
+  wiring and the I/O around it: something to watch the spool directory, poll for
+  idleness, and read a repository's HEAD. That is the product hook, and it is
+  the largest thing still missing.
 - **Nothing about notifications or a dock/menu-bar presence.**
 - **Multi-monitor is placement only.** Nothing reacts to a monitor being unplugged
   while the pet is standing on it.
@@ -599,7 +688,9 @@ dotnet build
 The probes, in dependency order: `rng_probe`, `bounded_draw_probe`,
 `resolve_probe`, `fight_probe`, `progression_probe`, `items_probe`,
 `daily_tally_probe`, `pet_state_probe`, `combatant_bridge_probe`,
-`combat_rewards_probe`, `delve_probe`, `character_sheet_probe`.
+`combat_rewards_probe`, `delve_probe`, `character_sheet_probe`,
+`activity_probe`, `observe_probe`, `sources_probe`, `inbox_probe`,
+`status_probe`.
 
 **Capture the Swift side.** `CompanionCore` is a library with no runnable entry
 point, and SPM leaves no linkable archive to build against, so the reference
@@ -633,8 +724,9 @@ scripts/godot-probe persistence     # just that one
 scripts/godot-probe --record persistence
 ```
 
-**`persistence`, `placement` and `care` have stored references**; the other nine
-want the same treatment, which is a re-capture from Swift each, not a rename. `--record` is
+**`activity`, `observe`, `sources`, `inbox`, `status`, `persistence`,
+`placement` and `care` have stored references**; the other nine want the same
+treatment, which is a re-capture from Swift each, not a rename. `--record` is
 only correct once the new output has been checked against the Swift original —
 recording a regression is exactly as easy as recording a fix.
 
@@ -792,6 +884,11 @@ game is 16 MB and the engine plus .NET runtime is everything else.
   Unix epoch is a 31-year error that still round-trips perfectly through C#.
 - **A nil optional is an absent key, not a `null`.** Swift's synthesized encoder
   uses `encodeIfPresent`. Both decode the same, so this only shows up as a diff.
+- **A `.tscn` writes a basis as ROWS; the C# `Transform3D` constructor takes
+  COLUMNS.** The same twelve numbers, transposed. Copying a camera or a light
+  transform out of a scene file into code silently rotates the whole rig
+  somewhere else — the model lands hundreds of pixels off-frame and the viewport
+  renders a clean, convincing empty box. `ModelBay.Rig` transposes on the way in.
 - **`sed` addresses count input lines.** Deleting line 1 does not renumber line 2,
   so `sed -e '/banner/d' -e '1{/^$/d;}'` leaves the blank line under the banner in
   place — which is enough to make a stored probe reference never match.

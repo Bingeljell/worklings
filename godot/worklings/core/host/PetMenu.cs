@@ -107,7 +107,9 @@ public sealed class PetMenu
         // everywhere else.
         _root.AddItem($"{state.Name}  ·  Lv {state.Level}", 0);
         _root.SetItemDisabled(0, true);
-        _root.AddItem(MoodWord(state.Mood), 1);
+        // The mood word comes from PetPresentation rather than a second copy
+        // of the same table living here.
+        _root.AddItem(PetPresentation.Make(state).MoodLabel, 1);
         _root.SetItemDisabled(1, true);
         _root.AddSeparator();
 
@@ -125,10 +127,6 @@ public sealed class PetMenu
         _root.AddSeparator();
 
         _root.AddItem("Character sheet…", (int)PetMenuChoice.CharacterSheet);
-        // Disabled rather than absent: the character screen is designed and not
-        // built, and a menu that shows what is coming reads better than one that
-        // silently lacks it.
-        _root.SetItemDisabled(_root.ItemCount - 1, true);
         _root.AddItem("Enter the Warren…", (int)PetMenuChoice.EnterTheWarren);
         _root.AddSeparator();
 
@@ -169,16 +167,4 @@ public sealed class PetMenu
     }
 
     public bool IsOpen => _root.Visible;
-
-    /// The mood, in the words the design uses rather than the enum's.
-    private static string MoodWord(PetMood mood) => mood switch
-    {
-        PetMood.Happy => "Happy",
-        PetMood.Content => "Content",
-        PetMood.Hungry => "Hungry",
-        PetMood.Sleepy => "Sleepy",
-        PetMood.Sad => "Sad",
-        PetMood.Wary => "Wary",
-        _ => mood.ToString(),
-    };
 }

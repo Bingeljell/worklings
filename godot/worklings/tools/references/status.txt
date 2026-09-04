@@ -1,0 +1,92 @@
+== one need at a time, on every threshold ==
+hunger 0.0: [] ambient=- summary="Fren is doing well."
+hunger 54.0: [] ambient=- summary="Fren is doing well."
+hunger 55.0: [hunger/notice/55.0/"a little hungry"] ambient=- summary="Fren is a little hungry."
+hunger 74.0: [hunger/notice/74.0/"a little hungry"] ambient=- summary="Fren is a little hungry."
+hunger 75.0: [hunger/urgent/75.0/"hungry"] ambient=hunger summary="Fren is hungry."
+hunger 89.0: [hunger/urgent/89.0/"hungry"] ambient=hunger summary="Fren is hungry."
+hunger 90.0: [hunger/critical/90.0/"very hungry"] ambient=hunger summary="Fren is very hungry."
+hunger 100.0: [hunger/critical/100.0/"very hungry"] ambient=hunger summary="Fren is very hungry."
+energy 100.0: [] ambient=- summary="Fren is doing well."
+energy 46.0: [] ambient=- summary="Fren is doing well."
+energy 45.0: [energy/notice/45.0/"getting tired"] ambient=- summary="Fren is getting tired."
+energy 21.0: [energy/notice/21.0/"getting tired"] ambient=- summary="Fren is getting tired."
+energy 20.0: [energy/urgent/20.0/"sleepy"] ambient=energy summary="Fren is sleepy."
+energy 11.0: [energy/urgent/11.0/"sleepy"] ambient=energy summary="Fren is sleepy."
+energy 10.0: [energy/critical/10.0/"exhausted"] ambient=energy summary="Fren is exhausted."
+energy 0.0: [energy/critical/0.0/"exhausted"] ambient=energy summary="Fren is exhausted."
+happiness 100.0: [] ambient=- summary="Fren is doing well."
+happiness 46.0: [] ambient=- summary="Fren is doing well."
+happiness 45.0: [happiness/notice/45.0/"a little lonely"] ambient=- summary="Fren is a little lonely."
+happiness 31.0: [happiness/notice/31.0/"a little lonely"] ambient=- summary="Fren is a little lonely."
+happiness 30.0: [happiness/urgent/30.0/"sad"] ambient=happiness summary="Fren is sad."
+happiness 16.0: [happiness/urgent/16.0/"sad"] ambient=happiness summary="Fren is sad."
+happiness 15.0: [happiness/critical/15.0/"very unhappy"] ambient=happiness summary="Fren is very unhappy."
+happiness 0.0: [happiness/critical/0.0/"very unhappy"] ambient=happiness summary="Fren is very unhappy."
+trust 100.0: [] ambient=- summary="Fren is doing well."
+trust 36.0: [] ambient=- summary="Fren is doing well."
+trust 35.0: [trust/notice/35.0/"a little unsure"] ambient=- summary="Fren is a little unsure."
+trust 21.0: [trust/notice/21.0/"a little unsure"] ambient=- summary="Fren is a little unsure."
+trust 20.0: [trust/urgent/20.0/"wary"] ambient=trust summary="Fren is wary."
+trust 11.0: [trust/urgent/11.0/"wary"] ambient=trust summary="Fren is wary."
+trust 10.0: [trust/critical/10.0/"in need of reassurance"] ambient=trust summary="Fren is in need of reassurance."
+trust 0.0: [trust/critical/0.0/"in need of reassurance"] ambient=trust summary="Fren is in need of reassurance."
+== the ranking, when several are true at once ==
+hungry and sad: [hunger/urgent/80.0/"hungry" happiness/urgent/25.0/"sad"] ambient=hunger summary="Fren is hungry and sad."
+sleepy and very unhappy: [happiness/critical/10.0/"very unhappy" energy/urgent/15.0/"sleepy"] ambient=happiness summary="Fren is very unhappy and sleepy."
+starving and exhausted: [hunger/critical/95.0/"very hungry" energy/critical/5.0/"exhausted"] ambient=hunger summary="Fren is very hungry and exhausted."
+very unhappy and untrusting: [trust/critical/5.0/"in need of reassurance" happiness/critical/10.0/"very unhappy"] ambient=trust summary="Fren is in need of reassurance and very unhappy."
+everything at once: [hunger/critical/95.0/"very hungry" energy/critical/5.0/"exhausted" trust/critical/5.0/"in need of reassurance" happiness/critical/10.0/"very unhappy"] ambient=hunger summary="Fren is very hungry and exhausted."
+three, mixed urgency: [trust/critical/5.0/"in need of reassurance" energy/urgent/15.0/"sleepy" hunger/notice/60.0/"a little hungry"] ambient=trust summary="Fren is in need of reassurance and sleepy."
+nothing wrong: [] ambient=- summary="Fren is doing well."
+nothing wrong, happy: [] ambient=- summary="Fren is happy."
+== what the menu may offer ==
+ordinary: feed=yes  play=yes  pet=yes  sleep=yes
+completely full: feed=no:Fren is already full.  play=yes  pet=yes  sleep=yes
+barely peckish: feed=yes  play=yes  pet=yes  sleep=yes
+too tired to play: feed=yes  play=no:Fren needs a nap first.  pet=yes  sleep=yes
+just awake enough: feed=yes  play=yes  pet=yes  sleep=yes
+fully rested: feed=yes  play=yes  pet=yes  sleep=no:Fren is fully rested.
+almost rested: feed=yes  play=yes  pet=yes  sleep=yes
+== presentation ==
+happy: mood="Happy" palette=bright face=happy thought=-
+content: mood="Content" palette=calm face=neutral thought=-
+hungry: mood="Hungry" palette=hungry face=hungry thought="Snack time?"
+sleepy: mood="Sleepy" palette=sleepy face=sleepy thought="So sleepy…"
+sad: mood="Sad" palette=sad face=sad thought="Can we hang out?"
+wary: mood="Wary" palette=wary face=wary thought="I need some care."
+hungry + likedFood: mood="Hungry" palette=hungry face=happy thought="Tasty!"
+hungry + tooTiredToPlay: mood="Hungry" palette=hungry face=sleepy thought="Maybe after a nap…"
+hungry + sharedSetback: mood="Hungry" palette=hungry face=sad thought="We'll get the next one."
+hungry + noticedYouAreAway: mood="Hungry" palette=hungry face=sad thought="Oh, you're away…"
+hungry + tookABreak: mood="Hungry" palette=hungry face=neutral thought="Taking a breather."
+hungry + waitingOnYou: mood="Hungry" palette=hungry face=neutral thought="Waiting on you…"
+hungry + proudOfMilestone: mood="Hungry" palette=hungry face=happy thought="Shipped!"
+hungry + loggedWork: mood="Hungry" palette=hungry face=happy thought="Logged!"
+== every thought ==
+likedFood: "Tasty!"
+lovedFood: "My favourite!"
+enjoyedPlay: "That was fun!"
+lovedPlay: "Again, again!"
+comforted: "I like you."
+rested: "Much better."
+tooTiredToPlay: "Maybe after a nap…"
+happyToSeeYou: "A new day!"
+celebratedTask: "We did it!"
+sharedSetback: "We'll get the next one."
+proudOfMilestone: "Shipped!"
+gladYouAreBack: "You're back!"
+startedWorking: "Let's get to work!"
+tookABreak: "Taking a breather."
+waitingOnYou: "Waiting on you…"
+noticedYouAreAway: "Oh, you're away…"
+loggedWork: "Logged!"
+== labels ==
+fresh: "Level 1 Wellspring" 70% "Learning at 70% — a happier Workling earns faster"
+levelled: "Level 7 Wellspring" 70% "Learning at 70% — a happier Workling earns faster"
+neglected: "Level 1 Wellspring" 20% "Learning at 20% — a happier Workling earns faster"
+thriving: "Level 1 Wellspring" 100% "Learning at 100% — a happier Workling earns faster"
+== the transition ==
+reveal: 0- 1- 2- 3- 4v 5v 6v 7v
+conceal: 0v 1v 2v 3v 4- 5- 6- 7-
+familySwap: 0v 1v 2v 3v 4vS 5v 6v 7v
