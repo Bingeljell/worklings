@@ -107,7 +107,9 @@ public sealed class PetMenu
         // everywhere else.
         _root.AddItem($"{state.Name}  ·  Lv {state.Level}", 0);
         _root.SetItemDisabled(0, true);
-        _root.AddItem(MoodWord(state.Mood), 1);
+        // The mood word comes from PetPresentation rather than a second copy
+        // of the same table living here.
+        _root.AddItem(PetPresentation.Make(state).MoodLabel, 1);
         _root.SetItemDisabled(1, true);
         _root.AddSeparator();
 
@@ -165,16 +167,4 @@ public sealed class PetMenu
     }
 
     public bool IsOpen => _root.Visible;
-
-    /// The mood, in the words the design uses rather than the enum's.
-    private static string MoodWord(PetMood mood) => mood switch
-    {
-        PetMood.Happy => "Happy",
-        PetMood.Content => "Content",
-        PetMood.Hungry => "Hungry",
-        PetMood.Sleepy => "Sleepy",
-        PetMood.Sad => "Sad",
-        PetMood.Wary => "Wary",
-        _ => mood.ToString(),
-    };
 }

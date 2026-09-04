@@ -192,13 +192,14 @@ until the Godot side can replace a mode outright.
 | `ActivityEvent` — kinds, the event, `ActivityContext`, the simulated source | 195 | `core/pet/ActivityEvent.cs` | 44 lines: every kind's reducer, the idle heartbeat that must not restart the absence, the return that slides an open work block forward, both sides of every expiry boundary |
 | `PetBrain` — the **care half** | ~250 of 543 | `core/pet/PetBrain.cs` | 110 lines: a negative elapsed time, the week-long offline cap, the distress thresholds, the too-tired-to-play boundary, the daily cap, a level-crossing grant, gear surviving a care action |
 | `PetBrain` — the **activity half** | ~290 of 543 | `core/pet/PetBrain.cs` | 62 lines: every kind observed on a healthy and on a tired pet, the working multipliers, both away tiers and the grace boundary exactly, a focus session either side of its minimum and one truncated by an absence, the Log Work cooldown and daily cap, scaled rates |
-| `PetActionAvailability` | 9 of 330 (`PetCareStatus`) | `core/pet/PetBrain.cs` | with `WorkLogAvailability`, above |
 | `ActivitySources` | 153 | `core/pet/ActivitySources.cs` | 54 lines: every HEAD movement a git watcher can see, the emote window either side of its interval, the day rollover, both idle-threshold crossings |
+| `PetCareStatus` | 237 | `core/pet/PetCareStatus.cs` | 92 lines with `PetPresentation`: every threshold on its boundary and one either side, the rank when several needs are true at once, and what the menu may offer |
+| `PetPresentation` | 199 | `core/pet/PetPresentation.cs` | as above — every mood, every reaction's face and thought, the learning-rate rounding, the transition's obscuring frame |
 | `ActivityInbox` | 165 | `core/pet/ActivityInbox.cs` | 81 lines: every kind's emittability, seventeen source ids, malformed and mistyped payloads, the reserved kinds and ids, and both time limits one second either side |
 
-**~4,548 of 5,351 lines.** Verification is against reference output captured
+**~4,984 of 5,351 lines.** Verification is against reference output captured
 from the running Swift implementation, not against expectations — see
-"Why verification mattered" below. **976 reference lines across seventeen probes**,
+"Why verification mattered" below. **1,068 reference lines across eighteen probes**,
 all diffing clean.
 
 ## What is not ported
@@ -208,11 +209,12 @@ will want it:
 
 | Swift | Lines | Why it matters next |
 | --- | --- | --- |
-| `PetCareStatus`, `PetPresentation` | ~321 | Condition and presentation. `PetActionAvailability` came across with `WorkLogAvailability`; the rest has not. |
 | `ToolConnector`, `HookConfigMerger` | 583 | The Claude Code and Codex connectors. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
 
-And none of the **app**: menubar host, character screen, inventory, care UI,
-desktop pet. Those are SwiftUI and have no Godot counterpart yet.
+**That is all of `CompanionCore` except the two connectors.** What is left is
+not logic to port but wiring and I/O — something to watch the spool directory,
+poll for idleness, and read a repository's HEAD — plus the SwiftUI app around
+it, which has no Godot counterpart and is being rebuilt rather than ported.
 
 ## The save file
 
@@ -682,7 +684,8 @@ The probes, in dependency order: `rng_probe`, `bounded_draw_probe`,
 `resolve_probe`, `fight_probe`, `progression_probe`, `items_probe`,
 `daily_tally_probe`, `pet_state_probe`, `combatant_bridge_probe`,
 `combat_rewards_probe`, `delve_probe`, `character_sheet_probe`,
-`activity_probe`, `observe_probe`, `sources_probe`, `inbox_probe`.
+`activity_probe`, `observe_probe`, `sources_probe`, `inbox_probe`,
+`status_probe`.
 
 **Capture the Swift side.** `CompanionCore` is a library with no runnable entry
 point, and SPM leaves no linkable archive to build against, so the reference
@@ -716,8 +719,9 @@ scripts/godot-probe persistence     # just that one
 scripts/godot-probe --record persistence
 ```
 
-**`activity`, `observe`, `sources`, `inbox`, `persistence`, `placement` and
-`care` have stored references**; the other nine want the same treatment, which is a re-capture from Swift each, not a rename. `--record` is
+**`activity`, `observe`, `sources`, `inbox`, `status`, `persistence`,
+`placement` and `care` have stored references**; the other nine want the same
+treatment, which is a re-capture from Swift each, not a rename. `--record` is
 only correct once the new output has been checked against the Swift original —
 recording a regression is exactly as easy as recording a fix.
 

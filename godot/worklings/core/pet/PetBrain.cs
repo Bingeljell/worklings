@@ -70,25 +70,6 @@ public sealed class PetSimulationRates
         workLogHappinessGain: WorkLogHappinessGain);
 }
 
-/// Whether an action can be taken right now, and if not, why not in words the
-/// menu can show.
-///
-/// The one piece of Sources/CompanionCore/PetCareStatus.swift the brain needs;
-/// the rest of that file is presentation and is still unported. It lives here
-/// rather than in a file of its own so the port has one obvious place to grow
-/// when the rest follows.
-public sealed class PetActionAvailability
-{
-    public bool IsEnabled { get; }
-    public string? Explanation { get; }
-
-    public PetActionAvailability(bool isEnabled, string? explanation = null)
-    {
-        IsEnabled = isEnabled;
-        Explanation = explanation;
-    }
-}
-
 /// The simulation: needs decaying over time, what a care action does to them,
 /// and what the pet makes of what it sees you doing.
 ///
