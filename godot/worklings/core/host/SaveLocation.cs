@@ -64,12 +64,17 @@ public readonly record struct SaveLocation(string Path, bool IsShared, string Re
     /// Spelled out per platform rather than taken from .NET's
     /// `SpecialFolder.ApplicationData`, which resolves to `~/.config` on macOS —
     /// the right answer for a Unix program and the wrong file for this one.
-    public static string SharedPath()
+    public static string SharedPath() =>
+        System.IO.Path.Combine(SharedDirectory(), FileName);
+
+    /// `Application Support/Worklings` and its equivalents — the directory the
+    /// save lives in, and the one the activity inbox sits beside it in.
+    public static string SharedDirectory()
     {
         string home = System.Environment.GetFolderPath(
             System.Environment.SpecialFolder.UserProfile);
 
-        string directory = OS.GetName() switch
+        return OS.GetName() switch
         {
             "macOS" => System.IO.Path.Combine(
                 home, "Library", "Application Support", DirectoryName),
@@ -82,7 +87,6 @@ public readonly record struct SaveLocation(string Path, bool IsShared, string Re
                     ?? System.IO.Path.Combine(home, ".local", "share"),
                 DirectoryName),
         };
-        return System.IO.Path.Combine(directory, FileName);
     }
 
     /// Copies the real save into the test copy the first time, so a test run

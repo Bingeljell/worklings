@@ -1,6 +1,8 @@
 using Godot;
 using Worklings.Core.Host;
+using Worklings.Core.Connect;
 using Worklings.Core.Pet;
+using Worklings.Core.Progression;
 using Worklings.Core.Stage;
 
 /// The desktop pet's window, with a Workling standing in it and nothing else.
@@ -120,17 +122,28 @@ public partial class DesktopPetScene : Node3D
     private DungeonWindow _dungeon = null!;
     private CharacterWindow _character = null!;
     private PetThought? _thought;
+    private HoverSummary _hover = null!;
+    private FileDialog? _picker;
     /// True while a delve is running. The pet is not on the desktop then — it is
     /// down there — so nothing wanders, nothing responds to a click, and the
     /// menu offers to bring the dungeon forward rather than to open a second one.
     private bool _away;
-    private PetState _state = null!;
-    private PetStateFileStore _store = null!;
-    private SaveLocation _save;
-    private readonly PetBrain _brain = new();
+    /// How often needs move on their own. A minute, matching the Swift app —
+    /// the rates are per-hour, so the cadence only decides how smoothly the
+    /// numbers slide rather than where they end up.
+    private const double TickSeconds = 60;
+
+    private PetSession _session = null!;
+    private ActivityInboxWatcher _inbox = null!;
+    private PresenceWatcher _presence = null!;
+    private GitCommitWatcher _git = null!;
+    private WakeStamp _wake = null!;
+    /// Seconds until the next needs tick. Without one the pet only ages when it
+    /// is interacted with, which is exactly backwards for a creature whose whole
+    /// point is that it gets hungry while you are busy.
+    private double _tick = TickSeconds;
     /// Cleared when the save could not be read, so a file this build cannot
     /// parse is never overwritten. Same posture as the dungeon.
-    private bool _saves = true;
     private int _screen;
 
     private enum Wander { Resting, Travelling }
@@ -175,23 +188,53 @@ public partial class DesktopPetScene : Node3D
         _facing = _facingTarget = FacingYaw;
         _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
 
-        LoadState();
+        StartSession();
         _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
+        _menu.SelectFamily += family =>
+        {
+            _session.Replace(_session.State.SelectingFamily(family));
+            Say($"A {family.DisplayName()} now.");
+        };
+        _menu.SelectClass += petClass =>
+        {
+            _session.Replace(_session.State.SelectingClass(petClass));
+            Say($"{petClass.DisplayName()}!");
+        };
+        _menu.DisconnectRepo += path =>
+        {
+            _git.Disconnect(path);
+            Say($"Not watching {System.IO.Path.GetFileName(path)}.");
+        };
 
         _dungeon = new DungeonWindow(this);
         _dungeon.Resolved += OnDelveResolved;
         _dungeon.Closed += OnDungeonClosed;
 
+        _hover = new HoverSummary(this, MenuScale > 0
+            ? MenuScale
+            : (float)DisplayServer.ScreenGetScale(_screen));
+
         _character = new CharacterWindow(this);
-        // Gear changes are PetState operations and the pet owns the save, so the
-        // screen proposes and this writes.
-        _character.StateChanged += state =>
-        {
-            _state = state;
-            SaveState();
-            _character.Refresh(_state);
-        };
+        // Gear changes are PetState operations and the session owns the save, so
+        // the screen proposes and the session writes.
+        _character.StateChanged += _session.Replace;
+
+        // The one thing that makes any of the activity work visible: something
+        // outside the app dropping a file, and the pet noticing.
+        _inbox = new ActivityInboxWatcher(_session);
+        AddChild(_inbox);
+
+        _presence = new PresenceWatcher(_session);
+        AddChild(_presence);
+
+        _git = new GitCommitWatcher(_session);
+        AddChild(_git);
+
+        // Last, once every window and listener exists. Greeting any earlier
+        // means the pet changes before there is anything to show it on — which
+        // it did, loudly, from inside the constructor.
+        _session.Greet(System.DateTimeOffset.Now, _wake.Read());
 
         Report();
         BeginResting();
@@ -290,6 +333,16 @@ public partial class DesktopPetScene : Node3D
 
     public override void _Process(double delta)
     {
+        // Runs even while the pet is in the Warren. Time passes down there too,
+        // and a delve that takes ten minutes should not leave the Workling
+        // exactly as hungry as it was when it walked in.
+        _tick -= delta;
+        if (_tick <= 0)
+        {
+            _tick = TickSeconds;
+            _session.Advance(System.DateTimeOffset.Now, _wake.Read());
+        }
+
         if (_away) return;
         ReleaseIfButtonGone();
         TurnTowardTravel(delta);
@@ -336,39 +389,25 @@ public partial class DesktopPetScene : Node3D
 
     /// Reads the saved Workling and advances it to now, so a pet left overnight
     /// is hungry when the app opens rather than frozen where it was left.
-    private void LoadState()
+    /// Brings the Workling up and wires everything that can change it to the
+    /// one thing allowed to write it.
+    private void StartSession()
     {
-        _save = SaveLocation.Resolve();
-        _store = new PetStateFileStore(_save.Path);
-        GD.Print($"Workling: {_save.Path} "
-               + $"({(_save.IsShared ? "the real save" : "not the real save")} — {_save.Reason})");
-        try
-        {
-            _state = _store.Load() ?? PetState.NewPet(now: System.DateTimeOffset.Now);
-        }
-        catch (System.Exception error)
-        {
-            GD.PushWarning($"Could not read {_save.Path}: {error.Message}. "
-                         + "Running from a new pet; this session will not save.");
-            _state = PetState.NewPet(now: System.DateTimeOffset.Now);
-            _saves = false;
-        }
-        _state = _brain.Advance(_state, System.DateTimeOffset.Now);
-        GD.Print($"{_state.Name} · Lv {_state.Level} · {_state.Mood}");
-    }
+        _wake = new WakeStamp();
+        _session = new PetSession(System.DateTimeOffset.Now);
+        GD.Print($"Workling: {_session.Save.Path} "
+               + $"({(_session.Save.IsShared ? "the real save" : "not the real save")}"
+               + $" — {_session.Save.Reason})");
 
-    private void SaveState()
-    {
-        if (!_saves) return;
-        try
-        {
-            _store.Save(_state);
-        }
-        catch (System.Exception error)
-        {
-            GD.PushWarning($"Could not write {_save.Path}: {error.Message}");
-            _saves = false;
-        }
+        _session.Woke += _wake.Write;
+        _session.Reacted += OnReaction;
+        // One place the screen is refreshed from, rather than every path that
+        // changes the pet remembering to.
+        // Null-guarded: the session is built before the windows are, and the
+        // greeting below can change the pet before there is a screen to refresh.
+        _session.StateChanged += state => _character?.Refresh(state);
+
+        GD.Print($"{_session.State.Name} · Lv {_session.State.Level} · {_session.State.Mood}");
     }
 
     /// Performs a care action and writes the result. Saving on every action
@@ -376,13 +415,22 @@ public partial class DesktopPetScene : Node3D
     /// moment to close, so anything not written immediately is written never.
     private void Care(PetAction action)
     {
-        var result = _brain.Perform(action, _state, System.DateTimeOffset.Now);
-        _state = result.State;
-        SaveState();
-        _character.Refresh(_state);
-        Say(result.Reaction);
-        GD.Print($"{_state.Name}: {result.Reaction.RawValue()} "
-               + $"· Lv {_state.Level} · {_state.Mood}");
+        // The session refuses an action the pet does not need — feeding one that
+        // is already full — and the menu greys those out, so a refusal here is
+        // only ever reached by a click on the animal itself. The reaction, if
+        // there is one, arrives through Reacted like every other.
+        _session.Perform(action, System.DateTimeOffset.Now);
+    }
+
+    /// Everything the pet reacts to, from either direction — a button you
+    /// pressed or an event it noticed — arrives here. Printed as well as spoken,
+    /// because a thought over a pet's head cannot be seen in a headless run and
+    /// the activity path is otherwise entirely silent.
+    private void OnReaction(PetReaction reaction)
+    {
+        Say(reaction);
+        GD.Print($"{_session.State.Name}: {reaction.RawValue()} "
+               + $"· Lv {_session.State.Level} · {_session.State.Mood}");
     }
 
     private void OnMenuChoice(PetMenuChoice choice, PetFood? food, PetPlayActivity? play)
@@ -401,14 +449,37 @@ public partial class DesktopPetScene : Node3D
             case PetMenuChoice.Sleep:
                 Care(PetAction.Sleep);
                 break;
+            case PetMenuChoice.FocusSession:
+                _session.ToggleFocusSession(System.DateTimeOffset.Now);
+                GD.Print($"focus session: {_session.IsFocusSessionActive}");
+                break;
+            case PetMenuChoice.LogWork:
+                _session.LogWork(System.DateTimeOffset.Now);
+                break;
             case PetMenuChoice.StayPut:
                 Roam = !Roam;
                 if (Roam) BeginResting();
                 else _pet.Play(ActorAction.Idle, loop: true);
                 GD.Print($"roaming: {Roam}");
                 break;
+            case PetMenuChoice.MuteAudio:
+                CombatAudio.Muted = !CombatAudio.Muted;
+                GD.Print($"dungeon audio muted: {CombatAudio.Muted}");
+                break;
+            case PetMenuChoice.ToggleClaudeCode:
+                ToggleTool(ConnectableTool.ClaudeCode);
+                break;
+            case PetMenuChoice.ToggleCodex:
+                ToggleTool(ConnectableTool.Codex);
+                break;
+            case PetMenuChoice.ConnectRepo:
+                ConnectARepository();
+                break;
+            // Renaming lives on the character screen, next to the rest of who
+            // the Workling is, so the menu item takes you there.
+            case PetMenuChoice.Rename:
             case PetMenuChoice.CharacterSheet:
-                _character.Open(_state, _screen);
+                _character.Open(_session.State, _screen);
                 break;
             case PetMenuChoice.EnterTheWarren:
                 EnterTheWarren();
@@ -417,6 +488,124 @@ public partial class DesktopPetScene : Node3D
                 GetTree().Quit();
                 break;
         }
+    }
+
+    /// Wires a tool's hooks in, or takes them out again.
+    ///
+    /// One item that toggles, because there are only two states worth offering
+    /// and a pair of items would leave one of them always doing nothing. A stale
+    /// connection — ours, but pointing at an app that has moved — reconnects
+    /// rather than disconnects, which is what the menu's wording promises.
+    ///
+    /// Everything that can go wrong here is reported rather than swallowed.
+    /// These are the user's own config files; a silent failure would leave them
+    /// believing a tool is wired up when it is not.
+    private void ToggleTool(ConnectableTool tool)
+    {
+        var connector = tool.Connector();
+        try
+        {
+            switch (connector.State())
+            {
+                case ConnectionState.Live:
+                {
+                    string? backup = connector.Disconnect();
+                    GD.Print($"{tool.DisplayName()}: disconnected"
+                           + $"{(backup is null ? "" : $", backed up to {backup}")}");
+                    break;
+                }
+                case ConnectionState.Unknown:
+                    // Refused rather than attempted. The menu disables this, so
+                    // reaching it means the file changed since the menu opened.
+                    GD.PushWarning($"{tool.DisplayName()}: {connector.ConfigPath} could not be "
+                                 + "read or parsed, so it was left alone.");
+                    break;
+                default:
+                {
+                    string? backup = connector.Connect();
+                    GD.Print($"{tool.DisplayName()}: connected"
+                           + $"{(backup is null ? "" : $", backed up to {backup}")}");
+                    break;
+                }
+            }
+        }
+        catch (ConnectorException error)
+        {
+            GD.PushWarning($"{tool.DisplayName()}: {error.Error} — {error.Path}");
+        }
+        catch (HookMergeException error)
+        {
+            // The config is present but not shaped the way we understand, so it
+            // was left exactly as it was.
+            GD.PushWarning($"{tool.DisplayName()}: {connector.ConfigPath} was left untouched "
+                         + $"({error.Error}).");
+        }
+    }
+
+    /// Asks for a folder and hands it to the git watcher.
+    ///
+    /// **Godot's own dialog, not the OS one.** `DisplayServer.FileDialogShow`
+    /// opened correctly and its callback never arrived — the folder was chosen
+    /// and nothing happened, with no error to go on. Rather than guess at why a
+    /// native callback goes missing, this uses a `FileDialog`, whose signal is
+    /// ordinary Godot plumbing and can be verified without a person clicking
+    /// anything. Uglier than the macOS panel; it works, which beats it.
+    ///
+    /// It becomes its own OS window because the pet window sets
+    /// `GuiEmbedSubwindows = false` — the same reason the right-click menu is a
+    /// real menu and not a 320-pixel drawing of one.
+    ///
+    /// **Not always-on-top**, and that is not a preference. macOS refuses to make
+    /// an on-top window transient, `Popup` makes it transient to its parent, and
+    /// the combination errors out and leaves you with a dialog that never
+    /// appears. The pet floats over a corner of it instead, which is fine.
+    ///
+    /// Built once and reopened, so the picker remembers where you were last.
+    private void ConnectARepository()
+    {
+        if (_picker is null)
+        {
+            _picker = new FileDialog
+            {
+                FileMode = FileDialog.FileModeEnum.OpenDir,
+                Access = FileDialog.AccessEnum.Filesystem,
+                // Explicitly off: true would hand this back to the native dialog
+                // whose callback never came.
+                UseNativeDialog = false,
+                Title = "Connect a repository",
+                Theme = WorklingsTheme.For(MenuScale > 0
+                    ? MenuScale
+                    : (float)DisplayServer.ScreenGetScale(_screen)),
+            };
+            _picker.DirSelected += OnRepositoryChosen;
+            // OpenDir still emits FileSelected when the user confirms while a
+            // directory is merely highlighted rather than entered, which is what
+            // most people actually do.
+            _picker.FileSelected += OnRepositoryChosen;
+            AddChild(_picker);
+        }
+
+        var frame = DesktopWindow.UsableFrame(_screen);
+        var size = new Vector2I(
+            (int)System.Math.Min(frame.Width * 0.6, 1100),
+            (int)System.Math.Min(frame.Height * 0.6, 800));
+        _picker.PopupCentered(size);
+    }
+
+    private void OnRepositoryChosen(string path)
+    {
+        GD.Print($"git: asked to connect {path}");
+        if (_git.Connect(path) is string refusal)
+        {
+            // Said, not just printed. A picker that closes and does nothing
+            // visible is indistinguishable from one that worked.
+            GD.Print($"git: {refusal}");
+            Say(refusal.EndsWith("is already connected.")
+                ? "Already watching that one."
+                : "That's not a repository.");
+            return;
+        }
+        Say($"Watching {System.IO.Path.GetFileName(path.TrimEnd('/'))}!");
     }
 
     // MARK: - The Warren
@@ -428,7 +617,7 @@ public partial class DesktopPetScene : Node3D
     {
         if (_away)
         {
-            _dungeon.Open(_state, _screen);
+            _dungeon.Open(_session.State, _screen);
             return;
         }
 
@@ -441,7 +630,7 @@ public partial class DesktopPetScene : Node3D
         Puff(onCovered: () =>
         {
             SetPetVisible(false);
-            _dungeon.Open(_state, _screen);
+            _dungeon.Open(_session.State, _screen);
         });
     }
 
@@ -450,12 +639,11 @@ public partial class DesktopPetScene : Node3D
     /// writes it.
     private void OnDelveResolved(PetState state)
     {
-        _state = state;
-        SaveState();
-        // A character screen left open during a delve should show what came back
-        // out of it, not what went in.
-        _character.Refresh(_state);
-        GD.Print($"back from the Warren: {_state.Name} · Lv {_state.Level} · {_state.Mood}");
+        // A character screen left open during a delve shows what came back out
+        // of it, not what went in — the session's StateChanged does that.
+        _session.Replace(state);
+        GD.Print($"back from the Warren: {_session.State.Name} "
+               + $"· Lv {_session.State.Level} · {_session.State.Mood}");
     }
 
     private void OnDungeonClosed()
@@ -493,10 +681,19 @@ public partial class DesktopPetScene : Node3D
     /// Floats what the pet thought over its head. One at a time — a second
     /// action while a line is still up replaces it rather than stacking, because
     /// two thoughts overlapping read as neither.
-    private void Say(PetReaction reaction)
+    private void Say(PetReaction reaction) => Say(PetThought.Thought(reaction));
+
+    /// The same line, for something the pet is telling you rather than feeling —
+    /// which repository it just started watching, say. Those have no
+    /// `PetReaction` and should not get one: the vocabulary of reactions is the
+    /// pet's inner life, not the app's status bar.
+    private void Say(string text)
     {
-        string text = PetThought.Thought(reaction);
         if (text.Length == 0) return;
+        // A thought and a summary occupy the same space over the pet's head, and
+        // two of them at once read as neither. What the pet is thinking wins —
+        // it is the thing that just happened.
+        _hover.Hide();
 
         // A thought frees itself when it has faded, which leaves this field
         // holding a disposed object. Calling QueueFree on it throws, and the
@@ -571,6 +768,33 @@ public partial class DesktopPetScene : Node3D
 
     // MARK: - Input
 
+    /// The pointer arriving on the animal and leaving it.
+    ///
+    /// Godot reports these on the window rather than as input events, which is
+    /// what makes them work at all while click-through is on: the interactive
+    /// region is the pet's body, so entering the window means entering the pet.
+    public override void _Notification(int what)
+    {
+        switch ((long)what)
+        {
+            case NotificationWMMouseEnter:
+                // Guarded on the session existing, and that is not defensive
+                // padding: this notification arrives while _Ready is still
+                // setting the window up, before there is a Workling to describe
+                // or a panel to describe it in. Six null dereferences a launch,
+                // in a run with no mouse in it at all.
+                if (_away || _session is null || _hover is null) return;
+                _hover.Show(_session.State, GetWindow());
+                break;
+            case NotificationWMMouseExit:
+                _hover?.Hide();
+                break;
+            case NotificationPredelete:
+                _hover?.Close();
+                break;
+        }
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         // While the pet is in the Warren its window is empty, but it is still
@@ -608,7 +832,7 @@ public partial class DesktopPetScene : Node3D
                     EnterTheWarren();
                     return;
                 case Key.S:
-                    _character.Open(_state, _screen);
+                    _character.Open(_session.State, _screen);
                     return;
             }
         }
@@ -617,7 +841,7 @@ public partial class DesktopPetScene : Node3D
         // window has nothing else to click.
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true })
         {
-            _menu.Open(_state, Roam, DisplayServer.MouseGetPosition());
+            _menu.Open(_session, Roam, _git.Connected, DisplayServer.MouseGetPosition());
             return;
         }
 

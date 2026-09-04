@@ -48,5 +48,15 @@ rm -rf "$out"
 mkdir -p "$(dirname "$out")"
 "$godot" --headless --path "$project" --export-release "macOS" "$out"
 
+# The activity adapters have to be real files the operating system can execute,
+# so they cannot live in res:// — that is inside the .pck, and nothing in a .pck
+# is a path a hook command can name. They go where AdapterLocator looks for them,
+# next to the emitter they invoke as ../emit-activity-event.
+resources="$out/Contents/Resources"
+mkdir -p "$resources/adapters"
+cp "$repo_root/scripts/adapters/"* "$resources/adapters/"
+cp "$repo_root/scripts/emit-activity-event" "$resources/"
+chmod +x "$resources/adapters/"* "$resources/emit-activity-event"
+
 printf '\n%s\n' "$out"
 du -sh "$out"

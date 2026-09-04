@@ -1,0 +1,165 @@
+== mappings ==
+claude SessionStart -> workStarted matcher -
+claude Stop -> taskCompleted matcher -
+claude Notification -> awaitingInput matcher permission_prompt|idle_prompt|elicitation_dialog|agent_needs_input
+claude SessionEnd -> workEnded matcher -
+codex SessionStart -> workStarted matcher -
+codex Stop -> taskCompleted matcher -
+codex SessionEnd -> workEnded matcher -
+== connecting ==
+-- claude, from nothing --
+  .hooks.Notification[0].hooks[0].args[0] = "-c"
+  .hooks.Notification[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.Notification[0].hooks[0].args[2] = "sh"
+  .hooks.Notification[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.Notification[0].hooks[0].args[4] = "awaitingInput"
+  .hooks.Notification[0].hooks[0].command = "/bin/sh"
+  .hooks.Notification[0].hooks[0].type = "command"
+  .hooks.Notification[0].matcher = "permission_prompt|idle_prompt|elicitation_dialog|agent_needs_input"
+  .hooks.SessionEnd[0].hooks[0].args[0] = "-c"
+  .hooks.SessionEnd[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.SessionEnd[0].hooks[0].args[2] = "sh"
+  .hooks.SessionEnd[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.SessionEnd[0].hooks[0].args[4] = "workEnded"
+  .hooks.SessionEnd[0].hooks[0].command = "/bin/sh"
+  .hooks.SessionEnd[0].hooks[0].type = "command"
+  .hooks.SessionStart[0].hooks[0].args[0] = "-c"
+  .hooks.SessionStart[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.SessionStart[0].hooks[0].args[2] = "sh"
+  .hooks.SessionStart[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.SessionStart[0].hooks[0].args[4] = "workStarted"
+  .hooks.SessionStart[0].hooks[0].command = "/bin/sh"
+  .hooks.SessionStart[0].hooks[0].type = "command"
+  .hooks.Stop[0].hooks[0].args[0] = "-c"
+  .hooks.Stop[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.Stop[0].hooks[0].args[2] = "sh"
+  .hooks.Stop[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.Stop[0].hooks[0].args[4] = "taskCompleted"
+  .hooks.Stop[0].hooks[0].command = "/bin/sh"
+  .hooks.Stop[0].hooks[0].type = "command"
+-- codex, from nothing --
+  .hooks.SessionEnd[0].hooks[0].command = "if [ -x '/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook' ]; then '/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook' workEnded; else printf '{}'; fi"
+  .hooks.SessionEnd[0].hooks[0].type = "command"
+  .hooks.SessionStart[0].hooks[0].command = "if [ -x '/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook' ]; then '/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook' workStarted; else printf '{}'; fi"
+  .hooks.SessionStart[0].hooks[0].type = "command"
+  .hooks.Stop[0].hooks[0].command = "if [ -x '/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook' ]; then '/Applications/Worklings.app/Contents/Resources/adapters/worklings-codex-activity-hook' taskCompleted; else printf '{}'; fi"
+  .hooks.Stop[0].hooks[0].type = "command"
+-- claude, reconnected --
+  .hooks.Notification[0].hooks[0].args[0] = "-c"
+  .hooks.Notification[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.Notification[0].hooks[0].args[2] = "sh"
+  .hooks.Notification[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.Notification[0].hooks[0].args[4] = "awaitingInput"
+  .hooks.Notification[0].hooks[0].command = "/bin/sh"
+  .hooks.Notification[0].hooks[0].type = "command"
+  .hooks.Notification[0].matcher = "permission_prompt|idle_prompt|elicitation_dialog|agent_needs_input"
+  .hooks.SessionEnd[0].hooks[0].args[0] = "-c"
+  .hooks.SessionEnd[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.SessionEnd[0].hooks[0].args[2] = "sh"
+  .hooks.SessionEnd[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.SessionEnd[0].hooks[0].args[4] = "workEnded"
+  .hooks.SessionEnd[0].hooks[0].command = "/bin/sh"
+  .hooks.SessionEnd[0].hooks[0].type = "command"
+  .hooks.SessionStart[0].hooks[0].args[0] = "-c"
+  .hooks.SessionStart[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.SessionStart[0].hooks[0].args[2] = "sh"
+  .hooks.SessionStart[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.SessionStart[0].hooks[0].args[4] = "workStarted"
+  .hooks.SessionStart[0].hooks[0].command = "/bin/sh"
+  .hooks.SessionStart[0].hooks[0].type = "command"
+  .hooks.Stop[0].hooks[0].args[0] = "-c"
+  .hooks.Stop[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.Stop[0].hooks[0].args[2] = "sh"
+  .hooks.Stop[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.Stop[0].hooks[0].args[4] = "taskCompleted"
+  .hooks.Stop[0].hooks[0].command = "/bin/sh"
+  .hooks.Stop[0].hooks[0].type = "command"
+-- a config with the user's own hooks --
+  .hooks.Notification[0].hooks[0].args[0] = "-c"
+  .hooks.Notification[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.Notification[0].hooks[0].args[2] = "sh"
+  .hooks.Notification[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.Notification[0].hooks[0].args[4] = "awaitingInput"
+  .hooks.Notification[0].hooks[0].command = "/bin/sh"
+  .hooks.Notification[0].hooks[0].type = "command"
+  .hooks.Notification[0].matcher = "permission_prompt|idle_prompt|elicitation_dialog|agent_needs_input"
+  .hooks.PreToolUse[0].hooks[0].command = "/usr/local/bin/audit"
+  .hooks.PreToolUse[0].hooks[0].type = "command"
+  .hooks.PreToolUse[0].matcher = "Bash"
+  .hooks.SessionEnd[0].hooks[0].args[0] = "-c"
+  .hooks.SessionEnd[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.SessionEnd[0].hooks[0].args[2] = "sh"
+  .hooks.SessionEnd[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.SessionEnd[0].hooks[0].args[4] = "workEnded"
+  .hooks.SessionEnd[0].hooks[0].command = "/bin/sh"
+  .hooks.SessionEnd[0].hooks[0].type = "command"
+  .hooks.SessionStart[0].hooks[0].command = "/usr/local/bin/my-own-hook"
+  .hooks.SessionStart[0].hooks[0].type = "command"
+  .hooks.SessionStart[1].hooks[0].args[0] = "-c"
+  .hooks.SessionStart[1].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.SessionStart[1].hooks[0].args[2] = "sh"
+  .hooks.SessionStart[1].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.SessionStart[1].hooks[0].args[4] = "workStarted"
+  .hooks.SessionStart[1].hooks[0].command = "/bin/sh"
+  .hooks.SessionStart[1].hooks[0].type = "command"
+  .hooks.Stop[0].hooks[0].args[0] = "-c"
+  .hooks.Stop[0].hooks[0].args[1] = "if [ -x "$1" ]; then exec "$1" "$2"; fi"
+  .hooks.Stop[0].hooks[0].args[2] = "sh"
+  .hooks.Stop[0].hooks[0].args[3] = "/Applications/Worklings.app/Contents/Resources/adapters/worklings-claude-code-activity-hook"
+  .hooks.Stop[0].hooks[0].args[4] = "taskCompleted"
+  .hooks.Stop[0].hooks[0].command = "/bin/sh"
+  .hooks.Stop[0].hooks[0].type = "command"
+  .model = "opus"
+  .permissions.allow[0] = "Bash(ls:*)"
+== disconnecting ==
+-- ours removed, theirs kept --
+  .hooks.PreToolUse[0].hooks[0].command = "/usr/local/bin/audit"
+  .hooks.PreToolUse[0].hooks[0].type = "command"
+  .hooks.PreToolUse[0].matcher = "Bash"
+  .hooks.SessionStart[0].hooks[0].command = "/usr/local/bin/my-own-hook"
+  .hooks.SessionStart[0].hooks[0].type = "command"
+  .model = "opus"
+  .permissions.allow[0] = "Bash(ls:*)"
+-- nothing left behind --
+   = {}
+-- disconnecting what was never connected --
+  .hooks.PreToolUse[0].hooks[0].command = "/usr/local/bin/audit"
+  .hooks.PreToolUse[0].hooks[0].type = "command"
+  .hooks.PreToolUse[0].matcher = "Bash"
+  .hooks.SessionStart[0].hooks[0].command = "/usr/local/bin/my-own-hook"
+  .hooks.SessionStart[0].hooks[0].type = "command"
+  .model = "opus"
+  .permissions.allow[0] = "Bash(ls:*)"
+== refusing ==
+-- not json --
+  refused unparseableConfig
+-- json, but not an object --
+  refused unparseableConfig
+-- hooks is not an object --
+  refused unexpectedStructure
+-- an event is not an array --
+  refused unexpectedStructure
+-- an event holds something that is not an entry --
+  refused unexpectedStructure
+== ownership ==
+our guarded argv form: connected true paths 1
+our guarded shell form: connected true paths 2
+an older bare-command form: connected true paths 2
+the same adapter somewhere else on disk: connected true paths 2
+a user script with a similar name: connected false paths 0
+nothing of ours: connected false paths 0
+no hooks at all: connected false paths 0
+not json: connected false paths 0
+== awkward adapter paths ==
+-- shell form for /Users/a b/Worklings.app/adapters/worklings-codex-activity-hook --
+  .hooks.Stop[0].hooks[0].command = "if [ -x '/Users/a b/Worklings.app/adapters/worklings-codex-activity-hook' ]; then '/Users/a b/Worklings.app/adapters/worklings-codex-activity-hook' taskCompleted; else printf '{}'; fi"
+  .hooks.Stop[0].hooks[0].type = "command"
+  recognised: true
+-- shell form for /Users/o'brien/Worklings.app/adapters/worklings-codex-activity-hook --
+  .hooks.Stop[0].hooks[0].command = "if [ -x '/Users/o'\''brien/Worklings.app/adapters/worklings-codex-activity-hook' ]; then '/Users/o'\''brien/Worklings.app/adapters/worklings-codex-activity-hook' taskCompleted; else printf '{}'; fi"
+  .hooks.Stop[0].hooks[0].type = "command"
+  recognised: true
+-- shell form for /Users/x;rm -rf ~/adapters/worklings-codex-activity-hook --
+  .hooks.Stop[0].hooks[0].command = "if [ -x '/Users/x;rm -rf ~/adapters/worklings-codex-activity-hook' ]; then '/Users/x;rm -rf ~/adapters/worklings-codex-activity-hook' taskCompleted; else printf '{}'; fi"
+  .hooks.Stop[0].hooks[0].type = "command"
+  recognised: true

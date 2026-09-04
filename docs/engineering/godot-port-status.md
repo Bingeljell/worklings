@@ -16,14 +16,20 @@ and back out of (PRs #49, #50, #51).
 
 **Up as [PR #52](https://github.com/Bingeljell/worklings/pull/52)** from
 `feature/godot-character-and-activity`: the character window finished, model bay
-included, and the whole activity pipeline's logic ported and probed. That branch
-is done; **the next work starts from a fresh one off `main`.**
+included, and the whole activity pipeline's logic ported and probed.
 
-**Next is commit 10, wiring the pipeline into the pet** — the first point at
-which any of the activity work is visible — and then commit 11, the connectors.
-Both are a different kind of work from everything above: I/O rather than logic,
-with no Swift output to diff against on Windows or Linux, and the first thing
-here that has to be sat down with and manually tested.
+**#52 is merged**, as a merge commit rather than a squash, so `main` carries
+those nine commits as themselves. `feature/godot-activity-wiring` has been
+rebased onto it and is five commits ahead.
+
+**`CompanionCore` is ported in full**, and the pipeline runs end to end: a
+session that owns the live Workling, hooks installed into Claude Code and Codex,
+a spool watcher, a presence poll and a git watcher.
+
+**Next is slice C, making it presentable** — and before an alpha ships off this
+build, the list in
+[What still stands between here and deleting Swift](#what-still-stands-between-here-and-deleting-swift),
+of which **audio is the largest and most obvious.**
 
 ### Run it
 
@@ -33,7 +39,22 @@ scripts/godot-export   # a real Worklings.app in dist/godot/
 scripts/godot-probe    # every probe with a stored reference, diffed
 /Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://scenes/cache_warren.tscn   # the dungeon alone
 /Applications/Godot.app/Contents/MacOS/Godot --path godot/worklings res://tools/character_shot.tscn   # two frames of the character window, to user://
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot/worklings res://tools/presence_check.tscn   # the idle clock and both crossings
+WORKLINGS_CONNECT_CHECK=/tmp/settings.json /Applications/Godot.app/Contents/MacOS/Godot --headless --path godot/worklings res://tools/connect_check.tscn   # a real connect/disconnect — NEVER point this at ~/.claude/settings.json
+WORKLINGS_GIT_CHECK=<repo> /Applications/Godot.app/Contents/MacOS/Godot --headless --path godot/worklings res://tools/git_check.tscn   # the git source against a real repo
 ```
+
+**Feeding the pet an event by hand**, which is how the inbox was tested:
+
+```bash
+WORKLINGS_INBOX_DIR=/tmp/inbox scripts/godot-pet &
+echo '{"kind":"milestone","sourceId":"codex"}' > /tmp/inbox/a.json
+```
+
+`WORKLINGS_INBOX_DIR` and `WORKLINGS_SAVE` both point a run away from the real
+thing. For the inbox that matters more than for the save: the inbox is
+drain-and-delete, so a test run on the real directory would *eat* the app's
+events rather than merely read them.
 
 `character_shot` is the sibling of `fight_shot`: the model bay either renders or
 comes up as a black rectangle, and no text probe can tell the difference. It also
@@ -61,9 +82,9 @@ one** — deferrable if it comes to it, but that is the target.
    pet's light rig and lens, pulled in to 80% of its distance because the bay is
    a letterbox where the pet's window is a square. Drag it to turn the Workling.
 
-**B. The activity pipeline** — 2 of 6 commits left, and the product hook. **The
-pet knows how to notice you working and has nothing telling it that you are**,
-which is the whole premise of the thing still waiting on a delivery mechanism.
+**B. The activity pipeline** — **done, product hook included.** The pet notices
+you working: hooks it installs into Claude Code and Codex, its own idle clock,
+and commits in any repository you point it at.
 
 6. ~~`ActivityEvent` + `ActivityContext`~~ — done, and byte-identical to Swift
    over 44 reference lines. The subtlety was where it was expected: `awaySince`
@@ -85,16 +106,37 @@ which is the whole premise of the thing still waiting on a delivery mechanism.
 9. ~~`ActivityInbox`~~ — done. The trust boundary: one small JSON file per
    event, decoded and validated, with **no field for content of any kind**, so
    the privacy promise is structural rather than a policy.
-10. **Wire it into the pet** — reactions fire on real events, and the XP path
-    that has been ported since day one finally has something feeding it.
-11. **`ToolConnector` + `HookConfigMerger`** (583 lines) — Claude Code and Codex.
+10. ~~Wire it into the pet~~ — done, in four commits. `PetSession` owns the
+    live Workling and is the one place that decides when to save and when the
+    pet may speak. `ActivityInboxWatcher` drains the spool directory,
+    `PresenceWatcher` reads the machine's idle clock, and `GitCommitWatcher`
+    turns forward commits into milestones. The pet also ages on a timer now,
+    which it did not before — its needs only moved when it was interacted with.
 
-> **Where the estimate breaks: commit 11.** Everything before it is a port with a
-> Swift reference to diff against, which is predictable work. These two write
-> into other tools' config files, and on Windows and Linux those paths, formats
-> and conventions do not exist in this codebase in any language. That is not a
-> port, it is new design on two platforms with no machine here to test on. It
-> could be one commit or six. **Do not fold it into an estimate with the rest.**
+    **Verified by driving it, not by reading it.** Seven files into a running
+    pet's inbox: two landed, five refused by name, the directory came back
+    empty. Five milestones at once emoted once and paid all five. A repo with
+    three commits paid nothing at connect; one made while watching paid once;
+    an amend paid nothing. And `away` stayed pinned while `last` advanced,
+    which is the entire reason those two clocks are kept apart.
+11. ~~`ToolConnector` + `HookConfigMerger`~~ — done, and it did **not** break the
+    estimate. The flag was about Windows and Linux; the merger turned out to be
+    platform-agnostic JSON, and the connector's only platform question is what
+    "executable" means, which is one branch. Nothing was written for Windows or
+    Linux beyond that, and nothing has been run there.
+
+    The user's own config is what this is really about, and the probe is mostly
+    about leaving it alone: their `model`, their `permissions` and their own
+    hooks all survive a connect and a disconnect byte for byte. Verified against
+    a real file too, not just in memory — connect, reconnect, disconnect, and
+    the file comes back identical to what it started as.
+
+> **The estimate did not break at commit 11.** It was flagged because these two
+> write into other tools' config files and Windows and Linux have no precedent
+> here in any language. In the event the merger was platform-agnostic JSON and
+> the connector's only platform question was what "executable" means. The
+> cross-platform cost is still real and still unpaid — it just was not in these
+> 583 lines.
 
 **C. Making it presentable** — 4 commits.
 
@@ -197,29 +239,51 @@ until the Godot side can replace a mode outright.
 | `ActivityEvent` — kinds, the event, `ActivityContext`, the simulated source | 195 | `core/pet/ActivityEvent.cs` | 44 lines: every kind's reducer, the idle heartbeat that must not restart the absence, the return that slides an open work block forward, both sides of every expiry boundary |
 | `PetBrain` — the **care half** | ~250 of 543 | `core/pet/PetBrain.cs` | 110 lines: a negative elapsed time, the week-long offline cap, the distress thresholds, the too-tired-to-play boundary, the daily cap, a level-crossing grant, gear surviving a care action |
 | `PetBrain` — the **activity half** | ~290 of 543 | `core/pet/PetBrain.cs` | 62 lines: every kind observed on a healthy and on a tired pet, the working multipliers, both away tiers and the grace boundary exactly, a focus session either side of its minimum and one truncated by an absence, the Log Work cooldown and daily cap, scaled rates |
+| `HookConfigMerger` | 359 | `core/connect/HookConfigMerger.cs` | 165 lines with `ToolConnector`: what it refuses, what it leaves alone, ownership across four hook spellings, and adapter paths containing a space, an apostrophe and a shell metacharacter |
+| `ToolConnector` | 224 | `core/connect/ToolConnector.cs` | as above, plus a real connect/reconnect/disconnect against a file on disk |
 | `ActivitySources` | 153 | `core/pet/ActivitySources.cs` | 54 lines: every HEAD movement a git watcher can see, the emote window either side of its interval, the day rollover, both idle-threshold crossings |
 | `PetCareStatus` | 237 | `core/pet/PetCareStatus.cs` | 92 lines with `PetPresentation`: every threshold on its boundary and one either side, the rank when several needs are true at once, and what the menu may offer |
 | `PetPresentation` | 199 | `core/pet/PetPresentation.cs` | as above — every mood, every reaction's face and thought, the learning-rate rounding, the transition's obscuring frame |
 | `ActivityInbox` | 165 | `core/pet/ActivityInbox.cs` | 81 lines: every kind's emittability, seventeen source ids, malformed and mistyped payloads, the reserved kinds and ids, and both time limits one second either side |
 
-**~4,984 of 5,351 lines.** Verification is against reference output captured
+**All 5,351 lines.** Verification is against reference output captured
 from the running Swift implementation, not against expectations — see
-"Why verification mattered" below. **1,068 reference lines across eighteen probes**,
+"Why verification mattered" below. **1,233 reference lines across nineteen probes**,
 all diffing clean.
+
+## What still stands between here and deleting Swift
+
+Asked directly on 2026-09-04, and worth keeping current: **what would have to be
+true before the Swift app could be removed and nothing would be missed?**
+`CompanionCore` is not the answer — that is ported in full. Everything below is
+app code, which was always going to be rebuilt rather than ported.
+
+**All of it is done except signing** (2026-09-04): audio, renaming, choosing a
+family or class, and the ambient hover summary. Signing is deliberately last —
+it moves with the alpha-to-beta line, not with this list. An alpha tester can be
+told the build is unsigned, and the repo is public if they would rather build it
+themselves.
+
+**Windows and Linux are deferred by decision, not by oversight.** Apple silicon
+first; the two platforms nothing has ever run on stay unaddressed until this one
+is finished.
+
+| Missing | Where Swift does it | Size |
+| --- | --- | --- |
+| **Signing and notarization.** The export is unsigned, so it runs locally and Gatekeeper refuses it anywhere else. **Deferred to beta on purpose** — an alpha tester can be told it is unsigned, and the repo is public if they would rather build it. | `build_app_bundle`, `verify_release` | — |
+
+Two more that are not parity gaps but would be felt: the dungeon's surfaces are
+still text rather than game UI (slice C), and **Windows and Linux have still
+never been run**, under either codebase.
 
 ## What is not ported
 
-Everything else in `CompanionCore`, in rough order of how much the Godot side
-will want it:
+**`CompanionCore` is ported in full.** Every file, every line, each one verified
+against reference output from the running Swift implementation.
 
-| Swift | Lines | Why it matters next |
-| --- | --- | --- |
-| `ToolConnector`, `HookConfigMerger` | 583 | The Claude Code and Codex connectors. Also needs Windows/Linux equivalents under **any** engine — a cross-platform cost, not a Godot one. |
-
-**That is all of `CompanionCore` except the two connectors.** What is left is
-not logic to port but wiring and I/O — something to watch the spool directory,
-poll for idleness, and read a repository's HEAD — plus the SwiftUI app around
-it, which has no Godot counterpart and is being rebuilt rather than ported.
+What remains is the SwiftUI app around it, which has no Godot counterpart and is
+being rebuilt rather than ported. See
+[What still stands between here and deleting Swift](#what-still-stands-between-here-and-deleting-swift).
 
 ## The save file
 
@@ -623,12 +687,17 @@ demo:
 
   These want doing together: one effects vocabulary, built in Godot, used on the
   desktop and in the fight, rather than two unrelated piles of particles.
-- **Nothing tells the pet you are working.** Every piece of the pipeline's
-  *logic* is now ported and verified — `Observe`, the inbox's trust boundary,
-  the sources' decisions — and nothing calls any of it. What is missing is the
-  wiring and the I/O around it: something to watch the spool directory, poll for
-  idleness, and read a repository's HEAD. That is the product hook, and it is
-  the largest thing still missing.
+- **The pet notices you working, and nothing installs the hooks that tell it.**
+  The pipeline is live end to end — an adapter that drops a file into the spool
+  directory reaches the pet today, and presence and local git need no adapter at
+  all. What is missing is `ToolConnector` and `HookConfigMerger`, which write
+  the hook configuration into Claude Code and Codex so that dropping the file
+  happens without the user doing it by hand.
+- **Presence is macOS only.** The idle clock is CoreGraphics; Windows has
+  `GetLastInputInfo` and Linux has the X11/Wayland idle extensions, and neither
+  exists here in any language. The watcher says so and stays inert.
+- **A connected repository cannot be disconnected from the menu.** It means
+  editing `user://connected-repos.json` by hand.
 - **Nothing about notifications or a dock/menu-bar presence.**
 - **Multi-monitor is placement only.** Nothing reacts to a monitor being unplugged
   while the pet is standing on it.
@@ -690,7 +759,7 @@ The probes, in dependency order: `rng_probe`, `bounded_draw_probe`,
 `daily_tally_probe`, `pet_state_probe`, `combatant_bridge_probe`,
 `combat_rewards_probe`, `delve_probe`, `character_sheet_probe`,
 `activity_probe`, `observe_probe`, `sources_probe`, `inbox_probe`,
-`status_probe`.
+`status_probe`, `connector_probe`.
 
 **Capture the Swift side.** `CompanionCore` is a library with no runnable entry
 point, and SPM leaves no linkable archive to build against, so the reference
@@ -724,9 +793,9 @@ scripts/godot-probe persistence     # just that one
 scripts/godot-probe --record persistence
 ```
 
-**`activity`, `observe`, `sources`, `inbox`, `status`, `persistence`,
-`placement` and `care` have stored references**; the other nine want the same
-treatment, which is a re-capture from Swift each, not a rename. `--record` is
+**`activity`, `observe`, `sources`, `inbox`, `status`, `connector`,
+`persistence`, `placement` and `care` have stored references**; the other nine
+want the same treatment, which is a re-capture from Swift each, not a rename. `--record` is
 only correct once the new output has been checked against the Swift original —
 recording a regression is exactly as easy as recording a fix.
 
@@ -743,8 +812,8 @@ recording a regression is exactly as easy as recording a fix.
    prompt, bank-or-push and the summary share the fight's narration label and
    the round readout. Prep at least has a screen; the two moments the player
    actually plays still look like a debug line.
-4. **No audio.** The Swift app shipped dungeon BGM, a boss theme and per-action
-   cues in alpha.8; none of it is in Godot. Nothing blocks it.
+4. ~~No audio.~~ Done — `core/stage/CombatAudio.cs`, the bed plus sixteen cues,
+   fired from the same beats the Swift panel fires them from.
 5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
    Monolith have no model at all. Today the Flicker stands in for the first
    three at different sizes and the Pangolin — a pet model — stands in for the
@@ -889,6 +958,15 @@ game is 16 MB and the engine plus .NET runtime is everything else.
   transform out of a scene file into code silently rotates the whole rig
   somewhere else — the model lands hundreds of pixels off-frame and the viewport
   renders a clean, convincing empty box. `ModelBay.Rig` transposes on the way in.
+- **macOS refuses to make an always-on-top window transient**, and `Window.Popup`
+  makes a window transient to its parent. The combination logs
+  `Windows with the 'on top' can't become transient` and leaves you with a dialog
+  that never appears. Drop the on-top flag, not the popup.
+- **A native `DisplayServer.FileDialogShow` callback can simply never arrive.**
+  The dialog opened, a folder was chosen, and nothing happened — no error, no
+  signal. Godot's own `FileDialog` emits an ordinary signal that can be driven
+  from a check without a person clicking anything, which is worth more than the
+  nicer-looking panel.
 - **`sed` addresses count input lines.** Deleting line 1 does not renumber line 2,
   so `sed -e '/banner/d' -e '1{/^$/d;}'` leaves the blank line under the banner in
   place — which is enough to make a stored probe reference never match.
