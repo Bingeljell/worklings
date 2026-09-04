@@ -49,13 +49,22 @@ public sealed class PetMenu
     private readonly PopupMenu _feed = new();
     private readonly PopupMenu _play = new();
     private readonly PopupMenu _tools = new();
+    private readonly PopupMenu _repos = new();
+
+    /// The connected repositories, in the order the submenu listed them, so an
+    /// id can be turned back into the path it names.
+    private readonly System.Collections.Generic.List<string> _repoPaths = new();
 
     /// Fired with the choice, plus the food or activity when the choice carries
     /// one. Null payloads for everything else.
     public event System.Action<PetMenuChoice, PetFood?, PetPlayActivity?>? Chosen;
 
+    /// A connected repository the player asked to stop watching, by path.
+    public event System.Action<string>? DisconnectRepo;
+
     private const int FeedBase = 100;
     private const int PlayBase = 200;
+    private const int RepoBase = 300;
 
     /// How much to magnify the menu. 0 asks the display.
     ///
@@ -76,6 +85,7 @@ public sealed class PetMenu
         _feed.Name = "Feed";
         _play.Name = "Play";
         _tools.Name = "Tools";
+        _repos.Name = "Repositories";
 
         foreach (var food in PetNeedsEnumExtensions.AllFood)
         {
@@ -89,7 +99,17 @@ public sealed class PetMenu
         _root.AddChild(_feed);
         _root.AddChild(_play);
         _root.AddChild(_tools);
+        _root.AddChild(_repos);
         _tools.IdPressed += id => Chosen?.Invoke((PetMenuChoice)id, null, null);
+        _repos.IdPressed += id =>
+        {
+            if (id >= RepoBase)
+            {
+                DisconnectRepo?.Invoke(_repoPaths[(int)id - RepoBase]);
+                return;
+            }
+            Chosen?.Invoke((PetMenuChoice)id, null, null);
+        };
         owner.AddChild(_root);
 
         _feed.IdPressed += id => Chosen?.Invoke(
@@ -109,7 +129,10 @@ public sealed class PetMenu
     /// `roaming` is still passed in, because the scene owns whether the pet
     /// wanders and the menu only reports it.
     public void Open(
-        PetSession session, bool roaming, int repositories, Vector2I atScreenPosition)
+        PetSession session,
+        bool roaming,
+        System.Collections.Generic.IReadOnlyList<ConnectedRepo> repositories,
+        Vector2I atScreenPosition)
     {
         var state = session.State;
         var now = System.DateTimeOffset.Now;
@@ -185,14 +208,35 @@ public sealed class PetMenu
         _root.AddSubmenuNodeItem("Connect a tool", _tools);
         _root.AddSeparator();
 
-        // The git source's opt-in, and its only one. Connecting a repository is
-        // itself the consent — a separate toggle to find afterwards is a feature
-        // people conclude is broken.
-        _root.AddItem(
-            repositories == 0
-                ? "Connect a repository…"
-                : $"Connect a repository…  ({repositories} watched)",
-            (int)PetMenuChoice.ConnectRepo);
+        // A submenu that LISTS what is connected, not a single item that opens a
+        // folder picker. The picker alone answered no question the player was
+        // asking: whether the last one worked, whether a second is allowed, and
+        // how to stop watching one. Seeing the list is the answer to all three.
+        _repos.Clear();
+        _repoPaths.Clear();
+        foreach (var repo in repositories)
+        {
+            _repoPaths.Add(repo.Path);
+            _repos.AddItem($"✓  {LeafName(repo.Path)}", RepoBase + _repoPaths.Count - 1);
+            // The full path as a tooltip, because two checkouts of the same
+            // project have the same last component and would otherwise be two
+            // identical rows.
+            _repos.SetItemTooltip(_repos.ItemCount - 1, $"{repo.Path}\n(click to stop watching)");
+        }
+        if (repositories.Count > 0)
+        {
+            _repos.AddSeparator();
+        }
+        // Connecting a repository is itself the opt-in to the git source — a
+        // separate toggle to find afterwards is a feature people conclude is
+        // broken.
+        _repos.AddItem("Connect a repository…", (int)PetMenuChoice.ConnectRepo);
+
+        _root.AddSubmenuNodeItem(
+            repositories.Count == 0
+                ? "Repositories"
+                : $"Repositories  ({repositories.Count})",
+            _repos);
         _root.AddSeparator();
 
         _root.AddItem("Character sheet…", (int)PetMenuChoice.CharacterSheet);
@@ -210,7 +254,7 @@ public sealed class PetMenu
         // Applied to the submenus too: each is its own OS window and inherits
         // nothing from its parent.
         var theme = WorklingsTheme.For(EffectiveScale);
-        foreach (var popup in new[] { _root, _feed, _play, _tools })
+        foreach (var popup in new[] { _root, _feed, _play, _tools, _repos })
         {
             popup.Theme = theme;
             popup.ResetSize();
@@ -236,6 +280,14 @@ public sealed class PetMenu
     }
 
     public bool IsOpen => _root.Visible;
+
+    /// The last component of a path, which is what a repository is called.
+    private static string LeafName(string path)
+    {
+        string trimmed = path.TrimEnd('/');
+        int slash = trimmed.LastIndexOf('/');
+        return slash < 0 ? trimmed : trimmed[(slash + 1)..];
+    }
 
     /// What a tool's wiring looks like, in the words the menu uses.
     private static string Describe(ConnectionState state) => state switch

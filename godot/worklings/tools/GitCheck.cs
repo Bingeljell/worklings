@@ -49,6 +49,17 @@ public partial class GitCheck : Node
         {
             GD.Print($"connect refused: {refusal}");
         }
+        // Connecting the same repo twice, connecting a second one, and pointing
+        // at something that is not a repository: all three are things the menu
+        // now lets you try, so all three are checked here.
+        GD.Print($"same again: {watcher.Connect(path) ?? "CONNECTED TWICE"}");
+        if (System.Environment.GetEnvironmentVariable("WORKLINGS_GIT_CHECK_SECOND")
+            is string second && second.Length > 0)
+        {
+            GD.Print($"a second repo: {watcher.Connect(second) ?? "connected"}");
+        }
+        GD.Print($"not a repository: {watcher.Connect("/tmp") ?? "CONNECTED ANYWAY"}");
+        foreach (var repo in watcher.Connected) GD.Print($"  watching {repo.Path}");
         AddChild(watcher);
 
         // A short poll while the check watches, so a commit made during the run

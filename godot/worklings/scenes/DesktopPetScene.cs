@@ -188,6 +188,11 @@ public partial class DesktopPetScene : Node3D
         StartSession();
         _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
+        _menu.DisconnectRepo += path =>
+        {
+            _git.Disconnect(path);
+            Say($"Not watching {System.IO.Path.GetFileName(path)}.");
+        };
 
         _dungeon = new DungeonWindow(this);
         _dungeon.Resolved += OnDelveResolved;
@@ -527,8 +532,15 @@ public partial class DesktopPetScene : Node3D
             if (!ok || paths.Length == 0) return;
             if (_git.Connect(paths[0]) is string refusal)
             {
+                // Said, not just printed. A folder picker that closes and does
+                // nothing visible is indistinguishable from one that worked.
                 GD.Print($"git: {refusal}");
+                Say(refusal.EndsWith("is already connected.")
+                    ? "Already watching that one."
+                    : "That's not a repository.");
+                return;
             }
+            Say($"Watching {System.IO.Path.GetFileName(paths[0].TrimEnd('/'))}!");
         });
 
         DisplayServer.FileDialogShow(
@@ -614,9 +626,14 @@ public partial class DesktopPetScene : Node3D
     /// Floats what the pet thought over its head. One at a time — a second
     /// action while a line is still up replaces it rather than stacking, because
     /// two thoughts overlapping read as neither.
-    private void Say(PetReaction reaction)
+    private void Say(PetReaction reaction) => Say(PetThought.Thought(reaction));
+
+    /// The same line, for something the pet is telling you rather than feeling —
+    /// which repository it just started watching, say. Those have no
+    /// `PetReaction` and should not get one: the vocabulary of reactions is the
+    /// pet's inner life, not the app's status bar.
+    private void Say(string text)
     {
-        string text = PetThought.Thought(reaction);
         if (text.Length == 0) return;
 
         // A thought frees itself when it has faded, which leaves this field
@@ -738,7 +755,7 @@ public partial class DesktopPetScene : Node3D
         // window has nothing else to click.
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true })
         {
-            _menu.Open(_session, Roam, _git.Connected.Count, DisplayServer.MouseGetPosition());
+            _menu.Open(_session, Roam, _git.Connected, DisplayServer.MouseGetPosition());
             return;
         }
 
