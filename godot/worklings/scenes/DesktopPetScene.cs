@@ -124,13 +124,19 @@ public partial class DesktopPetScene : Node3D
     /// down there — so nothing wanders, nothing responds to a click, and the
     /// menu offers to bring the dungeon forward rather than to open a second one.
     private bool _away;
-    private PetState _state = null!;
-    private PetStateFileStore _store = null!;
-    private SaveLocation _save;
-    private readonly PetBrain _brain = new();
+    /// How often needs move on their own. A minute, matching the Swift app —
+    /// the rates are per-hour, so the cadence only decides how smoothly the
+    /// numbers slide rather than where they end up.
+    private const double TickSeconds = 60;
+
+    private PetSession _session = null!;
+    private WakeStamp _wake = null!;
+    /// Seconds until the next needs tick. Without one the pet only ages when it
+    /// is interacted with, which is exactly backwards for a creature whose whole
+    /// point is that it gets hungry while you are busy.
+    private double _tick = TickSeconds;
     /// Cleared when the save could not be read, so a file this build cannot
     /// parse is never overwritten. Same posture as the dungeon.
-    private bool _saves = true;
     private int _screen;
 
     private enum Wander { Resting, Travelling }
@@ -175,7 +181,7 @@ public partial class DesktopPetScene : Node3D
         _facing = _facingTarget = FacingYaw;
         _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
 
-        LoadState();
+        StartSession();
         _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
 
@@ -184,14 +190,14 @@ public partial class DesktopPetScene : Node3D
         _dungeon.Closed += OnDungeonClosed;
 
         _character = new CharacterWindow(this);
-        // Gear changes are PetState operations and the pet owns the save, so the
-        // screen proposes and this writes.
-        _character.StateChanged += state =>
-        {
-            _state = state;
-            SaveState();
-            _character.Refresh(_state);
-        };
+        // Gear changes are PetState operations and the session owns the save, so
+        // the screen proposes and the session writes.
+        _character.StateChanged += _session.Replace;
+
+        // Last, once every window and listener exists. Greeting any earlier
+        // means the pet changes before there is anything to show it on — which
+        // it did, loudly, from inside the constructor.
+        _session.Greet(System.DateTimeOffset.Now, _wake.Read());
 
         Report();
         BeginResting();
@@ -290,6 +296,16 @@ public partial class DesktopPetScene : Node3D
 
     public override void _Process(double delta)
     {
+        // Runs even while the pet is in the Warren. Time passes down there too,
+        // and a delve that takes ten minutes should not leave the Workling
+        // exactly as hungry as it was when it walked in.
+        _tick -= delta;
+        if (_tick <= 0)
+        {
+            _tick = TickSeconds;
+            _session.Advance(System.DateTimeOffset.Now, _wake.Read());
+        }
+
         if (_away) return;
         ReleaseIfButtonGone();
         TurnTowardTravel(delta);
@@ -336,39 +352,25 @@ public partial class DesktopPetScene : Node3D
 
     /// Reads the saved Workling and advances it to now, so a pet left overnight
     /// is hungry when the app opens rather than frozen where it was left.
-    private void LoadState()
+    /// Brings the Workling up and wires everything that can change it to the
+    /// one thing allowed to write it.
+    private void StartSession()
     {
-        _save = SaveLocation.Resolve();
-        _store = new PetStateFileStore(_save.Path);
-        GD.Print($"Workling: {_save.Path} "
-               + $"({(_save.IsShared ? "the real save" : "not the real save")} — {_save.Reason})");
-        try
-        {
-            _state = _store.Load() ?? PetState.NewPet(now: System.DateTimeOffset.Now);
-        }
-        catch (System.Exception error)
-        {
-            GD.PushWarning($"Could not read {_save.Path}: {error.Message}. "
-                         + "Running from a new pet; this session will not save.");
-            _state = PetState.NewPet(now: System.DateTimeOffset.Now);
-            _saves = false;
-        }
-        _state = _brain.Advance(_state, System.DateTimeOffset.Now);
-        GD.Print($"{_state.Name} · Lv {_state.Level} · {_state.Mood}");
-    }
+        _wake = new WakeStamp();
+        _session = new PetSession(System.DateTimeOffset.Now);
+        GD.Print($"Workling: {_session.Save.Path} "
+               + $"({(_session.Save.IsShared ? "the real save" : "not the real save")}"
+               + $" — {_session.Save.Reason})");
 
-    private void SaveState()
-    {
-        if (!_saves) return;
-        try
-        {
-            _store.Save(_state);
-        }
-        catch (System.Exception error)
-        {
-            GD.PushWarning($"Could not write {_save.Path}: {error.Message}");
-            _saves = false;
-        }
+        _session.Woke += _wake.Write;
+        _session.Reacted += Say;
+        // One place the screen is refreshed from, rather than every path that
+        // changes the pet remembering to.
+        // Null-guarded: the session is built before the windows are, and the
+        // greeting below can change the pet before there is a screen to refresh.
+        _session.StateChanged += state => _character?.Refresh(state);
+
+        GD.Print($"{_session.State.Name} · Lv {_session.State.Level} · {_session.State.Mood}");
     }
 
     /// Performs a care action and writes the result. Saving on every action
@@ -376,13 +378,15 @@ public partial class DesktopPetScene : Node3D
     /// moment to close, so anything not written immediately is written never.
     private void Care(PetAction action)
     {
-        var result = _brain.Perform(action, _state, System.DateTimeOffset.Now);
-        _state = result.State;
-        SaveState();
-        _character.Refresh(_state);
-        Say(result.Reaction);
-        GD.Print($"{_state.Name}: {result.Reaction.RawValue()} "
-               + $"· Lv {_state.Level} · {_state.Mood}");
+        // The session refuses an action the pet does not need — feeding one that
+        // is already full — and the menu greys those out, so a refusal here is
+        // only ever reached by a click on the animal itself.
+        if (_session.Perform(action, System.DateTimeOffset.Now) is not PetReaction reaction)
+        {
+            return;
+        }
+        GD.Print($"{_session.State.Name}: {reaction.RawValue()} "
+               + $"· Lv {_session.State.Level} · {_session.State.Mood}");
     }
 
     private void OnMenuChoice(PetMenuChoice choice, PetFood? food, PetPlayActivity? play)
@@ -401,6 +405,13 @@ public partial class DesktopPetScene : Node3D
             case PetMenuChoice.Sleep:
                 Care(PetAction.Sleep);
                 break;
+            case PetMenuChoice.FocusSession:
+                _session.ToggleFocusSession(System.DateTimeOffset.Now);
+                GD.Print($"focus session: {_session.IsFocusSessionActive}");
+                break;
+            case PetMenuChoice.LogWork:
+                _session.LogWork(System.DateTimeOffset.Now);
+                break;
             case PetMenuChoice.StayPut:
                 Roam = !Roam;
                 if (Roam) BeginResting();
@@ -408,7 +419,7 @@ public partial class DesktopPetScene : Node3D
                 GD.Print($"roaming: {Roam}");
                 break;
             case PetMenuChoice.CharacterSheet:
-                _character.Open(_state, _screen);
+                _character.Open(_session.State, _screen);
                 break;
             case PetMenuChoice.EnterTheWarren:
                 EnterTheWarren();
@@ -428,7 +439,7 @@ public partial class DesktopPetScene : Node3D
     {
         if (_away)
         {
-            _dungeon.Open(_state, _screen);
+            _dungeon.Open(_session.State, _screen);
             return;
         }
 
@@ -441,7 +452,7 @@ public partial class DesktopPetScene : Node3D
         Puff(onCovered: () =>
         {
             SetPetVisible(false);
-            _dungeon.Open(_state, _screen);
+            _dungeon.Open(_session.State, _screen);
         });
     }
 
@@ -450,12 +461,11 @@ public partial class DesktopPetScene : Node3D
     /// writes it.
     private void OnDelveResolved(PetState state)
     {
-        _state = state;
-        SaveState();
-        // A character screen left open during a delve should show what came back
-        // out of it, not what went in.
-        _character.Refresh(_state);
-        GD.Print($"back from the Warren: {_state.Name} · Lv {_state.Level} · {_state.Mood}");
+        // A character screen left open during a delve shows what came back out
+        // of it, not what went in — the session's StateChanged does that.
+        _session.Replace(state);
+        GD.Print($"back from the Warren: {_session.State.Name} "
+               + $"· Lv {_session.State.Level} · {_session.State.Mood}");
     }
 
     private void OnDungeonClosed()
@@ -608,7 +618,7 @@ public partial class DesktopPetScene : Node3D
                     EnterTheWarren();
                     return;
                 case Key.S:
-                    _character.Open(_state, _screen);
+                    _character.Open(_session.State, _screen);
                     return;
             }
         }
@@ -617,7 +627,7 @@ public partial class DesktopPetScene : Node3D
         // window has nothing else to click.
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true })
         {
-            _menu.Open(_state, Roam, DisplayServer.MouseGetPosition());
+            _menu.Open(_session, Roam, DisplayServer.MouseGetPosition());
             return;
         }
 

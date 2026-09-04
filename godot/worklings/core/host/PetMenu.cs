@@ -17,6 +17,8 @@ public enum PetMenuChoice
     EnterTheWarren,
     Rename,
     Quit,
+    FocusSession,
+    LogWork,
 }
 
 /// The right-click menu: the first piece of *app* on the Godot side rather than
@@ -92,10 +94,17 @@ public sealed class PetMenu
     /// Rebuilt on every open rather than built once, because the header carries
     /// the pet's name, level and mood — a menu that opened showing yesterday's
     /// level would be worse than no header at all.
-    /// `roaming` is passed in rather than held here, because the scene owns
-    /// whether the pet wanders and the menu only reports it.
-    public void Open(PetState state, bool roaming, Vector2I atScreenPosition)
+    /// Takes the whole session rather than a `PetState`, because half of what
+    /// the menu shows is a question only the session can answer: whether an
+    /// action is allowed right now, and whether a focus session is running.
+    ///
+    /// `roaming` is still passed in, because the scene owns whether the pet
+    /// wanders and the menu only reports it.
+    public void Open(PetSession session, bool roaming, Vector2I atScreenPosition)
     {
+        var state = session.State;
+        var now = System.DateTimeOffset.Now;
+        var care = session.CareStatus;
         _root.Clear();
 
         // A disabled first item, used as a header. Godot has no title on a
@@ -113,10 +122,29 @@ public sealed class PetMenu
         _root.SetItemDisabled(1, true);
         _root.AddSeparator();
 
+        // Greyed out when the pet does not need it. The session refuses these
+        // anyway; showing them enabled and having nothing happen is the version
+        // that reads as a broken menu rather than as a full Workling.
         _root.AddSubmenuNodeItem("Feed", _feed);
+        Gate(care.Availability(PetCareActionKind.Feed, state));
         _root.AddSubmenuNodeItem("Play", _play);
+        Gate(care.Availability(PetCareActionKind.Play, state));
         _root.AddItem("Pet", (int)PetMenuChoice.Pet);
         _root.AddItem("Let it sleep", (int)PetMenuChoice.Sleep);
+        Gate(care.Availability(PetCareActionKind.Sleep, state));
+        _root.AddSeparator();
+
+        // The two hand-driven activity signals, for when nothing is watching.
+        // "Log work" carries its own refusal — a cooldown and a daily cap — and
+        // says why in the item itself, because it is the one action here that is
+        // refused for a reason the pet's condition does not explain.
+        _root.AddItem(
+            session.IsFocusSessionActive ? "End focus session" : "Start focus session",
+            (int)PetMenuChoice.FocusSession);
+        var logging = session.WorkLogAvailability(now);
+        _root.AddItem(logging.IsEnabled ? "Log work" : $"Log work — {logging.Explanation}",
+                      (int)PetMenuChoice.LogWork);
+        _root.SetItemDisabled(_root.ItemCount - 1, !logging.IsEnabled);
         _root.AddSeparator();
 
         // A checkbox rather than two items, so the current state is visible
@@ -167,4 +195,13 @@ public sealed class PetMenu
     }
 
     public bool IsOpen => _root.Visible;
+
+    /// Disables the item just added when the pet has no use for it.
+    private void Gate(PetActionAvailability availability)
+    {
+        if (!availability.IsEnabled)
+        {
+            _root.SetItemDisabled(_root.ItemCount - 1, true);
+        }
+    }
 }
