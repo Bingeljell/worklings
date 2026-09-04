@@ -2,6 +2,7 @@ using Godot;
 using Worklings.Core.Host;
 using Worklings.Core.Connect;
 using Worklings.Core.Pet;
+using Worklings.Core.Progression;
 using Worklings.Core.Stage;
 
 /// The desktop pet's window, with a Workling standing in it and nothing else.
@@ -189,6 +190,16 @@ public partial class DesktopPetScene : Node3D
         StartSession();
         _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
+        _menu.SelectFamily += family =>
+        {
+            _session.Replace(_session.State.SelectingFamily(family));
+            Say($"A {family.DisplayName()} now.");
+        };
+        _menu.SelectClass += petClass =>
+        {
+            _session.Replace(_session.State.SelectingClass(petClass));
+            Say($"{petClass.DisplayName()}!");
+        };
         _menu.DisconnectRepo += path =>
         {
             _git.Disconnect(path);

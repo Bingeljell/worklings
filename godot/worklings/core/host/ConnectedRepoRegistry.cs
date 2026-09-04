@@ -27,11 +27,20 @@ public sealed class ConnectedRepo
 /// a subdirectory and a symlink cannot register the same repo twice.
 public sealed class ConnectedRepoRegistry
 {
-    private const string Path = "user://connected-repos.json";
+    private const string DefaultPath = "user://connected-repos.json";
+
+    private readonly string _path;
+
+    /// The default file is the one the running pet uses. A check or a tool must
+    /// pass its own path — the two share a `user://` directory, and an automated
+    /// run that writes into the real list leaves the player watching a
+    /// throwaway repository from a scratch directory with no idea where it came
+    /// from. Which is exactly what happened.
+    public ConnectedRepoRegistry(string? path = null) => _path = path ?? DefaultPath;
 
     public IReadOnlyList<ConnectedRepo> All()
     {
-        using var file = FileAccess.Open(Path, FileAccess.ModeFlags.Read);
+        using var file = FileAccess.Open(_path, FileAccess.ModeFlags.Read);
         if (file is null)
         {
             return System.Array.Empty<ConnectedRepo>();
@@ -45,7 +54,7 @@ public sealed class ConnectedRepoRegistry
         {
             // A corrupt list is an empty list. Nothing here is worth failing a
             // launch over, and the user can connect again.
-            GD.PushWarning($"Could not read {Path}; no repositories are connected.");
+            GD.PushWarning($"Could not read {_path}; no repositories are connected.");
             return System.Array.Empty<ConnectedRepo>();
         }
     }
@@ -109,12 +118,12 @@ public sealed class ConnectedRepoRegistry
         Save(repos);
     }
 
-    private static void Save(List<ConnectedRepo> repos)
+    private void Save(List<ConnectedRepo> repos)
     {
-        using var file = FileAccess.Open(Path, FileAccess.ModeFlags.Write);
+        using var file = FileAccess.Open(_path, FileAccess.ModeFlags.Write);
         if (file is null)
         {
-            GD.PushWarning($"Could not write {Path}; connected repositories will not persist.");
+            GD.PushWarning($"Could not write {_path}; connected repositories will not persist.");
             return;
         }
         file.StoreString(JsonSerializer.Serialize(

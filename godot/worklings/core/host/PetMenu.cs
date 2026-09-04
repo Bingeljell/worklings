@@ -52,6 +52,8 @@ public sealed class PetMenu
     private readonly PopupMenu _play = new();
     private readonly PopupMenu _tools = new();
     private readonly PopupMenu _repos = new();
+    private readonly PopupMenu _families = new();
+    private readonly PopupMenu _classes = new();
 
     /// The connected repositories, in the order the submenu listed them, so an
     /// id can be turned back into the path it names.
@@ -64,9 +66,17 @@ public sealed class PetMenu
     /// A connected repository the player asked to stop watching, by path.
     public event System.Action<string>? DisconnectRepo;
 
+    /// Identity, chosen from the menu. These carry a payload that does not fit
+    /// `Chosen`'s food-or-activity shape, so they get their own signal rather
+    /// than a third nullable parameter nothing else would ever use.
+    public event System.Action<PetFamily>? SelectFamily;
+    public event System.Action<PetClass>? SelectClass;
+
     private const int FeedBase = 100;
     private const int PlayBase = 200;
     private const int RepoBase = 300;
+    private const int FamilyBase = 400;
+    private const int ClassBase = 500;
 
     /// How much to magnify the menu. 0 asks the display.
     ///
@@ -88,6 +98,8 @@ public sealed class PetMenu
         _play.Name = "Play";
         _tools.Name = "Tools";
         _repos.Name = "Repositories";
+        _families.Name = "Workling";
+        _classes.Name = "Class";
 
         foreach (var food in PetNeedsEnumExtensions.AllFood)
         {
@@ -102,6 +114,12 @@ public sealed class PetMenu
         _root.AddChild(_play);
         _root.AddChild(_tools);
         _root.AddChild(_repos);
+        _root.AddChild(_families);
+        _root.AddChild(_classes);
+        _families.IdPressed += id =>
+            SelectFamily?.Invoke(PetFamilyExtensions.AllCases[(int)id - FamilyBase]);
+        _classes.IdPressed += id =>
+            SelectClass?.Invoke(PetClassExtensions.AllCases[(int)id - ClassBase]);
         _tools.IdPressed += id => Chosen?.Invoke((PetMenuChoice)id, null, null);
         _repos.IdPressed += id =>
         {
@@ -224,7 +242,7 @@ public sealed class PetMenu
         foreach (var repo in repositories)
         {
             _repoPaths.Add(repo.Path);
-            _repos.AddItem($"✓  {LeafName(repo.Path)}", RepoBase + _repoPaths.Count - 1);
+            _repos.AddItem($"✓  {ShortPath(repo.Path)}", RepoBase + _repoPaths.Count - 1);
             // The full path as a tooltip, because two checkouts of the same
             // project have the same last component and would otherwise be two
             // identical rows.
@@ -246,6 +264,15 @@ public sealed class PetMenu
             _repos);
         _root.AddSeparator();
 
+        // Identity, in the menu as well as on the character screen. The screen
+        // is where you go to READ about a Workling; this is where you go to
+        // change one, and looking for it here first is what everybody does.
+        BuildFamilies(state);
+        BuildClasses(state);
+        _root.AddSubmenuNodeItem("Choose Workling", _families);
+        _root.AddSubmenuNodeItem("Choose class", _classes);
+        _root.AddSeparator();
+
         _root.AddItem("Character sheet…", (int)PetMenuChoice.CharacterSheet);
         _root.AddItem("Enter the Warren…", (int)PetMenuChoice.EnterTheWarren);
         _root.AddSeparator();
@@ -260,7 +287,8 @@ public sealed class PetMenu
         // Applied to the submenus too: each is its own OS window and inherits
         // nothing from its parent.
         var theme = WorklingsTheme.For(EffectiveScale);
-        foreach (var popup in new[] { _root, _feed, _play, _tools, _repos })
+        foreach (var popup in
+                 new[] { _root, _feed, _play, _tools, _repos, _families, _classes })
         {
             popup.Theme = theme;
             popup.ResetSize();
@@ -287,12 +315,70 @@ public sealed class PetMenu
 
     public bool IsOpen => _root.Visible;
 
-    /// The last component of a path, which is what a repository is called.
-    private static string LeafName(string path)
+    /// Enough of a path to recognise it by.
+    ///
+    /// The leaf alone is not enough — "gitrepo2" or "worklings" tells you
+    /// nothing about *which* checkout, and a stray one you did not mean to
+    /// connect looks exactly like one you did. Home becomes `~`, and anything
+    /// deeper than three segments keeps only the last two behind an ellipsis, so
+    /// the row stays short and still names something.
+    public static string ShortPath(string path)
     {
         string trimmed = path.TrimEnd('/');
-        int slash = trimmed.LastIndexOf('/');
-        return slash < 0 ? trimmed : trimmed[(slash + 1)..];
+        string home = System.Environment.GetFolderPath(
+            System.Environment.SpecialFolder.UserProfile);
+        if (home.Length > 0 && trimmed.StartsWith(home, System.StringComparison.Ordinal))
+        {
+            trimmed = "~" + trimmed[home.Length..];
+        }
+
+        var parts = trimmed.Split('/', System.StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            // "/" trims to nothing and would render as a blank row — a menu item
+            // you cannot read is worse than a long one.
+            return path;
+        }
+        if (parts.Length <= 3)
+        {
+            return trimmed;
+        }
+        return $"…/{parts[^2]}/{parts[^1]}";
+    }
+
+    /// All five families, with the two design-stage ones listed and unpickable —
+    /// the roster reads as five so the shape of the design is visible, and they
+    /// un-grey on their own the day their art is baked.
+    private void BuildFamilies(PetState state)
+    {
+        _families.Clear();
+        var families = PetFamilyExtensions.AllCases;
+        for (int i = 0; i < families.Length; i++)
+        {
+            var family = families[i];
+            _families.AddRadioCheckItem(
+                family.HasArt()
+                    ? family.DisplayName()
+                    : $"{family.DisplayName()} (coming soon)",
+                FamilyBase + i);
+            _families.SetItemChecked(i, family == state.Family);
+            _families.SetItemDisabled(i, !family.HasArt());
+        }
+    }
+
+    /// Every class carries its role: "Aegis" says nothing to someone meeting it
+    /// for the first time and "Aegis — Tank" says all of it.
+    private void BuildClasses(PetState state)
+    {
+        _classes.Clear();
+        var classes = PetClassExtensions.AllCases;
+        for (int i = 0; i < classes.Length; i++)
+        {
+            var petClass = classes[i];
+            _classes.AddRadioCheckItem(
+                $"{petClass.DisplayName()} — {petClass.Role()}", ClassBase + i);
+            _classes.SetItemChecked(i, petClass == state.PetClass);
+        }
     }
 
     /// What a tool's wiring looks like, in the words the menu uses.

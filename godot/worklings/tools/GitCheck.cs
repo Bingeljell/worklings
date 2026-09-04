@@ -44,7 +44,11 @@ public partial class GitCheck : Node
                 IsShared: false, Reason: "git check"));
         double xpBefore = session.State.TotalXP;
 
-        var watcher = new GitCommitWatcher(session);
+        // Its own registry, never the player's. A check that connected a
+        // scratch repository into the real list left it there, and the only clue
+        // in the menu was a folder name nobody recognised.
+        var watcher = new GitCommitWatcher(
+            session, new ConnectedRepoRegistry("user://git-check/connected-repos.json"));
         if (watcher.Connect(path) is string refusal)
         {
             GD.Print($"connect refused: {refusal}");
@@ -60,6 +64,22 @@ public partial class GitCheck : Node
         }
         GD.Print($"not a repository: {watcher.Connect("/tmp") ?? "CONNECTED ANYWAY"}");
         foreach (var repo in watcher.Connected) GD.Print($"  watching {repo.Path}");
+
+        // How each of those reads in the menu. The leaf alone was not enough: a
+        // stray repository connected by a test run showed as "gitrepo2", which
+        // named nothing and looked exactly like something the player had chosen.
+        GD.Print("menu labels:");
+        foreach (string sample in new[]
+                 {
+                     "/Users/nikhilshahane/projects/worklings",
+                     "/Users/nikhilshahane/projects/deep/nested/thing",
+                     "/private/tmp/claude-501/-Users-x/abc123/scratchpad/gitrepo2",
+                     "/opt/src",
+                     "/",
+                 })
+        {
+            GD.Print($"  {sample}\n    -> {PetMenu.ShortPath(sample)}");
+        }
         AddChild(watcher);
 
         // A short poll while the check watches, so a commit made during the run
