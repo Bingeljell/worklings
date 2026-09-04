@@ -1,4 +1,5 @@
 using Godot;
+using Worklings.Core.Connect;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
 
@@ -20,6 +21,8 @@ public enum PetMenuChoice
     FocusSession,
     LogWork,
     ConnectRepo,
+    ToggleClaudeCode,
+    ToggleCodex,
 }
 
 /// The right-click menu: the first piece of *app* on the Godot side rather than
@@ -45,6 +48,7 @@ public sealed class PetMenu
     private readonly PopupMenu _root = new();
     private readonly PopupMenu _feed = new();
     private readonly PopupMenu _play = new();
+    private readonly PopupMenu _tools = new();
 
     /// Fired with the choice, plus the food or activity when the choice carries
     /// one. Null payloads for everything else.
@@ -71,6 +75,7 @@ public sealed class PetMenu
     {
         _feed.Name = "Feed";
         _play.Name = "Play";
+        _tools.Name = "Tools";
 
         foreach (var food in PetNeedsEnumExtensions.AllFood)
         {
@@ -83,6 +88,8 @@ public sealed class PetMenu
 
         _root.AddChild(_feed);
         _root.AddChild(_play);
+        _root.AddChild(_tools);
+        _tools.IdPressed += id => Chosen?.Invoke((PetMenuChoice)id, null, null);
         owner.AddChild(_root);
 
         _feed.IdPressed += id => Chosen?.Invoke(
@@ -156,6 +163,28 @@ public sealed class PetMenu
         _root.SetItemChecked(_root.ItemCount - 1, !roaming);
         _root.AddSeparator();
 
+        // Each tool's own state, read fresh every time the menu opens: another
+        // program can edit these files, so a remembered answer goes stale.
+        _tools.Clear();
+        foreach (var tool in new[] { ConnectableTool.ClaudeCode, ConnectableTool.Codex })
+        {
+            var wiring = tool.Connector().State();
+            _tools.AddItem(
+                $"{tool.DisplayName()} — {Describe(wiring)}",
+                (int)(tool == ConnectableTool.ClaudeCode
+                    ? PetMenuChoice.ToggleClaudeCode
+                    : PetMenuChoice.ToggleCodex));
+            // Unknown means the config exists and could not be read or parsed.
+            // Offering a toggle there would mean writing over something we could
+            // not inspect, which is the one thing this must never do.
+            if (wiring == ConnectionState.Unknown)
+            {
+                _tools.SetItemDisabled(_tools.ItemCount - 1, true);
+            }
+        }
+        _root.AddSubmenuNodeItem("Connect a tool", _tools);
+        _root.AddSeparator();
+
         // The git source's opt-in, and its only one. Connecting a repository is
         // itself the consent — a separate toggle to find afterwards is a feature
         // people conclude is broken.
@@ -181,7 +210,7 @@ public sealed class PetMenu
         // Applied to the submenus too: each is its own OS window and inherits
         // nothing from its parent.
         var theme = WorklingsTheme.For(EffectiveScale);
-        foreach (var popup in new[] { _root, _feed, _play })
+        foreach (var popup in new[] { _root, _feed, _play, _tools })
         {
             popup.Theme = theme;
             popup.ResetSize();
@@ -207,6 +236,17 @@ public sealed class PetMenu
     }
 
     public bool IsOpen => _root.Visible;
+
+    /// What a tool's wiring looks like, in the words the menu uses.
+    private static string Describe(ConnectionState state) => state switch
+    {
+        ConnectionState.Live => "connected",
+        // Ours, but pointing at an adapter that is gone. Choosing it reconnects
+        // rather than disconnects, which is why it does not say "connected".
+        ConnectionState.Stale => "reconnect (app moved)",
+        ConnectionState.Unknown => "config unreadable",
+        _ => "not connected",
+    };
 
     /// Disables the item just added when the pet has no use for it.
     private void Gate(PetActionAvailability availability)

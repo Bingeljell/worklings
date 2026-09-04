@@ -1,5 +1,6 @@
 using Godot;
 using Worklings.Core.Host;
+using Worklings.Core.Connect;
 using Worklings.Core.Pet;
 using Worklings.Core.Stage;
 
@@ -439,6 +440,12 @@ public partial class DesktopPetScene : Node3D
                 else _pet.Play(ActorAction.Idle, loop: true);
                 GD.Print($"roaming: {Roam}");
                 break;
+            case PetMenuChoice.ToggleClaudeCode:
+                ToggleTool(ConnectableTool.ClaudeCode);
+                break;
+            case PetMenuChoice.ToggleCodex:
+                ToggleTool(ConnectableTool.Codex);
+                break;
             case PetMenuChoice.ConnectRepo:
                 ConnectARepository();
                 break;
@@ -451,6 +458,58 @@ public partial class DesktopPetScene : Node3D
             case PetMenuChoice.Quit:
                 GetTree().Quit();
                 break;
+        }
+    }
+
+    /// Wires a tool's hooks in, or takes them out again.
+    ///
+    /// One item that toggles, because there are only two states worth offering
+    /// and a pair of items would leave one of them always doing nothing. A stale
+    /// connection — ours, but pointing at an app that has moved — reconnects
+    /// rather than disconnects, which is what the menu's wording promises.
+    ///
+    /// Everything that can go wrong here is reported rather than swallowed.
+    /// These are the user's own config files; a silent failure would leave them
+    /// believing a tool is wired up when it is not.
+    private void ToggleTool(ConnectableTool tool)
+    {
+        var connector = tool.Connector();
+        try
+        {
+            switch (connector.State())
+            {
+                case ConnectionState.Live:
+                {
+                    string? backup = connector.Disconnect();
+                    GD.Print($"{tool.DisplayName()}: disconnected"
+                           + $"{(backup is null ? "" : $", backed up to {backup}")}");
+                    break;
+                }
+                case ConnectionState.Unknown:
+                    // Refused rather than attempted. The menu disables this, so
+                    // reaching it means the file changed since the menu opened.
+                    GD.PushWarning($"{tool.DisplayName()}: {connector.ConfigPath} could not be "
+                                 + "read or parsed, so it was left alone.");
+                    break;
+                default:
+                {
+                    string? backup = connector.Connect();
+                    GD.Print($"{tool.DisplayName()}: connected"
+                           + $"{(backup is null ? "" : $", backed up to {backup}")}");
+                    break;
+                }
+            }
+        }
+        catch (ConnectorException error)
+        {
+            GD.PushWarning($"{tool.DisplayName()}: {error.Error} — {error.Path}");
+        }
+        catch (HookMergeException error)
+        {
+            // The config is present but not shaped the way we understand, so it
+            // was left exactly as it was.
+            GD.PushWarning($"{tool.DisplayName()}: {connector.ConfigPath} was left untouched "
+                         + $"({error.Error}).");
         }
     }
 
