@@ -1,0 +1,44 @@
+-- kinds --
+dailyWake "Daily Wake"
+workStarted "Work Started"
+workEnded "Work Ended"
+taskCompleted "Task Completed"
+taskFailed "Task Failed"
+awaitingInput "Awaiting Input"
+milestone "Milestone"
+userIdle "User Idle"
+userReturned "User Returned"
+workLogged "Log Work"
+-- event --
+kind milestone at 42.0 source simulated
+equal true differsByTime false
+-- a working day --
+  quiet working false awaiting false present true away - since - last -
+  workStarted@0.0 working true awaiting false present true away - since 0.0 last 0.0
+  milestone@300.0 working true awaiting false present true away - since 0.0 last 300.0
+  awaitingInput@600.0 working true awaiting true present true away - since 0.0 last 600.0
+  taskCompleted@900.0 working true awaiting false present true away - since 0.0 last 900.0
+  userIdle@1200.0 working true awaiting false present false away 1200.0 since 0.0 last 1200.0
+  userIdle@1500.0 working true awaiting false present false away 1200.0 since 0.0 last 1500.0
+  userReturned@3000.0 working true awaiting false present true away - since 1800.0 last 3000.0
+  taskFailed@3300.0 working true awaiting false present true away - since 1800.0 last 3300.0
+  workEnded@3600.0 working false awaiting false present true away - since - last 3600.0
+  workStarted@3900.0 working true awaiting false present true away - since 3900.0 last 3900.0
+  workStarted@4200.0 working true awaiting false present true away - since 3900.0 last 4200.0
+  dailyWake@4500.0 working true awaiting false present true away - since 3900.0 last 4500.0
+  workLogged@4800.0 working true awaiting false present true away - since 3900.0 last 4800.0
+-- away before the block began --
+  userIdle@10.0 working false awaiting false present false away 10.0 since - last 10.0
+  workStarted@20.0 working true awaiting false present false away 10.0 since 20.0 last 20.0
+  userReturned@100.0 working true awaiting false present true away - since 20.0 last 100.0
+-- expiry --
+  same instant working true awaiting false present true away - since 3900.0 last 4800.0
+  on the boundary working true awaiting false present true away - since 3900.0 last 4800.0
+  one second past working false awaiting false present true away - since - last -
+  custom, inside working true awaiting false present true away - since 3900.0 last 4800.0
+  custom, outside working false awaiting false present true away - since - last -
+  zero interval working true awaiting false present true away - since 3900.0 last 4800.0
+  zero interval, later working false awaiting false present true away - since - last -
+  negative interval working true awaiting false present true away - since 3900.0 last 4800.0
+  negative interval, later working false awaiting false present true away - since - last -
+  quiet never expires further working false awaiting false present true away - since - last -
