@@ -258,15 +258,18 @@ true before the Swift app could be removed and nothing would be missed?**
 `CompanionCore` is not the answer — that is ported in full. Everything below is
 app code, which was always going to be rebuilt rather than ported.
 
-**Audio is done** (2026-09-04): the bed, the boss theme, and all sixteen cues.
-Signing is deliberately last — it moves with the alpha-to-beta line, not with
-this list.
+**All of it is done except signing** (2026-09-04): audio, renaming, choosing a
+family or class, and the ambient hover summary. Signing is deliberately last —
+it moves with the alpha-to-beta line, not with this list. An alpha tester can be
+told the build is unsigned, and the repo is public if they would rather build it
+themselves.
+
+**Windows and Linux are deferred by decision, not by oversight.** Apple silicon
+first; the two platforms nothing has ever run on stay unaddressed until this one
+is finished.
 
 | Missing | Where Swift does it | Size |
 | --- | --- | --- |
-| **Renaming a Workling.** The menu item is there and disabled. | `AppDelegate`, `PetSession.rename` | small |
-| **Choosing a family or a class.** `PetState` supports both and no surface offers either, so a Godot-only player is stuck with what they were born as. | `CharacterScreenView` | part of 977 |
-| **The ambient status layer.** `PetCareStatus.HoverSummary` is computed and shown nowhere; hovering the pet says nothing. | `HoverSummaryPanelController` | 84 lines |
 | **Signing and notarization.** The export is unsigned, so it runs locally and Gatekeeper refuses it anywhere else. **Deferred to beta on purpose** — an alpha tester can be told it is unsigned, and the repo is public if they would rather build it. | `build_app_bundle`, `verify_release` | — |
 
 Two more that are not parity gaps but would be felt: the dungeon's surfaces are

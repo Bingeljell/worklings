@@ -121,6 +121,7 @@ public partial class DesktopPetScene : Node3D
     private DungeonWindow _dungeon = null!;
     private CharacterWindow _character = null!;
     private PetThought? _thought;
+    private HoverSummary _hover = null!;
     /// True while a delve is running. The pet is not on the desktop then — it is
     /// down there — so nothing wanders, nothing responds to a click, and the
     /// menu offers to bring the dungeon forward rather than to open a second one.
@@ -197,6 +198,10 @@ public partial class DesktopPetScene : Node3D
         _dungeon = new DungeonWindow(this);
         _dungeon.Resolved += OnDelveResolved;
         _dungeon.Closed += OnDungeonClosed;
+
+        _hover = new HoverSummary(this, MenuScale > 0
+            ? MenuScale
+            : (float)DisplayServer.ScreenGetScale(_screen));
 
         _character = new CharacterWindow(this);
         // Gear changes are PetState operations and the session owns the save, so
@@ -642,6 +647,10 @@ public partial class DesktopPetScene : Node3D
     private void Say(string text)
     {
         if (text.Length == 0) return;
+        // A thought and a summary occupy the same space over the pet's head, and
+        // two of them at once read as neither. What the pet is thinking wins —
+        // it is the thing that just happened.
+        _hover.Hide();
 
         // A thought frees itself when it has faded, which leaves this field
         // holding a disposed object. Calling QueueFree on it throws, and the
@@ -715,6 +724,33 @@ public partial class DesktopPetScene : Node3D
     }
 
     // MARK: - Input
+
+    /// The pointer arriving on the animal and leaving it.
+    ///
+    /// Godot reports these on the window rather than as input events, which is
+    /// what makes them work at all while click-through is on: the interactive
+    /// region is the pet's body, so entering the window means entering the pet.
+    public override void _Notification(int what)
+    {
+        switch ((long)what)
+        {
+            case NotificationWMMouseEnter:
+                // Guarded on the session existing, and that is not defensive
+                // padding: this notification arrives while _Ready is still
+                // setting the window up, before there is a Workling to describe
+                // or a panel to describe it in. Six null dereferences a launch,
+                // in a run with no mouse in it at all.
+                if (_away || _session is null || _hover is null) return;
+                _hover.Show(_session.State, GetWindow());
+                break;
+            case NotificationWMMouseExit:
+                _hover?.Hide();
+                break;
+            case NotificationPredelete:
+                _hover?.Close();
+                break;
+        }
+    }
 
     public override void _UnhandledInput(InputEvent @event)
     {
