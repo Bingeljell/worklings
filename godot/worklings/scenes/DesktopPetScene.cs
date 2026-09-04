@@ -132,6 +132,7 @@ public partial class DesktopPetScene : Node3D
     private PetSession _session = null!;
     private ActivityInboxWatcher _inbox = null!;
     private PresenceWatcher _presence = null!;
+    private GitCommitWatcher _git = null!;
     private WakeStamp _wake = null!;
     /// Seconds until the next needs tick. Without one the pet only ages when it
     /// is interacted with, which is exactly backwards for a creature whose whole
@@ -203,6 +204,9 @@ public partial class DesktopPetScene : Node3D
 
         _presence = new PresenceWatcher(_session);
         AddChild(_presence);
+
+        _git = new GitCommitWatcher(_session);
+        AddChild(_git);
 
         // Last, once every window and listener exists. Greeting any earlier
         // means the pet changes before there is anything to show it on — which
@@ -435,6 +439,9 @@ public partial class DesktopPetScene : Node3D
                 else _pet.Play(ActorAction.Idle, loop: true);
                 GD.Print($"roaming: {Roam}");
                 break;
+            case PetMenuChoice.ConnectRepo:
+                ConnectARepository();
+                break;
             case PetMenuChoice.CharacterSheet:
                 _character.Open(_session.State, _screen);
                 break;
@@ -445,6 +452,34 @@ public partial class DesktopPetScene : Node3D
                 GetTree().Quit();
                 break;
         }
+    }
+
+    /// Asks for a folder and hands it to the git watcher.
+    ///
+    /// The OS's own dialog rather than Godot's `FileDialog`, which would draw
+    /// inside a 320-pixel transparent window — the same trap the right-click
+    /// menu fell into. Picking a directory is the whole interaction: connecting
+    /// a repository IS the opt-in to the git source, so there is nothing else to
+    /// confirm afterwards.
+    private void ConnectARepository()
+    {
+        var chosen = Callable.From((bool ok, string[] paths, int _) =>
+        {
+            if (!ok || paths.Length == 0) return;
+            if (_git.Connect(paths[0]) is string refusal)
+            {
+                GD.Print($"git: {refusal}");
+            }
+        });
+
+        DisplayServer.FileDialogShow(
+            title: "Connect a repository",
+            currentDirectory: OS.GetSystemDir(OS.SystemDir.Documents),
+            fileName: "",
+            showHidden: false,
+            mode: DisplayServer.FileDialogMode.OpenDir,
+            filters: System.Array.Empty<string>(),
+            callback: chosen);
     }
 
     // MARK: - The Warren
@@ -644,7 +679,7 @@ public partial class DesktopPetScene : Node3D
         // window has nothing else to click.
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true })
         {
-            _menu.Open(_session, Roam, DisplayServer.MouseGetPosition());
+            _menu.Open(_session, Roam, _git.Connected.Count, DisplayServer.MouseGetPosition());
             return;
         }
 

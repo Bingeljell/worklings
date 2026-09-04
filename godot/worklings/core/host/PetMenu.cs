@@ -19,6 +19,7 @@ public enum PetMenuChoice
     Quit,
     FocusSession,
     LogWork,
+    ConnectRepo,
 }
 
 /// The right-click menu: the first piece of *app* on the Godot side rather than
@@ -100,7 +101,8 @@ public sealed class PetMenu
     ///
     /// `roaming` is still passed in, because the scene owns whether the pet
     /// wanders and the menu only reports it.
-    public void Open(PetSession session, bool roaming, Vector2I atScreenPosition)
+    public void Open(
+        PetSession session, bool roaming, int repositories, Vector2I atScreenPosition)
     {
         var state = session.State;
         var now = System.DateTimeOffset.Now;
@@ -152,6 +154,16 @@ public sealed class PetMenu
         // to work under it.
         _root.AddCheckItem("Stay put", (int)PetMenuChoice.StayPut);
         _root.SetItemChecked(_root.ItemCount - 1, !roaming);
+        _root.AddSeparator();
+
+        // The git source's opt-in, and its only one. Connecting a repository is
+        // itself the consent — a separate toggle to find afterwards is a feature
+        // people conclude is broken.
+        _root.AddItem(
+            repositories == 0
+                ? "Connect a repository…"
+                : $"Connect a repository…  ({repositories} watched)",
+            (int)PetMenuChoice.ConnectRepo);
         _root.AddSeparator();
 
         _root.AddItem("Character sheet…", (int)PetMenuChoice.CharacterSheet);
