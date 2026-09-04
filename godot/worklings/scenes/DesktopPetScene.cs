@@ -182,7 +182,11 @@ public partial class DesktopPetScene : Node3D
         if (screens > 0) PlaceOnScreen(_screen);
         ApplyInteractiveRegion();
 
-        _pet = new StageActor(GetNode<Node3D>("Pet"), "tempest_ram", ActorAnimations.TempestRam);
+        // The Ram, unconditionally — the pet's family is not consulted. This is
+        // the near end of the model swap: when `PetBody.Model` starts being read,
+        // it is read here and in the Warren's party actor, and nowhere else.
+        _pet = new StageActor(
+            GetNode<Node3D>("Pet"), PetBody.DefaultModel, ActorAnimations.TempestRam);
         _pet.Play(ActorAction.Idle, loop: true);
         // Start looking at the viewer rather than easing round to it.
         _facing = _facingTarget = FacingYaw;

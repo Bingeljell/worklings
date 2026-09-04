@@ -814,27 +814,45 @@ recording a regression is exactly as easy as recording a fix.
    actually plays still look like a debug line.
 4. ~~No audio.~~ Done — `core/stage/CombatAudio.cs`, the bed plus sixteen cues,
    fired from the same beats the Swift panel fires them from.
-5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
+5. **Pet bodies, and the model swap.** Every Workling renders as the Tempest Ram
+   regardless of family, because both scenes load it unconditionally. The roster
+   as it actually stands — confirmed 2026-09-04 — is the table in
+   `core/stage/PetBody.cs`:
+
+   | Family | Body | State |
+   | --- | --- | --- |
+   | Elemental | Tempest Ram | in the project, rigged as a pet; what everything wears today |
+   | Relicborn | Clockwork Pangolin | in the project as a **foe** stand-in; needs a pet export from `worklings-blender-work/clockwork-pangolin-rigify.blend` |
+   | Wildkin | Moss-Fox | not made yet — still to be rigged and animated |
+   | Glitchkin, Bloomglass | — | no model at all |
+
+   Only Elemental is pickable, and the two reasons a family is not are worded
+   differently in the menu — "body not set up yet" is waiting on an export,
+   "coming soon" on the animal existing. **Note the live Workling is Wildkin**,
+   so it is checked and unpickable at once, which is the truth rather than a bug.
+   `PetBody.Model` is the mapping the swap will read; the two places that will
+   read it both name `PetBody.DefaultModel` today, so they are easy to find.
+6. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
    Monolith have no model at all. Today the Flicker stands in for the first
    three at different sizes and the Pangolin — a pet model — stands in for the
    Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
    and want a look.
-6. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
+7. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
    exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
    them back to back — so the re-time matters more than it did. Nikhil is
    revising the actions to be quicker and more impactful; contact points are
    stored as fractions (Ram 0.86, Flicker 0.82, Pangolin 0.85) so they survive a
    re-time.
-7. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
+8. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
    cycle underneath during the approach is the real fix.
-8. **The impact flash reads as invisible in motion** despite showing clearly in
+9. **The impact flash reads as invisible in motion** despite showing clearly in
    stills. Not diagnosed; may need more than a tint change.
-9. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
+10. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
    sizes, hit-stop duration, the summary dwell. All exported.
-10. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
-   3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
-11. **Action trimming.** The Ram ships 17 actions, most of them iteration
+11. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
+    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
+12. **Action trimming.** The Ram ships 17 actions, most of them iteration
     history; the Flicker has a clean five. Needs a human call on which variants
     are the keepers — `keep_actions` takes the set.
 

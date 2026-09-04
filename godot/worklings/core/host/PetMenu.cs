@@ -356,12 +356,12 @@ public sealed class PetMenu
         for (int i = 0; i < families.Length; i++)
         {
             var family = families[i];
-            bool pickable = PetBody.IsPickable(family);
-            _families.AddRadioCheckItem(
-                pickable ? family.DisplayName() : $"{family.DisplayName()} (coming soon)",
-                FamilyBase + i);
+            _families.AddRadioCheckItem(PetBody.Label(family), FamilyBase + i);
+            // The current family is checked whether or not it can be picked. A
+            // Workling whose family has no body yet is still that family, and
+            // saying otherwise would be a lie about the pet you have.
             _families.SetItemChecked(i, family == state.Family);
-            _families.SetItemDisabled(i, !pickable);
+            _families.SetItemDisabled(i, !PetBody.IsPickable(family));
         }
     }
 

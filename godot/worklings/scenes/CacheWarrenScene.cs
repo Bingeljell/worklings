@@ -154,7 +154,11 @@ public partial class CacheWarrenScene : Node3D
     public override void _Ready()
     {
         LoadState();
-        _party = new StageActor(GetNode<Node3D>("Party"), "tempest_ram", ActorAnimations.TempestRam);
+        // The Ram, unconditionally, exactly as on the desktop — the Workling
+        // that walks into a delve has to be the one standing on your screen. The
+        // far end of the model swap; see PetBody.
+        _party = new StageActor(
+            GetNode<Node3D>("Party"), PetBody.DefaultModel, ActorAnimations.TempestRam);
         AddFoeModel("Flicker", "forest_flicker");
         AddFoeModel("Pangolin", "clockwork_pangolin");
         _foe = _foeModels["forest_flicker"];
