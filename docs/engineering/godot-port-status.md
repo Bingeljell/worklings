@@ -869,9 +869,14 @@ recording a regression is exactly as easy as recording a fix.
    run at that pace, or the beat be padded to match the others, is unjudged.
 8. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
-   cycle underneath during the approach is the real fix.
+   cycle underneath during the approach was the assumed fix; a **motion trail**
+   is the cheaper candidate and probably the better one, because things that
+   leave a streak read as moving fast. See "motion trails" in
+   [dungeons](../design/dungeons.md).
 9. **The impact flash reads as invisible in motion** despite showing clearly in
-   stills. Not diagnosed; may need more than a tint change.
+   stills. Not diagnosed; may need more than a tint change. Likely the same
+   missing piece as #8 — a flash with no motion around it has nothing to
+   punctuate. See "motion trails" in [dungeons](../design/dungeons.md).
 10. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
    sizes, hit-stop duration, the summary dwell. All exported.
 11. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at

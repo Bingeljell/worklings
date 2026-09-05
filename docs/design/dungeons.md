@@ -515,6 +515,71 @@ Two different kinds of "effect" on a character, deliberately handled differently
   than inherited from the billboard era. The upside if it holds: no re-bake per action,
   which was the whole cost of the baked approach.
 
+### OPEN: motion trails — the attacks have no sense of speed (noted 2026-09-06)
+
+**The problem, in Nikhil's words: we need proper effects that show impact and travel.**
+Every attack in the dungeon today is a mesh moving through poses. Nothing on screen says
+*fast*. The animation can be as snappy as it likes — with no visual residue, a strike
+reads as a model changing position rather than as a blow.
+
+Reference (another game, sent 2026-09-06):
+
+![Ghost trail on an attack](images/motion-trails/01-ghost-trail-attack.jpg)
+![The full-body version, mid-dash](images/motion-trails/02-ghost-trail-full-body.jpg)
+
+The effect is a **ghost trail**: copies of the character's own skinned mesh, frozen at
+poses it held a few frames ago, tinted a family colour, fading out with age. The limbs
+that move fastest get an emissive glow at the extremities on top. In the second frame the
+*live* body is translucent too, so the whole character reads as smeared through space —
+a stronger version of the same trick for a dash or a signature.
+
+**This is an engine effect, not a Blender one, and that is the point.** Nothing here is
+baked into the animation: the trail is generated at runtime from whatever pose the mesh
+is in. That means it costs **no re-export and no re-bake per action** — the exact cost
+that made the Ram's crackle expensive (see the baked-vs-live entries above). It applies
+to every character we already shipped, including the ones exported before the idea
+existed, and to every action, not just the one it was authored against.
+
+**Per character, with its own dial settings.** The intent is one shared effect with
+per-character configuration — colour (the family energy colour is already in
+`FamilyEnergy` and already drives hit sparks), ghost count and spacing, how long each
+ghost lives, which bones glow, and whether particles ride along. A Ram headbutt wants a
+few heavy, closely-spaced ghosts; a Flicker swipe wants many light ones spread wide; the
+Snag's whip wants the trail on the tentacle only, since the body never moves. Same
+system, different numbers — the same shape as `ActorAnimations`, which is one table with
+a row per character.
+
+**Why this earns its place ahead of other polish:** it is the missing half of two
+problems already open in the [port status](../engineering/godot-port-status.md), and it
+is the *same* missing half both times.
+
+- *"The impact flash reads as invisible in motion despite showing clearly in stills"*
+  (open #9). A flash with nothing around it has no motion to punctuate. A trail arriving
+  into the contact frame gives the flash something to be the end of.
+- *"`AttackersTravel` reads as sliding — the mesh translates while playing a stationary
+  attack animation"* (open #8). The stated fix was a walk cycle underneath. A trail is
+  the cheaper one and probably the better one for a lunge: **things that leave a streak
+  read as moving fast; things that don't read as sliding.** It also costs nothing per
+  character, where a walk cycle is an animation per character we would have to author.
+
+**Godot can do this cheaply — checked, not assumed.** `MeshInstance3D` has
+`bake_mesh_from_current_skeleton_pose()`, which returns an `ArrayMesh` of the mesh as
+currently posed, and it accepts an existing `ArrayMesh` to write into. So a ghost is a
+**static snapshot**, not a second skinned character: no skeleton, no `AnimationPlayer`,
+no per-frame skinning cost, and the `existing` parameter means a fixed pool of ghost
+meshes can be recycled rather than allocated per swing. That matters at our numbers —
+the Ram carries 283 joints, and eight *live* skinned copies of it would have been a real
+cost where eight static ones are not. Verified against Godot 4.7.2's own class reference;
+the method carries no doc description, so the behaviour still wants a probe before it is
+trusted.
+
+**Unjudged:** how many ghosts, how far apart, and whether it reads as cheap at our
+camera distance — this is a look-at-it effect, not a decide-on-paper one. Also whether
+the translucent-live-body version is right for a Workling at all, or only for a boss
+signature. And it is not a substitute for the impact itself: a trail sells *travel*, and
+impact still needs its own answer (hit-stop and shake already exist; the flash does not
+land yet).
+
 ## The Cache Warren
 
 *Setting — the **first** dungeon's, not the world's. Worklings is a broad universe, and
