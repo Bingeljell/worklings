@@ -161,6 +161,7 @@ public partial class CacheWarrenScene : Node3D
             GetNode<Node3D>("Party"), PetBody.DefaultModel, ActorAnimations.TempestRam);
         AddFoeModel("Flicker", "forest_flicker");
         AddFoeModel("Pangolin", "clockwork_pangolin");
+        AddFoeModel("Snag", "snag");
         _foe = _foeModels["forest_flicker"];
         _petEnergy = FamilyEnergy.Of(_state.Family);
         _foeEnergy = FamilyEnergy.Of(FamilyEnergy.For(_foe.ModelName));
@@ -770,21 +771,22 @@ public partial class CacheWarrenScene : Node3D
         _audio.StartBgm(boss: _delve?.IsBossEncounter ?? false);
     }
 
-    /// Stand-in staging for the three foes with no model of their own. Only the
-    /// Flicker is rigged; the Snag's mesh exists but is not rigged yet, and the
-    /// Scamp and Monolith have none — so the Flicker's body covers the small and
-    /// mid foes at different sizes and energy colours, and the Pangolin (a pet
-    /// model, borrowed) covers the Monolith, because a heavy armoured slammer
-    /// reads as a Colossus where a scaled-up cat reads as a large cat.
+    /// Staging for the four foes. **Two of them now have their own body**: the
+    /// Flicker, and the Snag, whose rig and animations arrived on 2026-09-05.
+    /// The Scamp and the Monolith are still stand-ins — the Flicker scaled down
+    /// to 0.55 for the small one, and the Pangolin (a pet model, borrowed) for
+    /// the Monolith, because a heavy armoured slammer reads as a Colossus where
+    /// a scaled-up cat reads as a large cat.
     ///
-    /// Placeholder on purpose — the chain and its pacing are what this scene is
-    /// for, and they are judgeable now rather than after four rigs. The scales
-    /// are eyeballed against the models' own sizes and want a look before they
-    /// are trusted.
+    /// The Snag carries its size in the scene rather than here, so its scale is
+    /// 1.0: at its authored size it is a third the Ram's height and reads as a
+    /// shrub, and 7.0 in `cache_warren.tscn` puts it at the Ram's shoulder,
+    /// wider than it is tall — which is what a rooted grabber should look like.
+    /// Checked in a rendered shot, not guessed.
     private static (string Model, float Scale, Color Energy) PresenceFor(string foeName) => foeName switch
     {
         "Dungeon Scamp" => ("forest_flicker", 0.55f, FamilyEnergy.Glitchkin),
-        "Snag" => ("forest_flicker", 1.15f, FamilyEnergy.Wildkin),
+        "Snag" => ("snag", 1.0f, FamilyEnergy.Wildkin),
         "Flicker" => ("forest_flicker", 1.0f, FamilyEnergy.Wildkin),
         "Monolith" => ("clockwork_pangolin", 1.3f, FamilyEnergy.Relicborn),
         _ => ("forest_flicker", 1.0f, FamilyEnergy.Bloomglass),

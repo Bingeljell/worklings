@@ -87,12 +87,43 @@ public sealed class ActorAnimations
         },
         attackImpactPoint: 0.85);
 
+    /// The Snag. Its own body at last, rather than a scaled-up Flicker — and
+    /// the first character exported straight from the animated `.blend` through
+    /// the command-line exporter.
+    ///
+    /// **No Walk**, deliberately: a Snag is rooted in the floor and never
+    /// crosses it. Nothing plays Walk on a foe, so leaving it unmapped is
+    /// honest rather than a gap — and mapping it to a clip that does not exist
+    /// would warn at startup for a beat this character will never take.
+    ///
+    /// Signature is the same whip as Attack. The Snag shipped with one attack,
+    /// and repeating it is better than the alternative of a foe standing still
+    /// on the beat that is supposed to be its biggest.
+    ///
+    /// **The impact point is 0.50, not the 0.85 the others use** — measured, not
+    /// eyeballed: the whipping tentacle's tip reaches peak speed at frame 12 of
+    /// 24. This clip cracks in the middle and recoils, where the Ram's and the
+    /// Flicker's are a long wind-up into a strike at the finish. Timing it at
+    /// 0.85 would land the flash and the damage while the whip was already on
+    /// its way back.
+    public static readonly ActorAnimations Snag = new(
+        new Dictionary<ActorAction, string>
+        {
+            [ActorAction.Idle] = "Idle",
+            [ActorAction.Attack] = "Attack_Whip_24f_Review",
+            [ActorAction.Signature] = "Attack_Whip_24f_Review",
+            [ActorAction.Wince] = "Take_Damage",
+            [ActorAction.Downed] = "Death",
+        },
+        attackImpactPoint: 0.50);
+
     /// Looked up by the .glb basename the actor was loaded from.
     public static ActorAnimations? For(string modelName) => modelName switch
     {
         "tempest_ram" => TempestRam,
         "forest_flicker" => ForestFlicker,
         "clockwork_pangolin" => ClockworkPangolin,
+        "snag" => Snag,
         _ => null,
     };
 }

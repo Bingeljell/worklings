@@ -21,13 +21,80 @@ that matters.
 | **Textures** | **1024 × 1024** | 4096, 2048 and 1024 are identical at dungeon distance, and 1024 holds up closer than the character screen goes. |
 | **Action length** | **≤ 44 frames** | Animation data is the real size driver — see below. |
 
-Result across the current roster: **23 MB for three characters, down from ~73 MB.**
+## Running the exporter
+
+Run the exporter in a separate background Blender process. It opens and simplifies an
+in-memory copy of the source, so the authored `.blend` remains the editable master and
+the currently open Blender session is not replaced.
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender \
+  --background \
+  --python-exit-code 1 \
+  --python scripts/blender_export_character.py \
+  -- /absolute/path/character.blend /absolute/path/character.glb \
+  --keep-action Walk \
+  --keep-action Idle \
+  --keep-action Attack \
+  --keep-action Take_Damage
+```
+
+`--keep-action` is repeatable because every character owns a different action set. Omit
+it to export every Action in the file. A requested name that is not present fails before
+the exporter removes anything. The final JSON report includes the animation names read
+back from the GLB, along with skin and joint counts; an export with no skin or no
+animations is rejected.
+
+Complex or non-manifold meshes may not reach the nominal Collapse ratio in one pass.
+The exporter measures the result and applies additional Decimate passes until the real
+triangle count reaches the requested budget; it fails if Blender cannot reach that
+budget. `--allow-over-budget` is an explicit review-only escape hatch for a topology
+floor: the GLB is written and `tri_budget_met` remains `false` in the report. It also
+repairs invalid mesh data before export rather than passing glTF a mesh Blender itself
+considers invalid, including a second validation after destructive simplification.
+`--python-exit-code 1` matters because Blender otherwise exits zero
+after a Python traceback, which makes a failed export look successful to automation.
+
+Optional delivery controls:
+
+```bash
+--tri-budget 20000       # cannot go below the reviewed 20k floor
+--texture-size 1024      # default
+--no-texture-resize      # keep authored image dimensions
+--allow-over-budget      # explicit exception when Collapse hits a topology floor
+```
+
+The output is a runtime/review `.glb`, not a replacement for the `.blend`: glTF carries
+the skinned mesh, deform skeleton and baked actions, but not Rigify control widgets,
+constraints or a reliably round-trippable Blender control rig.
+
+Result across the current roster: **27 MB for four characters.**
 
 | | before | after |
 | --- | --- | --- |
 | Tempest Ram | 23.0 MB | 7.1 MB |
 | Forest Flicker | 10.4 MB | 3.3 MB |
 | Clockwork Pangolin | 39.3 MB | 12.6 MB |
+| Snag | 15.7 MB (.blend) | 3.9 MB |
+
+## The Snag: the first character over the triangle budget
+
+The Snag stops at **37,826 triangles**, near twice the 20k standard, and it was exported
+that way with `--allow-over-budget` after review.
+
+Collapse cannot go further. The first pass at ratio 0.069 lands at 39,285; a second at
+0.509 moves it to 38,263, a 3% gain, and the exporter stops rather than keep damaging a
+topology it cannot simplify. **This is not the seam problem** the weld exists to fix —
+the weld already takes the mesh from 263,964 boundary edges to 787, leaving it
+essentially manifold. The floor is in the root ribbons themselves.
+
+It is affordable anyway, because triangles are not what costs: at 27 bones and four
+clips of 23–33 frames, the Snag is **3.9 MB — lighter than the 20k-triangle Ram's 7.1
+MB**. Which is the same finding as everywhere else in this doc, from the other side:
+animation data and joint count set the size, not geometry.
+
+Worth a look in Blender if the roots are ever reauthored. Not worth blocking the
+character on.
 
 **Downscale on export, never in the source.** Keep the .blend authored at 2048 or higher
 and let the exporter reduce it. Downscaling is one-way and the .blend is the only place

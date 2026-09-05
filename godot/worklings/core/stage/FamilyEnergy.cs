@@ -43,6 +43,7 @@ public static class FamilyEnergy
         "tempest_ram" => PetFamily.Elemental,
         "forest_flicker" => PetFamily.Wildkin,
         "clockwork_pangolin" => PetFamily.Relicborn,
+        "snag" => PetFamily.Wildkin,
         _ => PetFamily.Bloomglass,
     };
 

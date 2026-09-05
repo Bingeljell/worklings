@@ -46,7 +46,11 @@ locked camera and at close range:
   than fails, so existing characters still export.
 """
 
+import argparse
+import json
 import os
+import sys
+
 import bmesh
 import bpy
 
@@ -107,8 +111,44 @@ def _tris(mesh):
     return sum(len(p.vertices) - 2 for p in mesh.polygons)
 
 
+def _decimate_to_budget(geo, tri_budget, win, max_passes=4):
+    """Apply enough destructive Decimate passes to reach the requested budget.
+
+    A single Collapse pass is not guaranteed to hit its nominal ratio on complex,
+    non-manifold meshes. Snag stopped at almost twice the target on its first pass,
+    so measure the real result and feed the remainder into another pass.
+    """
+    passes = []
+    for pass_number in range(1, max_passes + 1):
+        before = _tris(geo.data)
+        if before <= tri_budget:
+            break
+        ratio = tri_budget / before
+        dec = geo.modifiers.new(f"ExportDecimate{pass_number}", "DECIMATE")
+        dec.decimate_type = "COLLAPSE"
+        dec.ratio = ratio
+        geo.modifiers.move(geo.modifiers.find(dec.name), 0)  # above Armature
+        with bpy.context.temp_override(
+            window=win, screen=win.screen, object=geo,
+            active_object=geo, selected_objects=[geo],
+        ):
+            bpy.ops.object.modifier_apply(modifier=dec.name)
+        after = _tris(geo.data)
+        passes.append({
+            "pass": pass_number,
+            "ratio": round(ratio, 6),
+            "tris_before": before,
+            "tris_after": after,
+        })
+        # Stop rather than repeatedly damaging a topology that Collapse cannot
+        # simplify. The caller decides whether an over-budget result is allowed.
+        if after >= before or (before - after) / before < 0.05:
+            break
+    return passes
+
+
 def export_character(blend_path, out_path, keep_actions=None, tri_budget=TRI_BUDGET,
-                    texture_size=TEXTURE_SIZE):
+                    texture_size=TEXTURE_SIZE, allow_over_budget=False):
     """Open `blend_path`, simplify, and write a Godot-ready .glb to `out_path`.
 
     `keep_actions` is a set of action names to ship; None keeps everything.
@@ -133,6 +173,14 @@ def export_character(blend_path, out_path, keep_actions=None, tri_budget=TRI_BUD
     report["rewired_materials"] = _bypass_emission_mix(geo)
 
     if keep_actions is not None:
+        keep_actions = set(keep_actions)
+        available = {action.name for action in bpy.data.actions}
+        missing = sorted(keep_actions - available)
+        if missing:
+            raise ValueError(
+                f"requested actions are not present in {blend_path}: {missing}; "
+                f"available actions: {sorted(available)}"
+            )
         report["actions_before"] = len(bpy.data.actions)
         for action in list(bpy.data.actions):
             if action.name not in keep_actions:
@@ -160,6 +208,10 @@ def export_character(blend_path, out_path, keep_actions=None, tri_budget=TRI_BUD
     bmesh.ops.remove_doubles(mesh, verts=mesh.verts, dist=1e-5)
     mesh.to_mesh(geo.data)
     mesh.free()
+    report["mesh_repaired"] = bool(
+        geo.data.validate(verbose=False, clean_customdata=False)
+    )
+    geo.data.update()
     report["tris_source"] = _tris(geo.data)
 
     win = bpy.context.window_manager.windows[0]
@@ -168,23 +220,29 @@ def export_character(blend_path, out_path, keep_actions=None, tri_budget=TRI_BUD
             obj.select_set(False)
         geo.select_set(True)
         bpy.context.view_layer.objects.active = geo
-        dec = geo.modifiers.new("Dec", "DECIMATE")
-        dec.decimate_type = "COLLAPSE"
-        dec.ratio = tri_budget / report["tris_source"]
-        geo.modifiers.move(geo.modifiers.find("Dec"), 0)  # above the Armature
-        with bpy.context.temp_override(
-            window=win, screen=win.screen, object=geo,
-            active_object=geo, selected_objects=[geo],
-        ):
-            bpy.ops.object.modifier_apply(modifier="Dec")
+        report["decimation_passes"] = _decimate_to_budget(geo, tri_budget, win)
+    report["mesh_repaired_after_decimate"] = bool(
+        geo.data.validate(verbose=False, clean_customdata=False)
+    )
+    geo.data.update()
     report["tris_exported"] = _tris(geo.data)
+    report["tri_budget"] = tri_budget
+    report["tri_budget_met"] = report["tris_exported"] <= tri_budget
+    if not report["tri_budget_met"] and not allow_over_budget:
+        raise RuntimeError(
+            f"decimation stopped at {report['tris_exported']} triangles, above "
+            f"the requested {tri_budget} budget; passes: "
+            f"{report.get('decimation_passes', [])}. Use --allow-over-budget "
+            "only after reviewing this character's exported mesh."
+        )
 
     for obj in bpy.context.view_layer.objects:
         obj.select_set(False)
     geo.select_set(True)
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    out_dir = os.path.dirname(os.path.abspath(out_path))
+    os.makedirs(out_dir, exist_ok=True)
     with bpy.context.temp_override(
         window=win, screen=win.screen, object=rig,
         active_object=rig, selected_objects=[geo, rig],
@@ -211,7 +269,6 @@ def _verify(glb_path):
     """Read the .glb's JSON chunk back and confirm a skeleton and animations are
     present. The exporter reports success either way, so this is the only
     honest check that the file is usable."""
-    import json
     import struct
 
     with open(glb_path, "rb") as handle:
@@ -219,8 +276,72 @@ def _verify(glb_path):
         chunk_len, _ = struct.unpack("<II", handle.read(8))
         doc = json.loads(handle.read(chunk_len).decode("utf-8"))
     skins = doc.get("skins", [])
+    animations = doc.get("animations", [])
     return {
         "glb_skins": len(skins),
         "glb_joints": len(skins[0]["joints"]) if skins else 0,
-        "glb_animations": len(doc.get("animations", [])),
+        "glb_animations": len(animations),
+        "glb_animation_names": [animation.get("name") for animation in animations],
     }
+
+
+def _parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description="Export a rigged Blender character to a verified GLB."
+    )
+    parser.add_argument("blend_path", help="source .blend file")
+    parser.add_argument("out_path", help="destination .glb file")
+    parser.add_argument(
+        "--keep-action",
+        action="append",
+        dest="keep_actions",
+        metavar="NAME",
+        help="action to include; repeat for each action (default: include all)",
+    )
+    parser.add_argument(
+        "--tri-budget",
+        type=int,
+        default=TRI_BUDGET,
+        help=f"maximum exported triangle count (default: {TRI_BUDGET})",
+    )
+    parser.add_argument(
+        "--texture-size",
+        type=int,
+        default=TEXTURE_SIZE,
+        help=f"maximum square texture size (default: {TEXTURE_SIZE})",
+    )
+    parser.add_argument(
+        "--no-texture-resize",
+        action="store_true",
+        help="keep authored texture dimensions",
+    )
+    parser.add_argument(
+        "--allow-over-budget",
+        action="store_true",
+        help="export when Collapse cannot reach the triangle target; report the miss",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = _parse_args(argv if argv is not None else [])
+    report = export_character(
+        os.path.abspath(args.blend_path),
+        os.path.abspath(args.out_path),
+        keep_actions=args.keep_actions,
+        tri_budget=args.tri_budget,
+        texture_size=None if args.no_texture_resize else args.texture_size,
+        allow_over_budget=args.allow_over_budget,
+    )
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return report
+
+
+if __name__ == "__main__":
+    if "--" not in sys.argv:
+        raise SystemExit(
+            "Pass exporter arguments after Blender's `--`, for example: "
+            "blender --background --python scripts/blender_export_character.py "
+            "-- character.blend character.glb"
+        )
+    main(sys.argv[sys.argv.index("--") + 1:])
