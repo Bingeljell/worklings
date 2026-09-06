@@ -9,6 +9,10 @@ run against a live Blender over the `execute_code` RPC.
 Applies to the **dungeon and character screen** (live 3D). The desktop pet is still
 baked sprites — see [bake spec](../design/bake-spec.md).
 
+Upstream of this doc: [character rigging pipeline](character-rigging-pipeline.md) covers
+how a raw Trellis reconstruction becomes the rigged, weighted `.blend` the exporter
+expects.
+
 ## The standard (locked 2026-09-01)
 
 Reviewed in Godot at the locked Cache Warren camera *and* at close range, on the real
