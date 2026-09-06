@@ -56,6 +56,20 @@ import bpy
 
 TRI_BUDGET = 20_000       # triangles, not vertices
 TRI_FLOOR = 20_000
+
+# Per-character overrides, keyed by the exported .glb basename.
+#
+# 20k is the right default and three of the four characters hit it exactly. The
+# Snag cannot: it is a braid of thin tubes, and every QEM collapse either
+# punches through a tube wall or fuses two neighbouring coils, so Collapse
+# stalls around 38k no matter how many passes it is given. Forcing it lower does
+# not produce a smaller Snag, it produces a shattered one — at 20k the coils
+# collapse into spikes and the amber eye disappears, while 60k keeps the braid
+# intact for 1.8 MB more. Measured 2026-09-06; see docs/engineering/
+# snag-mesh-investigation.md for the related pipeline bug.
+TRI_BUDGETS = {
+    "snag": 60_000,
+}
 TEXTURE_SIZE = 1024       # square, per map
 FRAME_CAP = 44            # per action; longer clips dominate file size
 
@@ -111,12 +125,20 @@ def _tris(mesh):
     return sum(len(p.vertices) - 2 for p in mesh.polygons)
 
 
-def _decimate_to_budget(geo, tri_budget, win, max_passes=4):
-    """Apply enough destructive Decimate passes to reach the requested budget.
+def _decimate_to_budget(geo, tri_budget, win, max_passes=1):
+    """Apply Decimate passes, destructively, to reach the requested budget.
 
-    A single Collapse pass is not guaranteed to hit its nominal ratio on complex,
-    non-manifold meshes. Snag stopped at almost twice the target on its first pass,
-    so measure the real result and feed the remainder into another pass.
+    **One pass by default.** This used to allow four, on the reasoning that a
+    single Collapse is not guaranteed to hit its nominal ratio, so the remainder
+    could be fed into another pass. That reasoning is right about the arithmetic
+    and wrong about the consequence: a mesh that misses its target is one
+    Collapse cannot simplify, and running it again simply collapses an already
+    damaged mesh. The Snag shipped that way — four passes, still 1.9x over
+    budget, and shredded into spikes. Its single-pass export at a reachable
+    budget is 1,745 triangles larger and looks like the concept art.
+
+    So a miss is now a reportable fact rather than something to grind at. The
+    caller raises unless `--allow-over-budget` says otherwise.
     """
     passes = []
     for pass_number in range(1, max_passes + 1):
@@ -147,7 +169,7 @@ def _decimate_to_budget(geo, tri_budget, win, max_passes=4):
     return passes
 
 
-def export_character(blend_path, out_path, keep_actions=None, tri_budget=TRI_BUDGET,
+def export_character(blend_path, out_path, keep_actions=None, tri_budget=None,
                     texture_size=TEXTURE_SIZE, allow_over_budget=False):
     """Open `blend_path`, simplify, and write a Godot-ready .glb to `out_path`.
 
@@ -156,6 +178,10 @@ def export_character(blend_path, out_path, keep_actions=None, tri_budget=TRI_BUD
     them as authored. Textures dominate file size once geometry is decimated —
     the Pangolin's 4096 maps are 26.9 MB of its 39 MB.
     """
+    if tri_budget is None:
+        tri_budget = TRI_BUDGETS.get(
+            os.path.basename(out_path).rsplit(".", 1)[0], TRI_BUDGET
+        )
     if tri_budget < TRI_FLOOR:
         raise ValueError(
             f"{tri_budget} is below the {TRI_FLOOR} floor — see the module docstring"
@@ -301,8 +327,9 @@ def _parse_args(argv):
     parser.add_argument(
         "--tri-budget",
         type=int,
-        default=TRI_BUDGET,
-        help=f"maximum exported triangle count (default: {TRI_BUDGET})",
+        default=None,
+        help=f"maximum exported triangle count (default: {TRI_BUDGET}, "
+             f"or the per-character override in TRI_BUDGETS: {TRI_BUDGETS})",
     )
     parser.add_argument(
         "--texture-size",
