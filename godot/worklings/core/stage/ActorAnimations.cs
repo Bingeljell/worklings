@@ -30,10 +30,36 @@ public sealed class ActorAnimations
     /// trimmed and shortened; there is no way to derive it from the file.
     public double AttackImpactPoint { get; }
 
-    public ActorAnimations(Dictionary<ActorAction, string> map, double attackImpactPoint = 0.85)
+    /// How far the attacker travels, as a share of the gap to its target.
+    ///
+    /// Per character because reach is per character. The Ram has none and must
+    /// cross the floor to connect; the Snag has an arm's worth and only needs to
+    /// commit its weight forward, so sending it the same distance would drag a
+    /// rooted thing off the spot it is rooted to.
+    public float TravelFraction { get; }
+
+    /// How long the travel burst lasts, in seconds, ending on the contact frame.
+    ///
+    /// The wind-up plays on the mark and the character launches at the end of
+    /// it. This is the length of that launch — short, because a short burst over
+    /// a real distance is what reads as speed. The first version spent this at
+    /// the *start* of the clip and then stood next to the target through the
+    /// rest of the wind-up, which is why it read as sliding.
+    public double TravelSeconds { get; }
+
+    /// How many ghosts the trail holds. More reads as a smear, fewer as a row of
+    /// separate bodies; the stills put the line at around ten for a full charge.
+    public int GhostCount { get; }
+
+    public ActorAnimations(Dictionary<ActorAction, string> map, double attackImpactPoint = 0.85,
+                           float travelFraction = 0.62f, double travelSeconds = 0.24,
+                           int ghostCount = 10)
     {
         _map = map;
         AttackImpactPoint = System.Math.Clamp(attackImpactPoint, 0, 1);
+        TravelFraction = travelFraction;
+        TravelSeconds = travelSeconds;
+        GhostCount = ghostCount;
     }
 
     public string? Name(ActorAction action) => _map.TryGetValue(action, out var n) ? n : null;
@@ -54,7 +80,9 @@ public sealed class ActorAnimations
             [ActorAction.Wince] = "RamDamage_HeavyFront_Wince",
             [ActorAction.Downed] = "RamDamage_HeavyFront",
         },
-        attackImpactPoint: 0.86);
+        attackImpactPoint: 0.86,
+        // A charge: it has no reach, so it commits the whole gap.
+        travelFraction: 0.62f, travelSeconds: 0.24, ghostCount: 7);
 
     /// The Forest Flicker. Its five actions are already a clean set — one per
     /// beat, no variants — which is what the Ram's should be trimmed down to.
@@ -68,7 +96,9 @@ public sealed class ActorAnimations
             [ActorAction.Wince] = "ForestFlicker_Damage_Wince_TailDown",
             [ActorAction.Downed] = "ForestFlicker_Damage_Wince_TailDown",
         },
-        attackImpactPoint: 0.82);
+        attackImpactPoint: 0.82,
+        // Lighter and faster than the Ram, so more ghosts spread thinner.
+        travelFraction: 0.66f, travelSeconds: 0.20, ghostCount: 9);
 
     /// The Clockwork Pangolin. A pet model doing placeholder duty as the
     /// Monolith: the mini-boss has no model of its own, and a heavy armoured
@@ -85,7 +115,10 @@ public sealed class ActorAnimations
             [ActorAction.Wince] = "Pangolin_HitReact_HeadTuck_Sprite_v01",
             [ActorAction.Downed] = "Pangolin_HitReact_HeadTuck_Sprite_v01",
         },
-        attackImpactPoint: 0.85);
+        attackImpactPoint: 0.85,
+        // Heavy. It closes less far and takes longer doing it, so the trail
+        // reads as mass rather than speed.
+        travelFraction: 0.44f, travelSeconds: 0.30, ghostCount: 8);
 
     /// The Snag. Its own body at last, rather than a scaled-up Flicker — and
     /// the first character exported straight from the animated `.blend` through
@@ -115,7 +148,10 @@ public sealed class ActorAnimations
             [ActorAction.Wince] = "Take_Damage",
             [ActorAction.Downed] = "Death",
         },
-        attackImpactPoint: 0.50);
+        attackImpactPoint: 0.50,
+        // A whip has reach. The body barely leaves its mark — just enough
+        // forward weight to sell the crack — and the trail is short to match.
+        travelFraction: 0.14f, travelSeconds: 0.14, ghostCount: 6);
 
     /// Looked up by the .glb basename the actor was loaded from.
     public static ActorAnimations? For(string modelName) => modelName switch

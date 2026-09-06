@@ -63,11 +63,13 @@ public partial class CacheWarrenScene : Node3D
     /// shake, sparks and damage numbers are identical either way — this only
     /// changes whether the body moves.
     ///
-    /// Travelling currently reads as sliding, because the mesh translates while
-    /// playing a stationary attack animation: nothing about the body sells the
-    /// movement. Exposed so both can be judged against the same fight rather
-    /// than argued about.
-    [Export] public bool AttackersTravel { get; set; } = false;
+    /// **On by default since the lunge was retimed.** It read as sliding while
+    /// the travel ran at the *front* of the attack — the body crossed the floor
+    /// and then stood there through the rest of the wind-up. Now the wind-up
+    /// plays on the mark and the travel is a burst that arrives on the contact
+    /// frame, with a ghost trail on it. Still exposed, because the flat comparison
+    /// is worth keeping.
+    [Export] public bool AttackersTravel { get; set; } = true;
 
     /// Where the run is. The fight is one phase of four, not the whole scene —
     /// the briefing, the bank/push choice and the closing summary are beats of
@@ -252,6 +254,12 @@ public partial class CacheWarrenScene : Node3D
     /// Opens a run on the prep screen — beat two, and the first thing the player
     /// actually does. The delve itself is not built until prep is confirmed,
     /// because the gear chosen here is folded into the fighter that enters it.
+    /// One trail per actor, because the baked poses belong to that character's
+    /// own mesh and attack clip. Keyed by actor rather than held as two fields
+    /// because the foes share a pool of models that is swapped by visibility, so
+    /// "the foe" is a different actor in each encounter of the chain.
+    private readonly System.Collections.Generic.Dictionary<StageActor, GhostTrail> _trails = new();
+
     private void BeginRun()
     {
         _petName = _state.Name;
@@ -269,6 +277,12 @@ public partial class CacheWarrenScene : Node3D
 
         _pending.Clear();
         _lunge.Cancel();
+
+        // Baked here, on the briefing screen, because baking a pose reads mesh
+        // data back from the GPU and ten of those inside one swing is a frame
+        // hitch. Nothing is moving yet, so the stall has nowhere to show. Baking
+        // also poses the skeleton, hence the idle again afterwards.
+        TrailFor(_party);
         _party.Play(ActorAction.Idle, loop: true);
 
         _phase = Phase.Prep;
@@ -487,6 +501,9 @@ public partial class CacheWarrenScene : Node3D
         // fight, not to the shake and dust working their way out of it.
         _impact.Tick(delta);
         _hud?.Tick(delta);
+        // Real time, like the shake and the dust: hit-stop freezes the fight and
+        // lets the trail keep dissipating out of it.
+        foreach (var trail in _trails.Values) trail.Tick(delta);
 
         // The attacker freezes at the point of contact during hit-stop rather
         // than sliding through the held frame.
@@ -597,7 +614,8 @@ public partial class CacheWarrenScene : Node3D
         double severity = maxHP > 0 ? (double)outcome.Damage / maxHP : 0;
         var direction = defender.Root.Position - attacker.Root.Position;
         _lastLungeDuration = AttackLunge.DurationFor(attacker.AttackImpactDelay());
-        _lunge.Begin(attacker, defender, attacker.AttackImpactDelay(), onContact: () =>
+        _lunge.Begin(attacker, defender, attacker.AttackImpactDelay(), trail: TrailFor(attacker),
+                     onContact: () =>
         {
             ApplyDamage(toFoe, outcome.Damage);
             var energy = toFoe ? _petEnergy : _foeEnergy;
@@ -615,7 +633,48 @@ public partial class CacheWarrenScene : Node3D
     {
         _lastLungeDuration = AttackLunge.DurationFor(attacker.AttackImpactDelay());
         _lunge.Begin(attacker, defender, attacker.AttackImpactDelay(),
-                     onContact: () => _numbers.SpawnMiss(defender.Root.Position));
+                     onContact: () =>
+                     {
+                         _numbers.SpawnMiss(defender.Root.Position);
+                         Dodge(attacker, defender);
+                     },
+                     trail: TrailFor(attacker));
+    }
+
+    /// The defender's half of a miss.
+    ///
+    /// Without it the attacker committed its whole travel, the word MISS
+    /// appeared, and the target stood perfectly still through all of it — which
+    /// reads as the attacker failing rather than as the target evading. A miss is
+    /// caused by the thing being missed, so the thing being missed has to move.
+    ///
+    /// Sideways, not backwards: perpendicular to the blow, because stepping away
+    /// along the attacker's own line just looks like being pushed.
+    private void Dodge(StageActor attacker, StageActor defender)
+    {
+        var line = defender.Root.Position - attacker.Root.Position;
+        var side = new Vector3(-line.Z, 0, line.X).Normalized() * 1.15f;
+
+        var tween = CreateTween();
+        tween.TweenMethod(Callable.From<Vector3>(defender.SetOffset), Vector3.Zero, side, 0.12)
+             .SetTrans(Tween.TransitionType.Quint).SetEase(Tween.EaseType.Out);
+        tween.TweenMethod(Callable.From<Vector3>(defender.SetOffset), side, Vector3.Zero, 0.30)
+             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut);
+    }
+
+    /// The trail belonging to whichever actor is swinging, baked on first ask.
+    ///
+    /// The party's is warmed at the briefing where the stall is invisible. A
+    /// foe's is warmed on its first swing, which costs one hitch per model per
+    /// run — the alternative is baking all four at startup for the three that may
+    /// never appear.
+    private GhostTrail TrailFor(StageActor actor)
+    {
+        if (_trails.TryGetValue(actor, out var existing)) return existing;
+        var trail = new GhostTrail(actor, this);
+        trail.Bake();
+        _trails[actor] = trail;
+        return trail;
     }
 
     /// Turns one event into what you see. Returns whether it deserves a beat —

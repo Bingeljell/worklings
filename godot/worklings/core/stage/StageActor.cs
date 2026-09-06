@@ -18,12 +18,19 @@ public sealed class StageActor
     private readonly AnimationPlayer? _player;
     private readonly Vector3 _restPosition;
 
+    /// The skinned mesh and the player driving it, for the ghost trail — which
+    /// has to pose the skeleton itself to bake a snapshot of it. Nothing else
+    /// should reach past Play() for them.
+    public MeshInstance3D? Mesh { get; }
+    public AnimationPlayer? Player => _player;
+
     public StageActor(Node3D root, string modelName, ActorAnimations animations)
     {
         Root = root;
         ModelName = modelName;
         Animations = animations;
         _player = FindPlayer(root);
+        Mesh = FindMesh(root);
         _restPosition = root.Position;
         VerifyAnimations();
     }
@@ -71,6 +78,17 @@ public sealed class StageActor
     public void SetOffset(Vector3 offset) => Root.Position = _restPosition + offset;
 
     public void ClearOffset() => Root.Position = _restPosition;
+
+    private static MeshInstance3D? FindMesh(Node node)
+    {
+        if (node is MeshInstance3D m) return m;
+        foreach (var child in node.GetChildren())
+        {
+            var found = FindMesh(child);
+            if (found != null) return found;
+        }
+        return null;
+    }
 
     private static AnimationPlayer? FindPlayer(Node node)
     {
