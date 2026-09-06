@@ -27,7 +27,7 @@ public partial class GhostTrailPreview : Node
     private const float Fov = 32f;
 
     private static readonly string OutputDir =
-        "/private/tmp/claude-501/-Users-nikhilshahane-projects-worklings/497e0fd1-f520-4574-9a49-712147317f6a/scratchpad/trail-shots";
+        "/private/tmp/claude-501/-Users-nikhilshahane-projects-worklings/fcca5d72-c899-42ad-984a-5f3b10dd870d/scratchpad/trail-shots";
 
     private Camera3D _camera = null!;
 
@@ -42,6 +42,11 @@ public partial class GhostTrailPreview : Node
 
         // The Snag: rooted, so the ghosts stack on the spot and the only thing
         // the trail can show is the whip's own arc.
+        // Textured and plain grey, side by side. The investigation's own first
+        // move was to strip textures — it separates a broken surface from a
+        // broken bake, and they look alike at a glance.
+        await Shot("00-snag-grey", "snag", ghosts: 0, travel: Vector3.Zero, grey: true);
+        await Shot("00-flicker-grey", "forest_flicker", ghosts: 0, travel: Vector3.Zero, grey: true);
         await Shot("01-snag-no-trail", "snag", ghosts: 0, travel: Vector3.Zero);
         await Shot("02-snag-trail", "snag", ghosts: 8, travel: Vector3.Zero, step: 0.022, alpha: 0.30f);
 
@@ -67,7 +72,8 @@ public partial class GhostTrailPreview : Node
     /// the approach, positioned with AttackLunge's own ease-out so the spacing
     /// is the real one — bunched at the start, stretched as it commits.
     private async System.Threading.Tasks.Task Shot(string name, string model, int ghosts,
-                                                   Vector3 travel, double step = 0.03, float alpha = 0.3f)
+                                                   Vector3 travel, double step = 0.03, float alpha = 0.3f,
+                                                   bool grey = false)
     {
         var packed = GD.Load<PackedScene>($"res://assets/characters/{model}.glb");
         var root = packed.Instantiate<Node3D>();
@@ -131,6 +137,8 @@ public partial class GhostTrailPreview : Node
 
         await Pose(player, clip, now * length);
         root.Position += travel;
+        if (grey)
+            mi.MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color("9aa0a8") };
 
         FrameOn(mi, travel);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
