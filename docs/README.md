@@ -42,6 +42,7 @@ abilities, dungeons, and the class/family splits all land here as they take shap
 - [Architecture](engineering/architecture.md) — targets, boundaries, the activity inbox, privacy posture.
 - [Cross-platform architecture](engineering/cross-platform-architecture.md) — the macOS-first stance and the decision gates before any expansion. Guidance, not committed scope.
 - [Adapters](engineering/adapters.md) — the "sending half": how external tools feed content-free activity events in.
+- [Tools](engineering/tools.md) — every probe, check, screenshot tool and script, what each answers, and how to run it.
 
 ## process/ — how we work
 
