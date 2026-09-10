@@ -71,6 +71,16 @@ public partial class CacheWarrenScene : Node3D
     /// is worth keeping.
     [Export] public bool AttackersTravel { get; set; } = true;
 
+    /// Whether characters throw their signature — the lightning, the shockwave,
+    /// the volley — on top of the universal impact reaction.
+    ///
+    /// Exposed for the same reason AttackersTravel is. Impact frames and the
+    /// signature layer are separate systems answering separate complaints
+    /// ("hits have no weight" and "every character hits the same"), and the only
+    /// way to tell which one a given fight is short of is to be able to turn one
+    /// of them off.
+    [Export] public bool AbilityEffects { get; set; } = true;
+
     /// Where the run is. The fight is one phase of four, not the whole scene —
     /// the briefing, the bank/push choice and the closing summary are beats of
     /// the delve and each holds the stage on its own terms.
@@ -90,6 +100,7 @@ public partial class CacheWarrenScene : Node3D
 
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
+    private AbilityVfx _vfx = null!;
     private CombatAudio _audio = null!;
 
     /// The last whole second the beat countdown was seen at, so a tick fires
@@ -170,6 +181,10 @@ public partial class CacheWarrenScene : Node3D
         _numbers = new DamageNumbers(this);
         _lunge.Travel = AttackersTravel;
         _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this, this);
+        _vfx = new AbilityVfx(this, GetNode<Camera3D>("Stage/StageCamera"))
+        {
+            Enabled = AbilityEffects,
+        };
         _audio = new CombatAudio();
         AddChild(_audio);
         _prep = new LoadoutPanel(this);
@@ -277,6 +292,7 @@ public partial class CacheWarrenScene : Node3D
 
         _pending.Clear();
         _lunge.Cancel();
+        _vfx.Clear();
 
         // Baked here, on the briefing screen, because baking a pose reads mesh
         // data back from the GPU and ten of those inside one swing is a frame
@@ -508,6 +524,10 @@ public partial class CacheWarrenScene : Node3D
         // The attacker freezes at the point of contact during hit-stop rather
         // than sliding through the held frame.
         _lunge.Tick(delta, _impact.IsHitStopped ? 0 : 1);
+        // Frozen with the fight, not with the shake: a bolt is part of the blow
+        // and has to hold on the contact frame, where the dust settling out of
+        // the last one does not.
+        _vfx.Tick(delta, _impact.IsHitStopped ? 0 : 1);
 
         if (_impact.IsHitStopped) return;
 
@@ -614,6 +634,14 @@ public partial class CacheWarrenScene : Node3D
         double severity = maxHP > 0 ? (double)outcome.Damage / maxHP : 0;
         var direction = defender.Root.Position - attacker.Root.Position;
         _lastLungeDuration = AttackLunge.DurationFor(attacker.AttackImpactDelay());
+        // Scheduled here rather than inside onContact, because most of a
+        // signature happens *before* the blow lands — the telegraph on the
+        // victim's floor and the volley crossing the gap both have to be already
+        // running by the time contact arrives. Firing it on contact would leave
+        // only the aftermath.
+        _vfx.Begin(AbilitySignatures.For(attacker.ModelName), attacker, defender,
+                   attacker.AttackImpactDelay(),
+                   toFoe ? _petEnergy : _foeEnergy, outcome.DidCrit || isSignature);
         _lunge.Begin(attacker, defender, attacker.AttackImpactDelay(), trail: TrailFor(attacker),
                      onContact: () =>
         {
