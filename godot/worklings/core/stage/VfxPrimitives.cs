@@ -253,6 +253,7 @@ public sealed class Shockwave : VfxEffect
     private readonly float _maxRadius;
     private readonly double _life;
     private readonly float[] _wobble;
+    private readonly float[] _tongueSizes;
 
     public Shockwave(Node3D world, Vector3 centre, Color energy, float maxRadius, double life,
                      int tongues = 18)
@@ -281,7 +282,16 @@ public sealed class Shockwave : VfxEffect
         _flames = new Node3D();
         world.AddChild(_flames);
         _tongues = new MeshInstance3D[tongues];
-        var hot = VfxMaterials.Hot(energy, 0.45f);
+        // Per-tongue size variation. Identical tongues at even spacing are
+        // unmistakably N copies of one quad; the irregularity is what turns
+        // them into a rim that is burning.
+        _tongueSizes = new float[tongues];
+        for (int i = 0; i < tongues; i++) _tongueSizes[i] = (float)GD.RandRange(0.62, 1.35);
+        // Only a quarter of the way to white. At 0.45 the first capture's gold
+        // Relicborn ring came out cream, and a ring of evenly-sized cream blobs
+        // reads as a crown of petals rather than as fire — the family colour has
+        // to survive in the flame or the effect is just a bright shape.
+        var hot = VfxMaterials.Hot(energy, 0.22f);
         for (int i = 0; i < tongues; i++)
         {
             var material = VfxMaterials.Additive();
@@ -373,11 +383,14 @@ public sealed class Shockwave : VfxEffect
             // Each tongue flickers on its own clock, so the rim boils instead of
             // pulsing in unison.
             float flicker = 0.55f + 0.45f * Mathf.Sin((float)(Time.GetTicksMsec() * 0.02) + i * 2.3f);
-            float height = 1.5f * fade * flicker;
+            float size = _tongueSizes[i];
+            float height = 1.5f * fade * flicker * size;
             _tongues[i].Position = _centre
                 + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius * 0.97f
                 + new Vector3(0, height * 0.5f, 0);
-            _tongues[i].Scale = new Vector3(0.9f * fade, height, 1);
+            // Narrower than tall: a flame is a tongue, and a quad as wide as it
+            // is high is a blob whatever texture is on it.
+            _tongues[i].Scale = new Vector3(0.55f * fade * size, height, 1);
             _tongues[i].Visible = fade > 0.02f;
         }
     }

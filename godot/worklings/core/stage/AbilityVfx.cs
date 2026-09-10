@@ -150,9 +150,9 @@ public sealed class AbilityVfx
                                         VfxMaterials.Hot(energy, 0.3f),
                                         peak: 14f * scale, range: 22f, life: 0.45));
         Cue(contact, () => new Shockwave(_world, floor, energy, maxRadius: 4.5f * scale,
-                                         life: 0.30, tongues: 12));
+                                         life: 0.30, tongues: 18));
         Cue(contact + 0.05, () => new Shockwave(_world, floor, energy,
-                                                maxRadius: 9.5f * scale, life: 0.62, tongues: 20));
+                                                maxRadius: 9.5f * scale, life: 0.62, tongues: 30));
     }
 
     /// Paws thrown ahead of the cat.
