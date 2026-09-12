@@ -146,6 +146,21 @@ public sealed class ActorAnimations
     /// Flicker's are a long wind-up into a strike at the finish. Timing it at
     /// 0.85 would land the flash and the damage while the whip was already on
     /// its way back.
+    ///
+    /// **Downed is `Take_Damage`, not `Death`, and that is an interim.** The
+    /// authored `Death` clip ends on a root rotation of 180 degrees about Z —
+    /// on top of the 90-degrees-about-X every clip in every model carries as the
+    /// Blender Z-up to glTF Y-up conversion. For a creature rooted in the floor
+    /// that means upside down and *beneath the stage*: in the 2026-09-12 slice
+    /// capture the Snag did not fall over when killed, it blinked out of
+    /// existence between two frames. An audit of the root rotation of all 39
+    /// clips across the five bodies found this to be the only one of its kind;
+    /// the Scamp's death rotates too, but into a collapse that reads.
+    ///
+    /// Repointing the beat keeps a body on the floor in one line and is
+    /// reversible in one. **The real fix is to re-author the clip**, which is
+    /// Nikhil's, and it is the reason this is written down rather than quietly
+    /// swapped.
     public static readonly ActorAnimations Snag = new(
         new Dictionary<ActorAction, string>
         {
@@ -153,7 +168,7 @@ public sealed class ActorAnimations
             [ActorAction.Attack] = "Attack_Whip_24f_Review",
             [ActorAction.Signature] = "Attack_Whip_24f_Review",
             [ActorAction.Wince] = "Take_Damage",
-            [ActorAction.Downed] = "Death",
+            [ActorAction.Downed] = "Take_Damage",
         },
         attackImpactPoint: 0.50,
         // A whip has reach. The body barely leaves its mark — just enough

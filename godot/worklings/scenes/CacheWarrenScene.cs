@@ -337,6 +337,7 @@ public partial class CacheWarrenScene : Node3D
     {
         _state = _prep.Result;
         _approach = _prep.Approach;
+        TakeTheBody(_prep.Creature);
         _prep.Close();
 
         var pet = Combatant.Pet(_state, _rates);
@@ -707,6 +708,43 @@ public partial class CacheWarrenScene : Node3D
              .SetTrans(Tween.TransitionType.Quint).SetEase(Tween.EaseType.Out);
         tween.TweenMethod(Callable.From<Vector3>(defender.SetOffset), side, Vector3.Zero, 0.30)
              .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut);
+    }
+
+    /// Swaps the player's body to the Workling chosen on the prep screen.
+    ///
+    /// Built on first pick rather than all at once: the alpha pool is every
+    /// renderable Workling in the roster and will be fifteen to twenty of them,
+    /// and instancing every one at startup to render the one the player brought
+    /// is a startup cost that grows with the roster. The foes are built up front
+    /// because a delve meets all of them; the party meets exactly one.
+    ///
+    /// The trail is per-actor and baked from that mesh's own attack pose, so a
+    /// changed body needs a new one — `TrailFor` keys on the actor and bakes on
+    /// first ask, which is already the right behaviour here.
+    private void TakeTheBody(Creature creature)
+    {
+        _partyCreature = creature;
+        _petEnergy = creature.Energy;
+        string key = PartySlot + creature.Id;
+
+        var actor = _cast.Get(key);
+        if (actor == null)
+        {
+            var stage = GetNode<Node3D>("Stage");
+            actor = _cast.Add(creature, GetNode<Node3D>("Party"),
+                              MarkOf(stage, "PartySlot", StageSet.PartyMark),
+                              MarkOf(stage, "FoeSlot", StageSet.FoeMark),
+                              key: key);
+        }
+        if (actor == null)
+        {
+            GD.PushWarning($"[stage] {creature.Id} would not build; keeping the last body");
+            return;
+        }
+        _party = actor;
+        _cast.ShowOnly(key, PartySlot);
+        TrailFor(_party);
+        _party.Play(ActorAction.Idle, loop: true);
     }
 
     /// The trail belonging to whichever actor is swinging, baked on first ask.
