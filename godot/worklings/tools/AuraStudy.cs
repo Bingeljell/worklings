@@ -20,6 +20,7 @@ public partial class AuraStudy : Node
         new[]{"A slow procession of small amber runes","Layered gold and teal symbols, a fine orbit","Pulsing shell marks with a few floating glyphs"},
         new[]{"Twenty small, quiet flecks of drifting earth","Slightly softer, dustier floating particles","More numerous, finer warm specks"}};
     private Control _layout=null!;
+    private readonly bool _internal=OS.GetEnvironment("WORKLINGS_AURA_INTERNAL")=="1";
 
     public override async void _Ready()
     {
@@ -30,6 +31,7 @@ public partial class AuraStudy : Node
             if(output.Length==0)output=ProjectSettings.GlobalizePath("res://../../build/model-auras/frames");
             string select=OS.GetEnvironment("WORKLINGS_AURA_SELECT");
             for(int creature=0;creature<3;creature++) {
+                if(_internal && creature==2)continue;
                 if(select.Length>0 && select!=_models[creature])continue;
                 await Capture(creature,output);
             }
@@ -48,11 +50,14 @@ public partial class AuraStudy : Node
         Text(_titles[creature],new Vector2(24,21),30,Colors.White);
         Text("AMBIENT MODEL EFFECTS  /  THREE LIVE VARIANTS  /  SAME MODEL, LIGHTING AND CAMERA",new Vector2(25,61),14,new Color(.58f,.68f,.81f));
         var actors=new List<StageActor>();var effects=new List<CreatureAuraStudyEffects>();
+        var internalEffects=new List<InternalEnergyAura>();
+        string[] internalNames=creature==0?new[]{"01 · RESTING CURRENT","02 · LIVING LIGHTNING","03 · SURGING STORM"}:new[]{"01 · RUNIC EMBERS","02 · AWAKENED CORE","03 · BREATHING ENERGY"};
+        string[] internalDescriptions=creature==0?new[]{"Blue current caught in the fur's creases","Bright branching current through fur and horns","Waves of white-blue energy across the body"}:new[]{"A quiet blue glow from the shell's crevices","Luminous blue seams beneath golden plates","A slow pulse of energy beneath the armor"};
         AuraPoseBank? bank=null;
         for(int variation=0;variation<3;variation++) {
             int x=22+variation*526;
-            Text(_variants[creature][variation],new Vector2(x,105),19,new Color(.85f,.90f,1));
-            Text(_descriptions[creature][variation],new Vector2(x,823),15,new Color(.62f,.71f,.83f));
+            Text(_internal?internalNames[variation]:_variants[creature][variation],new Vector2(x,105),19,new Color(.85f,.90f,1));
+            Text(_internal?internalDescriptions[variation]:_descriptions[creature][variation],new Vector2(x,823),15,new Color(.62f,.71f,.83f));
             var container=new SubViewportContainer {Position=new Vector2(x,143),Size=new Vector2(510,655),Stretch=true};
             _layout.AddChild(container);
             var viewport=new SubViewport {Size=new Vector2I(510,655),OwnWorld3D=true,
@@ -84,13 +89,19 @@ public partial class AuraStudy : Node
             }
             float tan=Mathf.Tan(Mathf.DegToRad(camera.Fov*.5f));
             float distance=Mathf.Max(halfHeight/tan,halfWidth/(tan*510/655f))*(creature==0?1.03f:1.16f)+halfDepth*.45f;
+            if(_internal && creature==1)distance*=.80f;
             camera.Position=center+direction*distance;camera.LookAt(center);
             world.AddChild(new DirectionalLight3D {RotationDegrees=new Vector3(-38,-25,0),LightColor=new Color(.92f,.95f,1),LightEnergy=1.6f,ShadowEnabled=true});
             world.AddChild(new OmniLight3D {Position=center+new Vector3(-span,span*.5f,-span*.4f),LightColor=new Color(.33f,.52f,1),LightEnergy=1.2f,OmniRange=span*3});
             var floorMat=new StandardMaterial3D {AlbedoColor=new Color(.065f,.083f,.11f),Roughness=.85f};
             world.AddChild(new MeshInstance3D {Mesh=new PlaneMesh {Size=Vector2.One*span*20},
                 Position=new Vector3(0,bounds.Position.Y-.015f,0),MaterialOverride=floorMat});
-            actors.Add(actor);effects.Add(new CreatureAuraStudyEffects(root,camera,bank,creature,variation));
+            actors.Add(actor);
+            if(_internal) {
+                internalEffects.Add(new InternalEnergyAura(actor.Mesh!,creature,variation));
+                if(creature==0)effects.Add(new CreatureAuraStudyEffects(root,camera,bank,creature,variation,true));
+            }
+            else effects.Add(new CreatureAuraStudyEffects(root,camera,bank,creature,variation));
         }
         Text("WORKLINGS  /  AURA STUDIES",new Vector2(25,870),13,new Color(.42f,.52f,.66f));
         string directory=output+"/"+_models[creature];DirAccess.MakeDirRecursiveAbsolute(directory);
@@ -98,7 +109,8 @@ public partial class AuraStudy : Node
             float t=frame/(float)Fps;
             for(int i=0;i<actors.Count;i++) {
                 actors[i].Player!.Seek(t%(float)bank!.Duration,true);
-                effects[i].Draw(t);
+                if(_internal)internalEffects[i].Draw(t);
+                if(i<effects.Count)effects[i].Draw(t);
             }
             await ToSignal(RenderingServer.Singleton,RenderingServer.SignalName.FramePostDraw);
             Error result=GetViewport().GetTexture().GetImage().SavePng($"{directory}/{frame:D4}.png");
@@ -106,6 +118,7 @@ public partial class AuraStudy : Node
         }
         GD.Print($"AURA {_models[creature]}: {Frames} frames, 3 variants; bounds {bank!.Bounds}");
         foreach(var effect in effects)effect.Release();
+        foreach(var effect in internalEffects)effect.Release();
         _layout.QueueFree();await ToSignal(GetTree(),SceneTree.SignalName.ProcessFrame);
     }
     private async System.Threading.Tasks.Task<AuraPoseBank> Bake(StageActor actor)

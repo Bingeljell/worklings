@@ -39,6 +39,7 @@ public sealed class CreatureAuraStudyEffects
     private readonly Camera3D _camera;
     private readonly AuraPoseBank _poses;
     private readonly int _creature, _variant;
+    private readonly bool _internal;
     private readonly ImmediateMesh _mesh = new();
     private readonly ShaderMaterial _material;
     private readonly OmniLight3D _light;
@@ -51,8 +52,9 @@ public sealed class CreatureAuraStudyEffects
     private readonly float _size;
     private readonly Vector3 _center;
 
-    public CreatureAuraStudyEffects(Node3D model,Camera3D camera,AuraPoseBank poses,int creature,int variant)
+    public CreatureAuraStudyEffects(Node3D model,Camera3D camera,AuraPoseBank poses,int creature,int variant,bool internalEnergy=false)
     {
+        _internal=internalEnergy;
         _model=model;_camera=camera;_poses=poses;_creature=creature;_variant=variant;
         _center=poses.Bounds.GetCenter();_size=poses.Bounds.Size.Length();
         model.AddChild(_root);
@@ -127,14 +129,14 @@ public sealed class CreatureAuraStudyEffects
     {
         _lastBucket=bucket;_arcs.Clear();
         var random=new Random(944+bucket*313+_variant*1901);
-        int count=_variant==0?6:_variant==1?24:13;
+        int count=_internal?10+_variant*10:(_variant==0?6:_variant==1?24:13);
         var min=_poses.Bounds.Position;var extent=_poses.Bounds.Size;
         for(int a=0;a<count;a++) {
             int start=0;
             for(int tries=0;tries<60;tries++) {
                 start=random.Next(_poses.Count);var p=_poses.Positions[0][start];
                 float y=(p.Y-min.Y)/extent.Y;
-                bool region=_variant==0?y>.70f:y>.16f;
+                bool region=!_internal && _variant==0?y>.70f:y>.16f;
                 var normal=_poses.Normals[0][start];
                 if(region && normal.Dot((_model.ToLocal(_camera.GlobalPosition)-p).Normalized())>-.15f)break;
             }
@@ -143,7 +145,7 @@ public sealed class CreatureAuraStudyEffects
             var right=view.Cross(Vector3.Up).Normalized();
             var up=right.Cross(view).Normalized();
             var direction=(right*((float)random.NextDouble()-.5f)+up*((float)random.NextDouble()-.5f)).Normalized();
-            float length=_size*(_variant==1?.21f:.13f);
+            float length=_size*(_internal?.095f:(_variant==1?.21f:.13f));
             var indices=new int[10];
             for(int j=0;j<10;j++) {
                 float f=j/9f;
@@ -154,6 +156,7 @@ public sealed class CreatureAuraStudyEffects
                     var difference=_poses.Positions[0][i]-goal;
                     float depth=difference.Dot(view);
                     float score=(difference-view*depth).LengthSquared()+Mathf.Max(0,-depth)*_size*.025f;
+                    if(_internal)score=difference.LengthSquared();
                     if(score<best) {best=score;selected=i;}
                 }
                 indices[j]=selected;
@@ -166,7 +169,7 @@ public sealed class CreatureAuraStudyEffects
         int bucket=(int)(t*7);
         if(bucket!=_lastBucket)MakeArcs(bucket);
         float pulse=.4f+.6f*Mathf.Abs(Mathf.Sin(t*39));
-        var blue=_variant==1?new Color(.40f,.23f,1):new Color(.15f,.53f,1);
+        var blue=!_internal && _variant==1?new Color(.40f,.23f,1):new Color(.15f,.53f,1);
         for(int a=0;a<_arcs.Count;a++) {
             if((bucket+a)%4==0)continue;
             var path=new Vector3[10];
@@ -174,9 +177,13 @@ public sealed class CreatureAuraStudyEffects
                 path[j]=_poses.Point(_arcs[a][j],t,_size*.010f);
                 if(j>0&&j<9)path[j]+=new Vector3(Mathf.Sin(j*4+a+bucket),Mathf.Cos(j*7+a),Mathf.Sin(j*9+bucket))*_size*.004f;
             }
-            Glow(path,_size*.0025f,blue,pulse);
+            if(_internal) {
+                for(int j=0;j<9;j++)
+                    if(path[j].DistanceTo(path[j+1])<_size*.055f)
+                        Glow(new[]{path[j],path[j+1]},_size*.0014f,blue,pulse);
+            } else Glow(path,_size*.0025f,blue,pulse);
         }
-        if(_variant==2) {
+        if(_variant==2 && !_internal) {
             // A few airborne arcs bridge the upper silhouette, not a sphere around the pet.
             for(int a=0;a<5;a++) {
                 if((a+bucket)%3==0)continue;
@@ -278,4 +285,61 @@ public sealed class CreatureAuraStudyEffects
         }
     }
     public void Release()=>_root.QueueFree();
+}
+
+
+/// Per-instance emission over the actual skinned material. No pose cache is needed.
+/// The albedo's local dark valleys approximate crevices; replace with an authored mask for production.
+public sealed class InternalEnergyAura
+{
+    private readonly MeshInstance3D _mesh;
+    private readonly Material? _previous;
+    private readonly ShaderMaterial _overlay;
+    public InternalEnergyAura(MeshInstance3D mesh,int creature,int variant)
+    {
+        _mesh=mesh;_previous=mesh.MaterialOverlay;
+        if(mesh.GetActiveMaterial(0) is not StandardMaterial3D original || original.AlbedoTexture==null)
+            throw new InvalidOperationException("Internal aura requires the model's albedo texture.");
+        _overlay=new ShaderMaterial {Shader=new Shader {Code="""
+            shader_type spatial;
+            render_mode unshaded, blend_add, depth_draw_never;
+            uniform sampler2D base_tex : source_color, filter_linear_mipmap;
+            uniform float phase = 0.0;
+            uniform float kind = 0.0;
+            uniform float variation = 0.0;
+            varying vec3 rest;
+            float lum(vec2 uv) {return dot(texture(base_tex,uv).rgb,vec3(0.2126,0.7152,0.0722));}
+            void vertex() {rest=VERTEX;}
+            void fragment() {
+                vec2 px=1.0/vec2(textureSize(base_tex,0));
+                float center=lum(UV);
+                float surround=max(max(lum(UV+px*vec2(3,0)),lum(UV-px*vec2(3,0))),max(lum(UV+px*vec2(0,3)),lum(UV-px*vec2(0,3))));
+                surround=max(surround,max(max(lum(UV+px*vec2(5,5)),lum(UV-px*vec2(5,5))),max(lum(UV+px*vec2(5,-5)),lum(UV-px*vec2(5,-5)))));
+                float valley=smoothstep(0.005,0.065,surround-center);
+                float dark=1.0-smoothstep(0.002,kind<0.5?0.17:0.030,center);
+                float seam=dark*valley;
+                float wave=0.5+0.5*sin(rest.y*11.0+rest.z*5.0-phase*3.4);
+                float flash=pow(0.5+0.5*sin(rest.y*25.0+rest.x*17.0+sin(rest.z*21.0)*2.0-phase*16.0),5.0);
+                float power;
+                vec3 blue;
+                if(kind<0.5) {
+                    power=(0.45+variation*0.65)*(0.25+flash*1.8+wave*0.3);
+                    if(variation>1.5)power*=0.45+1.1*pow(0.5+0.5*sin(phase*3.0),3.0);
+                    blue=mix(vec3(0.045,0.34,1.0),vec3(0.48,0.82,1.0),flash);
+                } else {
+                    power=variation<0.5?0.65:1.8;
+                    if(variation>1.5)power*=0.25+0.85*(0.5+0.5*sin(phase*2.3-rest.z*2.2));
+                    blue=vec3(0.035,0.40,1.0);
+                }
+                ALBEDO=blue*3.0*power*seam;
+                ALPHA=seam;
+            }
+            """}};
+        _overlay.SetShaderParameter("base_tex",original.AlbedoTexture);
+        _overlay.SetShaderParameter("kind",(float)creature);
+        _overlay.SetShaderParameter("variation",(float)variant);
+        mesh.MaterialOverlay=_overlay;
+    }
+    public void Draw(float time)=>_overlay.SetShaderParameter("phase",time);
+    public void Release()=>_mesh.MaterialOverlay=_previous;
 }

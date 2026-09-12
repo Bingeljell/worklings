@@ -403,3 +403,8 @@
 - **2026-07-15 > docs/product_brief.md > product vision, MVP scope, and success criteria > Defines the macOS-first companion experiment, provider-neutral direction, privacy boundary, and reversible neglect model.**
 - **2026-07-15 > docs/architecture.md > system boundaries and component decisions > Defines the native Swift architecture, activity adapter contract, deterministic simulation, local persistence, and delivery slices.**
 - **2026-07-15 > .gitignore > macOS and Swift build exclusions > Prevents local metadata, build products, Xcode user state, and packaged disk images from entering version control.**
+
+- **2026-09-12 > godot/worklings/tools/CreatureAuraStudyEffects.cs > InternalEnergyAura constructor, Draw, Release; MakeArcs, Ram > Adds instance-local animated blue crevice emission on live skinned meshes for the electrical Ram and rune-energy Pangolin, plus shorter cyan surface arcs for the Ram.**
+- **2026-09-12 > godot/worklings/tools/AuraStudy.cs > _Ready, Capture > Adds an opt-in internal energy comparison pass with three variants for two creatures while preserving previous studies.**
+- **2026-09-12 > scripts/render-aura-studies.py > main > Packages the two-creature internal pass with matching labels and validates its sixteen-second reel.**
+- **2026-09-12 > docs/engineering/model-aura-studies.md > Revised direction: internal blue energy > Documents render commands, live-material reuse, and prototype mask limitations.**

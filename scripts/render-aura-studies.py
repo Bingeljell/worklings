@@ -18,6 +18,12 @@ def run(*args):
 
 
 def main():
+    global MODELS
+    if "--internal" in sys.argv:
+        MODELS = [
+            ("tempest_ram", "Tempest Ram", ["Resting Current", "Living Lightning", "Surging Storm"]),
+            ("clockwork_pangolin", "Clockwork Pangolin", ["Runic Embers", "Awakened Core", "Breathing Energy"]),
+        ]
     source, output = (Path(p).resolve() for p in sys.argv[1:3])
     output.mkdir(parents=True, exist_ok=True)
     cards=[]
@@ -46,13 +52,13 @@ def main():
         info=json.loads(subprocess.check_output(["ffprobe","-v","error","-show_streams","-of","json",str(path)]))
         stream=next(s for s in info["streams"] if s["codec_type"]=="video")
         assert stream["r_frame_rate"]=="30/1",path
-        assert int(stream["nb_frames"])==(720 if path.name.startswith("START") else 240),path
+        assert int(stream["nb_frames"])==(240*len(MODELS) if path.name.startswith("START") else 240),path
     run("ffmpeg","-v","error","-i",output/"START-HERE-aura-studies.mp4","-f","null","-")
     (output/"index.html").write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Worklings · Model Auras</title>
 <style>body{background:#0b1018;color:#edf4ff;font:16px system-ui;max-width:1400px;margin:40px auto;padding:0 24px}h1{font-size:40px;letter-spacing:-1px}p{color:#aabbcf;line-height:1.6}a{color:#8fc5ff}video{width:100%;background:#05080e;border-radius:10px}section{margin-top:48px}</style>
-<h1>Worklings / Ambient Model Studies</h1><p>Three creatures. Three variations each. Real Godot models and animated effects, shown under identical lighting. These ambient studies are silent.</p>
+<h1>Worklings / Ambient Model Studies</h1><p>Three variations per creature. Real Godot models and animated effects, shown under identical lighting. These ambient studies are silent.</p>
 <video controls preload="metadata" src="START-HERE-aura-studies.mp4" poster="tempest_ram.png"></video>
-'''+''.join(cards)+'''<p>These studies use a cached idle-pose surface for the attached effects. They are isolated from the dungeon implementation. See <a href="HANDOVER.md">the handover</a> for reuse and limitations.</p></html>''')
+'''+''.join(cards)+'''<p>The internal energy pass uses a live skinned material overlay; the Ram arcs and original orbit pass use cached idle poses. They are isolated from the dungeon implementation. See <a href="HANDOVER.md">the handover</a> for reuse and limitations.</p></html>''')
     doc=Path(__file__).resolve().parents[1]/"docs/engineering/model-aura-studies.md"
     if doc.exists():
         (output/"HANDOVER.md").write_text(doc.read_text())

@@ -10,6 +10,25 @@ Nine native Godot variations, presented as three synchronized comparison films p
 
 The original GLBs, their material resources, and gameplay scenes are preserved. No dungeon controller, persistence code or combat rules are used. The isolated worktree branch is `feature/model-aura-studies`; the other agent's dungeon checkout and build cache are not used for these renders.
 
+## Revised direction: internal blue energy
+
+The September 12 correction makes the Ram electrical through its fur and horns and the Pangolin a blue rune-energy creature with light between armor plates. The original orbiting variants above remain available.
+
+Enable `WORKLINGS_AURA_INTERNAL=1` to capture only these two creatures, each in three strengths: Ram Resting Current / Living Lightning / Surging Storm, and Pangolin Runic Embers / Awakened Core / Breathing Energy. Package with `--internal`:
+
+```sh
+WORKLINGS_AURA_INTERNAL=1 WORKLINGS_AURA_OUT=/private/tmp/worklings-internal-frames \
+  /Applications/Godot.app/Contents/MacOS/Godot \
+  --path godot/worklings res://tools/aura_study.tscn --fixed-fps 30 --resolution 1600x900
+python3 scripts/render-aura-studies.py /private/tmp/worklings-internal-frames build/internal-energy-studies --internal
+```
+
+`InternalEnergyAura`, in `CreatureAuraStudyEffects.cs`, adds a per-instance `MaterialOverlay` to the actual skinned mesh. It samples the original albedo, estimates dark crevices from local contrast, and animates blue emission with explicit time. The Ram combines fast spatial current pulses with short cyan surface arcs; the Pangolin has steady or slowly breathing blue energy. The material layer needs no cached poses and follows any skeletal animation. The Ram’s additional short arcs still use the study’s idle-pose cache: port these to live surface or bone anchors before using them with attack animations. Capture also uses the pose cache for camera bounds.
+
+Runtime handover: construct `new InternalEnergyAura(mesh, creature, variant)` after the model is ready (`creature` 0 Ram / 1 Pangolin; `variant` 0–2), call `Draw(elapsedSeconds)` each frame, and `Release()` before removing/replacing the aura. Release restores the previous overlay. Do not stack multiple instances on one mesh. It currently expects one surface using `StandardMaterial3D` with an albedo texture. Extend to all surfaces for other assets.
+
+The mask is a visual prototype derived from texture darkness, not a semantic fur/plate mask. It may include dark facial or metallic details. For production, replace that approximation with an authored emission mask, tune per creature, and profile overdraw on the target hardware. No source textures, GLBs, or dungeon scenes are changed.
+
 ## Code and pipeline
 
 - `godot/worklings/tools/aura_study.tscn`: dedicated capture entry point; automatically renders and exits. Do not use as a gameplay scene.
