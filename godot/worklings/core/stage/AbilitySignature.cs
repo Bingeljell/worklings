@@ -50,18 +50,17 @@ public enum AbilitySignature
     Roots,
 }
 
-/// Which signature a model throws, keyed off its .glb basename.
+/// Which signature a creature throws.
 ///
-/// Same keying as FamilyEnergy.For and moving to PetState for the same reason
-/// and at the same time — the roster does not carry its own data yet.
+/// **The roster carries this now** — it was one of five string-switches keyed
+/// off a .glb basename, and the one whose silent fallback was least visible: a
+/// creature missing from the table simply threw nothing, which is
+/// indistinguishable from a creature whose signature is deliberately `None`.
+///
+/// Kept as a forward because the scene holds a model name at the call site.
+/// Prefer `creature.Signature` where you have the creature.
 public static class AbilitySignatures
 {
-    public static AbilitySignature For(string modelName) => modelName switch
-    {
-        "tempest_ram" => AbilitySignature.LightningStrike,
-        "clockwork_pangolin" => AbilitySignature.FireShockwave,
-        "forest_flicker" => AbilitySignature.GhostVolley,
-        "snag" => AbilitySignature.Roots,
-        _ => AbilitySignature.None,
-    };
+    public static AbilitySignature For(string modelName) =>
+        Worklings.Core.Roster.CreatureRoster.FindOrDefault(modelName).Signature;
 }

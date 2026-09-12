@@ -1,29 +1,25 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scenes/CacheWarrenScene.cs" id="script"]
 [ext_resource type="PackedScene" path="res://scenes/dungeon_stage.tscn" id="stage"]
-[ext_resource type="PackedScene" path="res://assets/characters/tempest_ram.glb" id="ram"]
-[ext_resource type="PackedScene" path="res://assets/characters/forest_flicker.glb" id="flicker"]
-[ext_resource type="PackedScene" path="res://assets/characters/clockwork_pangolin.glb" id="pangolin"]
-[ext_resource type="PackedScene" path="res://assets/characters/snag.glb" id="snag"]
+
+; The cast is NOT authored here. Every body — the player's Workling and all four
+; foes — is built at runtime from Core.Roster.CreatureRoster, placed on the
+; stage's markers and sized from the height it declares. This file used to carry
+; one instanced .glb per creature with the size baked into a transform, which
+; made "add a Workling" a scene edit as well as a code one, and a scene edit is
+; the half that cannot be reviewed in a diff.
+;
+; Stage is the authored Cache Warren. CacheWarrenScene.Arena selects the arena:
+; the default Moonlit Ruins is built procedurally by StageSet and replaces this
+; node, and StageKind.CacheWarren keeps it. It stays instanced so the original
+; remains one Inspector toggle away — it is the A/B for the whole lighting call.
 
 [node name="CacheWarren" type="Node3D"]
 script = ExtResource("script")
 
 [node name="Stage" parent="." instance=ExtResource("stage")]
 
-[node name="Party" parent="." instance=ExtResource("ram")]
-transform = Transform3D(-3.69848, 0.00000, -0.10589, 0.00000, 3.70000, 0.00000, 0.10589, 0.00000, -3.69848, -3.00, 0.00, 8.50)
+[node name="Party" type="Node3D" parent="."]
 
 [node name="Foe" type="Node3D" parent="."]
-
-[node name="Flicker" parent="Foe" instance=ExtResource("flicker")]
-transform = Transform3D(2.79429, 0.00000, -0.17874, 0.00000, 2.80000, 0.00000, 0.17874, 0.00000, 2.79429, 0.00, 0.00, -2.00)
-
-[node name="Pangolin" parent="Foe" instance=ExtResource("pangolin")]
-transform = Transform3D(2.79429, 0.00000, -0.17874, 0.00000, 2.80000, 0.00000, 0.17874, 0.00000, 2.79429, 0.00, 0.00, -2.00)
-visible = false
-
-[node name="Snag" parent="Foe" instance=ExtResource("snag")]
-transform = Transform3D(6.98570, 0.00000, -0.44685, 0.00000, 7.00000, 0.00000, 0.44685, 0.00000, 6.98570, 0.00, 0.00, -2.00)
-visible = false

@@ -22,12 +22,19 @@ public sealed class ActorAnimations
 
     /// Where in the clip the blow actually connects, 0..1 of its duration.
     ///
-    /// These sit near the END of the animation. Both attack clips are built as
-    /// a long wind-up into a strike at the finish, so a mid-clip contact fires
-    /// the flash and the damage while the attacker is still rearing back.
+    /// **There are two shapes of attack clip here, not one.** The Ram, the
+    /// Flicker and the Pangolin are a long wind-up into a strike at the finish
+    /// and land near 0.85. The Snag's whip and the Scamp's paw crack in the
+    /// *middle* and recoil, and land near 0.44-0.50. Timing a mid-clip striker
+    /// at 0.85 fires the flash and the damage while the limb is already on its
+    /// way back; timing a late striker early does the reverse.
     ///
-    /// Eyeballed per character and expected to be retuned once the actions are
-    /// trimmed and shortened; there is no way to derive it from the file.
+    /// **It can be derived from the file, and for two characters it was.** Step
+    /// the action a frame at a time, take the world position of the striking
+    /// bone's tip, and read where its speed peaks — the Snag at frame 12 of 24,
+    /// the Scamp at frame 13 of 28. That also identifies *which* limb strikes:
+    /// the Scamp's entire right side never moves. The three values still sitting
+    /// at 0.82-0.86 are the eyeballed ones and are the obvious next measurement.
     public double AttackImpactPoint { get; }
 
     /// How far the attacker travels, as a share of the gap to its target.
@@ -153,6 +160,38 @@ public sealed class ActorAnimations
         // forward weight to sell the crack — and the trail is short to match.
         travelFraction: 0.14f, travelSeconds: 0.14, ghostCount: 6);
 
+    /// The Dungeon Scamp. The Cache Warren's first encounter, and the first
+    /// fight anyone ever sees — which is why it mattered that it was being
+    /// fought by a Flicker shrunk to 0.55 until the `.glb` was finally exported
+    /// on 2026-09-12, four days after the animations were finished.
+    ///
+    /// **No Signature**, deliberately, and for the same reason the Snag has no
+    /// Walk: the Scamp is `FoeBehavior.Mindless`. It attacks every turn and has
+    /// no second move, so it can never reach the beat that would play one.
+    /// Mapping it to a clip anyway would be inventing a capability the rules say
+    /// it does not have.
+    ///
+    /// **The impact point is 0.44 — measured, not eyeballed.** Stepping the
+    /// 28-frame clip and reading tip speed off the rig puts peak at frame 13,
+    /// and it is unambiguously a one-paw strike: every `front_*.L` bone peaks
+    /// together at 13 while the entire right side never moves. Like the Snag's
+    /// whip and unlike the Ram's charge, this clip cracks in the middle and
+    /// recoils — so two of the five characters are mid-clip strikers and the
+    /// 0.85 the others share is not the default it looks like.
+    public static readonly ActorAnimations DungeonScamp = new(
+        new Dictionary<ActorAction, string>
+        {
+            [ActorAction.Idle] = "Scamp_Idle",
+            [ActorAction.Walk] = "Scamp_Walk",
+            [ActorAction.Attack] = "Scamp_Attack",
+            [ActorAction.Wince] = "Scamp_Damage",
+            [ActorAction.Downed] = "Scamp_Death",
+        },
+        attackImpactPoint: 0.44,
+        // Small, light and quick. It has no reach at all, so it commits further
+        // than the Ram and gets there faster, with the trail spread thin.
+        travelFraction: 0.68f, travelSeconds: 0.18, ghostCount: 9);
+
     /// Looked up by the .glb basename the actor was loaded from.
     public static ActorAnimations? For(string modelName) => modelName switch
     {
@@ -160,6 +199,7 @@ public sealed class ActorAnimations
         "forest_flicker" => ForestFlicker,
         "clockwork_pangolin" => ClockworkPangolin,
         "snag" => Snag,
+        "dungeon_scamp" => DungeonScamp,
         _ => null,
     };
 }

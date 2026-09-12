@@ -4,6 +4,7 @@ using Worklings.Core.Combat;
 using Worklings.Core.Host;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
+using Worklings.Core.Roster;
 using Worklings.Core.Stage;
 
 /// The Cache Warren scene: the first dungeon, running a real delve.
@@ -81,22 +82,46 @@ public partial class CacheWarrenScene : Node3D
     /// of them off.
     [Export] public bool AbilityEffects { get; set; } = true;
 
+    /// Which arena the delve is staged in.
+    ///
+    /// **Moonlit Ruins is the default as of 2026-09-12**, on Nikhil's call, and
+    /// it settles the lighting question that had been open since the 11th: the
+    /// original Cache Warren's floor is bright sand under a warm key, every
+    /// reference shot is near-black stone, and an additive effect over ground
+    /// already close to white adds nothing the eye can find. The telegraph rings
+    /// were not dim on the old stage, they were absent.
+    ///
+    /// `CacheWarren` is kept and still selectable. It is the A/B, and the only
+    /// honest way to ask whether the new stage earned the change.
+    [Export] public StageKind Arena { get; set; } = StageKind.MoonlitRuins;
+
     /// Where the run is. The fight is one phase of four, not the whole scene —
     /// the briefing, the bank/push choice and the closing summary are beats of
     /// the delve and each holds the stage on its own terms.
     private enum Phase { Prep, Fighting, Steering, Choice, Summary }
 
+    /// Every body on the stage, built at runtime from the roster.
+    ///
+    /// **No creature is authored into `cache_warren.tscn` any more.** It used to
+    /// carry one instanced `.glb` per foe with the size baked into a transform,
+    /// which meant adding a creature was a scene edit as well as a code one —
+    /// and a scene edit is the half nobody can review in a diff. The scene now
+    /// holds two empty markers and the cast is assembled from `CreatureRoster`.
+    private StageCast _cast = null!;
+
+    /// Slot prefixes, so a creature that is both a Workling and a foe (the
+    /// Flicker is) gets two bodies rather than attacking itself.
+    private const string PartySlot = "party:";
+    private const string FoeSlot = "foe:";
+
     private StageActor _party = null!;
-    /// The stand-in bodies, by .glb basename. Three of the four foes have no
-    /// model of their own, so the scene keeps every model it has in the tree and
-    /// shows one at a time.
-    private readonly Dictionary<string, StageActor> _foeModels = new();
     private StageActor _foe = null!;
+    /// Which creature the player walked in wearing.
+    private Creature _partyCreature = CreatureRoster.TempestRam;
     private CombatHud _hud = null!;
     private LoadoutPanel _prep = null!;
     private DamageNumbers _numbers = null!;
     private Color _petEnergy, _foeEnergy;
-    private readonly Dictionary<string, Vector3> _foeRestScales = new();
 
     private readonly Queue<CombatEvent> _pending = new();
     private ImpactFrames _impact = null!;
@@ -167,21 +192,15 @@ public partial class CacheWarrenScene : Node3D
     public override void _Ready()
     {
         LoadState();
-        // The Ram, unconditionally, exactly as on the desktop — the Workling
-        // that walks into a delve has to be the one standing on your screen. The
-        // far end of the model swap; see PetBody.
-        _party = new StageActor(
-            GetNode<Node3D>("Party"), PetBody.DefaultModel, ActorAnimations.TempestRam);
-        AddFoeModel("Flicker", "forest_flicker");
-        AddFoeModel("Pangolin", "clockwork_pangolin");
-        AddFoeModel("Snag", "snag");
-        _foe = _foeModels["forest_flicker"];
-        _petEnergy = FamilyEnergy.Of(_state.Family);
-        _foeEnergy = FamilyEnergy.Of(FamilyEnergy.For(_foe.ModelName));
+        var stage = BuildStage();
+        var camera = stage.GetNode<Camera3D>("StageCamera");
+        BuildCast(stage);
+        _petEnergy = _partyCreature.Energy;
+        _foeEnergy = _foe != null ? CreatureRoster.FindOrDefault(_foe.ModelName).Energy : _petEnergy;
         _numbers = new DamageNumbers(this);
         _lunge.Travel = AttackersTravel;
-        _impact = new ImpactFrames(GetNode<Camera3D>("Stage/StageCamera"), this, this);
-        _vfx = new AbilityVfx(this, GetNode<Camera3D>("Stage/StageCamera"))
+        _impact = new ImpactFrames(camera, this, this);
+        _vfx = new AbilityVfx(this, camera)
         {
             Enabled = AbilityEffects,
         };
@@ -828,28 +847,118 @@ public partial class CacheWarrenScene : Node3D
         _hud.SetStatus(_status);
     }
 
-    /// Registers one of the stand-in bodies, hidden until a foe needs it.
-    private void AddFoeModel(string nodeName, string modelName)
+    /// Builds the arena and hands back its root, named `Stage`.
+    ///
+    /// The authored Cache Warren is instanced from its `.tscn`; the two
+    /// procedural arenas are built by `StageSet`, which the capture tool also
+    /// consumes — a preview built from different code than the game is a preview
+    /// of something that does not exist.
+    ///
+    /// The node path `Stage/StageCamera` is preserved either way. Impact frames
+    /// and the signature layer both resolve the camera through it, and the
+    /// handover flags changing it as a break.
+    private Node3D BuildStage()
     {
-        var root = GetNode<Node3D>($"Foe/{nodeName}");
-        var actor = new StageActor(root, modelName, ActorAnimations.For(modelName)!);
-        _foeModels[modelName] = actor;
-        _foeRestScales[modelName] = root.Scale;
-        root.Visible = false;
+        var authored = GetNodeOrNull<Node3D>("Stage");
+        if (Arena == StageKind.CacheWarren)
+        {
+            if (authored != null) return authored;
+            var scene = GD.Load<PackedScene>("res://scenes/dungeon_stage.tscn");
+            var built = scene.Instantiate<Node3D>();
+            built.Name = "Stage";
+            AddChild(built);
+            return built;
+        }
+
+        // The authored stage is instanced by the scene file, so a procedural
+        // arena has to remove it rather than merely hide it — two WorldEnvironment
+        // nodes in one tree is undefined, and two Camera3Ds both marked Current
+        // is a coin flip over which one renders.
+        if (authored != null)
+        {
+            RemoveChild(authored);
+            authored.QueueFree();
+        }
+        var set = StageSet.Build(Arena);
+        AddChild(set);
+        // The reviewed studies were captured with 4x MSAA. Without it the thin
+        // additive geometry the whole signature layer is made of — bolt ribbons,
+        // ring rims, claw sweeps — crawls with aliasing in motion.
+        GetViewport().SetMsaa3D(Viewport.Msaa.Msaa4X);
+        return set;
+    }
+
+    /// Builds every body the delve can need, from the roster.
+    ///
+    /// The foes come from the bestiary rather than a hardcoded list, so a foe
+    /// added to `CacheWarren.Encounters` arrives on stage with no change here.
+    /// All of them are built up front and swapped by visibility: instancing a
+    /// `.glb` mid-delve is a frame hitch, and the moment it would land is the
+    /// cut between one encounter and the next.
+    private void BuildCast(Node3D stage)
+    {
+        _cast = new StageCast(this);
+        var party = GetNode<Node3D>("Party");
+        var foes = GetNode<Node3D>("Foe");
+        var partyMark = MarkOf(stage, "PartySlot", StageSet.PartyMark);
+        var foeMark = MarkOf(stage, "FoeSlot", StageSet.FoeMark);
+
+        _partyCreature = CreatureRoster.ForRace(_state.Family);
+        _party = _cast.Add(_partyCreature, party, partyMark, foeMark,
+                           key: PartySlot + _partyCreature.Id)!;
+
+        var names = new List<string>();
+        foreach (var foe in Worklings.Core.Combat.CacheWarren.Encounters) names.Add(foe.Name);
+        names.Add(Worklings.Core.Combat.CacheWarren.Boss.Name);
+        foreach (var name in names)
+        {
+            var casting = CreatureRoster.For(name);
+            _cast.Add(casting.Creature, foes, foeMark, partyMark,
+                      heightOverride: casting.StageHeight,
+                      key: FoeSlot + casting.Creature.Id);
+        }
+        _foe = _cast.Get(FoeSlot + CreatureRoster.For(names[0]).Creature.Id)!;
+    }
+
+    /// A stage's mark, falling back to the studies' framing if the arena does
+    /// not carry one. A missing marker is worth saying out loud: the reviewed
+    /// cameras were framed around specific marks, and standing the actors
+    /// somewhere else frames an empty floor.
+    private static Vector3 MarkOf(Node3D stage, string name, Vector3 fallback)
+    {
+        var marker = stage.GetNodeOrNull<Marker3D>(name);
+        if (marker != null) return marker.Position;
+        GD.PushWarning($"[stage] no {name}; using the studies' mark {fallback}");
+        return fallback;
     }
 
     /// Puts a foe on the stage: its name and HP for the plate, and the body
-    /// standing in for it at the right size and colour.
+    /// cast for it at the right size and colour.
+    ///
+    /// **The casting table is the one place the rules and the renderer touch**,
+    /// and it points this way on purpose — the dungeon asks who plays the
+    /// Monolith; the bestiary never learns what a `.glb` is. That is what lets
+    /// the combat probes resolve a whole delve headlessly with no models loaded.
     private void ShowFoe(Foe foe)
     {
         _foeName = foe.Name;
         _foeMaxHP = foe.MaxHP;
         _foeHP = foe.MaxHP;
-        var (model, scale, energy) = PresenceFor(foe.Name);
-        _foe = _foeModels[model];
-        foreach (var (name, actor) in _foeModels) actor.Root.Visible = name == model;
-        _foe.Root.Scale = _foeRestScales[model] * scale;
-        _foeEnergy = energy;
+
+        var casting = CreatureRoster.For(foe.Name);
+        string key = FoeSlot + casting.Creature.Id;
+        var actor = _cast.Get(key);
+        if (actor == null)
+        {
+            GD.PushWarning($"[stage] nothing cast for '{foe.Name}'; the stage keeps the last foe");
+            return;
+        }
+        _foe = actor;
+        _cast.ShowOnly(key, FoeSlot);
+        // Re-applied per encounter because one creature can play two foes at
+        // two sizes — the Snag is itself at 4.81 and the Monolith at 7.50.
+        _cast.SetHeight(key, casting.StageHeight);
+        _foeEnergy = casting.Creature.Energy;
         _foe.Play(ActorAction.Idle, loop: true);
 
         _audio.Play(CombatSound.Enter);
@@ -857,25 +966,4 @@ public partial class CacheWarrenScene : Node3D
         // only warning the player gets that this encounter is different.
         _audio.StartBgm(boss: _delve?.IsBossEncounter ?? false);
     }
-
-    /// Staging for the four foes. **Two of them now have their own body**: the
-    /// Flicker, and the Snag, whose rig and animations arrived on 2026-09-05.
-    /// The Scamp and the Monolith are still stand-ins — the Flicker scaled down
-    /// to 0.55 for the small one, and the Pangolin (a pet model, borrowed) for
-    /// the Monolith, because a heavy armoured slammer reads as a Colossus where
-    /// a scaled-up cat reads as a large cat.
-    ///
-    /// The Snag carries its size in the scene rather than here, so its scale is
-    /// 1.0: at its authored size it is a third the Ram's height and reads as a
-    /// shrub, and 7.0 in `cache_warren.tscn` puts it at the Ram's shoulder,
-    /// wider than it is tall — which is what a rooted grabber should look like.
-    /// Checked in a rendered shot, not guessed.
-    private static (string Model, float Scale, Color Energy) PresenceFor(string foeName) => foeName switch
-    {
-        "Dungeon Scamp" => ("forest_flicker", 0.55f, FamilyEnergy.Glitchkin),
-        "Snag" => ("snag", 1.0f, FamilyEnergy.Wildkin),
-        "Flicker" => ("forest_flicker", 1.0f, FamilyEnergy.Wildkin),
-        "Monolith" => ("clockwork_pangolin", 1.3f, FamilyEnergy.Relicborn),
-        _ => ("forest_flicker", 1.0f, FamilyEnergy.Bloomglass),
-    };
 }

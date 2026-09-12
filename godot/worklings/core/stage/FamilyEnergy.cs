@@ -35,17 +35,15 @@ public static class FamilyEnergy
         _ => Bloomglass,
     };
 
-    /// Which family a model belongs to. Keyed off the .glb basename for now;
-    /// this moves to PetState once that slice is ported and the real roster
-    /// carries its own family.
-    public static PetFamily For(string modelName) => modelName switch
-    {
-        "tempest_ram" => PetFamily.Elemental,
-        "forest_flicker" => PetFamily.Wildkin,
-        "clockwork_pangolin" => PetFamily.Relicborn,
-        "snag" => PetFamily.Wildkin,
-        _ => PetFamily.Bloomglass,
-    };
+    /// Which family a creature belongs to.
+    ///
+    /// **The roster carries this now.** This was a fifth string-switch keyed off
+    /// the .glb basename, with a silent Bloomglass fallback that made an
+    /// unregistered creature look deliberate. It stays as a one-line forward
+    /// because callers hold a model name rather than a Creature; prefer
+    /// `creature.Family` where you have the creature.
+    public static PetFamily For(string modelName) =>
+        Worklings.Core.Roster.CreatureRoster.FindOrDefault(modelName).Family;
 
     /// A lighter partner for gradients and bar fills.
     public static Color Lift(Color c, float amount = 0.42f) =>
