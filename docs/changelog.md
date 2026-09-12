@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-09-12 > docs/engineering/battle-vfx-lab.md > agent handover > Document the current reusable effect API, preview-to-gameplay extraction plan, exact scene and combat integration points, timing and audio pitfalls, acceptance criteria, and a copy-paste task for another agent.**
+
 - **2026-09-12 > godot/worklings/tools/BattleLab.cs, BattleLabEffects.cs, battle_lab.tscn > Capture, MakeSet, Draw > Add an isolated Godot battle lab with four elemental attack studies, two procedural dungeon settings, wider cameras, manually stepped skeleton timing, hit-stop and PNG capture; preserve all existing scenes and gameplay.**
 - **2026-09-12 > scripts/render-battle-lab.py > soundtrack, main > Validate complete frame sequences and package eight audible MP4 studies, a review reel, stills and a local gallery using existing Python and ffmpeg; synthesized audio requires no new dependencies.**
 - **2026-09-12 > docs/engineering/battle-vfx-lab.md > review and reproduction guide > Document the battle studies, local preview locations, rerun commands and prototype limitations.**
