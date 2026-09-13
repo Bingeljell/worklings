@@ -16,16 +16,16 @@ To keep track of the progress, you can see the [changelog](docs/changelog.md) - 
 
 ## What's new
 
-The biggest arc yet — **Worklings now fights.**
+**The dungeon became a game you play, and the whole thing runs on Godot now.**
 
-- **🗺️ The delve, end to end.** A dungeon run is now a journey, not a single fight: a narration briefing that sets the vibe, a **loadout** you pack before descending, a four-encounter chain, and a **bank-or-push** prompt after every win — leave with what you've earned, or press deeper toward the mini-boss at rising risk. Every cleared encounter drops gear; only the boss carries the best of it.
-- **🎒 Gear.** Three functional slots — **Tool**, **Ward**, **Charm** (never a human armour paper-doll; Worklings are creatures) — and fifteen items across three tiers, from Scavenged junk to boss-only **Prime**. Items are universal (any build can wear anything) with a soft **family attunement** rider, and they fold into your stats at read-time, so gear never rewrites what you've earned.
-- **🪟 The Character Screen.** Click your Workling for its hub: a model bay and gear rail beside **Character**, **Inventory**, **Skills**, and **Care** tabs. The stat table shows base, gear, and total side by side, and an "in the arena" readout of what actually walks into a fight.
-- **⚔️ Dungeon combat (the Cache Warren).** A turn-based auto-battler arena where your Workling faces off against foes one beat at a time. You steer with an **Approach** and the occasional decision (Brace the incoming Slam? Unleash into an opening?) while the pet acts on its own. Four foes with genuinely different mechanics — the **Dungeon Scamp** (warm-up), **Snag** (grabs and snares your agility), **Flicker** (blurs and phases out of the way), and the **Monolith** mini-boss (telegraphed slams and hardening armour) — with impact juice (shake, crits, floating damage), a 3-2-1 countdown, and a victory/defeat screen. Enter from the paw menu.
-- **🔊 Full combat audio.** A driving dungeon soundtrack (plus a separate boss theme), a distinct cue for every action — hit, crit, slam, dodge, snare, telegraph — and a victory fanfare, all behind a mute toggle and a volume slider.
-- **🐾 Five creature families.** Wildkin, Elemental, and Relicborn are joined by two new design-stage families — **Glitchkin** (signal, speed, unstable reality) and **Bloomglass** (starlight, crystal, celestial calm) — rounding the roster to five, each with its own critter catalogue and a new premium art direction in the works.
-- **🧬 Deep RPG systems (design locked, building toward it).** Five classes, a six-stat combat model with a classless **Luck** stat for high-variance builds, **soft race↔class affinity** (each family leans toward one class and away from another, but any family can still be any class), per-class **abilities**, family **passives**, and Energy/Mana resources — the foundation for gear, skill trees, and eventually multiplayer. See the [design docs](docs/design/).
-- **🔌 Works with your tools.** Reacts to real work through **Claude Code** and **Codex** (live) and **local Git commits**, with broader **GitHub sync coming soon** — all content-free (no code, prompts, or keystrokes ever leave your machine).
+- **⚔️ A move every round.** Combat used to pick a standing stance — Aggressive, Careful, Clever — and resolve itself while you watched. Now you press a verb each round: **Strike**, **Brace**, or your once-per-fight **Signature**. What you press is what your Workling does. The stances are gone; they read as odd in play and they lied by omission, since "Careful" meant *brace if hurt* and could answer your press with a swing.
+- **👁️ The foe tells you what it's about to do.** Its move is decided at the top of the round and shown as an icon over its head — **Attacking**, **Winding up**, **Heavy slam**, **Grasping**, **Blur strike** — with a hover tooltip explaining it. It is then bound to that declaration. So bracing the Monolith's slam is a decision instead of a coin flip: the same blow lands for 28 unbraced and 13 braced.
+- **⏱️ One countdown per move.** The foe declares → you answer → 3-2-1 → both moves play, your Workling always first. What just happened is spelled out under the fight *after* the blow lands, not before it.
+- **🎮 Godot.** The engine is now Godot 4 with C#, replacing SwiftUI/AppKit for the pet, the arena, and everything in between. Worklings are **live 3D characters** authored in Blender rather than pixel-art sprites — five bodies with real attack, wince and death animations, on a lit stage (the Moonlit Ruins) with impact frames, camera shake, ghost trails and per-creature signature effects.
+- **🗺️ The delve, end to end.** A briefing, a **loadout** you pack before descending, a four-encounter chain through the Cache Warren, and a **bank-or-push** prompt after every win. Every cleared encounter drops gear; only the mini-boss carries **Prime**.
+- **🎒 Gear.** Three functional slots — **Tool**, **Ward**, **Charm** (never a human armour paper-doll; Worklings are creatures) — and fifteen items across three tiers. Items are universal with a soft **family attunement** rider, folded into your stats at read-time so gear never rewrites what you've earned.
+- **🔊 Combat audio.** A dungeon soundtrack, a separate boss theme, per-action cues, and a victory fanfare, behind a mute toggle and a volume slider.
+- **🔌 Works with your tools.** Reacts to real work through **Claude Code** and **Codex** (live) and **local Git commits** — all content-free (no code, prompts, or keystrokes ever leave your machine).
 
 ## What we are building
 
@@ -35,7 +35,7 @@ Worklings combines three ideas:
 - **A respectful desktop presence:** a floating companion that can be moved, tucked away, and eventually roam without obstructing work.
 - **Provider-neutral activity awareness:** Codex is the first planned activity source, but the Pet Brain consumes generic activity events rather than Codex-specific state.
 
-The project is macOS-first and implemented in Swift with SwiftUI and AppKit. Pet state is processed and stored locally. Keystrokes, screen contents, prompts, and source code are outside the default data model.
+The project is macOS-first and built in **Godot 4 with C#**. It began as a Swift/SwiftUI app; the rules engine was ported to C# and the presentation rebuilt in Godot when the pet and the dungeon both needed real 3D. The Swift sources under `Sources/` are the original and are now legacy — the shipping app is `godot/worklings`. Pet state is processed and stored locally. Keystrokes, screen contents, prompts, and source code are outside the default data model.
 
 ## Character direction
 
@@ -46,7 +46,7 @@ Worklings come from five creature families across five thematic lanes — nature
 | <img src="assets/worklings-wildkin.png" alt="A moss-fox Wildkin Workling" width="260"> | <img src="assets/worklings-elemental.png" alt="An ember-newt Elemental Workling" width="260"> | <img src="assets/worklings-relicborn.png" alt="A keyback pangolin Relicborn Workling" width="260"> |
 | A moss-fox shaped by living woodland magic. | An ember-newt whose elemental nature is part of its anatomy. | A keyback pangolin bonded to an ancient rune-powered relic. |
 
-All three families use the same twelve-frame pose contract and are selectable at runtime from the menu bar.
+The concept art above is the **input** to the pipeline, not the shipped look: each design is modelled and rigged in Blender, then exported to glTF as a live 3D body. Five bodies exist today; adding another is one entry in the creature roster.
 
 ## Classes
 
@@ -66,31 +66,59 @@ Classes are freely swappable for now; once abilities and gear exist, changing cl
 
 The current experimental build includes:
 
-- a transparent floating companion window;
-- a persistent menu-bar choice between Wildkin, Elemental, and Relicborn appearances;
-- shared pixel-art smoke transitions for launch, wake, tuck-away, and family changes;
-- optional single-display idle roaming with walking frames and a persistent pause control;
-- internal hunger presented as Fullness, plus energy, happiness, and trust;
-- favourite food and play preferences;
-- deterministic time progression and capped offline progression;
-- versioned local JSON persistence;
-- automatic copy-forward of a legacy Build Companion save;
-- hover summaries for relevant needs;
-- a Character Screen opened by clicking Pixel — gear slots, stats, inventory, and Feed, Play, Pet, and Sleep actions;
-- XP, levels, and five class-weighted stats earned from care and real work activity, with a Choose Class menu and a Character tab showing base, gear, and total side by side;
-- menu-bar wake, tuck-away, care, and quit controls;
+- a transparent floating companion window with a menu-bar paw;
+- **live 3D Workling bodies** — Tempest Ram, Key-back Pangolin, Dungeon Scamp, Forest Flicker, Snag — authored in Blender and exported to glTF;
+- internal hunger presented as Fullness, plus energy, happiness, and trust, with favourite food and play preferences;
+- deterministic time progression, capped offline progression, and versioned local JSON persistence;
+- a Character Screen — gear slots, stats, inventory, and Feed, Play, Pet, and Sleep;
+- XP, levels, and five class-weighted stats earned from care and real work activity;
+- **the Cache Warren**: a four-encounter delve with per-round moves, declared foe intents, gear drops, and bank-or-push;
+- activity awareness through Claude Code, Codex, and local Git commits;
 - Worklings-branded app, DMG, checksum, and release-verification scripts;
-- dependency-free behavioral checks for simulation, persistence, presentation, care status, and window placement.
+- dependency-free headless probes for combat, persistence, progression, care, placement, and the delve chain.
 
-Pixel defaults to the moss-fox Wildkin for existing saves, while users can switch immediately to the ember-newt Elemental or keyback pangolin Relicborn without resetting care progress. A full adoption flow, mood-driven movement, richer personality, activity integrations, and the first Worklings-branded public release remain in development.
+A full adoption flow, mood-driven movement, richer personality, and party combat remain in development.
+
+## How to play
+
+### The pet
+
+Your Workling lives on the desktop. Hover it for a status summary, click it to open its Character Screen, and drag it to reposition. Feed, Play, Pet, and Sleep affect its needs; the paw menu holds wake, tuck-away, care, and quit.
+
+It earns XP from real work — commits, and activity from Claude Code and Codex once connected — which is what levels it and grows its stats.
+
+### The delve
+
+Enter the Cache Warren from the paw menu. A run is four encounters deep and you may leave after any win.
+
+**Prep.** Pick the Workling you're descending as and one item per slot. `↑↓` moves between lines, `←→` changes the selection, `Enter` descends.
+
+**The fight.** Each round runs the same way:
+
+1. **The foe declares.** An icon appears over its head saying what it will do this round. Hover it for the detail.
+2. **You choose.** Press `1` **Strike**, `2` **Brace**, or `3`/`U` **Unleash** your Signature — once per fight. `Space` repeats your last move. The buttons are clickable too.
+3. **3-2-1**, then both moves play — yours first, always.
+
+Reading the intent is the whole game. A **Heavy slam** is guaranteed to hit and roughly doubles the damage, so brace it — bracing halves the blow and mends a little. A **Winding up** foe does not attack at all that round, so it is a free hit: strike, or spend your Signature. **Grasping** dulls your Agility for a few rounds. A **Blur strike** means the foe over-extends and opens a window.
+
+**Bank or push.** After each win: `Space` to push deeper, `B` to bank and leave. Every cleared encounter drops gear, but only the mini-boss carries Prime — and your HP carries between fights, which is what makes pushing a gamble.
+
+| Key | Does |
+| --- | --- |
+| `1` | Strike |
+| `2` | Brace — halve the incoming blow, mend a little |
+| `3` or `U` | Unleash your Signature (once per fight) |
+| `Space` | Repeat your last move · push deeper at the bank prompt |
+| `B` | Bank and leave |
+| `↑↓ ←→ Enter` | Navigate the prep screen |
 
 ## Use from the repository
 
 ### Requirements
 
 - macOS 14 or newer;
-- Apple Command Line Tools or Xcode;
-- Swift 6-compatible toolchain;
+- [Godot 4.7+ **.NET/mono** build](https://godotengine.org/download) — the plain build cannot run C#;
+- the .NET 8 SDK;
 - Git.
 
 Clone and enter the repository:
@@ -100,47 +128,57 @@ git clone git@github.com:Bingeljell/worklings.git
 cd worklings
 ```
 
-Run Worklings:
+Run the pet:
 
 ```bash
-swift run Worklings
+scripts/godot-pet
 ```
 
-The first build may take a moment. Pixel appears as a floating desktop companion and adds a paw icon to the menu bar.
+Play the dungeon on its own, against a throwaway Workling so your real save is never touched:
 
-### Interacting with Pixel
+```bash
+scripts/godot-dungeon           # normal pacing
+scripts/godot-dungeon --fast    # a whole delve in under a minute
+```
 
-- Hover over Pixel for a short natural-language status summary.
-- Click Pixel to open its Character Screen; click again to put it away.
-- Drag Pixel to reposition it without opening the screen.
-- Use Feed, Play, Pet, and Sleep to affect its needs.
-- Use the paw menu to inspect state, tuck Pixel away, wake it, or quit.
-- Use **Let Pixel Roam** in the paw menu to opt into idle movement; pause it from the same control.
-- Press `Control+C` in the launching terminal to stop the process directly.
-
-Pet state is stored under the current user's `Application Support/Worklings` directory and restored on the next launch. On the first launch after upgrading from Build Companion, Worklings copies the existing save forward and preserves the legacy copy.
+Pet state is stored under the current user's `Application Support/Worklings` directory and restored on the next launch. **Only the packaged app writes that file** — the scripts above use a scratch copy, which is deliberate: a test run has no business near your real Workling.
 
 ## Build and verify
 
-Build every target:
+Build the C# project:
 
 ```bash
-swift build
+dotnet build godot/worklings
 ```
 
-Run the dependency-free behavioral checks:
+Run the headless probes and diff each against its stored reference:
 
 ```bash
-swift run CompanionCoreChecks
+scripts/godot-probe             # every probe that has a reference
+scripts/godot-probe persistence # just that one
 ```
 
-The check runner is used because a minimal Apple Command Line Tools installation may not include XCTest or Swift Testing.
+The probes are dependency-free and run without a renderer, which is the point: the combat rules, persistence, progression and delve chain stay verifiable without a window. `tools/FightProbe` prints every round of four fights across all four foe archetypes.
+
+Photograph the dungeon at the moments it changes state — about sixty labelled PNGs for a whole delve, rather than a blind frame every N:
+
+```bash
+WORKLINGS_SAVE=/tmp/pet.json WORKLINGS_BEAT_OUT=/tmp/beats \
+  godot --path godot/worklings res://tools/beat_shot.tscn
+```
+
+Package a release:
+
+```bash
+scripts/godot-export --version 0.1.0-alpha.11
+scripts/build_dmg --version 0.1.0-alpha.11
+```
 
 ## Beta application download
 
 Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
 
-The current prerelease is [`v0.1.0-alpha.10`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.10) — the delve made properly playable: gear you win is gear you keep, and a cleared Warren has a way out. [`v0.1.0-alpha.9`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.9) brought the full delve journey, gear and item tiers, and the Character Screen. Earlier alphas remain available on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
+`v0.1.0-alpha.11` is **the first release built on Godot** rather than the Swift app: a move every round, foes that declare their intent, and live 3D bodies. [`v0.1.0-alpha.10`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.10) was the last Swift build — the delve made properly playable, with gear you keep and a way out of a cleared Warren. Earlier alphas remain on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
 
 To install a packaged alpha:
 
@@ -157,18 +195,22 @@ To install a packaged alpha:
 
 Do not disable Gatekeeper globally. Developer ID signing and Apple notarization are planned when the project is ready for a broader non-technical beta.
 
-For the first upgrade from Build Companion, quit the old app and install Worklings alongside it. Launch Worklings once and confirm that Pixel's state was copied forward before removing the old application. Subsequent Worklings releases can replace `Worklings.app` normally.
+The Godot build reads and writes the same save file the Swift build did, so a Workling carries forward across the engine change. It is still worth copying `~/Library/Application Support/Worklings/pet-state.json` somewhere safe before the first launch of a new engine's build.
 
 ## Project direction
 
 Near-term work focuses on tuning the care loop, safe roaming, and desktop interaction. Later milestones include:
 
-- intent-driven walking, resting, and attention-seeking;
+- a turn indicator on your own Workling, and per-attack sound effects;
+- a paper-doll loadout screen with item icons instead of the current text grid;
+- party combat — more than one Workling on the stage at a time;
+- ability trees and per-class item sets;
 - richer needs, routines, preferences, and recoverable neglect;
-- Codex lifecycle reactions through documented integration points;
-- adapters for other IDEs and agents;
-- additional species, adoption, and richer animation states;
-- a Worklings-branded prerelease followed later by Developer ID signing and notarization.
+- adapters for more IDEs and agents;
+- additional creature families — Glitchkin and Bloomglass are designed, not yet modelled;
+- Developer ID signing and notarization once the experiment justifies it.
+
+Known rough edges are tracked in the [dungeon polish backlog](docs/process/dungeon-polish-backlog.md).
 
 ## Documentation
 
@@ -178,6 +220,7 @@ Near-term work focuses on tuning the care loop, safe roaming, and desktop intera
 - [Progression design](docs/design/progression.md)
 - [Pet interaction model](docs/design/interaction.md)
 - [Beta distribution](docs/process/distribution.md)
+- [Dungeon polish backlog](docs/process/dungeon-polish-backlog.md)
 - [Git workflow](docs/process/git-workflow.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
@@ -188,7 +231,7 @@ Near-term work focuses on tuning the care loop, safe roaming, and desktop intera
 
 Worklings source code is available under the [Apache License 2.0](LICENSE). In practical terms, the license permits use, modification, and redistribution—including commercial use—subject to its notice and attribution conditions, and includes an explicit patent grant from contributors.
 
-Unless a file or asset states otherwise, the first-party visual assets in this repository—including concept art and runtime sprite artwork—are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
+Unless a file or asset states otherwise, the first-party visual assets in this repository—including concept art, 3D models, and runtime artwork—are covered by the same license. Future pet artwork or third-party asset packs may declare separate terms alongside those assets; they will not silently change the license of the source code.
 
 ## Contributing
 
@@ -202,10 +245,10 @@ Before starting a change that introduces a dependency, changes persistence compa
 
 Every PR should:
 
-- build successfully with `swift build`;
-- pass all behavioral checks with `swift run CompanionCoreChecks`;
-- add or update checks for changed domain, persistence, placement, or presentation behavior;
-- include manual verification notes for AppKit or SwiftUI interaction changes;
+- build successfully with `dotnet build godot/worklings`;
+- pass all headless probes with `scripts/godot-probe`;
+- add or update probes for changed combat, persistence, placement, or presentation behavior;
+- include manual verification notes for interaction changes, and a capture for visual ones;
 - update `docs/changelog.md` using the repository's existing entry format;
 - update relevant documentation when behavior or architecture changes;
 - preserve local-first privacy boundaries and avoid collecting user content by default;
