@@ -11,7 +11,8 @@ public enum CommandState
     Dim,
     /// A decision is open and this is one of the answers.
     Live,
-    /// The stance the Workling is currently holding.
+    /// The move the player took last round, marked so the row has continuity
+    /// between decisions.
     Held,
     /// Used up for this encounter.
     Spent,
@@ -64,28 +65,31 @@ public sealed class ActionBar
     private readonly HBoxContainer _row;
     private readonly List<Slot> _slots = new();
 
-    /// The three Approach slots, then Unleash, then the two press-your-luck
-    /// commands. The steering four and the choice two never show together, so
+    /// Strike and Brace, then the Signature, then the two press-your-luck
+    /// commands. The fight three and the choice two never show together, so
     /// they share the row and the bar hides whichever set is not in play.
-    private const int ApproachCount = 3;
-    private const int UnleashSlot = 3;
-    private const int PushSlot = 4;
-    private const int BankSlot = 5;
+    ///
+    /// **These are verbs now, not stances.** The row used to hold Aggressive /
+    /// Careful / Clever, which set a standing strategy that then decided the
+    /// action for you — so the thing you pressed and the thing your Workling did
+    /// were not the same thing, and Careful in particular could answer a press
+    /// with a strike. What is on the bar is now exactly what happens.
+    private const int VerbCount = 2;
+    private const int UnleashSlot = 2;
+    private const int PushSlot = 3;
+    private const int BankSlot = 4;
 
-    private static readonly Approach[] Approaches =
-        { Approach.Aggressive, Approach.Careful, Approach.Clever };
+    private static readonly CombatAction[] Verbs =
+        { CombatAction.Strike, CombatAction.Brace };
 
-    /// What each stance actually does, in the half-line a slot has room for.
-    /// The same promise the prep screen makes, kept in front of the player at
-    /// the moment it matters instead of only at the moment they picked it.
-    private static string Note(Approach approach) => approach switch
+    /// What each move does, in the half-line a slot has room for.
+    private static string Note(CombatAction action) => action switch
     {
-        Approach.Aggressive => "strike every round",
-        Approach.Careful => "brace while hurt",
-        _ => "hold the signature",
+        CombatAction.Brace => "guard — halve the blow, mend a little",
+        _ => "attack the foe",
     };
 
-    public event System.Action<Approach>? Chose;
+    public event System.Action<CombatAction>? Chose;
     public event System.Action? Unleashed;
     public event System.Action? Pushed;
     public event System.Action? Banked;
@@ -102,13 +106,13 @@ public sealed class ActionBar
         _row.Position = new Vector2(0, -BottomMargin - SlotHeight);
         root.AddChild(_row);
 
-        for (int i = 0; i < ApproachCount; i++)
+        for (int i = 0; i < VerbCount; i++)
         {
-            var approach = Approaches[i];
-            Add($"{i + 1}", approach.ToString().ToUpperInvariant(), Note(approach),
-                () => Chose?.Invoke(approach));
+            var verb = Verbs[i];
+            Add($"{i + 1}", verb.ToString().ToUpperInvariant(), Note(verb),
+                () => Chose?.Invoke(verb));
         }
-        Add("U", "UNLEASH", "signature", () => Unleashed?.Invoke());
+        Add("3", "UNLEASH", "signature", () => Unleashed?.Invoke());
         Add("SPACE", "PUSH DEEPER", "keep what you carry", () => Pushed?.Invoke(), wide: true);
         Add("B", "BANK & LEAVE", "walk out with the spoils", () => Banked?.Invoke(), wide: true);
     }
@@ -161,24 +165,27 @@ public sealed class ActionBar
         Paint(slot, CommandState.Dim, StageType.Ink);
     }
 
-    /// The four steering commands, with the held stance marked and the
+    /// The three fight commands, with last round's move marked and the
     /// Signature showing whether it is still there.
     ///
     /// `live` is whether the fight is actually asking right now. The bar is
-    /// drawn either way — dim is a state, not an absence.
-    public void ShowSteering(Approach held, bool signatureReady, bool live, Color energy)
+    /// drawn either way — dim is a state, not an absence — so the player learns
+    /// where their moves live while the round is resolving and reads a state
+    /// change rather than discovering a control when it opens.
+    public void ShowFight(CombatAction? last, bool signatureReady, bool live, Color energy)
     {
-        SetVisible(0, ApproachCount + 1);
-        for (int i = 0; i < ApproachCount; i++)
+        SetVisible(0, VerbCount + 1);
+        for (int i = 0; i < VerbCount; i++)
         {
-            var state = Approaches[i] == held ? CommandState.Held
-                      : live ? CommandState.Live : CommandState.Dim;
+            var state = live ? CommandState.Live
+                      : Verbs[i] == last ? CommandState.Held
+                      : CommandState.Dim;
             Paint(_slots[i], state, energy);
         }
         Paint(_slots[UnleashSlot],
               !signatureReady ? CommandState.Spent : live ? CommandState.Live : CommandState.Dim,
               energy);
-        _slots[UnleashSlot].Note.Text = signatureReady ? "signature ready" : "already spent";
+        _slots[UnleashSlot].Note.Text = signatureReady ? "once per fight" : "already spent";
     }
 
     /// The bank-or-push beat. Two commands, both always live — this is the one

@@ -44,6 +44,25 @@ public partial class CacheWarrenScene : Node3D
     /// Bookkeeping events (round markers, decision points) skip both.
     [Export] public float ActionSeconds { get; set; } = 1.0f;
 
+    /// How long a resolved move's line holds after its animation, before the
+    /// next one starts. Short — this is the beat that lets you read "Fren
+    /// strikes for 14" rather than watch it be replaced.
+    [Export] public float ReadSeconds { get; set; } = 0.55f;
+
+    /// Collapses the pacing so a whole four-encounter delve can be watched end
+    /// to end in well under a minute.
+    ///
+    /// **A test knob, and deliberately only a pacing one.** The tempting version
+    /// is a one-shot-kill switch, and it would be the wrong tool: it changes
+    /// what the rules do, so what you would be checking is a fight the game
+    /// never plays. This changes only how long the renderer dwells, so the
+    /// encounters, the intents, the damage and the drops are all exactly the
+    /// ones a real run produces — it just stops waiting around between them.
+    ///
+    /// Set `WORKLINGS_FAST=1` to turn it on without touching the scene, which is
+    /// how the capture tool and a quick manual look both use it.
+    [Export] public bool FastMode { get; set; }
+
     /// How long the closing summary holds on screen, and how long an unattended
     /// run spends on a beat a player would take at their own pace.
     [Export] public float CardSeconds { get; set; } = 4.0f;
@@ -98,7 +117,7 @@ public partial class CacheWarrenScene : Node3D
     /// Where the run is. The fight is one phase of four, not the whole scene —
     /// the briefing, the bank/push choice and the closing summary are beats of
     /// the delve and each holds the stage on its own terms.
-    private enum Phase { Prep, Fighting, Steering, Choice, Summary }
+    private enum Phase { Prep, Choosing, Counting, Resolving, Choice, Summary }
 
     /// Every body on the stage, built at runtime from the roster.
     ///
@@ -141,7 +160,10 @@ public partial class CacheWarrenScene : Node3D
     private double _beatLength;
     private double _cardTimer;
     private int _round;
-    private Approach _approach = Approach.Clever;
+    /// The move the player took last round, so the bar can mark it between
+    /// decisions rather than going blank.
+    private CombatAction? _lastAction;
+    private IntentBadge _intent = null!;
 
     private readonly PetCombatRates _rates = new();
     /// The living pet. Every delve is built from it and every resolution is
@@ -207,16 +229,26 @@ public partial class CacheWarrenScene : Node3D
         _audio = new CombatAudio();
         AddChild(_audio);
         _prep = new LoadoutPanel(this);
+
+        if (FastMode || OS.GetEnvironment("WORKLINGS_FAST").Length > 0)
+        {
+            BeatSeconds = 0.35f;
+            ActionSeconds = 0.18f;
+            ReadSeconds = 0.05f;
+            CardSeconds = 0.7f;
+        }
+
         BeginRun();
+        _intent = new IntentBadge(_hud.Root, camera);
 
         // The bar is a control, not a legend, so the mouse reaches the same four
         // decisions the keyboard does. Both go through the guards below rather
         // than straight at the encounter — a slot is drawn dim between decisions
         // and clicking it then must do nothing.
-        _hud.Bar.Chose += approach => { if (CanSteer()) TakeDecision(approach, unleash: false); };
+        _hud.Bar.Chose += action => { if (CanAct()) TakeAction(action); };
         _hud.Bar.Unleashed += () =>
         {
-            if (CanSteer() && _encounter.SignatureReady) TakeDecision(_approach, unleash: true);
+            if (CanAct() && _encounter.SignatureReady) TakeAction(CombatAction.Signature);
         };
         _hud.Bar.Pushed += () => { if (CanChoose()) { _delve.PushDeeper(); StartEncounter(); } };
         _hud.Bar.Banked += () =>
@@ -228,7 +260,7 @@ public partial class CacheWarrenScene : Node3D
         };
     }
 
-    private bool CanSteer() => !AutoPlay && _phase == Phase.Steering;
+    private bool CanAct() => !AutoPlay && _phase == Phase.Choosing;
     private bool CanChoose() => !AutoPlay && _phase == Phase.Choice;
 
     /// Reads the saved Workling, or starts a fresh one. A missing file is a first
@@ -346,7 +378,8 @@ public partial class CacheWarrenScene : Node3D
         _party.Play(ActorAction.Idle, loop: true);
 
         _phase = Phase.Prep;
-        _prep.Open(_state, _approach, "The Cache Warren", Briefing);
+        _intent?.Hide();
+        _prep.Open(_state, "The Cache Warren", Briefing);
         _cardTimer = AutoPlay ? CardSeconds : 0;
         _line = "";
         _status = "";
@@ -361,7 +394,6 @@ public partial class CacheWarrenScene : Node3D
     private void Descend()
     {
         _state = _prep.Result;
-        _approach = _prep.Approach;
         TakeTheBody(_prep.Creature);
         _hud.SetPet(_petName, _petEnergy);
         _prep.Close();
@@ -384,7 +416,7 @@ public partial class CacheWarrenScene : Node3D
     private void StartEncounter()
     {
         var foe = _delve.CurrentFoe!;
-        _encounter = _delve.MakeEncounter(_approach)!;
+        _encounter = _delve.MakeEncounter()!;
         _logCursor = 0;
 
         ShowFoe(foe);
@@ -399,11 +431,21 @@ public partial class CacheWarrenScene : Node3D
         _round = 0;
         _beatTimer = 0;
         _actionTimer = 0;
+        _lastAction = null;
         _line = "";
+        _party.ResetPose();
         _party.Play(ActorAction.Idle, loop: true);
         _foe.Play(ActorAction.Idle, loop: true);
-        _phase = Phase.Fighting;
-        UpdateReadout();
+
+        // **Open the first round rather than dropping into playback.** The fight
+        // used to enter with both timers at zero, so the very first event of an
+        // encounter was applied on the first frame after the swap — which is why
+        // the Flicker was landing a hit before the screen had finished
+        // appearing. Now the round opens, the foe declares, and nothing moves
+        // until the player answers.
+        _encounter.Step();
+        DrainLog();
+        OpenRound();
     }
 
     /// Queues every event the encounter has logged since playback last looked.
@@ -415,45 +457,61 @@ public partial class CacheWarrenScene : Node3D
         }
     }
 
-    /// Everything queued has been animated, so the fight can move. Either it
-    /// wants a decision from the player, or it is over, or it resolves another
-    /// round and hands back whatever that produced.
+    /// Everything queued has been animated. Either the fight is over, or it
+    /// opens the next round and hands it to the player.
     private void PumpEncounter()
     {
-        if (_encounter.Status.IsAwaitingDecision) { EnterSteer(); return; }
-        if (!_encounter.Status.IsOngoing) { FinishEncounter(); return; }
-        _encounter.Step();
+        if (!_encounter.Status.IsOngoing && !_encounter.Status.IsAwaitingAction)
+        {
+            FinishEncounter();
+            return;
+        }
+        if (_encounter.Status.IsOngoing) _encounter.Step();
         DrainLog();
+        OpenRound();
     }
 
-    /// The fight has paused for guidance — beat four of the delve. The player
-    /// re-chooses the Approach and decides whether to spend the once-per-fight
-    /// Signature; both carry, so an Approach picked here is also the one the
-    /// next encounter opens on.
-    private void EnterSteer()
+    /// A round has opened. The foe has declared, and the fight is the player's.
+    ///
+    /// **This is the beat the whole restructure exists for.** The order used to
+    /// be countdown → the foe's move → countdown → a prompt → the consequence,
+    /// which put the decision *after* the information it was about and made the
+    /// countdown look like it fired at random. Now it is: the foe declares, the
+    /// player answers, the countdown runs on that answer, and both moves play.
+    /// One decision and one countdown per round, always in that order.
+    private void OpenRound()
     {
-        _phase = Phase.Steering;
+        if (!_encounter.Status.IsAwaitingAction) return;
+        _phase = Phase.Choosing;
+        _round = _encounter.Round;
         _hud.ClearBeat();
-        _line = _encounter.Status.Reason switch
-        {
-            DecisionReason.LowHP => $"{_petName} is faltering",
-            DecisionReason.Opening => $"{_foeName} over-extends — an opening",
-            DecisionReason.Telegraph => $"{_foeName} is winding up — brace, or eat it",
-            _ => $"How should {_petName} press on?",
-        };
-        // A held Approach is a real choice, so an unattended run takes it on the
-        // same short pause a player would have spent reading the prompt.
+        ShowIntent();
+        _line = "";
+        // An unattended run still pauses, briefly, where a player would read the
+        // badge — a capture with no pause is a capture of a different game.
         _cardTimer = AutoPlay ? CardSeconds * 0.25 : 0;
         UpdateReadout();
     }
 
-    /// Commits a decision and resumes the fight.
-    private void TakeDecision(Approach approach, bool unleash)
+    /// Puts the foe's declared move over its head.
+    private void ShowIntent()
     {
-        _approach = approach;
-        _encounter.Decide(approach, unleash);
+        var casting = CreatureRoster.For(_foeName);
+        _intent.Show(_foe, casting.StageHeight, _encounter.Intent, _encounter.IntentThreatens);
+    }
+
+    /// The player has chosen. The countdown now runs on a decision already made,
+    /// which is what makes it a wind-up rather than a wait.
+    private void TakeAction(CombatAction action)
+    {
+        if (_phase != Phase.Choosing) return;
+        _lastAction = action;
+        _encounter.Act(action);
         DrainLog();
-        _phase = Phase.Fighting;
+        _intent.Hide();
+        _phase = Phase.Counting;
+        _beatTimer = _beatLength = BeatSeconds;
+        _lastTickSecond = -1;
         UpdateReadout();
     }
 
@@ -461,6 +519,7 @@ public partial class CacheWarrenScene : Node3D
     /// finished chain, or the bank/push choice.
     private void FinishEncounter()
     {
+        _intent.Hide();
         _delve.RecordOutcome(_encounter);
         switch (_delve.Status.Kind)
         {
@@ -522,15 +581,16 @@ public partial class CacheWarrenScene : Node3D
             case Phase.Prep:
                 if (_prep.HandleKey(key.Keycode)) Descend();
                 break;
-            case Phase.Steering:
+            case Phase.Choosing:
                 switch (key.Keycode)
                 {
-                    case Key.Key1: TakeDecision(Approach.Aggressive, unleash: false); break;
-                    case Key.Key2: TakeDecision(Approach.Careful, unleash: false); break;
-                    case Key.Key3: TakeDecision(Approach.Clever, unleash: false); break;
-                    case Key.U: TakeDecision(_approach, unleash: true); break;
+                    case Key.Key1: TakeAction(CombatAction.Strike); break;
+                    case Key.Key2: TakeAction(CombatAction.Brace); break;
+                    case Key.Key3 or Key.U: TakeAction(CombatAction.Signature); break;
+                    // Space repeats last round's move, so a player who is happy
+                    // striking can hold one key through a fight.
                     case Key.Space or Key.Enter or Key.KpEnter:
-                        TakeDecision(_approach, unleash: false); break;
+                        TakeAction(_lastAction ?? CombatAction.Strike); break;
                 }
                 break;
             case Phase.Choice:
@@ -578,44 +638,21 @@ public partial class CacheWarrenScene : Node3D
 
         if (_impact.IsHitStopped) return;
 
-        if (_phase != Phase.Fighting)
+        _intent.Track();
+
+        // Choosing is a card beat: nothing advances until the player answers.
+        if (_phase is not (Phase.Counting or Phase.Resolving))
         {
             TickCard(delta);
             return;
         }
 
-        // Phase one: the action is playing. No countdown — the attack is not
-        // the wait.
-        if (_actionTimer > 0)
-        {
-            _actionTimer -= delta;
-            if (_actionTimer > 0) { _hud?.ClearBeat(); return; }
-
-            // Resolve the *next* beat before starting the countdown to it.
-            //
-            // The encounter used to be stepped at the far end of the wait, which
-            // meant that for the whole three seconds the game did not yet know
-            // what was coming — so the clock could only say "next round" and the
-            // steering prompt arrived three seconds after the action that
-            // prompted it. Stepping first costs nothing (the rules are resolved
-            // either way) and lets the countdown name the beat, which is the
-            // entire point of it being a countdown rather than a delay.
-            if (_pending.Count == 0)
-            {
-                PumpEncounter();
-                if (_phase != Phase.Fighting) return;
-            }
-            _beatTimer = _beatLength;
-        }
-
-        // Phase two: counting down to the next action.
-        if (_beatTimer > 0)
+        // The countdown, on a decision already taken.
+        if (_phase == Phase.Counting)
         {
             _beatTimer -= delta;
             var (who, what, isPet) = NextBeat();
             _hud?.SetBeat(_beatTimer, who, what, isPet);
-            // One tick per whole second of the countdown, not one per frame.
-            // The bar shows the time; the tick is what makes it felt.
             int second = (int)System.Math.Ceiling(_beatTimer);
             if (second != _lastTickSecond && second > 0)
             {
@@ -624,11 +661,20 @@ public partial class CacheWarrenScene : Node3D
             }
             if (_beatTimer > 0) return;
             _lastTickSecond = -1;
+            _hud?.ClearBeat();
+            _phase = Phase.Resolving;
+        }
+
+        // Resolving: the round's moves play back to back, each holding the
+        // stage for its own animation and no longer.
+        if (_actionTimer > 0)
+        {
+            _actionTimer -= delta;
+            if (_actionTimer > 0) return;
         }
 
         if (_pending.Count == 0)
         {
-            _hud?.ClearBeat();
             PumpEncounter();
             return;
         }
@@ -636,13 +682,11 @@ public partial class CacheWarrenScene : Node3D
         var next = _pending.Dequeue();
         if (Apply(next))
         {
-            // An attack beat runs until its own animation has played out, so a
-            // long wind-up is never cut off by the countdown starting early.
-            _actionTimer = _lunge.IsBusy
+            // An action holds until its own animation has played out, plus a
+            // short read of the line it wrote.
+            _actionTimer = (_lunge.IsBusy
                 ? System.Math.Max(ActionSeconds, _lastLungeDuration + 0.12)
-                : ActionSeconds;
-            _beatLength = BeatSeconds;
-            _hud?.ClearBeat();
+                : ActionSeconds) + ReadSeconds;
         }
         UpdateReadout();
     }
@@ -660,8 +704,8 @@ public partial class CacheWarrenScene : Node3D
                 _prep.TakeBestAvailable();
                 Descend();
                 break;
-            case Phase.Steering:
-                TakeDecision(_approach, unleash: false);
+            case Phase.Choosing:
+                TakeAction(_encounter.AutoAction());
                 break;
             case Phase.Choice:
                 _delve.PushDeeper();
@@ -689,9 +733,24 @@ public partial class CacheWarrenScene : Node3D
     /// reads as two models taking turns with animations. Closing the distance is
     /// what makes it a collision; impact frames are the reaction to that
     /// collision, and were previously firing at a contact that never happened.
+    /// The line that goes up as an action *starts* — who is doing what, with no
+    /// outcome in it.
+    ///
+    /// **The outcome used to be written here too**, at the moment the event was
+    /// dequeued, which is before the wind-up has even played. So the plaque read
+    /// "Flicker misses" for the entire second and a bit that the Flicker spent
+    /// swinging, and against a high-evasion foe the whole fight was spoiled a
+    /// beat ahead of itself. The result now lands on the contact frame, with the
+    /// flash and the damage number, which is where it actually happens.
+    private void Announce(string line)
+    {
+        _line = line;
+        _hud?.SetNarration(_line);
+    }
+
     private void ScheduleImpact(
         StageActor attacker, StageActor defender, bool toFoe,
-        StrikeOutcome outcome, bool isSignature = false)
+        StrikeOutcome outcome, bool isSignature = false, string result = "")
     {
         int maxHP = toFoe ? _foeMaxHP : _petMaxHP;
         double severity = maxHP > 0 ? (double)outcome.Damage / maxHP : 0;
@@ -713,6 +772,7 @@ public partial class CacheWarrenScene : Node3D
             _impact.Strike(defender, direction, severity, outcome.DidCrit || isSignature, energy);
             _numbers.Spawn(defender.Root.Position, outcome.Damage, energy,
                            outcome.DidCrit || isSignature);
+            if (result.Length > 0) _line = result;
             UpdateReadout();
         });
     }
@@ -720,7 +780,7 @@ public partial class CacheWarrenScene : Node3D
     /// A miss still commits — the attacker goes in and comes back with nothing
     /// to show for it, which is what makes a miss read as a miss rather than as
     /// a skipped turn.
-    private void ScheduleWhiff(StageActor attacker, StageActor defender)
+    private void ScheduleWhiff(StageActor attacker, StageActor defender, string result = "")
     {
         _lastLungeDuration = AttackLunge.DurationFor(attacker.AttackImpactDelay());
         _lunge.Begin(attacker, defender, attacker.AttackImpactDelay(),
@@ -728,6 +788,7 @@ public partial class CacheWarrenScene : Node3D
                      {
                          _numbers.SpawnMiss(defender.Root.Position);
                          Dodge(attacker, defender);
+                         if (result.Length > 0) { _line = result; UpdateReadout(); }
                      },
                      trail: TrailFor(attacker));
     }
@@ -819,25 +880,27 @@ public partial class CacheWarrenScene : Node3D
                 var attacker = petAttacking ? _party : _foe;
                 var defender = petAttacking ? _foe : _party;
                 attacker.Play(ActorAction.Attack);
+                Announce($"{x.Attacker} attacks");
                 if (x.Outcome.DidHit)
                 {
-                    ScheduleImpact(attacker, defender, petAttacking, x.Outcome);
+                    ScheduleImpact(attacker, defender, petAttacking, x.Outcome,
+                        result: $"{x.Attacker} {(x.Outcome.DidCrit ? "crits" : "strikes")} "
+                              + $"for {x.Outcome.Damage}");
                     _audio.Play(x.Outcome.DidCrit ? CombatSound.Crit : CombatSound.Hit);
-                    _line = $"{x.Attacker} {(x.Outcome.DidCrit ? "crits" : "strikes")} for {x.Outcome.Damage}";
                 }
                 else
                 {
-                    ScheduleWhiff(attacker, defender);
+                    ScheduleWhiff(attacker, defender, result: $"{x.Defender} slips it");
                     _audio.Play(CombatSound.Dodge);
-                    _line = $"{x.Attacker} misses";
                 }
                 return true;
             }
             case CombatEvent.Signature x:
                 _party.Play(ActorAction.Signature);
-                ScheduleImpact(_party, _foe, true, x.Outcome, isSignature: true);
+                Announce($"{x.Attacker} unleashes");
+                ScheduleImpact(_party, _foe, true, x.Outcome, isSignature: true,
+                    result: $"{x.Attacker} unleashes for {x.Outcome.Damage}");
                 _audio.Play(CombatSound.Unleash);
-                _line = $"{x.Attacker} unleashes for {x.Outcome.Damage}";
                 return true;
 
             // The Monolith's telegraphed slam — the foe's answer to a signature,
@@ -846,16 +909,12 @@ public partial class CacheWarrenScene : Node3D
             case CombatEvent.Slammed x:
                 _foe.Play(ActorAction.Signature);
                 _audio.Play(CombatSound.Slam);
+                Announce($"{x.Attacker} slams");
                 if (x.Outcome.DidHit)
-                {
-                    ScheduleImpact(_foe, _party, false, x.Outcome, isSignature: true);
-                    _line = $"{x.Attacker} slams for {x.Outcome.Damage}";
-                }
+                    ScheduleImpact(_foe, _party, false, x.Outcome, isSignature: true,
+                                   result: $"{x.Attacker} slams for {x.Outcome.Damage}");
                 else
-                {
-                    ScheduleWhiff(_foe, _party);
-                    _line = $"{x.Attacker} slams — {x.Defender} slips it";
-                }
+                    ScheduleWhiff(_foe, _party, result: $"{x.Defender} slips the slam");
                 return true;
 
             // A wind-up with no contact. It earns a beat precisely because the
@@ -1030,13 +1089,13 @@ public partial class CacheWarrenScene : Node3D
                 _hud.Bar.Hide();
                 break;
             case Phase.Choice:
-                _hud.SetRun(_delve.EncounterNumber, _delve.TotalEncounters, 0, _approach);
+                _hud.SetRun(_delve.EncounterNumber, _delve.TotalEncounters, 0);
                 if (AutoPlay) _hud.Bar.Hide(); else _hud.Bar.ShowChoice(_petEnergy);
                 break;
             default:
-                _hud.SetRun(_delve.EncounterNumber, _delve.TotalEncounters, _round, _approach);
-                _hud.Bar.ShowSteering(_approach, _encounter?.SignatureReady ?? true,
-                                      live: _phase == Phase.Steering && !AutoPlay, _petEnergy);
+                _hud.SetRun(_delve.EncounterNumber, _delve.TotalEncounters, _round);
+                _hud.Bar.ShowFight(_lastAction, _encounter?.SignatureReady ?? true,
+                                   live: _phase == Phase.Choosing && !AutoPlay, _petEnergy);
                 break;
         }
     }
@@ -1152,7 +1211,7 @@ public partial class CacheWarrenScene : Node3D
         // Re-applied per encounter because one creature can play two foes at
         // two sizes — the Snag is itself at 4.81 and the Monolith at 7.50.
         _foe.ResetPose();
-        _cast.SetHeight(key, casting.StageHeight);
+        _cast.SetHeight(key, casting.Creature.Id, casting.StageHeight);
         _foeEnergy = casting.Creature.Energy;
         _foe.Play(ActorAction.Idle, loop: true);
 

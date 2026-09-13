@@ -3,14 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 using Worklings.Core.Combat;
 
-/// Runs whole encounters and prints the complete event log, for comparison
-/// against the same fights resolved by the Swift CombatEncounter.
+/// Runs whole encounters and prints the complete event log.
 ///
-/// This is the real check on the port: not individual draws, but every round of
-/// four fights across all four foe archetypes — mindless, grabber, evasive and
-/// colossus — including decision points, status effects, initiative order and
-/// the Careful hysteresis. A single divergence anywhere reshuffles everything
-/// after it, so matching logs end-to-end is strong evidence.
+/// Every round of four fights across all four foe archetypes — mindless,
+/// grabber, evasive and colossus — including the declared intents, the status
+/// effects and the resolutions. A single divergence anywhere reshuffles
+/// everything after it, so a matching log end-to-end is strong evidence.
+///
+/// **This stopped being a port check on 2026-09-13.** It existed to compare the
+/// C# port against `Sources/CompanionCore/CombatEncounter.swift` line for line,
+/// and the C# rules have since deliberately moved ahead of the Swift ones — the
+/// player picks a move every round, the foe declares its intent up front, and
+/// the pet always acts first. Swift is legacy; the engine is Godot. So the
+/// reference is now a regression baseline against this file's own past, which is
+/// still worth having and is a weaker claim than it used to be.
 public partial class FightProbe : Node
 {
     private static string Describe(CombatEvent e) => e switch
@@ -27,19 +33,18 @@ public partial class FightProbe : Node
         CombatEvent.Slammed x => $"slam({x.Attacker}->{x.Defender},{x.Outcome.Damage})",
         CombatEvent.Hardened x => $"harden({x.Who},{x.GuardGain})",
         CombatEvent.Defeated x => $"dead({x.Who})",
-        CombatEvent.DecisionPoint x => $"decide({Lower(x.Reason)})",
+        CombatEvent.AwaitingAction x => $"intends({Lower(x.Intent.Kind)})",
         CombatEvent.EncounterEnded x => $"end({(x.Victory ? "true" : "false")})",
         _ => "?",
     };
 
-    /// Swift prints enum cases lowerCamelCase; match that so the logs compare
-    /// as plain text.
-    private static string Lower(DecisionReason r) => r switch
+    private static string Lower(FoeIntentKind k) => k switch
     {
-        DecisionReason.Cadence => "cadence",
-        DecisionReason.LowHP => "lowHP",
-        DecisionReason.Opening => "opening",
-        DecisionReason.Telegraph => "telegraph",
+        FoeIntentKind.Strike => "strike",
+        FoeIntentKind.WindUp => "windUp",
+        FoeIntentKind.Slam => "slam",
+        FoeIntentKind.Grab => "grab",
+        FoeIntentKind.Phase => "phase",
         _ => "?",
     };
 
@@ -48,18 +53,18 @@ public partial class FightProbe : Node
         var rates = new PetCombatRates();
         var petStats = new CombatStats(11, 6, 9, 7);
 
-        var cases = new (string Label, Foe Foe, Approach Approach, ulong Seed)[]
+        var cases = new (string Label, Foe Foe, ulong Seed)[]
         {
-            ("scamp-aggr", CacheWarren.Mote, Approach.Aggressive, 1001UL),
-            ("snag-careful", CacheWarren.Snag, Approach.Careful, 2002UL),
-            ("flicker-clever", CacheWarren.Flicker, Approach.Clever, 3003UL),
-            ("monolith-careful", CacheWarren.Monolith, Approach.Careful, 4004UL),
+            ("scamp", CacheWarren.Mote, 1001UL),
+            ("snag", CacheWarren.Snag, 2002UL),
+            ("flicker", CacheWarren.Flicker, 3003UL),
+            ("monolith", CacheWarren.Monolith, 4004UL),
         };
 
         foreach (var c in cases)
         {
             var pet = new Combatant("Ram", petStats, 41, 41);
-            var enc = new CombatEncounter(pet, c.Foe, c.Approach, rates, c.Seed);
+            var enc = new CombatEncounter(pet, c.Foe, rates, c.Seed);
             enc.RunToCompletion();
             GD.Print($"CS_FIGHT {c.Label} rounds={enc.Round} petHP={enc.Pet.CurrentHP} "
                    + $"foeHP={enc.Foe.CurrentHP} events={enc.Log.Count}");

@@ -102,7 +102,18 @@ public sealed record Creature(
     /// **This is where the Monolith bug was hiding.** As a Pangolin at 1.3x it
     /// stood 4.21 units — shorter than the 5.56 Ram the player brings. Nothing
     /// said so, because the number on screen was "1.3".
-    float StageHeight = 5.0f)
+    float StageHeight = 5.0f,
+
+    /// How far the body sits above the floor mark, in world units, on top of
+    /// being stood on it.
+    ///
+    /// `StageCast` already solves for the lift that puts a model's own lowest
+    /// point on the mark, whatever its origin was authored at, so **standing on
+    /// the floor is not what this is for** — the default of zero already does
+    /// that. This is for creatures that are meant to hover, and for the small
+    /// deliberate clearance that keeps a body from z-fighting the tiles it
+    /// stands on.
+    float GroundOffset = 0f)
 {
     /// Where the body loads from. One place, so the convention is not retyped.
     public string ScenePath => $"res://assets/characters/{Id}.glb";

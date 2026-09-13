@@ -25,6 +25,10 @@ public sealed class StageCast
     private readonly Node _owner;
     private readonly Dictionary<string, StageActor> _actors = new();
     private readonly Dictionary<string, float> _modelHeights = new();
+    /// Where each model's lowest point sits relative to its own origin, in its
+    /// own units. See `Placement` — this is what stands a body ON the floor
+    /// rather than through it.
+    private readonly Dictionary<string, float> _modelBottoms = new();
 
     public StageCast(Node owner) { _owner = owner; }
 
@@ -67,11 +71,15 @@ public sealed class StageCast
         root.Name = key;
         parent.AddChild(root);
 
-        // Measured before the transform is applied, so the number is the
-        // model's own authored height rather than whatever it was last set to.
-        float modelHeight = MeasureHeight(root);
+        // Measured before the transform is applied, so the numbers are the
+        // model's own authored bounds rather than whatever it was last set to.
+        var bounds = MeasureBounds(root);
+        float modelHeight = bounds.Size.Y;
         _modelHeights[key] = modelHeight;
-        root.Transform = Placement(mark, facing, ScaleFor(creature, modelHeight, heightOverride));
+        _modelBottoms[key] = bounds.Position.Y;
+        root.Transform = Placement(mark, facing,
+                                   ScaleFor(creature, modelHeight, heightOverride),
+                                   bounds.Position.Y, creature.GroundOffset);
 
         var actor = new StageActor(root, creature.Id, creature.Animations!);
         _actors[key] = actor;
@@ -80,14 +88,25 @@ public sealed class StageCast
 
     /// Re-sizes an already-built body — how a stand-in reads as something other
     /// than itself without a second copy of the body in the tree.
-    public void SetHeight(string key, float height)
+    public void SetHeight(string key, string creatureId, float height)
     {
         if (!_actors.TryGetValue(key, out var actor)) return;
         if (!_modelHeights.TryGetValue(key, out float modelHeight)) return;
+        if (!_modelBottoms.TryGetValue(key, out float modelBottom)) return;
         float scale = modelHeight > 0.0001f ? height / modelHeight : 1f;
         var t = actor.Root.Transform;
-        actor.Root.Transform = new Transform3D(t.Basis.Orthonormalized().Scaled(Vector3.One * scale),
-                                               t.Origin);
+        // The lift is proportional to the scale, so it has to be recomputed
+        // here and not merely preserved: the Snag stands 4.81 units as itself
+        // and 7.50 as the Monolith, and the same model buried to a different
+        // depth at each size is how this went unnoticed for a size and became
+        // glaring at the other.
+        float lift = Lift(modelBottom, scale, CreatureRoster.FindOrDefault(creatureId).GroundOffset);
+        var origin = new Vector3(t.Origin.X, lift, t.Origin.Z);
+        actor.Root.Transform = new Transform3D(
+            t.Basis.Orthonormalized().Scaled(Vector3.One * scale), origin);
+        // The rest position the hit reaction and the death topple return to has
+        // just moved, so the actor is told rather than left holding the old one.
+        actor.Rebase(origin);
     }
 
     /// Shows exactly one of the keys given and hides every other body sharing
@@ -103,6 +122,23 @@ public sealed class StageCast
 
     public StageActor? Get(string key) => _actors.TryGetValue(key, out var a) ? a : null;
 
+    /// How far above the floor mark a model's origin must sit for the model's
+    /// own lowest point to rest ON the mark.
+    ///
+    /// **Four of the five bodies are authored with their origin at their feet,
+    /// and the Snag is authored around its middle** — its mesh runs from -0.342
+    /// to +0.345 in its own units. Dropping every origin straight onto the mark
+    /// therefore buried the Snag to exactly half its height, and buried it
+    /// deeper the larger it got: 2.4 units as itself, 3.75 as the Monolith.
+    ///
+    /// Solved from the measured bounds rather than carried as a hand-tuned
+    /// number per creature, for the same reason the height is: a body
+    /// re-exported with a different origin corrects itself, where a magic
+    /// constant silently stops being true. `GroundOffset` is left on top for
+    /// creatures that are meant to hover rather than stand.
+    private static float Lift(float modelBottom, float scale, float groundOffset) =>
+        -modelBottom * scale + groundOffset;
+
     private static float ScaleFor(Creature creature, float modelHeight, float? heightOverride)
     {
         float target = heightOverride ?? creature.StageHeight;
@@ -116,27 +152,28 @@ public sealed class StageCast
 
     /// Stands a body on its mark, turned to face a point. Yaw only — a creature
     /// tipped to look at something above or below it reads as falling over.
-    private static Transform3D Placement(Vector3 mark, Vector3 facing, float scale)
+    private static Transform3D Placement(Vector3 mark, Vector3 facing, float scale,
+                                         float modelBottom, float groundOffset)
     {
         var flat = new Vector3(facing.X - mark.X, 0, facing.Z - mark.Z);
         float yaw = flat.LengthSquared() > 0.0001f ? Mathf.Atan2(flat.X, flat.Z) : 0f;
         var basis = new Basis(Vector3.Up, yaw).Scaled(Vector3.One * scale);
-        return new Transform3D(basis, mark);
+        return new Transform3D(basis,
+                               new Vector3(mark.X, Lift(modelBottom, scale, groundOffset), mark.Z));
     }
 
-    /// The model's height in its own units, from the union of every mesh's
-    /// bounds.
+    /// The model's bounds in its own units, from the union of every mesh's.
     ///
     /// Skinned meshes report bounds in skeleton space, so each one is walked up
     /// to the instance root rather than read in isolation — a mesh parented
     /// under a posed skeleton otherwise measures whatever that pose happened to
     /// be.
-    private static float MeasureHeight(Node3D root)
+    private static Aabb MeasureBounds(Node3D root)
     {
         var box = new Aabb();
         bool any = false;
         Walk(root, root, ref box, ref any);
-        return any ? box.Size.Y : 0f;
+        return any ? box : new Aabb();
     }
 
     private static void Walk(Node node, Node3D root, ref Aabb box, ref bool any)

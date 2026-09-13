@@ -98,7 +98,12 @@ public static class CreatureRoster
         Signature: AbilitySignature.Roots,
         Role: CreatureRole.Foe,
         Readiness: CreatureReadiness.Ready,
-        StageHeight: 4.81f);
+        StageHeight: 4.81f,
+        // The one body authored around its middle rather than its feet, so it
+        // is also the one that needed the lift `StageCast` now solves for. The
+        // clearance on top is deliberate: a Snag is a knot of roots resting on
+        // the floor, and sitting it exactly flush z-fights the tiles.
+        GroundOffset: 0.08f);
 
     /// Every creature, in roster order. The one list to append to.
     public static readonly IReadOnlyList<Creature> All = new[]

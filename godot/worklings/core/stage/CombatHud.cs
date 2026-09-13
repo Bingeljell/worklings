@@ -52,6 +52,10 @@ public sealed class CombatHud
 
     public ActionBar Bar { get; }
 
+    /// The HUD's own full-screen layer, for the overlays that have to track a
+    /// creature in 3D — currently the foe's intent badge.
+    public Control Root { get; }
+
     private Color _petEnergy;
 
     public CombatHud(Node parent, string petName, int petMax, Color petEnergy,
@@ -173,6 +177,7 @@ public sealed class CombatHud
         _narrationFrame.AddChild(_narration);
 
         Bar = new ActionBar(root);
+        Root = root;
     }
 
     /// Points the foe plate at a new opponent — a delve runs four of them
@@ -210,13 +215,10 @@ public sealed class CombatHud
         _narrationFrame.Visible = line.Length > 0;
     }
 
-    /// Where the run is: which encounter of the chain, which round of it, and
-    /// how the Workling is carrying itself.
-    public void SetRun(int encounter, int total, int round, Approach approach)
+    /// Where the run is: which encounter of the chain, and which round of it.
+    public void SetRun(int encounter, int total, int round)
     {
-        _run.Text = round > 0
-            ? $"ROUND {round}   ·   {approach.ToString().ToUpperInvariant()}"
-            : approach.ToString().ToUpperInvariant();
+        _run.Text = round > 0 ? $"ROUND {round}" : "";
         Pips(encounter, total);
     }
 

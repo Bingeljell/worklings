@@ -81,7 +81,7 @@ public partial class DelveProbe : Node
             d.Descend();
             while (!d.IsFinished)
             {
-                var enc = d.MakeEncounter(Approach.Careful);
+                var enc = d.MakeEncounter();
                 if (enc is null) break;
                 string foeName = d.CurrentFoe?.Name ?? "?";
                 enc.RunToCompletion();
@@ -112,7 +112,7 @@ public partial class DelveProbe : Node
         var bp = MkPet();
         var bd = MakeDelve(bp, 5);
         bd.Descend();
-        var be = bd.MakeEncounter(Approach.Careful);
+        var be = bd.MakeEncounter();
         if (be is not null) { be.RunToCompletion(); bd.RecordOutcome(be); }
         bd.Bank();
         o.AppendLine($"status {StatusDesc(bd.Status)}");
@@ -129,7 +129,7 @@ public partial class DelveProbe : Node
         gd.Bank(); o.AppendLine($"bank at briefing: {StatusDesc(gd.Status)}");
         gd.PushDeeper(); o.AppendLine($"push at briefing: {StatusDesc(gd.Status)}");
         o.AppendLine($"makeEncounter at briefing: "
-            + (gd.MakeEncounter(Approach.Careful) is null ? "nil" : "some"));
+            + (gd.MakeEncounter() is null ? "nil" : "some"));
         gd.Descend(); o.AppendLine($"descend: {StatusDesc(gd.Status)}");
         gd.Descend(); o.AppendLine($"descend again: {StatusDesc(gd.Status)}");
         gd.Bank(); o.AppendLine($"bank mid-encounter: {StatusDesc(gd.Status)}");
@@ -152,7 +152,7 @@ public partial class DelveProbe : Node
         var kp = MkPet();
         var kd = MakeDelve(kp, 5);
         kd.Descend();
-        var ke = kd.MakeEncounter(Approach.Careful);
+        var ke = kd.MakeEncounter();
         if (ke is not null) { ke.RunToCompletion(); kd.RecordOutcome(ke); }
         kd.PushDeeper();
         kd.RecordOutcome(false, 0);
@@ -167,7 +167,7 @@ public partial class DelveProbe : Node
         var richOwned = new List<Item>(ItemExtensions.All(ItemTier.Scavenged)) { Item.RubberDuck };
         var xd = MakeDelve(MkPet(richOwned), 5);
         xd.Descend();
-        var xe = xd.MakeEncounter(Approach.Careful);
+        var xe = xd.MakeEncounter();
         if (xe is not null) { xe.RunToCompletion(); xd.RecordOutcome(xe); }
         o.AppendLine($"lastDrop {N(xd.LastDrop)} drops {Names(xd.Drops)}");
 
@@ -182,7 +182,7 @@ public partial class DelveProbe : Node
                 var trace = new List<string>();
                 while (!dl.IsFinished)
                 {
-                    var e = dl.MakeEncounter(Approach.Clever);
+                    var e = dl.MakeEncounter();
                     if (e is null) break;
                     e.RunToCompletion();
                     dl.RecordOutcome(e);

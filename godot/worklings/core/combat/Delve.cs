@@ -180,14 +180,14 @@ public sealed class Delve
     /// Builds the CombatEncounter for the current index, starting the pet at its
     /// carried HP (a fresh combatant, so transient statuses from the last fight
     /// don't linger). Returns null unless an encounter is actually current.
-    public CombatEncounter? MakeEncounter(Approach approach)
+    public CombatEncounter? MakeEncounter()
     {
         if (Status.Kind != DelveStatusKind.InEncounter || CurrentFoe is not Foe foe)
         {
             return null;
         }
         var pet = new Combatant(_petName, _petStats, _petMaxHP, CarriedHP);
-        return new CombatEncounter(pet, foe, approach, _rates, EncounterSeed);
+        return new CombatEncounter(pet, foe, _rates, EncounterSeed);
     }
 
     /// Records the result of the current encounter (which the caller ran to an

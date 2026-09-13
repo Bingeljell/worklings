@@ -16,7 +16,7 @@ public sealed class StageActor
     public ActorAnimations Animations { get; }
 
     private readonly AnimationPlayer? _player;
-    private readonly Vector3 _restPosition;
+    private Vector3 _restPosition;
     /// The body's upright orientation, rotation only. A death topple turns the
     /// node itself, and the foes are a pool swapped by visibility — so the body
     /// that fell over in encounter two is the same one the Monolith stands up in
@@ -119,6 +119,19 @@ public sealed class StageActor
     public void SetOffset(Vector3 offset) => Root.Position = _restPosition + offset;
 
     public void ClearOffset() => Root.Position = _restPosition;
+
+    /// Moves the mark the body stands on, and returns it there.
+    ///
+    /// The rest position is captured once at construction, but a foe is re-sized
+    /// every encounter — the Snag is itself at 4.81 and the Monolith at 7.50 —
+    /// and the lift that stands it on the floor scales with it. Without this the
+    /// knockback and the death topple would spring the body back to whatever
+    /// height it was first built at.
+    public void Rebase(Vector3 position)
+    {
+        _restPosition = position;
+        Root.Position = position;
+    }
 
     /// Tips the body over by `radians` about `axis`, keeping whatever scale the
     /// cast sized it to. How a creature with no death clip still falls down.
