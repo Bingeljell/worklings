@@ -100,22 +100,40 @@ if [ ! -f "$info_plist" ] || [ ! -x "$bundle_executable" ]; then
   exit 1
 fi
 
-for sprite_name in \
-  worklings-wildkin-spritesheet.png \
-  worklings-elemental-spritesheet.png \
-  worklings-relicborn-spritesheet.png \
-  worklings-smoke-effects.png; do
-  if [ ! -f "$app_path/Contents/Resources/$sprite_name" ]; then
-    printf 'Error: app bundle is missing sprite sheet: %s\n' "$sprite_name" >&2
-    exit 1
-  fi
-done
-
-bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist")
-if [ "$bundle_version" != "$version" ]; then
-  printf 'Error: app version %s does not match requested DMG version %s\n' "$bundle_version" "$version" >&2
+# The two things that actually go missing from a Godot export, both silently.
+#
+# The old check here was for four pixel-art sprite sheets, which the Swift app
+# carried loose in Resources. The Godot build packs its assets into the .pck and
+# the art direction moved off pixel art entirely, so that check could only ever
+# fail on a correct bundle. These two replace it because they are the failure
+# modes that have actually happened: a .pck-less bundle shows a blank window,
+# and a bundle with no managed assemblies launches and exits in silence, which
+# is the exact trap `scripts/godot-export` was written to avoid.
+if [ ! -f "$app_path/Contents/Resources/Worklings.pck" ]; then
+  printf 'Error: app bundle has no Worklings.pck: %s\n' "$app_path" >&2
   exit 1
 fi
+
+if ! find "$app_path/Contents/Resources" -name 'Worklings.dll' -print -quit | grep -q .; then
+  printf 'Error: app bundle has no managed assemblies — the export produced a\n' >&2
+  printf 'bundle that will launch and exit in silence. See scripts/godot-export.\n' >&2
+  exit 1
+fi
+
+# CFBundleShortVersionString holds the semantic core only. macOS wants at most
+# three dot-separated integers there, so a prerelease label cannot live in it;
+# the label is carried by the tag and the release, and the build number goes in
+# CFBundleVersion.
+version_core=${version%%-*}
+bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist")
+if [ "$bundle_version" != "$version_core" ]; then
+  printf 'Error: app version %s does not match requested DMG version %s (core %s).\n' \
+    "$bundle_version" "$version" "$version_core" >&2
+  printf 'Set application/short_version in godot/worklings/export_presets.cfg.\n' >&2
+  exit 1
+fi
+build_number=$(plutil -extract CFBundleVersion raw -o - "$info_plist")
+printf 'Bundle: %s (build %s)\n' "$bundle_version" "$build_number"
 
 lipo "$bundle_executable" -verify_arch "$architecture"
 codesign --verify --deep --strict --verbose=2 "$app_path"
