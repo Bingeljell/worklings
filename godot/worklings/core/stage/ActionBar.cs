@@ -85,7 +85,7 @@ public sealed class ActionBar
     /// What each move does, in the half-line a slot has room for.
     private static string Note(CombatAction action) => action switch
     {
-        CombatAction.Brace => "halve the blow, mend",
+        CombatAction.Brace => "halve the blow",
         _ => "attack",
     };
 
@@ -124,17 +124,17 @@ public sealed class ActionBar
             CustomMinimumSize = new Vector2(wide ? SlotWidth * 1.55f : SlotWidth, SlotHeight),
         };
 
-        var stack = new Control { AnchorRight = 1, AnchorBottom = 1 };
-        frame.AddChild(stack);
-
-        var column = new VBoxContainer
-        {
-            AnchorRight = 1, AnchorBottom = 1,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
+        // The column is a **direct** child of the panel, so the panel takes its
+        // minimum size from the widest label in it and the slot grows to fit its
+        // own text. It used to hang off an intermediate bare `Control`, which has
+        // no minimum size of its own — so the panel only ever knew about
+        // `CustomMinimumSize` and any label longer than that drew straight out
+        // through the sides of the box. `CustomMinimumSize` is now a floor that
+        // keeps the row even, not a ceiling that text escapes.
+        var column = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         column.AddThemeConstantOverride("separation", 1);
         column.Alignment = BoxContainer.AlignmentMode.Center;
-        stack.AddChild(column);
+        frame.AddChild(column);
 
         // The keycap first and smallest: it is the thing the player needs once,
         // and the label is the thing they read every round after that.
@@ -151,10 +151,12 @@ public sealed class ActionBar
         column.AddChild(noteLabel);
 
         // A transparent button over the whole slot, so the mouse works without
-        // the button's own theme fighting the frame's.
-        var button = new Button { AnchorRight = 1, AnchorBottom = 1, Flat = true, Text = "" };
+        // the button's own theme fighting the frame's. A second child of the
+        // PanelContainer gets the same rect as the first and contributes nothing
+        // to the minimum size, which is exactly what is wanted here.
+        var button = new Button { Flat = true, Text = "" };
         button.Pressed += () => pressed();
-        stack.AddChild(button);
+        frame.AddChild(button);
 
         _row.AddChild(frame);
         var slot = new Slot

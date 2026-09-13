@@ -230,9 +230,23 @@ public sealed class CombatHud
         Pips(0, 0);
     }
 
+    /// Grows or shrinks the pip row to `total`, then colours it.
+    ///
+    /// **`RemoveChild` before `QueueFree`, and that is not a style preference.**
+    /// `QueueFree` is deferred to the end of the frame, so a node freed this way
+    /// is still a child right now and `GetChildCount()` does not move — which
+    /// turned the shrink loop into an infinite one. It span only when the row had
+    /// to get *smaller*, and the one place that happens is `SetRunLine`'s
+    /// `Pips(0, 0)` on the summary screen, so the game locked up at the end of
+    /// every delve and nowhere else. It presented as a crash; it was this.
     private void Pips(int encounter, int total)
     {
-        while (_pips.GetChildCount() > total) _pips.GetChild(_pips.GetChildCount() - 1).QueueFree();
+        while (_pips.GetChildCount() > total)
+        {
+            var last = _pips.GetChild(_pips.GetChildCount() - 1);
+            _pips.RemoveChild(last);
+            last.QueueFree();
+        }
         while (_pips.GetChildCount() < total)
         {
             _pips.AddChild(new ColorRect { CustomMinimumSize = new Vector2(26, 4) });
