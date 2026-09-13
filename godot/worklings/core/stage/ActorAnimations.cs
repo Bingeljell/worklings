@@ -60,20 +60,18 @@ public sealed class ActorAnimations
 
     /// Whether `Downed` names a clip that actually shows the creature dying.
     ///
-    /// **Only one of the five bodies does.** The Scamp has `Scamp_Death`; the
-    /// Flicker and the Pangolin shipped with no death clip at all, and the
-    /// Snag's is the broken one (see below), so all three point `Downed` at
-    /// their own hit-react. A kill therefore played a wince and the body stayed
-    /// standing until the next encounter swapped it out — which is precisely
-    /// the "no death animation for anything after the Scamp" that the first
-    /// play session reported, and it is an asset gap rather than a wiring bug.
+    /// **Three of the five do, and for a day this file claimed it was one.**
+    /// The Scamp, the Snag and the Flicker all have authored death animations;
+    /// what they did not have was current `.glb` exports, so two of the three
+    /// were invisible to the game and were read here as an asset gap. Both were
+    /// re-exported on 2026-09-13 and both clips are now wired. The Ram and the
+    /// Pangolin genuinely have none — checked in the blends, not in the
+    /// exports.
     ///
-    /// Declared rather than inferred from `Downed == Wince`, because the two
-    /// being equal is a coincidence of the workaround and not the fact being
-    /// stated. The stage reads this and falls the body over itself when it is
-    /// false, so a kill reads on every creature; re-authoring the clips still
-    /// replaces that with something better, and flipping this to true is how
-    /// each one gets switched over.
+    /// Declared rather than inferred from `Downed == Wince`: the two being equal
+    /// is a property of whatever workaround is in force, not of the character.
+    /// The stage reads this and fells the body itself when it is false, so a
+    /// kill reads on every creature including the two with nothing to play.
     public bool HasDeathClip { get; }
 
     public ActorAnimations(Dictionary<ActorAction, string> map, double attackImpactPoint = 0.85,
@@ -110,21 +108,35 @@ public sealed class ActorAnimations
         // A charge: it has no reach, so it commits the whole gap.
         travelFraction: 0.62f, travelSeconds: 0.24, ghostCount: 7);
 
-    /// The Forest Flicker. Its five actions are already a clean set — one per
-    /// beat, no variants — which is what the Ram's should be trimmed down to.
+    /// The Forest Flicker. Six actions, one per beat, no variants — which is
+    /// what the Ram's should be trimmed down to.
+    ///
+    /// **Re-exported 2026-09-13 from `forest-flicker-rigify-polished-v8.blend`,
+    /// which is where its death clip had been the whole time.** The shipped
+    /// `.glb` was an older export that predated both the polish pass and
+    /// `ForestFlicker_Death_44f`, so this table was pointing at clips that no
+    /// longer existed upstream and at a wince standing in for a death that did.
+    /// The lesson is the obvious one: an audit of the `.glb` files is an audit
+    /// of what was last exported, not of what has been authored, and the two had
+    /// drifted by a week.
     public static readonly ActorAnimations ForestFlicker = new(
         new Dictionary<ActorAction, string>
         {
             [ActorAction.Idle] = "ForestFlicker_Idle_BreatheLook",
             [ActorAction.Walk] = "ForestFlicker_Walk_Feline",
-            [ActorAction.Attack] = "ForestFlicker_Attack_RightSwipe",
-            [ActorAction.Signature] = "ForestFlicker_Special_DoublePawSlam",
+            [ActorAction.Attack] = "ForestFlicker_Attack_RightSwipe_Polished",
+            [ActorAction.Signature] = "ForestFlicker_Special_DoublePawSlam_Polished",
             [ActorAction.Wince] = "ForestFlicker_Damage_Wince_TailDown",
-            [ActorAction.Downed] = "ForestFlicker_Damage_Wince_TailDown",
+            [ActorAction.Downed] = "ForestFlicker_Death_44f",
         },
+        // Still the eyeballed number. The polished swipe is the same 32 frames
+        // as the clip it replaces, so it is no more wrong than it was, and it is
+        // the obvious next one to measure off the rig the way the Snag's and the
+        // Scamp's were.
         attackImpactPoint: 0.82,
         // Lighter and faster than the Ram, so more ghosts spread thinner.
-        travelFraction: 0.66f, travelSeconds: 0.20, ghostCount: 9);
+        travelFraction: 0.66f, travelSeconds: 0.20, ghostCount: 9,
+        hasDeathClip: true);
 
     /// The Clockwork Pangolin. A pet model doing placeholder duty as the
     /// Monolith: the mini-boss has no model of its own, and a heavy armoured
@@ -166,20 +178,20 @@ public sealed class ActorAnimations
     /// 0.85 would land the flash and the damage while the whip was already on
     /// its way back.
     ///
-    /// **Downed is `Take_Damage`, not `Death`, and that is an interim.** The
-    /// authored `Death` clip ends on a root rotation of 180 degrees about Z —
-    /// on top of the 90-degrees-about-X every clip in every model carries as the
-    /// Blender Z-up to glTF Y-up conversion. For a creature rooted in the floor
-    /// that means upside down and *beneath the stage*: in the 2026-09-12 slice
-    /// capture the Snag did not fall over when killed, it blinked out of
-    /// existence between two frames. An audit of the root rotation of all 39
-    /// clips across the five bodies found this to be the only one of its kind;
-    /// the Scamp's death rotates too, but into a collapse that reads.
+    /// **Downed is `Death_48f_Review`, and the interim that stood in for it is
+    /// gone.** The 2026-09-12 capture caught the Snag blinking out of existence
+    /// when killed rather than falling, which was traced to a 180-degree root
+    /// rotation on the death clip and worked around by repointing the beat at
+    /// `Take_Damage`.
     ///
-    /// Repointing the beat keeps a body on the floor in one line and is
-    /// reversible in one. **The real fix is to re-author the clip**, which is
-    /// Nikhil's, and it is the reason this is written down rather than quietly
-    /// swapped.
+    /// **That diagnosis was made against the shipped `.glb`, and the `.glb` was
+    /// stale.** The clip in it was a 23-frame `Death` that the source file no
+    /// longer contains; `snag_straightroots_animated_v15.blend` holds a
+    /// 48-frame `Death_48f_Review` which had simply never been exported. The
+    /// creature was not missing a working death animation, the build was missing
+    /// an export — and auditing the five `.glb` files told us nothing about
+    /// that, because an export is a snapshot and every one of them was a week or
+    /// more behind its blend.
     public static readonly ActorAnimations Snag = new(
         new Dictionary<ActorAction, string>
         {
@@ -187,12 +199,13 @@ public sealed class ActorAnimations
             [ActorAction.Attack] = "Attack_Whip_24f_Review",
             [ActorAction.Signature] = "Attack_Whip_24f_Review",
             [ActorAction.Wince] = "Take_Damage",
-            [ActorAction.Downed] = "Take_Damage",
+            [ActorAction.Downed] = "Death_48f_Review",
         },
         attackImpactPoint: 0.50,
         // A whip has reach. The body barely leaves its mark — just enough
         // forward weight to sell the crack — and the trail is short to match.
-        travelFraction: 0.14f, travelSeconds: 0.14, ghostCount: 6);
+        travelFraction: 0.14f, travelSeconds: 0.14, ghostCount: 6,
+        hasDeathClip: true);
 
     /// The Dungeon Scamp. The Cache Warren's first encounter, and the first
     /// fight anyone ever sees — which is why it mattered that it was being

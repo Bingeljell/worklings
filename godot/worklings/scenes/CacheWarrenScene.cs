@@ -327,6 +327,9 @@ public partial class CacheWarrenScene : Node3D
         ShowFoe(Worklings.Core.Combat.CacheWarren.Encounters[0]);
         _hud ??= new CombatHud(this, _petName, _petMaxHP, _petEnergy,
                                _foeName, _foeMaxHP, _foeEnergy);
+        // Re-set rather than left as constructed: the HUD outlives a run and the
+        // Workling's name is the player's to change between them.
+        _hud.SetPet(_petName, _petEnergy);
         _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
         _hud.Reset(_petMaxHP, _foeMaxHP);
 
@@ -360,10 +363,7 @@ public partial class CacheWarrenScene : Node3D
         _state = _prep.Result;
         _approach = _prep.Approach;
         TakeTheBody(_prep.Creature);
-        // The body carries the colour, and the HUD reads it in three places —
-        // the player's bar, the encounter pips and the countdown numeral — so
-        // it is pushed once here rather than guessed at each of them.
-        _hud.SetPetEnergy(_petEnergy);
+        _hud.SetPet(_petName, _petEnergy);
         _prep.Close();
 
         var pet = Combatant.Pet(_state, _rates);

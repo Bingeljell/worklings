@@ -183,10 +183,20 @@ public sealed class CombatHud
         _foe.Reset(maxHP);
     }
 
-    public void SetPetEnergy(Color energy)
+    /// Points the player's plate at whichever Workling walked in, by name and
+    /// by colour.
+    ///
+    /// **The name has to be re-set, not just read once at construction.** The
+    /// HUD is built on the first run and kept for every run after it, and a
+    /// Workling's name is a thing the player changes — the plate would otherwise
+    /// keep showing whatever it was called the first time the dungeon opened.
+    /// The colour matters in three places (this plate, the encounter pips and
+    /// the countdown numeral), so it is pushed once here rather than guessed at
+    /// each of them.
+    public void SetPet(string name, Color energy)
     {
         _petEnergy = energy;
-        _pet.SetIdentity(_pet.Name, energy);
+        _pet.SetIdentity(name, energy);
     }
 
     public void SetHP(int pet, int foe) { _pet.Set(pet); _foe.Set(foe); }
