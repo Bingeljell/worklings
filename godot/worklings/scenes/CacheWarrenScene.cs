@@ -186,6 +186,20 @@ public partial class CacheWarrenScene : Node3D
     /// Fired when a run resolves, with the Workling that walked out of it.
     public event System.Action<PetState>? Resolved;
 
+    /// Fired whenever the fight reaches a state worth photographing, with a
+    /// short label for it.
+    ///
+    /// **This is how the dungeon gets reviewed without watching it.** A capture
+    /// tool sampling every Nth frame has to shoot a whole run blind and then be
+    /// read frame by frame, and the beats that matter — the intent badge, the
+    /// countdown, the moment a blow lands — are each on screen for well under a
+    /// second, so most of the shots are of two creatures standing still and the
+    /// interesting ones are found by scrubbing. The scene knows exactly when it
+    /// has changed state; this says so, and the tool shoots those frames only.
+    ///
+    /// Nothing listens in the shipped game, so it costs a null check per beat.
+    public event System.Action<string>? Beat;
+
     /// Fired once the closing summary has had its time and there is no next run.
     /// A hosted delve closes its window on this; run on its own with Loop off,
     /// nothing listens and the summary simply stays up.
@@ -380,6 +394,7 @@ public partial class CacheWarrenScene : Node3D
         _phase = Phase.Prep;
         _intent?.Hide();
         _prep.Open(_state, "The Cache Warren", Briefing);
+        Beat?.Invoke("prep");
         _cardTimer = AutoPlay ? CardSeconds : 0;
         _line = "";
         _status = "";
@@ -487,6 +502,7 @@ public partial class CacheWarrenScene : Node3D
         _hud.ClearBeat();
         ShowIntent();
         _line = "";
+        Beat?.Invoke($"e{_delve.EncounterNumber}-r{_round}-intends-{_encounter.Intent.Kind}");
         // An unattended run still pauses, briefly, where a player would read the
         // badge — a capture with no pause is a capture of a different game.
         _cardTimer = AutoPlay ? CardSeconds * 0.25 : 0;
@@ -509,9 +525,7 @@ public partial class CacheWarrenScene : Node3D
         _encounter.Act(action);
         DrainLog();
         _intent.Hide();
-        _phase = Phase.Counting;
-        _beatTimer = _beatLength = BeatSeconds;
-        _lastTickSecond = -1;
+        BeginCountdown();
         UpdateReadout();
     }
 
@@ -530,6 +544,7 @@ public partial class CacheWarrenScene : Node3D
                     ? $"{_foeName} down — {drop.DisplayName()} recovered"
                     : $"{_foeName} down";
                 _cardTimer = AutoPlay ? CardSeconds * 0.5 : 0;
+                Beat?.Invoke($"e{_delve.EncounterNumber}-bank-or-push");
                 break;
             default:
                 ShowSummary();
@@ -568,6 +583,7 @@ public partial class CacheWarrenScene : Node3D
         _status = $"exit {resolution.Tier.RawValue()}   ·   Lv {_state.Level}   ·   {_state.Mood}";
         _phase = Phase.Summary;
         _cardTimer = CardSeconds;
+        Beat?.Invoke($"summary-{resolution.Tier.RawValue()}");
     }
 
     /// Bank or push. Both are guarded by the delve itself, so a stray keypress
@@ -647,7 +663,8 @@ public partial class CacheWarrenScene : Node3D
             return;
         }
 
-        // The countdown, on a decision already taken.
+        // The countdown. It runs immediately before the move it is counting to,
+        // and the clock names that move.
         if (_phase == Phase.Counting)
         {
             _beatTimer -= delta;
@@ -663,14 +680,31 @@ public partial class CacheWarrenScene : Node3D
             _lastTickSecond = -1;
             _hud?.ClearBeat();
             _phase = Phase.Resolving;
+            PlayNext();
+            return;
         }
 
-        // Resolving: the round's moves play back to back, each holding the
-        // stage for its own animation and no longer.
+        // Resolving: hold while the move that just fired plays out.
         if (_actionTimer > 0)
         {
             _actionTimer -= delta;
             if (_actionTimer > 0) return;
+        }
+
+        // Riders and bookkeeping first. A creature blurring aside, hardening, or
+        // going down is the *consequence* of the move that just landed, not a
+        // move of its own — counting down to "SNAG FALLS" would be absurd — so
+        // they play straight off the back of it. Round markers show nothing at
+        // all and pass through in the same frame.
+        while (_pending.Count > 0 && Weight(_pending.Peek()) != BeatWeight.Move)
+        {
+            var rider = _pending.Dequeue();
+            bool shows = Weight(rider) == BeatWeight.Rider;
+            Apply(rider);
+            UpdateReadout();
+            if (!shows) continue;
+            _actionTimer = ActionSeconds + ReadSeconds;
+            return;
         }
 
         if (_pending.Count == 0)
@@ -679,16 +713,15 @@ public partial class CacheWarrenScene : Node3D
             return;
         }
 
-        var next = _pending.Dequeue();
-        if (Apply(next))
-        {
-            // An action holds until its own animation has played out, plus a
-            // short read of the line it wrote.
-            _actionTimer = (_lunge.IsBusy
-                ? System.Math.Max(ActionSeconds, _lastLungeDuration + 0.12)
-                : ActionSeconds) + ReadSeconds;
-        }
-        UpdateReadout();
+        // A move is waiting, so it gets its own wind-up.
+        //
+        // **One countdown per move, not per round.** The first version counted
+        // once at the top of the round and then played the pet's move and the
+        // foe's back to back, which reads as the foe getting a free hit: you
+        // watch a 3-2-1, your Workling swings, and the answer arrives with no
+        // warning at all. The countdown is the game telling you something is
+        // about to happen, so every something needs one.
+        BeginCountdown();
     }
 
     /// The between-fight beats. A choice with AutoPlay off has no timer and
@@ -722,6 +755,70 @@ public partial class CacheWarrenScene : Node3D
                     Finished?.Invoke();
                 }
                 break;
+        }
+    }
+
+    /// A filename-safe tag for an event, for the capture tool.
+    private static string Slug(CombatEvent e) => e switch
+    {
+        CombatEvent.Struck x => $"{(x.Outcome.DidHit ? x.Outcome.DidCrit ? "crit" : "hit" : "miss")}-{x.Attacker}",
+        CombatEvent.Signature x => $"signature-{x.Attacker}",
+        CombatEvent.Slammed => "slam",
+        CombatEvent.Telegraphed => "windup",
+        CombatEvent.Braced => "brace",
+        CombatEvent.Grabbed => "grab",
+        _ => e.GetType().Name.ToLowerInvariant(),
+    };
+
+    /// How much of the stage an event is worth.
+    private enum BeatWeight
+    {
+        /// A creature's actual move. Earns a countdown and a beat.
+        Move,
+        /// A consequence of the move that just landed — a blur, a harden, a
+        /// death. Shows, but is not counted down to.
+        Rider,
+        /// Shows nothing. Passes through in the frame it is dequeued.
+        Marker,
+    }
+
+    private static BeatWeight Weight(CombatEvent e) => e switch
+    {
+        CombatEvent.Struck or CombatEvent.Signature or CombatEvent.Slammed
+            or CombatEvent.Telegraphed or CombatEvent.Braced
+            or CombatEvent.Grabbed => BeatWeight.Move,
+        CombatEvent.Phased or CombatEvent.Hardened
+            or CombatEvent.Defeated => BeatWeight.Rider,
+        _ => BeatWeight.Marker,
+    };
+
+    /// Starts the wind-up to the next move in the queue.
+    private void BeginCountdown()
+    {
+        _phase = Phase.Counting;
+        _beatTimer = _beatLength = BeatSeconds;
+        _lastTickSecond = -1;
+    }
+
+    /// Fires the move the countdown was counting to.
+    private void PlayNext()
+    {
+        if (_pending.Count == 0) return;
+        var next = _pending.Dequeue();
+        if (Apply(next))
+        {
+            // The move holds until its own animation has played out, plus a
+            // short read of the line it wrote.
+            _actionTimer = (_lunge.IsBusy
+                ? System.Math.Max(ActionSeconds, _lastLungeDuration + 0.12)
+                : ActionSeconds) + ReadSeconds;
+        }
+        UpdateReadout();
+        // Markers show nothing, so photographing them is 40 duplicate frames of
+        // whatever was already on screen.
+        if (Weight(next) != BeatWeight.Marker)
+        {
+            Beat?.Invoke($"e{_delve.EncounterNumber}-r{_round}-{Slug(next)}");
         }
     }
 
@@ -963,9 +1060,12 @@ public partial class CacheWarrenScene : Node3D
                 return true;
             }
 
-            case CombatEvent.EncounterEnded x:
-                _line = x.Victory ? "Victory" : "Defeat";
-                return true;
+            case CombatEvent.EncounterEnded:
+                // The delve writes the line that follows this — which foe went
+                // down and what it dropped — so claiming a beat here only
+                // inserted three seconds of "Victory" between the kill and the
+                // news.
+                return false;
 
             case CombatEvent.RoundBegan x:
                 _round = x.Round;

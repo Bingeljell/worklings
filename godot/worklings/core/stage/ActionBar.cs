@@ -85,8 +85,8 @@ public sealed class ActionBar
     /// What each move does, in the half-line a slot has room for.
     private static string Note(CombatAction action) => action switch
     {
-        CombatAction.Brace => "guard — halve the blow, mend a little",
-        _ => "attack the foe",
+        CombatAction.Brace => "halve the blow, mend",
+        _ => "attack",
     };
 
     public event System.Action<CombatAction>? Chose;
@@ -185,7 +185,7 @@ public sealed class ActionBar
         Paint(_slots[UnleashSlot],
               !signatureReady ? CommandState.Spent : live ? CommandState.Live : CommandState.Dim,
               energy);
-        _slots[UnleashSlot].Note.Text = signatureReady ? "once per fight" : "already spent";
+        _slots[UnleashSlot].Note.Text = signatureReady ? "once per fight" : "spent";
     }
 
     /// The bank-or-push beat. Two commands, both always live — this is the one

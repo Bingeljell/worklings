@@ -26,7 +26,7 @@ public sealed class IntentBadge
     private const float Clearance = 0.9f;
 
     private readonly Camera3D _camera;
-    private readonly Control _root;
+    private readonly VBoxContainer _root;
     private readonly PanelContainer _frame;
     private readonly Label _glyph;
     private readonly Label _label;
@@ -41,16 +41,17 @@ public sealed class IntentBadge
     {
         _camera = camera;
 
-        _root = new Control { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+        // The badge is the container itself rather than a bare Control wrapping
+        // one. A plain Control does not size to its children, so wrapping left
+        // the badge at zero by zero — which positions and hit-tests as a point,
+        // and drew nothing anywhere near the creature's head.
+        _root = new VBoxContainer { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+        _root.AddThemeConstantOverride("separation", 2);
+        _root.Alignment = BoxContainer.AlignmentMode.Center;
         parent.AddChild(_root);
 
-        var column = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        column.AddThemeConstantOverride("separation", 2);
-        column.Alignment = BoxContainer.AlignmentMode.Center;
-        _root.AddChild(column);
-
         _frame = new PanelContainer();
-        column.AddChild(_frame);
+        _root.AddChild(_frame);
 
         _glyph = StageType.Label("", 30, StageType.Ink, bold: true);
         _glyph.HorizontalAlignment = HorizontalAlignment.Center;
@@ -59,7 +60,7 @@ public sealed class IntentBadge
 
         _label = StageType.Label("", 15, StageType.Ink, bold: true);
         _label.HorizontalAlignment = HorizontalAlignment.Center;
-        column.AddChild(_label);
+        _root.AddChild(_label);
 
         // The hover text. Parented to the HUD root rather than to the badge so a
         // long sentence is clipped by the screen and not by the badge's own
@@ -95,13 +96,25 @@ public sealed class IntentBadge
     /// icon set is a real art task and this is the placeholder that lets the
     /// mechanic ship and be judged first — the shape of the badge, its position
     /// and its tooltip are what need testing, not the drawing inside it.
+    ///
+    /// **Every glyph here must exist in Chakra Petch**, which is a Latin text
+    /// face and not a symbol font. The first pass used ⚔ ◈ ✦ ✷ and three of the
+    /// four were absent from the file, so the capture showed the missing-glyph
+    /// box instead — a swords icon that rendered as a small square with a line
+    /// through it. Checked against the TTF's cmap rather than eyeballed: the
+    /// Dingbats and Geometric Shapes blocks are almost entirely missing, while
+    /// Latin-1 punctuation and the four solid triangles/diamonds are present.
+    /// Anything added here should be checked the same way, or drawn as real art
+    /// when the icon set lands.
     private static string Glyph(FoeIntentKind kind) => kind switch
     {
-        FoeIntentKind.WindUp => "◈",
-        FoeIntentKind.Slam => "✦",
-        FoeIntentKind.Grab => "✷",
+        // Gathering upward, then coming down: the wind-up and the slam are a
+        // pair and read as one because the arrows point at each other.
+        FoeIntentKind.WindUp => "▲",
+        FoeIntentKind.Slam => "▼",
+        FoeIntentKind.Grab => "¤",
         FoeIntentKind.Phase => "≈",
-        _ => "⚔",
+        _ => "†",
     };
 
     /// Shows the badge over an actor, for an intent.
@@ -131,6 +144,9 @@ public sealed class IntentBadge
         _glyph.AddThemeColorOverride("font_color", accent);
 
         _root.Visible = true;
+        // The text just changed, so the badge's own size has too — and Track
+        // centres on it.
+        _root.ResetSize();
         Track();
     }
 
@@ -150,8 +166,24 @@ public sealed class IntentBadge
         if (_camera.IsPositionBehind(head)) { _root.Visible = false; return; }
         var at = _camera.UnprojectPosition(head);
         var size = _root.Size;
-        _root.Position = new Vector2(at.X - size.X * 0.5f, at.Y - size.Y);
-        _tip.Position = new Vector2(at.X + 34, at.Y - 10);
+        var frame = _root.GetViewportRect().Size;
+
+        // Clamped into the frame. A 7.50-unit Monolith puts its head near the
+        // top of a 720-tall viewport, and the badge floats above that — so the
+        // badge for the one creature whose intent matters most was the one
+        // hanging off the top edge. Pinning it below the run readout is better
+        // than a badge that is only visible for short foes.
+        const float TopGuard = 74f;
+        float x = Mathf.Clamp(at.X - size.X * 0.5f, 8f, frame.X - size.X - 8f);
+        float y = Mathf.Max(at.Y - size.Y, TopGuard);
+        _root.Position = new Vector2(x, y);
+
+        _tip.ResetSize();
+        // The tip flips to the badge's left rather than running off the right
+        // edge, which is where a foe standing stage-right always put it.
+        float tipX = x + size.X + 14;
+        if (tipX + _tip.Size.X > frame.X - 8) tipX = x - _tip.Size.X - 14;
+        _tip.Position = new Vector2(Mathf.Max(8f, tipX), y);
     }
 
     /// Whether the badge is currently claiming a threat, for anything that wants

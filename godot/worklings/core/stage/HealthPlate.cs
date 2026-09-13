@@ -76,8 +76,13 @@ public sealed class HealthPlate
         };
         _barBox.AddChild(track);
 
-        _lag = new ColorRect { Color = new Color(1f, 0.35f, 0.24f, 0.62f), AnchorBottom = 1 };
-        _fill = new ColorRect { Color = energy, AnchorBottom = 1 };
+        // No anchors on the two moving layers. A Control with non-equal
+        // opposite anchors has its size overridden after `_ready`, so setting
+        // `Size` on one warns — and this sets it on every HP change, which is
+        // several times a second in a fight and printed a full C# backtrace
+        // each time. The bar is a fixed height; it never needed to stretch.
+        _lag = new ColorRect { Color = new Color(1f, 0.35f, 0.24f, 0.62f) };
+        _fill = new ColorRect { Color = energy };
         _barBox.AddChild(_lag);
         _barBox.AddChild(_fill);
         Root.AddChild(_barBox);
