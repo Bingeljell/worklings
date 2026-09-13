@@ -84,7 +84,7 @@ public partial class CombatRewardsProbe : Node
         {
             var pet = Mk(500, 30, 70, 70, 70);
             var enc = new CombatEncounter(
-                Combatant.Pet(pet, rates), foe, Approach.Careful, rates, seed);
+                Combatant.Pet(pet, rates), foe, rates, seed);
             enc.RunToCompletion();
             var r = pet.ApplyingOutcome(enc, foe, rates);
             o.AppendLine($"{label}: status {Status(enc)} hpFrac {F(enc.Pet.HPFraction)} "
@@ -97,7 +97,7 @@ public partial class CombatRewardsProbe : Node
         o.AppendLine("== clamping on write-back ==");
         var fragile = Mk(500, 95, 5, 5, 3);
         var enc2 = new CombatEncounter(
-            Combatant.Pet(fragile, rates), CacheWarren.Boss, Approach.Aggressive, rates, 99);
+            Combatant.Pet(fragile, rates), CacheWarren.Boss, rates, 99);
         enc2.RunToCompletion();
         var r2 = fragile.ApplyingOutcome(enc2, CacheWarren.Boss, rates);
         o.AppendLine($"tier {L(r2.Tier)} needs H{F(r2.State.Needs.Hunger)} "
@@ -107,7 +107,7 @@ public partial class CombatRewardsProbe : Node
         var geared = Mk(500, 30, 70, 70, 70)
             .Acquiring(Item.MastersHone).Equipping(Item.MastersHone);
         var enc3 = new CombatEncounter(
-            Combatant.Pet(geared, rates), CacheWarren.Mote, Approach.Careful, rates, 11);
+            Combatant.Pet(geared, rates), CacheWarren.Mote, rates, 11);
         enc3.RunToCompletion();
         var r3 = geared.ApplyingOutcome(enc3, CacheWarren.Mote, rates);
         var owned = new System.Collections.Generic.List<string>();
@@ -124,7 +124,7 @@ public partial class CombatRewardsProbe : Node
         {
             CombatStatus.StatusKind.PetVictory => "petVictory",
             CombatStatus.StatusKind.PetDefeat => "petDefeat",
-            CombatStatus.StatusKind.AwaitingDecision => "awaitingDecision",
+            CombatStatus.StatusKind.AwaitingAction => "awaitingAction",
             _ => "ongoing",
         };
 }

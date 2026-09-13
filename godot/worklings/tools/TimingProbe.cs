@@ -18,6 +18,9 @@ public partial class TimingProbe : Node
                  {
                      ("Party", "tempest_ram", ActorAnimations.TempestRam),
                      ("Foe", "forest_flicker", ActorAnimations.ForestFlicker),
+                     // Addressed as its own node rather than "Foe", which finds
+                     // whichever body sorts first among the stand-ins.
+                     ("Foe/Snag", "snag", ActorAnimations.Snag),
                  })
         {
             var actor = new StageActor(scene.GetNode<Node3D>(node), model, anims);

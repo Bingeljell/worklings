@@ -190,6 +190,12 @@ public sealed class ImpactFrames
         mesh.Material = new StandardMaterial3D
         {
             AlbedoColor = new Color(hot.R, hot.G, hot.B, 0.95f),
+            // Textured, or every spark is a hard-edged square. Invisible at a
+            // glance in a still and unmissable in the captured sequences, where
+            // a landed hit threw a burst of what read as white pixels. Shares
+            // the falloff the VFX ground marks use rather than carrying a second
+            // copy of the same 128px gradient.
+            AlbedoTexture = VfxMaterials.SoftBlob(),
             EmissionEnabled = true,
             Emission = hot,
             EmissionEnergyMultiplier = crit ? 3.0f : 1.9f,

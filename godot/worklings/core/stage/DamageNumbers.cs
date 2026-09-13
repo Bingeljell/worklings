@@ -62,28 +62,42 @@ public sealed class DamageNumbers
 
     /// A miss says so in words — a blank beat with no feedback reads as a
     /// dropped frame rather than a dodge.
+    ///
+    /// Louder than a damage number rather than quieter. The attacker has just
+    /// committed its whole travel and come back with nothing, and the old
+    /// lowercase "miss" was the same weight as a 4, so the biggest swing in the
+    /// round produced the smallest thing on screen. It punches in rather than
+    /// simply rising, because a miss is an event, not a tally.
     public void SpawnMiss(Vector3 at)
     {
         var label = new Label3D
         {
-            Text = "miss",
-            Position = at + new Vector3(0, 2.6f, 0),
+            Text = "MISS",
+            Position = at + new Vector3(0, 3.0f, 0),
             Font = StageType.Semi,
             Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
-            FontSize = 130,
-            OutlineSize = 34,
-            Modulate = new Color(0.72f, 0.68f, 0.60f),
+            FontSize = 180,
+            OutlineSize = 44,
+            Modulate = new Color(0.86f, 0.83f, 0.76f),
             OutlineModulate = new Color(0, 0, 0, 0.9f),
             PixelSize = 0.006f,
             NoDepthTest = true,
             RenderPriority = 8,
+            Scale = Vector3.One * 1.6f,
         };
         _parent.AddChild(label);
+
+        // Overshoot and settle, then hang before it goes. The hang is what makes
+        // it readable at this camera distance.
+        var punch = label.CreateTween();
+        punch.TweenProperty(label, "scale", Vector3.One, 0.16)
+             .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+
         var tween = label.CreateTween();
         tween.SetParallel(true);
-        tween.TweenProperty(label, "position", label.Position + new Vector3(0, 1.1f, 0), 0.85)
+        tween.TweenProperty(label, "position", label.Position + new Vector3(0, 0.9f, 0), 1.05)
              .SetEase(Tween.EaseType.Out);
-        tween.TweenProperty(label, "modulate:a", 0.0f, 0.45).SetDelay(0.4);
+        tween.TweenProperty(label, "modulate:a", 0.0f, 0.35).SetDelay(0.7);
         tween.Chain().TweenCallback(Callable.From(label.QueueFree));
     }
 }

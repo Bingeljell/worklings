@@ -318,14 +318,14 @@ public partial class CharacterPanel : PanelContainer
 
     /// Which family the Workling belongs to.
     ///
-    /// All five are listed and the ones with no body are greyed out — the roster
-    /// reads as five so the shape of the design is visible, and each un-greys on
-    /// its own the day its model lands. `PetBody` is the gate, not Swift's
-    /// `HasArt`, which is about sprite sheets this build does not use.
+    /// All five are listed and the ones with no usable body are greyed out — the
+    /// roster reads as five so the shape of the design is visible, and each
+    /// un-greys on its own the day its model lands. `PetBody` is the gate and
+    /// carries the roster's current state.
     ///
     /// A caveat this screen cannot show: choosing a family changes the pet's
-    /// mechanics and **not** its body. Every family still renders as the Tempest
-    /// Ram until the model swap is wired up.
+    /// mechanics and **not** its body. Every Workling renders as the Tempest Ram
+    /// until the model swap is wired up.
     private Control FamilyPicker(PetState state)
     {
         var picker = Picker("Family");
@@ -333,10 +333,8 @@ public partial class CharacterPanel : PanelContainer
         for (int i = 0; i < families.Length; i++)
         {
             var family = families[i];
-            bool pickable = PetBody.IsPickable(family);
-            picker.AddItem(
-                pickable ? family.DisplayName() : $"{family.DisplayName()} (coming soon)", i);
-            picker.SetItemDisabled(i, !pickable);
+            picker.AddItem(PetBody.Label(family), i);
+            picker.SetItemDisabled(i, !PetBody.IsPickable(family));
             if (family == state.Family) picker.Selected = i;
         }
         picker.ItemSelected += index =>

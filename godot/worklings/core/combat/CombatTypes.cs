@@ -2,64 +2,106 @@ using System.Collections.Generic;
 
 namespace Worklings.Core.Combat;
 
-/// The standing strategy the pet fights on between decisions.
-public enum Approach
-{
-    /// Strike every round. No self-preservation, no held resources.
-    Aggressive,
-    /// Brace while hurt, Strike once recovered. The thresholds are hysteretic.
-    Careful,
-    /// Strike, holding the Signature until the foe is inside finishing range,
-    /// then spending it unprompted.
-    Clever,
-}
-
 /// One thing the pet can do on its turn.
+///
+/// **The player now picks one of these directly, every round.** They used to
+/// pick an `Approach` — a standing stance (Aggressive / Careful / Clever) that
+/// *derived* the action — and the fight resolved itself between occasional
+/// prompts. That was retired on 2026-09-13 on Nikhil's call: "each action is
+/// player decided". The stances read as odd in play and, worse, they lied by
+/// omission — choosing Careful meant "brace **if** hurt", so a player who chose
+/// it expecting to brace could watch their Workling strike instead and read
+/// that as the game ignoring them. A verb the player presses and the creature
+/// then performs cannot have that gap.
+///
+/// This enum is also where new moves land as they are designed — spells, and
+/// per-class attacks. It is deliberately the whole vocabulary of a pet turn.
 public enum CombatAction { Strike, Brace, Signature }
 
-/// Why the fight paused for input.
-public enum DecisionReason
+/// What the foe will do this round, decided at the top of it and published
+/// before the player commits.
+///
+/// **This is the other half of making the fight legible.** The foe used to
+/// decide at the moment it acted, which meant its move was unknowable until it
+/// had already happened — so a Monolith wind-up could only be read *after* the
+/// round it mattered in, and bracing against a slam was guesswork dressed as a
+/// prompt. Rolling the intent up front and showing it as an icon over the
+/// creature's head turns every round into a real decision: you can see the slam
+/// coming and choose to brace it.
+///
+/// The roll happens here, once, and the performance is bound by it. A foe that
+/// telegraphs a slam and then does something else would be worse than no icon.
+public enum FoeIntentKind
 {
-    Cadence,   // the every-few-rounds reassess beat
-    LowHP,     // the pet is faltering
-    Opening,   // an evasive foe over-extended — the window to Unleash
-    Telegraph, // a heavy foe is winding up — Brace or eat it
+    /// An ordinary attack.
+    Strike,
+    /// Winding up. It does not attack this round; the blow lands next round.
+    WindUp,
+    /// The wound-up heavy blow, landing this round. Guaranteed to hit.
+    Slam,
+    /// Seizing the Workling to Snare its Agility instead of attacking.
+    Grab,
+    /// Attacking, and blurring aside afterwards — over-extending into an
+    /// opening.
+    Phase,
 }
 
-/// Where the encounter is right now. Swift models this as an enum with an
-/// associated DecisionReason on one case; here the reason rides alongside and is
-/// only meaningful when Kind is AwaitingDecision.
+/// The foe's declared move for the round, and how to describe it to a player.
+public readonly record struct FoeIntent(FoeIntentKind Kind)
+{
+    /// The two or three words that go under the icon.
+    public string Label => Kind switch
+    {
+        FoeIntentKind.WindUp => "Winding up",
+        FoeIntentKind.Slam => "Heavy slam",
+        FoeIntentKind.Grab => "Grasping",
+        FoeIntentKind.Phase => "Blur strike",
+        _ => "Attacking",
+    };
+
+    /// The sentence a hover earns — what it does, and what to do about it.
+    public string Detail => Kind switch
+    {
+        FoeIntentKind.WindUp =>
+            "Gathering for a heavy blow. It will not attack this round — the slam lands next.",
+        FoeIntentKind.Slam =>
+            "A guaranteed heavy hit, this round. Bracing halves it.",
+        FoeIntentKind.Grab =>
+            "It will seize you instead of striking, dulling your Agility for a few rounds.",
+        FoeIntentKind.Phase =>
+            "A quick strike, then it blurs aside and over-extends — an opening for your Signature.",
+        _ => "An ordinary attack. Bracing halves it.",
+    };
+}
+
+/// Where the encounter is right now.
+///
+/// `AwaitingAction` replaced an `AwaitingDecision(DecisionReason)` that a round
+/// only sometimes entered — on a cadence, at low HP, on a telegraph, on an
+/// opening. Every round now waits for the player, so the reason a round is
+/// waiting is no longer interesting: it is waiting because that is what a round
+/// does.
 public readonly struct CombatStatus : System.IEquatable<CombatStatus>
 {
-    public enum StatusKind { Ongoing, AwaitingDecision, PetVictory, PetDefeat }
+    public enum StatusKind { Ongoing, AwaitingAction, PetVictory, PetDefeat }
 
     public StatusKind Kind { get; }
-    public DecisionReason Reason { get; }
 
-    private CombatStatus(StatusKind kind, DecisionReason reason = DecisionReason.Cadence)
-    {
-        Kind = kind;
-        Reason = reason;
-    }
+    private CombatStatus(StatusKind kind) { Kind = kind; }
 
     public static readonly CombatStatus Ongoing = new(StatusKind.Ongoing);
+    public static readonly CombatStatus AwaitingAction = new(StatusKind.AwaitingAction);
     public static readonly CombatStatus PetVictory = new(StatusKind.PetVictory);
     public static readonly CombatStatus PetDefeat = new(StatusKind.PetDefeat);
-    public static CombatStatus AwaitingDecision(DecisionReason reason) =>
-        new(StatusKind.AwaitingDecision, reason);
 
     public bool IsOngoing => Kind == StatusKind.Ongoing;
-    public bool IsAwaitingDecision => Kind == StatusKind.AwaitingDecision;
+    public bool IsAwaitingAction => Kind == StatusKind.AwaitingAction;
     public bool IsOver => Kind is StatusKind.PetVictory or StatusKind.PetDefeat;
 
-    public bool Equals(CombatStatus other) =>
-        Kind == other.Kind
-        && (Kind != StatusKind.AwaitingDecision || Reason == other.Reason);
-
+    public bool Equals(CombatStatus other) => Kind == other.Kind;
     public override bool Equals(object? obj) => obj is CombatStatus o && Equals(o);
-    public override int GetHashCode() => System.HashCode.Combine(Kind, Reason);
-    public override string ToString() =>
-        Kind == StatusKind.AwaitingDecision ? $"awaiting({Reason})" : Kind.ToString();
+    public override int GetHashCode() => Kind.GetHashCode();
+    public override string ToString() => Kind.ToString();
 }
 
 /// A structured record of what happened, one entry at a time, so the app can
@@ -93,6 +135,8 @@ public abstract record CombatEvent
     public sealed record Hardened(string Who, int GuardGain) : CombatEvent;
 
     public sealed record Defeated(string Who) : CombatEvent;
-    public sealed record DecisionPoint(DecisionReason Reason) : CombatEvent;
+    /// The round has opened, the foe has declared, and the fight is waiting for
+    /// the player. Carries the intent so the renderer never has to ask twice.
+    public sealed record AwaitingAction(FoeIntent Intent) : CombatEvent;
     public sealed record EncounterEnded(bool Victory) : CombatEvent;
 }

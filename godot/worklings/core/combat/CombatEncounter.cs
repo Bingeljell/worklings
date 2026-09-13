@@ -6,20 +6,47 @@ namespace Worklings.Core.Combat;
 /// the seeded stream. Deterministic — the same seed and inputs replay the same
 /// fight — so it is fully checkable without a renderer.
 ///
-/// Drive it by calling Step() until Status is a decision or an ending. On a
-/// decision, call Decide(...); on an ending, read Pet.HPFraction for the delve's
-/// exit tier. RunToCompletion() is the headless convenience.
+/// **A round is two calls.** `Step()` opens one — it ages statuses, rolls the
+/// foe's intent, and stops, leaving `Status` at `AwaitingAction` with the intent
+/// readable on `Intent`. `Act(action)` then resolves it: the pet performs the
+/// verb the player pressed, and the foe performs the intent it already
+/// declared. `RunToCompletion()` is the headless convenience and supplies its
+/// own actions.
 ///
-/// Ported from Sources/CompanionCore/CombatEncounter.swift. Swift's version is a
-/// struct with `mutating` methods; this is a class, because the encounter is a
-/// long-lived object the renderer holds a reference to and steps.
+/// **This shape replaced an auto-resolving one on 2026-09-13**, on the first
+/// play session's feedback, and the change is a design change rather than a
+/// refactor:
+///
+///   * **The player picks a verb, not a stance.** `Approach` — Aggressive /
+///     Careful / Clever — derived the pet's action from a standing strategy, and
+///     is gone. It was odd to play and it lied by omission: Careful meant "brace
+///     *if* hurt", so choosing it and then watching a strike read as the game
+///     ignoring the input.
+///   * **The foe declares before the player commits.** Its move is rolled at the
+///     top of the round and published, so bracing a Monolith slam is a decision
+///     rather than a guess. The performance is bound by the declaration.
+///   * **The pet always acts first.** Initiative by Agility meant the foe could
+///     open an encounter before the player had seen the screen. Agility still
+///     matters everywhere it did except turn order, and Snare's Agility drain
+///     now costs accuracy and evasion rather than the turn.
+///   * **Every round waits.** There is no cadence, no low-HP prompt and no
+///     telegraph prompt, because every round is all three.
+///
+/// It therefore **no longer matches `Sources/CompanionCore/CombatEncounter.swift`**,
+/// which still holds the auto-resolving rules. The Swift core is legacy — the
+/// engine is Godot — so the C# has deliberately moved ahead of it, and
+/// `tools/FightProbe` stops being a port check against Swift and becomes a
+/// regression check against itself.
 public sealed class CombatEncounter
 {
     public Combatant Pet { get; }
     public Combatant Foe { get; }
-    public Approach Approach { get; private set; }
     public int Round { get; private set; }
     public CombatStatus Status { get; private set; }
+
+    /// What the foe will do this round. Meaningful once `Step()` has opened a
+    /// round and until `Act(...)` has resolved it.
+    public FoeIntent Intent { get; private set; }
 
     private readonly List<CombatEvent> _log = new();
     public IReadOnlyList<CombatEvent> Log => _log;
@@ -28,41 +55,20 @@ public sealed class CombatEncounter
     private readonly FoeBehavior _foeBehavior;
     private SeededGenerator _generator;
     private bool _signatureAvailable;
-    private bool _pendingSignature;
-    private bool _promptedLowHP;
-    private int _lastCadenceRound;
 
     /// Rounds remaining before a grabber (Snag) may Snare again.
     private int _grabCooldownRemaining;
-    /// Set when an evasive foe over-extends, so the next decision is the Unleash
-    /// opening; cleared once that decision is taken.
-    private bool _openingPending;
     /// Rounds remaining before an evasive foe may Phase-and-open again.
     private int _openingCooldownRemaining;
     /// Foe turns until a telegraphed Slam lands (0 = not winding up).
     private int _slamCountdown;
-    /// Set when a colossus telegraphs, so the next decision is the Brace-or-eat
-    /// prompt; cleared once that decision is taken.
-    private bool _slamTelegraphPending;
     /// How many HP-phase Harden thresholds have already fired.
     private int _hardenPhasesApplied;
-    /// A one-shot guaranteed Brace queued from a telegraph decision.
-    private bool _pendingBrace;
 
-    /// Whether a Careful pet is currently latched into Bracing. Held as state,
-    /// not re-derived each round, because the threshold to ENTER the latch and
-    /// the one to leave it deliberately differ.
-    private bool _carefulBracing;
-
-    /// Whether the last Careful action inside the hurt band was a Brace, so the
-    /// band alternates Brace/Strike rather than bracing forever.
-    private bool _carefulBracedLastRound;
-
-    public CombatEncounter(Combatant pet, Foe foe, Approach approach, PetCombatRates rates, ulong seed)
+    public CombatEncounter(Combatant pet, Foe foe, PetCombatRates rates, ulong seed)
     {
         Pet = pet;
         Foe = foe.MakeCombatant();
-        Approach = approach;
         Round = 0;
         Status = CombatStatus.Ongoing;
         _rates = rates;
@@ -82,76 +88,14 @@ public sealed class CombatEncounter
     /// Whether the pet still has its once-per-encounter Signature.
     public bool SignatureReady => _signatureAvailable;
 
-    /// Advances the fight by one unit: either pausing for a decision, or
-    /// resolving a full round (both combatants act, in initiative order). A
-    /// no-op once the fight is awaiting a decision or over.
+    /// Opens a round and stops, waiting for the player.
+    ///
+    /// Ages the timed effects, rolls what the foe is going to do, and publishes
+    /// it. A no-op once the fight is already waiting or over.
     public void Step()
     {
         if (!Status.IsOngoing) return;
-        var reason = PendingDecision();
-        if (reason.HasValue)
-        {
-            Status = CombatStatus.AwaitingDecision(reason.Value);
-            _log.Add(new CombatEvent.DecisionPoint(reason.Value));
-            return;
-        }
-        ResolveRound();
-    }
 
-    /// Resolves a pending decision: adopt an Approach, and optionally Unleash the
-    /// Signature on the next round. A no-op unless a decision is pending.
-    public void Decide(Approach approach, bool unleash)
-    {
-        if (!Status.IsAwaitingDecision) return;
-        var reason = Status.Reason;
-        Approach = approach;
-        if (unleash && _signatureAvailable) _pendingSignature = true;
-
-        switch (reason)
-        {
-            case DecisionReason.LowHP: _promptedLowHP = true; break;
-            case DecisionReason.Cadence: _lastCadenceRound = Round; break;
-            case DecisionReason.Opening: _openingPending = false; break;
-            case DecisionReason.Telegraph:
-                _slamTelegraphPending = false;
-                // Choosing Careful into a telegraph is a deliberate Brace against
-                // the incoming Slam, not the usual hurt-only Brace.
-                if (approach == Approach.Careful && !unleash) _pendingBrace = true;
-                break;
-        }
-        Status = CombatStatus.Ongoing;
-    }
-
-    /// Runs the fight to an ending without further input, keeping the current
-    /// Approach at every decision. For headless use and checks.
-    public void RunToCompletion(int maxRounds = 200)
-    {
-        int safety = 0;
-        int limit = maxRounds * 4;
-        while (safety < limit)
-        {
-            if (Status.IsOngoing) Step();
-            else if (Status.IsAwaitingDecision) Decide(Approach, unleash: false);
-            else return;
-            safety += 1;
-        }
-    }
-
-    // MARK: - Internals
-
-    private DecisionReason? PendingDecision()
-    {
-        if (!_promptedLowHP && Pet.HPFraction < _rates.LowHPEventThreshold)
-            return DecisionReason.LowHP;
-        if (_slamTelegraphPending) return DecisionReason.Telegraph;
-        if (_openingPending) return DecisionReason.Opening;
-        if (Round > 0 && Round % _rates.DecisionCadenceRounds == 0 && _lastCadenceRound != Round)
-            return DecisionReason.Cadence;
-        return null;
-    }
-
-    private void ResolveRound()
-    {
         Round += 1;
         _log.Add(new CombatEvent.RoundBegan(Round));
 
@@ -160,71 +104,115 @@ public sealed class CombatEncounter
         Pet.TickStatuses();
         Foe.TickStatuses();
 
-        var petAction = ChosenPetAction();
-        bool bracing = petAction == CombatAction.Brace;
+        Intent = RollFoeIntent();
+        Status = CombatStatus.AwaitingAction;
+        _log.Add(new CombatEvent.AwaitingAction(Intent));
+    }
 
-        // Higher Agility acts first; the pet wins ties. Reads effective Agility so
-        // a Snare (which sags initiative) actually costs the pet its turn order.
-        bool petFirst = Pet.EffectiveStats.Agility >= Foe.EffectiveStats.Agility;
-        if (petFirst)
+    /// Resolves the open round with the verb the player pressed.
+    ///
+    /// The pet goes first, always — see the type docs. A Signature asked for
+    /// when it is already spent falls back to a Strike rather than wasting the
+    /// round, because the bar draws that slot as spent and a player who presses
+    /// it anyway has misread the screen, not chosen to skip a turn.
+    public void Act(CombatAction action)
+    {
+        if (!Status.IsAwaitingAction) return;
+        Status = CombatStatus.Ongoing;
+        if (action == CombatAction.Signature && !_signatureAvailable) action = CombatAction.Strike;
+
+        PerformPet(action);
+        if (Status.IsOngoing) PerformFoe(Intent, petIsBracing: action == CombatAction.Brace);
+    }
+
+    /// Runs the fight to an ending without further input, choosing for itself.
+    /// For headless use, checks, and the unattended capture tool.
+    public void RunToCompletion(int maxRounds = 200)
+    {
+        int safety = 0;
+        int limit = maxRounds * 4;
+        while (safety < limit)
         {
-            PerformPet(petAction);
-            if (Status.IsOngoing) PerformFoe(bracing);
-        }
-        else
-        {
-            PerformFoe(bracing);
-            if (Status.IsOngoing) PerformPet(petAction);
+            if (Status.IsOngoing) Step();
+            else if (Status.IsAwaitingAction) Act(AutoAction());
+            else return;
+            safety += 1;
         }
     }
 
-    private CombatAction ChosenPetAction()
+    /// What an unattended run does with its turn.
+    ///
+    /// Deliberately a policy a person might actually play rather than "always
+    /// Strike": it reads the declared intent, which is the whole point of the
+    /// intent existing. Brace into a slam, finish with the Signature when the
+    /// foe is inside range, otherwise hit it.
+    public CombatAction AutoAction()
     {
-        if (_pendingBrace)
-        {
-            _pendingBrace = false;
+        if (Intent.Kind == FoeIntentKind.Slam && Pet.HPFraction < 0.6) return CombatAction.Brace;
+        if (_signatureAvailable && Foe.HPFraction <= _rates.CleverFinisherThreshold)
+            return CombatAction.Signature;
+        if (Pet.HPFraction < _rates.CarefulBraceThreshold && Intent.Kind != FoeIntentKind.WindUp)
             return CombatAction.Brace;
-        }
-        if (_pendingSignature)
-        {
-            _pendingSignature = false;
-            if (_signatureAvailable) return CombatAction.Signature;
-        }
+        return CombatAction.Strike;
+    }
 
-        switch (Approach)
-        {
-            case Approach.Aggressive:
-                return CombatAction.Strike;
+    /// Whether the foe's declared move can be blunted by bracing. Presentation
+    /// asks this to colour the intent as a threat or as a breather.
+    public bool IntentThreatens =>
+        Intent.Kind is FoeIntentKind.Strike or FoeIntentKind.Slam or FoeIntentKind.Phase;
 
-            case Approach.Careful:
-                // Enter the hurt band when low, leave it only once genuinely
-                // recovered — two thresholds, so it isn't a one-way door.
-                _carefulBracing = _carefulBracing
-                    ? Pet.HPFraction <= _rates.CarefulResumeThreshold
-                    : Pet.HPFraction < _rates.CarefulBraceThreshold;
-                if (!_carefulBracing)
+    // MARK: - Internals
+
+    /// Decides the foe's move for this round, rolling every die it needs.
+    ///
+    /// **All the randomness for the foe's turn happens here**, so the icon over
+    /// its head is a promise rather than a forecast. `PerformFoe` then has no
+    /// choices left to make — it only carries out what was declared. The one
+    /// thing left out is Harden, which is not a move: it is a passive that fires
+    /// when the foe's HP crosses a threshold, and it can be crossed by the pet's
+    /// own blow after the intent was rolled.
+    private FoeIntent RollFoeIntent()
+    {
+        switch (_foeBehavior)
+        {
+            case FoeBehavior.Colossus c:
+                if (_slamCountdown > 0)
                 {
-                    _carefulBracedLastRound = false;
-                    return CombatAction.Strike;
+                    _slamCountdown -= 1;
+                    if (_slamCountdown == 0) return new FoeIntent(FoeIntentKind.Slam);
+                    return new FoeIntent(FoeIntentKind.WindUp);
                 }
-                // Inside the band, Brace and Strike ALTERNATE. Bracing every round
-                // was the actual death spiral: against anything that outdamages
-                // the regen the pet could neither heal out of the band nor hurt
-                // what was holding it there, so the fight became unwinnable the
-                // moment it dipped — and unwatchable, since the foe was the only
-                // one acting.
-                _carefulBracedLastRound = !_carefulBracedLastRound;
-                return _carefulBracedLastRound ? CombatAction.Brace : CombatAction.Strike;
+                _slamCountdown = System.Math.Max(1, c.TelegraphRounds);
+                return new FoeIntent(FoeIntentKind.WindUp);
 
-            case Approach.Clever:
-                // The held Signature, spent the moment the foe is inside finishing
-                // range — the "chosen moment" the Approach is named for.
-                if (_signatureAvailable && Foe.HPFraction <= _rates.CleverFinisherThreshold)
-                    return CombatAction.Signature;
-                return CombatAction.Strike;
+            case FoeBehavior.Grabber g:
+                if (_grabCooldownRemaining > 0)
+                {
+                    _grabCooldownRemaining -= 1;
+                    return new FoeIntent(FoeIntentKind.Strike);
+                }
+                if (_generator.Chance(g.SnareChance))
+                {
+                    _grabCooldownRemaining = g.GrabCooldown;
+                    return new FoeIntent(FoeIntentKind.Grab);
+                }
+                return new FoeIntent(FoeIntentKind.Strike);
+
+            case FoeBehavior.Evasive e:
+                if (_openingCooldownRemaining > 0)
+                {
+                    _openingCooldownRemaining -= 1;
+                    return new FoeIntent(FoeIntentKind.Strike);
+                }
+                if (_generator.Chance(e.PhaseChance))
+                {
+                    _openingCooldownRemaining = e.OpeningCooldown;
+                    return new FoeIntent(FoeIntentKind.Phase);
+                }
+                return new FoeIntent(FoeIntentKind.Strike);
 
             default:
-                return CombatAction.Strike;
+                return new FoeIntent(FoeIntentKind.Strike);
         }
     }
 
@@ -258,96 +246,52 @@ public sealed class CombatEncounter
         ResolveDefeatIfAny();
     }
 
-    private void PerformFoe(bool petIsBracing)
+    /// Carries out the move the foe declared at the top of the round. No rolls
+    /// here beyond the strike resolution itself — the choice was already made.
+    private void PerformFoe(FoeIntent intent, bool petIsBracing)
     {
-        // Dispatch on the foe's archetype. Each special behaviour lands in its own
-        // slice; until then every foe simply Strikes.
-        switch (_foeBehavior)
+        // Harden is the exception: a passive that fires on an HP threshold the
+        // pet may only just have pushed it past, so it is checked now rather
+        // than declared.
+        if (_foeBehavior is FoeBehavior.Colossus colossus)
         {
-            case FoeBehavior.Mindless:
+            ApplyHardenIfCrossed(colossus.HardenThresholds, colossus.HardenGuard);
+        }
+
+        switch (intent.Kind)
+        {
+            case FoeIntentKind.WindUp:
+                _log.Add(new CombatEvent.Telegraphed(Foe.Name));
+                break;
+
+            case FoeIntentKind.Slam:
+                ExecuteSlam(((FoeBehavior.Colossus)_foeBehavior).SlamMultiplier, petIsBracing);
+                break;
+
+            case FoeIntentKind.Grab:
+            {
+                var grabber = (FoeBehavior.Grabber)_foeBehavior;
+                Pet.Apply(new StatusEffect(
+                    StatusEffectKind.AgilityDebuff, grabber.SnareMagnitude,
+                    remainingRounds: grabber.SnareDuration));
+                _log.Add(new CombatEvent.Grabbed(Foe.Name, Pet.Name, grabber.SnareMagnitude));
+                break;
+            }
+
+            case FoeIntentKind.Phase:
                 FoeStrike(petIsBracing);
+                if (Status.IsOngoing || !Foe.IsDefeated)
+                {
+                    Foe.Apply(new StatusEffect(StatusEffectKind.Phasing, 0, remainingRounds: 2));
+                    _log.Add(new CombatEvent.Phased(Foe.Name));
+                }
                 break;
-            case FoeBehavior.Colossus c:
-                PerformColossus(c.SlamMultiplier, c.TelegraphRounds,
-                                c.HardenThresholds, c.HardenGuard, petIsBracing);
-                break;
-            case FoeBehavior.Grabber g:
-                PerformGrab(g.SnareChance, g.SnareMagnitude, g.SnareDuration,
-                            g.GrabCooldown, petIsBracing);
-                break;
-            case FoeBehavior.Evasive e:
-                PerformEvasive(e.PhaseChance, e.OpeningCooldown, petIsBracing);
+
+            default:
+                FoeStrike(petIsBracing);
                 break;
         }
         ResolveDefeatIfAny();
-    }
-
-    /// An evasive foe (Flicker): it always darts in for chip damage, and — off
-    /// cooldown — sometimes Phases, slipping the pet's next blow and
-    /// over-extending into an Unleash opening. The opening only arms while the
-    /// Signature is still in hand, since that is the whole point of the window.
-    private void PerformEvasive(double phaseChance, int openingCooldown, bool petIsBracing)
-    {
-        FoeStrike(petIsBracing);
-        if (_openingCooldownRemaining > 0)
-        {
-            _openingCooldownRemaining -= 1;
-        }
-        else if (_generator.Chance(phaseChance))
-        {
-            Foe.Apply(new StatusEffect(StatusEffectKind.Phasing, 0, remainingRounds: 2));
-            _log.Add(new CombatEvent.Phased(Foe.Name));
-            if (_signatureAvailable) _openingPending = true;
-            _openingCooldownRemaining = openingCooldown;
-        }
-    }
-
-    /// A grabber (Snag): off cooldown, it may seize the pet instead of striking,
-    /// Snaring its Agility for a few rounds; otherwise it just attacks. The grab
-    /// is spaced by a cooldown so it cannot lock the pet down every turn.
-    private void PerformGrab(
-        double snareChance, int snareMagnitude, int snareDuration,
-        int grabCooldown, bool petIsBracing)
-    {
-        if (_grabCooldownRemaining > 0)
-        {
-            _grabCooldownRemaining -= 1;
-            FoeStrike(petIsBracing);
-            return;
-        }
-        if (_generator.Chance(snareChance))
-        {
-            Pet.Apply(new StatusEffect(
-                StatusEffectKind.AgilityDebuff, snareMagnitude, remainingRounds: snareDuration));
-            _grabCooldownRemaining = grabCooldown;
-            _log.Add(new CombatEvent.Grabbed(Foe.Name, Pet.Name, snareMagnitude));
-        }
-        else
-        {
-            FoeStrike(petIsBracing);
-        }
-    }
-
-    /// A colossus (Monolith): slow but heavy. It Hardens as its HP crosses phase
-    /// thresholds, and instead of ordinary attacks it winds up a telegraphed Slam
-    /// one turn, then lands it — a guaranteed, doubled hit — the next.
-    private void PerformColossus(
-        double slamMultiplier, int telegraphRounds,
-        IReadOnlyList<double> hardenThresholds, int hardenGuard, bool petIsBracing)
-    {
-        ApplyHardenIfCrossed(hardenThresholds, hardenGuard);
-        if (_slamCountdown > 0)
-        {
-            _slamCountdown -= 1;
-            if (_slamCountdown == 0) ExecuteSlam(slamMultiplier, petIsBracing);
-            // Otherwise it is still winding up and does not attack this turn.
-        }
-        else
-        {
-            _slamCountdown = System.Math.Max(1, telegraphRounds);
-            _slamTelegraphPending = true;
-            _log.Add(new CombatEvent.Telegraphed(Foe.Name));
-        }
     }
 
     /// The wound-up Slam: a guaranteed hit at the Slam multiplier, halved if the

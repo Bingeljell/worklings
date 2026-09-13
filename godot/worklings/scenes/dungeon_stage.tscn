@@ -18,8 +18,15 @@ size = Vector3(44, 0.3, 34)
 background_mode = 1
 background_color = Color(0.04, 0.04, 0.04, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.22, 0.22, 0.22, 1)
+ambient_light_color = Color(0.14, 0.145, 0.17, 1)
 tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.9
+glow_strength = 1.1
+glow_bloom = 0.15
+glow_blend_mode = 1
+glow_hdr_threshold = 0.82
+glow_hdr_scale = 2.4
 
 [node name="DungeonStage" type="Node3D" unique_id=1182794671]
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Worklings.Core.Combat;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
+using Worklings.Core.Roster;
 
 namespace Worklings.Core.Stage;
 
@@ -11,9 +12,10 @@ namespace Worklings.Core.Stage;
 /// The design gives the briefing exactly one gameplay job — to tell the player
 /// what kind of prep this delve rewards — so the narration and the choice live
 /// on one screen rather than as two beats that scroll past each other. What the
-/// player picks here is gear (one item per slot, from what they own) and the
-/// starting Approach; both feed straight into `Combatant.Pet`, which folds gear
-/// in ahead of condition.
+/// player picks here is the body and its gear — one item per slot, from what
+/// they own — which feed straight into `Combatant.Pet`, folding gear in ahead of
+/// condition. The starting Approach used to be a third choice on this screen and
+/// was removed with the stances themselves: moves are chosen per round now.
 ///
 /// The panel owns the whole interaction and hands back a `PetState`, because
 /// equipping is a `PetState` operation that validates ownership — reimplementing
@@ -26,16 +28,16 @@ namespace Worklings.Core.Stage;
 /// still being tuned.
 public sealed class LoadoutPanel
 {
-    private static readonly Approach[] Approaches =
-        { Approach.Aggressive, Approach.Careful, Approach.Clever };
-
-    /// What each Approach actually does, so the choice is legible without the
-    /// player having read the design doc.
-    private static string Describe(Approach approach) => approach switch
+    /// What a creature's signature looks like, in the one line the prep screen
+    /// has room for. The player is choosing a body; this is the half of that
+    /// choice they can actually see in the fight.
+    private static string Describe(AbilitySignature signature) => signature switch
     {
-        Approach.Aggressive => "Strike every round. No held resources.",
-        Approach.Careful => "Brace while hurt, strike once recovered.",
-        _ => "Strike, holding the Signature for a finish.",
+        AbilitySignature.LightningStrike => "calls lightning down onto its mark",
+        AbilitySignature.FireShockwave => "drives a ring of fire out across the floor",
+        AbilitySignature.GhostVolley => "throws spectral paws ahead of its reach",
+        AbilitySignature.Roots => "breaks the floor open beneath its target",
+        _ => "no signature of its own yet",
     };
 
     private readonly CanvasLayer _layer;
@@ -46,10 +48,18 @@ public sealed class LoadoutPanel
     private readonly List<Label[]> _rows = new();
     private readonly List<Label> _statChips = new();
 
-    /// One line per choosable thing: the three gear slots, then the Approach.
+    /// One line per choosable thing: the Workling, the three gear slots, then
+    /// The Workling is first because it is the largest of them —
+    /// it decides the body, the energy colour, the signature and which gear is
+    /// attuned, and the other four rows are read against it.
+    /// **The Approach row is gone.** It set a standing stance the fight then
+    /// derived actions from; the player now picks a move every round, so a
+    /// stance chosen at the briefing decides nothing. Leaving it would have been
+    /// a control that did not control anything.
+    private const int WorklingRow = 0;
     private const int SlotCount = 3;
-    private const int RowCount = SlotCount + 1;
-    private const int ApproachRow = SlotCount;
+    private const int FirstSlotRow = 1;
+    private const int RowCount = FirstSlotRow + SlotCount;
 
     /// Per slot, "nothing" followed by everything owned that fits it. Nothing is
     /// a real option — an empty slot is a legal loadout, and a player who wants
@@ -57,7 +67,18 @@ public sealed class LoadoutPanel
     /// rather than be forced into junk.
     private readonly List<List<Item?>> _options = new();
     private readonly int[] _picked = new int[SlotCount];
-    private int _approachIndex;
+
+    /// Every Workling a player may bring, from the roster.
+    ///
+    /// **The shipped rule is one Workling per player, locked at onboarding** —
+    /// one creature, one class, chosen once. This row is the alpha stand-in for
+    /// an onboarding screen that does not exist yet, and it is a query rather
+    /// than a hardcoded pair precisely so that the pool grows on its own as
+    /// bodies land: a creature added to `CreatureRoster` is offered here with no
+    /// change to this file. When onboarding arrives, the lock is a creature id
+    /// on `PetState` and this row stops being a choice.
+    private readonly List<Creature> _creatures = new(CreatureRoster.Playable());
+    private int _creatureIndex;
     private int _cursor;
 
     private PetState _state = null!;
@@ -65,7 +86,10 @@ public sealed class LoadoutPanel
     /// The state with this screen's choices applied — gear equipped, everything
     /// else carried forward untouched.
     public PetState Result => _state;
-    public Approach Approach => Approaches[_approachIndex];
+
+    /// The body the player is descending in.
+    public Creature Creature =>
+        _creatures.Count > 0 ? _creatures[_creatureIndex] : CreatureRoster.TempestRam;
     public bool IsOpen => _layer.Visible;
 
     public LoadoutPanel(Node parent)
@@ -166,14 +190,20 @@ public sealed class LoadoutPanel
         CustomMinimumSize = new Vector2(0, 1),
     };
 
-    /// Opens on a pet and the Approach it is currently carrying, preselecting
-    /// whatever is already equipped so confirming without touching anything is
-    /// the same loadout the player left the last delve in.
-    public void Open(PetState state, Approach approach, string title, string briefing)
+    /// Opens on a pet, preselecting whatever is already equipped so confirming
+    /// without touching anything is the same loadout the player left the last
+    /// delve in.
+    public void Open(PetState state, string title, string briefing)
     {
         _state = state;
         _title.Text = title;
         _briefing.Text = briefing;
+
+        // Preselect the creature matching the Workling on disk, so confirming
+        // without touching anything descends as whoever you already were.
+        _creatureIndex = 0;
+        for (int i = 0; i < _creatures.Count; i++)
+            if (_creatures[i].Family == state.Family) { _creatureIndex = i; break; }
 
         _options.Clear();
         for (int i = 0; i < SlotCount; i++)
@@ -184,8 +214,6 @@ public sealed class LoadoutPanel
             _options.Add(choices);
             _picked[i] = System.Math.Max(0, choices.IndexOf(state.Loadout[slot]));
         }
-        _approachIndex = System.Array.IndexOf(Approaches, approach);
-        if (_approachIndex < 0) _approachIndex = 0;
         _cursor = 0;
         _layer.Visible = true;
         Refresh();
@@ -237,17 +265,28 @@ public sealed class LoadoutPanel
 
     private void Cycle(int step)
     {
-        if (_cursor == ApproachRow)
+        if (_cursor == WorklingRow)
         {
-            _approachIndex = (_approachIndex + Approaches.Length + step) % Approaches.Length;
+            if (_creatures.Count == 0) return;
+            _creatureIndex = (_creatureIndex + _creatures.Count + step) % _creatures.Count;
+            // **Choosing the creature chooses the race**, because a creature
+            // belongs to one — a Pangolin is Relicborn and there is no version
+            // of it that is not. That is a real edit to the Workling and it is
+            // written back when the run resolves: the energy colour, the
+            // signature and which gear counts as attuned all move with it.
+            // Deliberate rather than incidental; the design holds race, class
+            // and name unlocked until onboarding, and this row is what
+            // "unlocked" currently means.
+            _state = _state.SelectingFamily(Creature.Family);
             return;
         }
-        var choices = _options[_cursor];
-        _picked[_cursor] = (_picked[_cursor] + choices.Count + step) % choices.Count;
-        var slot = ItemSlotExtensions.AllCases[_cursor];
+        int index = _cursor - FirstSlotRow;
+        var choices = _options[index];
+        _picked[index] = (_picked[index] + choices.Count + step) % choices.Count;
+        var slot = ItemSlotExtensions.AllCases[index];
         // Straight onto the state, so the sheet below is the real answer rather
         // than a preview that could disagree with what the fight later reads.
-        _state = choices[_picked[_cursor]] is Item item
+        _state = choices[_picked[index]] is Item item
             ? _state.Equipping(item, slot)
             : _state.ClearingSlot(slot);
     }
@@ -255,28 +294,34 @@ public sealed class LoadoutPanel
     private void Refresh()
     {
         var rates = ItemRates.Default;
+
+        var creature = Creature;
+        _rows[WorklingRow][0].Text = (_cursor == WorklingRow ? "▸ " : "  ") + "Workling";
+        _rows[WorklingRow][1].Text = _creatures.Count > 1
+            ? $"◂ {creature.DisplayName} ▸"
+            : creature.DisplayName;
+        _rows[WorklingRow][2].Text =
+            $"{creature.Family.DisplayName()}  ·  {Describe(creature.Signature)}";
+        _rows[WorklingRow][0].AddThemeColorOverride(
+            "font_color", _cursor == WorklingRow ? StageType.Ink : StageType.Muted);
+        _rows[WorklingRow][1].AddThemeColorOverride("font_color", creature.Energy);
+
         for (int i = 0; i < SlotCount; i++)
         {
+            int row = FirstSlotRow + i;
             var slot = ItemSlotExtensions.AllCases[i];
             var chosen = _options[i][_picked[i]];
-            _rows[i][0].Text = (i == _cursor ? "▸ " : "  ") + slot.DisplayName();
-            _rows[i][1].Text = chosen?.DisplayName() ?? "—";
-            _rows[i][2].Text = chosen is Item item
+            _rows[row][0].Text = (row == _cursor ? "▸ " : "  ") + slot.DisplayName();
+            _rows[row][1].Text = chosen?.DisplayName() ?? "—";
+            _rows[row][2].Text = chosen is Item item
                 ? $"+{rates.Modifier(item, _state.Family)} {item.Stat().DisplayName()}"
                   // The attunement rider is a real number the player is already
                   // being paid; marking it is what makes it discoverable.
                   + (rates.IsAttuned(item, _state.Family) ? "  ◈ attuned" : "")
                 : slot.Fantasy();
-            _rows[i][0].AddThemeColorOverride(
-                "font_color", i == _cursor ? StageType.Ink : StageType.Muted);
+            _rows[row][0].AddThemeColorOverride(
+                "font_color", row == _cursor ? StageType.Ink : StageType.Muted);
         }
-
-        _rows[ApproachRow][0].Text =
-            (_cursor == ApproachRow ? "▸ " : "  ") + "Approach";
-        _rows[ApproachRow][1].Text = Approach.ToString();
-        _rows[ApproachRow][2].Text = Describe(Approach);
-        _rows[ApproachRow][0].AddThemeColorOverride(
-            "font_color", _cursor == ApproachRow ? StageType.Ink : StageType.Muted);
 
         var sheet = CharacterSheet.Make(_state);
         for (int i = 0; i < sheet.Rows.Count && i < _statChips.Count; i++)

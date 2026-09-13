@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# Plays the Cache Warren, interactively, against a throwaway Workling.
+#
+# The point of this script is that it is SAFE and FAST — the two reasons a
+# person does not just open the scene in the editor.
+#
+# **Safe**: it points WORKLINGS_SAVE at a scratch copy, so a test run can never
+# touch the real pet file. The dungeon writes a Workling back when a run
+# resolves, and the standing rule is that only the shipped app writes that file.
+#
+# **Fast**: `--fast` collapses the pacing so a whole four-encounter delve takes
+# well under a minute instead of five. It is deliberately only a pacing knob —
+# the encounters, the intents, the damage rolls and the drops are exactly the
+# ones a real run produces. A one-shot-kill switch would be quicker and would
+# have you testing a fight the game never plays.
+#
+#   scripts/godot-dungeon              # a normal-speed interactive run
+#   scripts/godot-dungeon --fast       # the same run, pacing collapsed
+#   scripts/godot-dungeon --keep       # carry the last run's Workling forward
+#
+# In the fight:
+#   [1] strike   [2] brace   [3] or [U] unleash   [space] repeat last move
+#   [space] push deeper  ·  [B] bank and leave    (at the bank/push beat)
+#   ↑↓ ←→ [enter]                                 (on the prep screen)
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+project="$repo_root/godot/worklings"
+godot="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+save_dir="${TMPDIR:-/tmp}/worklings-dungeon"
+save="$save_dir/pet.json"
+
+fast=false
+keep=false
+for arg in "$@"; do
+  case "$arg" in
+    --fast) fast=true ;;
+    --keep) keep=true ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) printf 'unknown option: %s\n' "$arg" >&2; exit 2 ;;
+  esac
+done
+
+mkdir -p "$save_dir"
+if [ "$keep" = false ]; then
+  rm -f "$save"
+fi
+
+if [ ! -x "$godot" ]; then
+  printf 'Godot not found at %s. Set GODOT to its path.\n' "$godot" >&2
+  exit 1
+fi
+
+# Built here rather than left to Godot, so a compile error is a compile error
+# and not a scene that silently runs last build's code. The import pass is what
+# picks up a re-exported .glb; without it Godot serves the cached one and the
+# animation table warns about clips the model "does not have".
+dotnet build "$project" >/dev/null
+"$godot" --path "$project" --headless --import >/dev/null 2>&1 || true
+
+printf 'Workling: %s (a scratch copy — the real save is untouched)\n' "$save"
+[ "$fast" = true ] && printf 'Fast mode: pacing collapsed, rules unchanged\n'
+
+env_vars=(WORKLINGS_SAVE="$save")
+[ "$fast" = true ] && env_vars+=(WORKLINGS_FAST=1)
+
+env "${env_vars[@]}" \
+  "$godot" --path "$project" res://scenes/cache_warren.tscn --resolution 1280x720

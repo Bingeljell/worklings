@@ -2,7 +2,8 @@
 #
 # Builds a real, runnable Worklings.app.
 #
-#   scripts/godot-export            # macOS universal, unsigned, into dist/godot/
+#   scripts/godot-export                    # into dist/godot/, for local runs
+#   scripts/godot-export --version 0.1.0-alpha.11   # into dist/<version>/, for a release
 #
 # Why this exists as a script: the export has four requirements that are all
 # invisible in the editor, and rediscovering them costs an evening.
@@ -20,15 +21,37 @@
 # core/host/SaveLocation.cs. Back up ~/Library/Application Support/Worklings/
 # pet-state.json before running a delve in it for the first time.
 #
-# Unsigned. It runs locally; distributing it needs signing and notarization or
-# Gatekeeper refuses to open it.
+# **Ad-hoc signed, at the end and not by Godot.** The adapters are copied into
+# Resources *after* the export, which invalidates any signature written during
+# it, so signing has to be the last thing that touches the bundle. Ad-hoc only:
+# it satisfies `codesign --verify`, which is what the DMG step checks, and it is
+# not notarization — Gatekeeper still warns on a downloaded copy.
+#
+# The architecture is **universal**, because the .NET export templates ship one
+# universal binary rather than per-arch ones; asking for arm64 fails with a
+# missing-template error that names a file the archive never contained.
 
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 project="$repo_root/godot/worklings"
-out="$repo_root/dist/godot/Worklings.app"
 godot="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+
+version=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --version)
+      [ "$#" -ge 2 ] || { printf 'Usage: %s [--version <semver>]\n' "$0" >&2; exit 2; }
+      version=$2; shift 2 ;;
+    *) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
+  esac
+done
+
+if [ -n "$version" ]; then
+  out="$repo_root/dist/$version/Worklings.app"
+else
+  out="$repo_root/dist/godot/Worklings.app"
+fi
 
 if [ ! -x "$godot" ]; then
   printf 'Godot not found at %s — set GODOT to the binary.\n' "$godot" >&2
@@ -58,5 +81,12 @@ cp "$repo_root/scripts/adapters/"* "$resources/adapters/"
 cp "$repo_root/scripts/emit-activity-event" "$resources/"
 chmod +x "$resources/adapters/"* "$resources/emit-activity-event"
 
+# Last, because copying the adapters in above invalidated whatever the export
+# signed.
+codesign --force --deep --sign - "$out"
+codesign --verify --deep --strict "$out"
+
 printf '\n%s\n' "$out"
 du -sh "$out"
+plutil -extract CFBundleShortVersionString raw -o - "$out/Contents/Info.plist"
+

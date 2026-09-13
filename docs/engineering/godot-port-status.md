@@ -814,27 +814,74 @@ recording a regression is exactly as easy as recording a fix.
    actually plays still look like a debug line.
 4. ~~No audio.~~ Done — `core/stage/CombatAudio.cs`, the bed plus sixteen cues,
    fired from the same beats the Swift panel fires them from.
-5. **Foe bodies.** The Snag's mesh exists but is not rigged; the Scamp and the
-   Monolith have no model at all. Today the Flicker stands in for the first
-   three at different sizes and the Pangolin — a pet model — stands in for the
-   Monolith. The stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed
-   and want a look.
-6. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
+5. **Pet bodies, and the model swap.** Every Workling renders as the Tempest Ram
+   regardless of race, because both scenes load it unconditionally. The
+   vocabulary, from
+   [the race and creature roster](../design/worklings_race_creature_roster.md):
+   a **race** is Wildkin/Elemental/Relicborn/Bloomglass/Glitchkin (`PetFamily` in
+   code), a **creature** is one animal within a race, and a **class** is a
+   separate axis. **A body is a creature, not a race** — `PetState` has no
+   creature field yet, so which animal within a race you are is a real choice the
+   save cannot currently hold.
+
+   The state of it, confirmed 2026-09-04, is the table in `core/stage/PetBody.cs`:
+
+   | Race | Creature | 2D | 3D |
+   | --- | --- | --- | --- |
+   | Elemental | Tempest Ram | sheet in `assets/` | rigged as a pet, in the project |
+   | Relicborn | Key-back Pangolin | sheet in `assets/` | in the project as a **foe** rig; needs a pet export from `clockwork-pangolin-rigify.blend` |
+   | Wildkin | Moss Fox | sheet in `assets/`, **live in the Swift app** | not modelled yet |
+   | Glitchkin, Bloomglass | — | — | — |
+
+   **Only Elemental is pickable** — the gate is "can this build render it",
+   agreed 2026-09-04. Note `PetFamily.HasArt` is *not* wrong: it answers whether
+   a race has a sprite sheet, and correctly. It is a different question from the
+   one this build asks.
+
+   **Choices are deliberately unlocked.** Race, class and name can all be changed
+   at any time. Onboarding and lore will lock race and class at creation, and the
+   name is expected to lock when multiplayer arrives.
+6. **Foe bodies.** Foes are drawn from the same five races as Worklings, so the
+   bestiary reads as one universe; which race each foe belongs to is still open.
+   The Forest Flicker is a foe, which is why it is not in the roster's race
+   lists. **The Snag has its own rigged body as of 2026-09-05** — 27 bones, four
+   actions, exported from `snag_straightroots_animated_v15.blend`. The Scamp and
+   the Monolith still have no model at all: the Flicker stands in for the Scamp
+   at 0.55, and the Pangolin — a pet model — for the Monolith. The remaining
+   stand-in scales in `CacheWarrenScene.PresenceFor` are eyeballed and want a
+   look; the Snag's 7.0 was set from a rendered shot against the Ram.
+
+   The Snag is the first character to **miss the 20k triangle budget**: Collapse
+   floors at ~38k on its root ribbons and a second pass moves it 3%. It is not a
+   weld problem — the weld already takes it from 264k boundary edges to 787. See
+   the asset pipeline doc.
+7. **Animation timing.** The Ram's attack clip is 2.0s; with a 3s countdown each
    exchange runs ~5s. That was a long fight; it is now a long *delve* — four of
    them back to back — so the re-time matters more than it did. Nikhil is
    revising the actions to be quicker and more impactful; contact points are
    stored as fractions (Ram 0.86, Flicker 0.82, Pangolin 0.85) so they survive a
    re-time.
-7. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
+
+   The Snag's beat is much shorter than the others — a 1.0s attack clip
+   contacting at 0.50 for a 1.06s beat, against the Ram's 2.28s and the
+   Flicker's 1.65s. Its contact point is **measured rather than eyeballed**: the
+   whipping tentacle's tip peaks at frame 12 of 24. Whether the encounter should
+   run at that pace, or the beat be padded to match the others, is unjudged.
+8. **`AttackersTravel`.** Defaults to false because travelling reads as sliding
    — the mesh translates while playing a *stationary* attack animation. A walk
-   cycle underneath during the approach is the real fix.
-8. **The impact flash reads as invisible in motion** despite showing clearly in
-   stills. Not diagnosed; may need more than a tint change.
-9. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
+   cycle underneath during the approach was the assumed fix; a **motion trail**
+   is the cheaper candidate and probably the better one, because things that
+   leave a streak read as moving fast. See "motion trails" in
+   [dungeons](../design/dungeons.md).
+9. **The impact flash reads as invisible in motion** despite showing clearly in
+   stills. Not diagnosed; may need more than a tint change. Likely the same
+   missing piece as #8 — a flash with no motion around it has nothing to
+   punctuate. See "motion trails" in [dungeons](../design/dungeons.md).
+10. **Tuning nobody has judged yet** — lag hold, catch-up speed, damage number
    sizes, hit-stop duration, the summary dwell. All exported.
-10. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
-   3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
-11. **Action trimming.** The Ram ships 17 actions, most of them iteration
+11. **Multi-combatant HUD.** Screen-space edge plates work for two; they break at
+    3–4 bodies (multiple foes, multiplayer). Nikhil has an idea.
+12. **Action trimming.** The Ram ships 17 actions, most of them iteration
     history; the Flicker has a clean five. Needs a human call on which variants
     are the keepers — `keep_actions` takes the set.
 
