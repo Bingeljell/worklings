@@ -525,6 +525,7 @@ public partial class CacheWarrenScene : Node3D
         _encounter.Act(action);
         DrainLog();
         _intent.Hide();
+        _phase = Phase.Resolving;
         BeginCountdown();
         UpdateReadout();
     }
@@ -793,8 +794,24 @@ public partial class CacheWarrenScene : Node3D
     };
 
     /// Starts the wind-up to the next move in the queue.
+    ///
+    /// **Markers are cleared first, and that is the whole reason this is a
+    /// method.** A round opens by logging `RoundBegan` and `AwaitingAction`, and
+    /// those are still sitting at the head of the queue when the player answers
+    /// — so counting down from here without clearing them spent the first
+    /// countdown on a marker that draws nothing, found the pet's actual move
+    /// behind it, and counted down again. Two 3-2-1s and then one swing.
+    ///
+    /// A countdown may only ever be started with a move at the head of the
+    /// queue. Guaranteeing that here means no caller has to remember it.
     private void BeginCountdown()
     {
+        while (_pending.Count > 0 && Weight(_pending.Peek()) == BeatWeight.Marker)
+        {
+            Apply(_pending.Dequeue());
+        }
+        if (_pending.Count == 0) { PumpEncounter(); return; }
+
         _phase = Phase.Counting;
         _beatTimer = _beatLength = BeatSeconds;
         _lastTickSecond = -1;
