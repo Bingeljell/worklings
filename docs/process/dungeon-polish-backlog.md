@@ -71,62 +71,70 @@ rewrite is presentation only. It needs item icons, which do not exist yet — th
 placeholder rule applies: build the real layout with placeholder art rather than
 letting missing icons justify another text wall.
 
-## Memory: the dungeon leaks, and the baseline is heavy
+## Memory: a heavy baseline, and a measurement that lied
 
-**Reported 2026-09-14** — Worklings at ~650 MB idle and peaking at 1.4 GB in a
-single fight, with the dungeon feeling laggy. Measured rather than assumed, and
-the answer is that the baseline is defensible and the growth is not.
+**Reported 2026-09-14** — Worklings at ~650 MB idle and peaking at 1.4 GB during
+a fight. The first investigation concluded there was an unbounded leak of
+~2.9 MB/s. **That conclusion was wrong, and the way it was wrong is the useful
+part of this entry.**
 
-**It is dungeon-specific.** The desktop pet scene sits flat at 311 MB for
-minutes with no growth at all. A delve grows monotonically: footprint 633 MB →
-778 MB over 50 seconds, roughly 2.9 MB/s, and it never comes back down.
+### The instrument was the leak
 
-**The growth is on both sides of the fence**, over that same 50 seconds:
+Every measurement was taken with `tools/BeatShot` attached, which grabs the
+viewport and writes a PNG on every combat beat. `GetTexture().GetImage()` on a
+1280x720 viewport is a **3.7 MB readback per beat**, and beats fire on attack
+moves — which is exactly the "~2.7 MB steps landing on attack beats, never on
+countdowns" that looked so much like a per-attack leak. It also explains why
+every bisect came back identical: disabling the VFX layer, the ghost trails, the
+impact sparks, the tweens, the HUD or the animation switching changes none of
+the *beats*, so none of them changed the number.
 
-| Region | Start | End |
-| --- | --- | --- |
-| graphics (unmapped) | 281 MB | 321 MB |
-| MALLOC_SMALL | 134 MB | 174 MB |
-| MALLOC_LARGE | — | 71 MB |
-| IOAccelerator (graphics) | 103 MB | 103 MB |
+The tell was there and was misread: the growth was invariant under every change
+to the thing being measured, which should have pointed at the measuring rather
+than at the measured.
 
-Godot's own counters agree and narrow it: `MemoryStatic` climbs in quantised
-steps of about 2.7 MB that land on attack beats rather than on countdowns, while
-**node count and resource count stay flat** (517 nodes, 89 resources, zero
-orphans). So it is not leaked nodes. It is runtime-created resources or
-`RefCounted` objects that outlive the node that made them, plus something
-GPU-side.
+### What the dungeon actually does
 
-**Ruled out by bisect**, each with its own 45-second run:
+Run plainly, with no capture tool attached and AutoPlay on:
 
-- the signature VFX layer (`AbilityEffects = false`) — still grew ~43 MB
-- attacker travel and ghost trails (`AttackersTravel = false`) — still grew ~49 MB
-- the impact spark burst (early-return in `SpawnSpark`) — still grew ~38 MB
-- combat audio — players are built once in the constructor, and the whole audio
-  directory is 3.2 MB
+| Elapsed | RSS |
+| --- | --- |
+| 20 s | 446 MB |
+| 60 s | 473 MB |
+| 120 s | 493 MB |
+| 180 s | 498 MB |
+| 240 s | 507 MB |
+| 300 s | 510 MB |
 
-So it is in something always-on and per-attack that none of those toggles reach.
-`DamageNumbers`, the hit-stop tweens, and per-attack material or mesh creation
-inside `ImpactFrames.Flash` are the unexamined candidates.
+**Asymptotic, not linear.** The first two minutes climb ~47 MB as each of the
+four foes appears for the first time — a body made visible, its textures
+uploaded, and its ghost trail baked on its first swing, which the code already
+documents as a per-model one-time cost. After that it adds ~8 MB over the last
+100 seconds and is still flattening. There is no unbounded leak.
 
-**The baseline is separately worth a look.** Of 676 MB resident, ~338 MB is
-graphics — five characters at 1024² textures, the arena, and **4× MSAA enabled
-in `CacheWarrenScene.BuildStage`** for the thin additive geometry the signature
-layer is made of. MSAA at that level on a 720p viewport is a real cost and is
-the first thing to measure against.
+### What is worth doing
 
-**Reproduction** (the harness already exists):
+The baseline is genuinely heavy rather than growing, and that is the real target:
 
-```bash
-WORKLINGS_SAVE=/tmp/pet.json WORKLINGS_BEAT_OUT=/tmp/beats \
-  WORKLINGS_BEATSHOT_REALTIME=1 \
-  godot --path godot/worklings res://tools/beat_shot.tscn
-# in another shell, against the running pid:
-footprint -p <pid>
-```
+- ~450–510 MB for the dungeon alone, and 311 MB for the pet scene alone —
+  **and the shipped app runs both in one process**, which is most of the gap
+  between a 510 MB measurement here and a 1.4 GB reading in Activity Monitor.
+  Note that Activity Monitor's Memory column reports footprint, which measured
+  ~15% above RSS on this process.
+- Roughly half of it is graphics. Five characters at 1024² textures, the arena,
+  and **4× MSAA**, which `CacheWarrenScene.BuildStage` enables because the thin
+  additive geometry of the signature layer crawls badly without it. Cutting MSAA
+  is the obvious lever and it is a real quality cost — the effects it protects
+  are the ones the layer exists for. Not a trade to make casually.
+- Resolution is **not** a factor worth chasing: 720p and 1440p measured within
+  noise of each other (475 MB vs 460 MB).
+- Ghost trails are the largest single warm-up cost — `GhostCount` baked
+  `ArrayMesh` snapshots per character, and the Snag is a 60k-triangle body. If
+  the baseline needs to come down, that is where the mass is.
 
-Adding a `Performance.GetMonitor` line to `BeatShot._Process` gives the
-engine-side counters; that instrumentation was temporary and is not committed.
+**Never measure memory with `BeatShot` attached.** Run the scene plainly with
+`WORKLINGS_AUTOPLAY` and sample `ps -o rss=` from outside, or use `footprint`
+for a per-region breakdown.
 
 ## Pacing between beats
 
