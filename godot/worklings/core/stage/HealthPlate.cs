@@ -14,6 +14,10 @@ public sealed class HealthPlate
     private const float BarHeight = 12f;
     private const float PlateWidth = 420f;
 
+    /// How wide a plate stands, so the HUD can inset the mirrored one from the
+    /// right edge without keeping its own copy of the number.
+    public const float Width = PlateWidth;
+
     private readonly Label _name;
     private readonly Label _numbers;
     private readonly ColorRect _lag;
@@ -34,11 +38,16 @@ public sealed class HealthPlate
 
     public Control Root { get; }
 
+    /// The name on the plate, as given — the HUD re-sets identity to recolour a
+    /// plate without also having to remember what it was called.
+    public string Name { get; private set; }
+
     public HealthPlate(string name, int maxHP, Color energy, bool mirrored)
     {
         _max = System.Math.Max(1, maxHP);
         _shown = _max;
         _mirrored = mirrored;
+        Name = name;
 
         Root = new VBoxContainer { CustomMinimumSize = new Vector2(PlateWidth, 0) };
         Root.AddThemeConstantOverride("separation", 5);
@@ -92,6 +101,7 @@ public sealed class HealthPlate
     /// four times a run.
     public void SetIdentity(string name, Color energy)
     {
+        Name = name;
         _name.Text = name.ToUpperInvariant();
         _fill.Color = energy;
     }

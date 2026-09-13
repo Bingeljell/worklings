@@ -208,7 +208,28 @@ public partial class CacheWarrenScene : Node3D
         AddChild(_audio);
         _prep = new LoadoutPanel(this);
         BeginRun();
+
+        // The bar is a control, not a legend, so the mouse reaches the same four
+        // decisions the keyboard does. Both go through the guards below rather
+        // than straight at the encounter — a slot is drawn dim between decisions
+        // and clicking it then must do nothing.
+        _hud.Bar.Chose += approach => { if (CanSteer()) TakeDecision(approach, unleash: false); };
+        _hud.Bar.Unleashed += () =>
+        {
+            if (CanSteer() && _encounter.SignatureReady) TakeDecision(_approach, unleash: true);
+        };
+        _hud.Bar.Pushed += () => { if (CanChoose()) { _delve.PushDeeper(); StartEncounter(); } };
+        _hud.Bar.Banked += () =>
+        {
+            if (!CanChoose()) return;
+            _delve.Bank();
+            ShowSummary();
+            UpdateReadout();
+        };
     }
+
+    private bool CanSteer() => !AutoPlay && _phase == Phase.Steering;
+    private bool CanChoose() => !AutoPlay && _phase == Phase.Choice;
 
     /// Reads the saved Workling, or starts a fresh one. A missing file is a first
     /// run, not a failure; anything else is reported and locks saving off.
@@ -318,6 +339,7 @@ public partial class CacheWarrenScene : Node3D
         // hitch. Nothing is moving yet, so the stall has nowhere to show. Baking
         // also poses the skeleton, hence the idle again afterwards.
         TrailFor(_party);
+        _party.ResetPose();
         _party.Play(ActorAction.Idle, loop: true);
 
         _phase = Phase.Prep;
@@ -338,6 +360,10 @@ public partial class CacheWarrenScene : Node3D
         _state = _prep.Result;
         _approach = _prep.Approach;
         TakeTheBody(_prep.Creature);
+        // The body carries the colour, and the HUD reads it in three places —
+        // the player's bar, the encounter pips and the countdown numeral — so
+        // it is pushed once here rather than guessed at each of them.
+        _hud.SetPetEnergy(_petEnergy);
         _prep.Close();
 
         var pet = Combatant.Pet(_state, _rates);
@@ -407,6 +433,7 @@ public partial class CacheWarrenScene : Node3D
     private void EnterSteer()
     {
         _phase = Phase.Steering;
+        _hud.ClearBeat();
         _line = _encounter.Status.Reason switch
         {
             DecisionReason.LowHP => $"{_petName} is faltering",
@@ -414,10 +441,6 @@ public partial class CacheWarrenScene : Node3D
             DecisionReason.Telegraph => $"{_foeName} is winding up — brace, or eat it",
             _ => $"How should {_petName} press on?",
         };
-        _status = AutoPlay
-            ? $"Holding {_approach}..."
-            : "[1] Aggressive  [2] Careful  [3] Clever  ·  [Space] hold"
-              + (_encounter.SignatureReady ? "  ·  [U] unleash" : "");
         // A held Approach is a real choice, so an unattended run takes it on the
         // same short pause a player would have spent reading the prompt.
         _cardTimer = AutoPlay ? CardSeconds * 0.25 : 0;
@@ -443,12 +466,10 @@ public partial class CacheWarrenScene : Node3D
         {
             case DelveStatusKind.AwaitingPushChoice:
                 _phase = Phase.Choice;
+                _hud.ClearBeat();
                 _line = _delve.LastDrop is Item drop
                     ? $"{_foeName} down — {drop.DisplayName()} recovered"
                     : $"{_foeName} down";
-                _status = AutoPlay
-                    ? "Pushing deeper..."
-                    : "[Space] push deeper   ·   [B] bank and leave";
                 _cardTimer = AutoPlay ? CardSeconds * 0.5 : 0;
                 break;
             default:
@@ -485,7 +506,7 @@ public partial class CacheWarrenScene : Node3D
         _line = $"{headline} — {resolution.ClearedCount}/{_delve.TotalEncounters} cleared, "
               + $"+{resolution.XPGained:0} XP"
               + (spoils.Count > 0 ? $", {string.Join(", ", spoils)}" : "");
-        _status = $"Exit: {resolution.Tier.RawValue()}  ·  Lv {_state.Level}  ·  {_state.Mood}";
+        _status = $"exit {resolution.Tier.RawValue()}   ·   Lv {_state.Level}   ·   {_state.Mood}";
         _phase = Phase.Summary;
         _cardTimer = CardSeconds;
     }
@@ -537,6 +558,12 @@ public partial class CacheWarrenScene : Node3D
         // fight, not to the shake and dust working their way out of it.
         _impact.Tick(delta);
         _hud?.Tick(delta);
+        // Real time, and outside the hit-stop guard below: a one-shot clip that
+        // has finished has to hand the body back to its idle loop, or the actor
+        // stands frozen on the last frame of its swing for the whole beat. That
+        // was every creature, most of the fight.
+        _party?.Tick(delta);
+        _foe?.Tick(delta);
         // Real time, like the shake and the dust: hit-stop freezes the fight and
         // lets the trail keep dissipating out of it.
         foreach (var trail in _trails.Values) trail.Tick(delta);
@@ -562,15 +589,31 @@ public partial class CacheWarrenScene : Node3D
         if (_actionTimer > 0)
         {
             _actionTimer -= delta;
-            if (_actionTimer <= 0) _beatTimer = _beatLength;
-            else { _hud?.ClearBeat(); return; }
+            if (_actionTimer > 0) { _hud?.ClearBeat(); return; }
+
+            // Resolve the *next* beat before starting the countdown to it.
+            //
+            // The encounter used to be stepped at the far end of the wait, which
+            // meant that for the whole three seconds the game did not yet know
+            // what was coming — so the clock could only say "next round" and the
+            // steering prompt arrived three seconds after the action that
+            // prompted it. Stepping first costs nothing (the rules are resolved
+            // either way) and lets the countdown name the beat, which is the
+            // entire point of it being a countdown rather than a delay.
+            if (_pending.Count == 0)
+            {
+                PumpEncounter();
+                if (_phase != Phase.Fighting) return;
+            }
+            _beatTimer = _beatLength;
         }
 
         // Phase two: counting down to the next action.
         if (_beatTimer > 0)
         {
             _beatTimer -= delta;
-            _hud?.SetBeat(1.0 - _beatTimer / _beatLength, _beatTimer);
+            var (who, what, isPet) = NextBeat();
+            _hud?.SetBeat(_beatTimer, who, what, isPet);
             // One tick per whole second of the countdown, not one per frame.
             // The bar shows the time; the tick is what makes it felt.
             int second = (int)System.Math.Ceiling(_beatTimer);
@@ -743,6 +786,7 @@ public partial class CacheWarrenScene : Node3D
         }
         _party = actor;
         _cast.ShowOnly(key, PartySlot);
+        _party.ResetPose();
         TrailFor(_party);
         _party.Play(ActorAction.Idle, loop: true);
     }
@@ -846,13 +890,19 @@ public partial class CacheWarrenScene : Node3D
                 return true;
 
             case CombatEvent.Defeated x:
-                (x.Who == _petName ? _party : _foe).Play(ActorAction.Downed);
+            {
+                bool petDied = x.Who == _petName;
+                var victim = petDied ? _party : _foe;
+                var killer = petDied ? _foe : _party;
+                victim.Play(ActorAction.Downed);
+                if (!victim.Animations.HasDeathClip) FallOver(victim, killer);
                 // The poof is the foe leaving the stage. A downed Workling gets
                 // the defeat sting at the end of the run instead, which is where
                 // that news actually lands.
-                if (x.Who != _petName) _audio.Play(CombatSound.Poof);
+                if (!petDied) _audio.Play(CombatSound.Poof);
                 _line = $"{x.Who} is down";
                 return true;
+            }
 
             case CombatEvent.EncounterEnded x:
                 _line = x.Victory ? "Victory" : "Defeat";
@@ -867,22 +917,128 @@ public partial class CacheWarrenScene : Node3D
         }
     }
 
+    /// Who acts when the countdown runs out, and what they are about to do.
+    ///
+    /// **The answer to "sometimes I don't attack and the Snag attacks twice".**
+    /// That reading was fair and the fight was not cheating: a Careful Workling
+    /// latches into Brace while it is hurt and spends whole rounds not striking,
+    /// and the Snag's Snare drops the pet's Agility below the foe's, which flips
+    /// initiative so the foe acts last in one round and first in the next — two
+    /// foe turns in a row with a legal round boundary between them. Both are in
+    /// the rules, both were completely invisible, and a bare "1.7s" cannot tell
+    /// a braced turn apart from a lost one.
+    ///
+    /// So the clock names the beat. The queue holds the events the encounter has
+    /// already resolved, in order, and the first one with a body attached is the
+    /// next thing the player will see — bookkeeping markers are skipped because
+    /// they animate nothing. An empty queue means the round is about to turn and
+    /// the encounter has not been stepped yet, which the HUD says as much.
+    private (string Who, string What, bool IsPet) NextBeat()
+    {
+        foreach (var e in _pending)
+        {
+            switch (e)
+            {
+                case CombatEvent.Struck x:
+                    return (x.Attacker, "strikes", x.Attacker == _petName);
+                case CombatEvent.Signature x:
+                    return (x.Attacker, "unleashes", true);
+                case CombatEvent.Slammed x:
+                    return (x.Attacker, "slams", false);
+                case CombatEvent.Telegraphed x:
+                    return (x.Who, "winds up", x.Who == _petName);
+                case CombatEvent.Braced x:
+                    return (x.Who, "braces", x.Who == _petName);
+                case CombatEvent.Grabbed x:
+                    return (x.Attacker, "snares", false);
+                case CombatEvent.Hardened x:
+                    return (x.Who, "hardens", x.Who == _petName);
+                case CombatEvent.Phased x:
+                    return (x.Who, "blurs", false);
+                case CombatEvent.Defeated x:
+                    return (x.Who, "falls", x.Who == _petName);
+                // Nothing follows this one. Saying "next round" over a corpse is
+                // worse than saying nothing.
+                case CombatEvent.EncounterEnded:
+                    return ("", "THE FIGHT IS OVER", true);
+            }
+        }
+        return ("", "NEXT ROUND", true);
+    }
+
+    /// Fells a body that has no death clip to fall down with.
+    ///
+    /// Four of the five characters are in that position — only the Scamp shipped
+    /// a `Scamp_Death` — so a kill played the creature's hit-react and left it
+    /// standing there until the next encounter swapped the model out. That is
+    /// what the first play session saw as "no death animation for anything after
+    /// the Scamp", and it is true: there was nothing to play.
+    ///
+    /// This is not a substitute for the clips, which are Nikhil's to author. It
+    /// is the floor underneath them — every creature now visibly goes down —
+    /// and it costs one `HasDeathClip: true` to retire per character as the real
+    /// animations land.
+    ///
+    /// The body pivots at its own mark, which is at its feet, so it goes over
+    /// like a felled tree rather than sinking through the floor. It falls *away*
+    /// from whatever killed it: a corpse toppling toward its killer reads as a
+    /// lunge, which is the opposite of the beat.
+    private void FallOver(StageActor victim, StageActor killer)
+    {
+        var line = victim.Root.Position - killer.Root.Position;
+        var axis = Vector3.Up.Cross(new Vector3(line.X, 0, line.Z)).Normalized();
+        if (axis.LengthSquared() < 0.001f) axis = Vector3.Right;
+
+        // Slow to tip and then quick over — a fall accelerates, and an even one
+        // reads as a door closing.
+        var tween = CreateTween();
+        tween.TweenMethod(Callable.From<float>(a => victim.SetTopple(a, axis)),
+                          0f, Mathf.DegToRad(84f), 0.62)
+             .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        // The settle. Two degrees of rebound is the whole difference between a
+        // body landing and a model reaching its final rotation.
+        tween.TweenMethod(Callable.From<float>(a => victim.SetTopple(a, axis)),
+                          Mathf.DegToRad(84f), Mathf.DegToRad(80f), 0.12)
+             .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
+    }
+
     private void ApplyDamage(bool toFoe, int amount)
     {
         if (toFoe) _foeHP = System.Math.Max(0, _foeHP - amount);
         else _petHP = System.Math.Max(0, _petHP - amount);
     }
 
+    /// Pushes the whole fight state at the HUD in one place.
+    ///
+    /// The command bar is driven from here rather than only from the beats that
+    /// open a decision, because the bar is persistent: the player needs to see
+    /// which stance is held and whether the Signature is still in hand at every
+    /// moment of the fight, not only in the two seconds they are being asked.
     private void UpdateReadout()
     {
         _hud.SetHP(_petHP, _foeHP);
         _hud.SetNarration(_line);
-        if (_phase == Phase.Fighting)
+
+        switch (_phase)
         {
-            _status = $"Encounter {_delve.EncounterNumber}/{_delve.TotalEncounters}"
-                    + $"  ·  Round {_round}  ·  {_approach}";
+            case Phase.Prep:
+                _hud.SetRunLine("the cache warren");
+                _hud.Bar.Hide();
+                break;
+            case Phase.Summary:
+                _hud.SetRunLine(_status);
+                _hud.Bar.Hide();
+                break;
+            case Phase.Choice:
+                _hud.SetRun(_delve.EncounterNumber, _delve.TotalEncounters, 0, _approach);
+                if (AutoPlay) _hud.Bar.Hide(); else _hud.Bar.ShowChoice(_petEnergy);
+                break;
+            default:
+                _hud.SetRun(_delve.EncounterNumber, _delve.TotalEncounters, _round, _approach);
+                _hud.Bar.ShowSteering(_approach, _encounter?.SignatureReady ?? true,
+                                      live: _phase == Phase.Steering && !AutoPlay, _petEnergy);
+                break;
         }
-        _hud.SetStatus(_status);
     }
 
     /// Builds the arena and hands back its root, named `Stage`.
@@ -995,6 +1151,7 @@ public partial class CacheWarrenScene : Node3D
         _cast.ShowOnly(key, FoeSlot);
         // Re-applied per encounter because one creature can play two foes at
         // two sizes — the Snag is itself at 4.81 and the Monolith at 7.50.
+        _foe.ResetPose();
         _cast.SetHeight(key, casting.StageHeight);
         _foeEnergy = casting.Creature.Energy;
         _foe.Play(ActorAction.Idle, loop: true);

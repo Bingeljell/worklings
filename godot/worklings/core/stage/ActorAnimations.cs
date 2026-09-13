@@ -58,15 +58,34 @@ public sealed class ActorAnimations
     /// separate bodies; the stills put the line at around ten for a full charge.
     public int GhostCount { get; }
 
+    /// Whether `Downed` names a clip that actually shows the creature dying.
+    ///
+    /// **Only one of the five bodies does.** The Scamp has `Scamp_Death`; the
+    /// Flicker and the Pangolin shipped with no death clip at all, and the
+    /// Snag's is the broken one (see below), so all three point `Downed` at
+    /// their own hit-react. A kill therefore played a wince and the body stayed
+    /// standing until the next encounter swapped it out — which is precisely
+    /// the "no death animation for anything after the Scamp" that the first
+    /// play session reported, and it is an asset gap rather than a wiring bug.
+    ///
+    /// Declared rather than inferred from `Downed == Wince`, because the two
+    /// being equal is a coincidence of the workaround and not the fact being
+    /// stated. The stage reads this and falls the body over itself when it is
+    /// false, so a kill reads on every creature; re-authoring the clips still
+    /// replaces that with something better, and flipping this to true is how
+    /// each one gets switched over.
+    public bool HasDeathClip { get; }
+
     public ActorAnimations(Dictionary<ActorAction, string> map, double attackImpactPoint = 0.85,
                            float travelFraction = 0.62f, double travelSeconds = 0.24,
-                           int ghostCount = 10)
+                           int ghostCount = 10, bool hasDeathClip = false)
     {
         _map = map;
         AttackImpactPoint = System.Math.Clamp(attackImpactPoint, 0, 1);
         TravelFraction = travelFraction;
         TravelSeconds = travelSeconds;
         GhostCount = ghostCount;
+        HasDeathClip = hasDeathClip;
     }
 
     public string? Name(ActorAction action) => _map.TryGetValue(action, out var n) ? n : null;
@@ -205,7 +224,9 @@ public sealed class ActorAnimations
         attackImpactPoint: 0.44,
         // Small, light and quick. It has no reach at all, so it commits further
         // than the Ram and gets there faster, with the trail spread thin.
-        travelFraction: 0.68f, travelSeconds: 0.18, ghostCount: 9);
+        travelFraction: 0.68f, travelSeconds: 0.18, ghostCount: 9,
+        // The only body in the cast with a real death clip.
+        hasDeathClip: true);
 
     /// Looked up by the .glb basename the actor was loaded from.
     public static ActorAnimations? For(string modelName) => modelName switch
