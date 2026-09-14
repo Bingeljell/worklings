@@ -19,3 +19,10 @@ dist/
 assets/moss-fox-redesign-1Aug.png
 assets/redesigned_characters.png
 scripts/__pycache__/
+# Full-resolution posters and key art (multi-MB PNGs and video). The README uses
+# a compressed derivative committed as assets/worklings-poster.jpg instead.
+assets/Posters/
+
+# Brand source art (multi-MB PNGs). The icon that actually ships is committed at
+# its point of use, godot/worklings/assets/app-icon.png.
+assets/logos/

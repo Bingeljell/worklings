@@ -1,7 +1,7 @@
 # Worklings
 
 <p align="center">
-  <img src="assets/worklings-social-preview.jpg" alt="Wildkin, Elemental, and Relicborn Worklings gathered in a magical woodland" width="900">
+  <img src="assets/worklings-poster.jpg" alt="Four Worklings — a moss fox, a storm ram, a clockwork pangolin and a glitch wolf — running out of a ruined arcane city" width="900">
 </p>
 
 As an MMO fan whose been itching to find some outlet, I figured having a pet that actually feels like a pet that lives in your computer, but responds to stimuli from your actions, rather than some superficial toy was in order. Think of a pet that will level up as you complete tasks and do work. Levels come with stat points, build trees, ability to quest, gear, etc...  THe sky is the limit, but we'll see. I'm also keen on multiplayer at some point. We're so early! 
