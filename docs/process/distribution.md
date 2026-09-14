@@ -158,17 +158,17 @@ shape for alpha.11.
 
 ### What it weighs, and why
 
-The first universal export was **336 MB**, against the Swift app's 4.7 MB. The
-breakdown is the whole explanation:
+`v0.1.0-alpha.11` shipped at **350 MB** (a 156 MB DMG), against the Swift app's
+4.7 MB. The breakdown is the whole explanation:
 
-| Part | Size |
-| --- | --- |
-| Godot engine binary (both architectures) | 163 MB |
-| .NET runtime, Apple Silicon | 82 MB |
-| .NET runtime, Intel | 75 MB |
-| **The game itself** — every scene, model, texture and line of our code | **16 MB** |
+| Part | alpha.11 | alpha.12 |
+| --- | --- | --- |
+| Godot engine binary | 162 MB (fat) | 79 MB (arm64) |
+| .NET runtime, Apple Silicon | 82 MB | 82 MB |
+| .NET runtime, Intel | 76 MB | — |
+| **The game itself** — every scene, model, texture and line of our code | **27 MB** | **27 MB** |
 
-**The game is 16 MB.** Everything else is engine and runtime, and in a universal
+**The game is 27 MB.** Everything else is engine and runtime, and in a universal
 build all of it ships twice.
 
 The Swift app is 4.7 MB because it borrows almost everything from the operating
@@ -178,16 +178,29 @@ because none of that can be assumed to exist on Windows or Linux. **The size is
 the price of cross-platform**, showing up as megabytes rather than as a second
 codebase — which was the trade the engine decision made on purpose.
 
-Dropping Intel takes it to roughly **180 MB** and costs a single config line.
-That is done.
+### Dropping Intel: not a config line
 
-### Deferred: getting it below 180 MB
+It was recorded here as "a single config line, and that is done". It was neither,
+and alpha.11 shipped an Intel engine and an Intel .NET runtime to Apple Silicon
+testers because of it.
 
-**Not before an alpha ships from it.** This is a distribution problem, not an
-architecture one — nothing built on top gets harder because the bundle is large,
-so it does not compound and it does not gate anything. Revisit when there is a
-build worth publishing, around alpha.11 or whichever version the port first
-ships as.
+`binary_format/architecture="arm64"` **fails**: the .NET export templates ship
+one universal binary rather than per-arch ones, so the export dies on a missing
+template naming a file the archive never contained. The preset has to stay
+`universal`.
+
+What works is stripping the finished bundle, which `scripts/godot-export` now
+does before it signs: `lipo -thin arm64` on the engine binary, the
+`data_Worklings_macos_x86_64` runtime deleted outright, and the Info.plist keys
+that advertise x86_64 removed with them. **159 MB of 350 MB**, taking alpha.12
+to roughly 190 MB. The DMG name has said `arm64` since alpha.11; as of alpha.12
+it is true.
+
+### Deferred: getting it below 190 MB
+
+This is a distribution problem, not an architecture one — nothing built on top
+gets harder because the bundle is large, so it does not compound and it does not
+gate anything.
 
 Two levers, in order of effort:
 
@@ -209,7 +222,6 @@ here.
 
 - Developer ID signing and Apple notarization.
 - Universal or separately published Intel builds.
-- A project-specific icon and final artwork.
 - Automatic release creation after protected CI checks.
 - Update checks or an in-app updater.
 - Reproducible builds across multiple machines and Xcode versions.
