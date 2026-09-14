@@ -47,7 +47,7 @@ public enum BodyStatus
 /// | Race | Creature | 2D | 3D |
 /// | --- | --- | --- | --- |
 /// | Elemental | Tempest Ram | `worklings-elemental-spritesheet.png` | **rigged as a pet, in the project** — what every Workling wears today |
-/// | Relicborn | Key-back Pangolin | `worklings-relicborn-spritesheet.png` | in the project, but rigged and exported as a **foe** — it stands in for the Monolith. Source at `worklings-blender-work/clockwork-pangolin-rigify.blend` |
+/// | Relicborn | Key-back Pangolin | `worklings-relicborn-spritesheet.png` | **rigged and wearable as a pet.** It was borrowed as the Monolith while the Relicborn had no body of its own; the Monolith is a scaled Snag now. Source at `worklings-blender-work/clockwork-pangolin-rigify.blend` |
 /// | Wildkin | Moss Fox | `worklings-wildkin-spritesheet.png` — **live in the Swift app** | not modelled yet; still to be rigged and animated |
 /// | Glitchkin | Sparktail and eight others | — | — |
 /// | Bloomglass | Starpetal Fawn and eight others | — | — |
@@ -64,9 +64,10 @@ public enum BodyStatus
 /// sheets are in `assets/`. It is simply a different question from the one this
 /// build asks, which is whether there is something to *render in 3D*.
 ///
-/// **Nothing reads `Model` yet.** Every Workling renders as the Tempest Ram
-/// regardless of race, because both scenes load it unconditionally. That is why
-/// a Wildkin looks like an Elemental today.
+/// **Both scenes read the race now.** The Warren has always cast from
+/// `CreatureRoster.ForRace`; the desktop pet followed on 2026-09-14 and swaps
+/// its body live when the race changes. A Wildkin still looks like an Elemental,
+/// but only because the Moss Fox has no model — not because the code ignores it.
 ///
 /// **Choices are deliberately unlocked.** Race, class and name can all be
 /// changed at any time. Onboarding and lore will lock the first two at creation,
@@ -91,7 +92,11 @@ public static class PetBody
     public static BodyStatus Status(PetFamily race) => race switch
     {
         PetFamily.Elemental => BodyStatus.Live,
-        PetFamily.Relicborn => BodyStatus.NeedsExport,
+        // Was NeedsExport while the Pangolin existed only as the Monolith's
+        // stand-in. It is its own Workling body now — `CreatureRoster` carries it
+        // as Role.Workling / Readiness.Ready with a full idle-walk-attack clip
+        // table — so a Relicborn wears a pangolin rather than borrowing a ram.
+        PetFamily.Relicborn => BodyStatus.Live,
         PetFamily.Wildkin => BodyStatus.NeedsModel,
         _ => BodyStatus.Undrawn,
     };

@@ -3,6 +3,7 @@ using Worklings.Core.Host;
 using Worklings.Core.Connect;
 using Worklings.Core.Pet;
 using Worklings.Core.Progression;
+using Worklings.Core.Roster;
 using Worklings.Core.Stage;
 
 /// The desktop pet's window, with a Workling standing in it and nothing else.
@@ -182,22 +183,21 @@ public partial class DesktopPetScene : Node3D
         if (screens > 0) PlaceOnScreen(_screen);
         ApplyInteractiveRegion();
 
-        // The Ram, unconditionally — the pet's family is not consulted. This is
-        // the near end of the model swap: when `PetBody.Model` starts being read,
-        // it is read here and in the Warren's party actor, and nowhere else.
-        _pet = new StageActor(
-            GetNode<Node3D>("Pet"), PetBody.DefaultModel, ActorAnimations.TempestRam);
-        _pet.Play(ActorAction.Idle, loop: true);
+        StartSession();
+
+        // The body is the race's creature, not the Ram unconditionally. The
+        // Warren has cast from the roster since it was written; this is the
+        // desktop catching up.
+        WearBody(_session.State.Family);
         // Start looking at the viewer rather than easing round to it.
         _facing = _facingTarget = FacingYaw;
         _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
-
-        StartSession();
         _menu = new PetMenu(this) { Scale = MenuScale };
         _menu.Chosen += OnMenuChoice;
         _menu.SelectFamily += family =>
         {
             _session.Replace(_session.State.SelectingFamily(family));
+            WearBody(family);
             Say($"A {family.DisplayName()} now.");
         };
         _menu.SelectClass += petClass =>
@@ -337,6 +337,7 @@ public partial class DesktopPetScene : Node3D
 
     public override void _Process(double delta)
     {
+        if (_aura != null) { _auraSeconds += delta; _aura.Draw((float)_auraSeconds); }
         // Runs even while the pet is in the Warren. Time passes down there too,
         // and a delve that takes ten minutes should not leave the Workling
         // exactly as hungry as it was when it walked in.
@@ -874,4 +875,77 @@ public partial class DesktopPetScene : Node3D
             GetWindow().Position = moved;
         }
     }
+
+    // MARK: - The body
+
+    /// How many desktop world units one stage unit is worth.
+    ///
+    /// The Ram is authored 1.5028 units tall and the scene wore it at 0.9, so it
+    /// rendered 1.3525 units; the roster calls it 5.56 stage units. Everything
+    /// else follows from that ratio, which is the point — the Pangolin is 3.24
+    /// stage units and therefore renders *smaller and longer* than the Ram
+    /// rather than being stretched to match it. Matching their heights would
+    /// throw away the one size relationship the roster actually encodes.
+    private const float DesktopUnitsPerStageUnit = 1.3525f / 5.56f;
+
+    /// Where a body's lowest point sits, so every creature stands on the same
+    /// invisible floor instead of each hovering by its own origin.
+    private const float PetFeetY = -0.5603f;
+
+    private string _wornCreatureId = "";
+    private CreatureAura? _aura;
+    private double _auraSeconds;
+
+    /// Swaps the rendered body to the one this race wears.
+    ///
+    /// Instancing a `.glb` is a frame hitch, which is why the Warren keeps its
+    /// whole cast in the tree and swaps by visibility instead. Here it is the
+    /// right trade: the desktop holds exactly one body, a race change is a rare
+    /// deliberate act, and keeping five unused skeletons resident to avoid a
+    /// hitch nobody is mid-fight for would cost memory the pet scene already
+    /// spends too much of.
+    private void WearBody(PetFamily race)
+    {
+        var creature = CreatureRoster.ForRace(race);
+        if (creature.Id == _wornCreatureId) return;
+
+        bool wasVisible = true;
+        var existing = GetNodeOrNull<Node3D>("Pet");
+        if (existing != null)
+        {
+            wasVisible = existing.Visible;
+            _aura?.Release();
+            _aura = null;
+            existing.Name = "PetRetired";
+            existing.QueueFree();
+        }
+
+        var packed = GD.Load<PackedScene>(creature.ScenePath);
+        if (packed == null)
+        {
+            GD.PushWarning($"[pet] {creature.ScenePath} did not load; body unchanged");
+            return;
+        }
+        var root = packed.Instantiate<Node3D>();
+        root.Name = "Pet";
+        AddChild(root);
+
+        // Measured before placement, so these are the model's authored bounds.
+        var bounds = StageCast.MeasureBounds(root);
+        float scale = bounds.Size.Y > 0.0001f
+            ? creature.StageHeight * DesktopUnitsPerStageUnit / bounds.Size.Y
+            : 1f;
+        root.Transform = new Transform3D(
+            Basis.Identity.Scaled(Vector3.One * scale),
+            new Vector3(0, PetFeetY - bounds.Position.Y * scale + creature.GroundOffset, 0));
+        root.Visible = wasVisible;
+
+        _pet = new StageActor(root, creature.Id, creature.Animations!);
+        _pet.Play(ActorAction.Idle, loop: true);
+        _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
+        _aura = CreatureAura.For(creature.Id, _pet.Mesh);
+        _auraSeconds = 0;
+        _wornCreatureId = creature.Id;
+    }
+
 }
