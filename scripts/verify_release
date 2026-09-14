@@ -77,7 +77,11 @@ fi
 
 app_name='Worklings'
 executable_name='Worklings'
-expected_bundle_identifier='com.bingeljell.worklings'
+# Two identifiers are valid while the Godot port runs: the Swift app's original,
+# and the deliberately distinct `.godot` one that lets both be installed side by
+# side. At cutover the Godot build takes the original and this list loses its
+# second entry.
+expected_bundle_identifiers=('com.bingeljell.worklings' 'com.bingeljell.worklings.godot')
 dmg_name="Worklings-$version-macos-$architecture.dmg"
 dmg_path="$output_dir/$dmg_name"
 checksum_path="$dmg_path.sha256"
@@ -125,16 +129,22 @@ if [ ! -d "$mounted_app" ] || [ ! -x "$bundle_executable" ]; then
   exit 1
 fi
 
-for sprite_name in \
-  worklings-wildkin-spritesheet.png \
-  worklings-elemental-spritesheet.png \
-  worklings-relicborn-spritesheet.png \
-  worklings-smoke-effects.png; do
-  if [ ! -f "$mounted_app/Contents/Resources/$sprite_name" ]; then
-    printf 'Error: mounted app is missing sprite sheet: %s\n' "$sprite_name" >&2
-    exit 1
-  fi
-done
+# The two things that actually go missing from a Godot export, both silently —
+# the same pair `scripts/build_dmg` checks before packaging, re-checked here on
+# the mounted image so a corrupt or stale DMG cannot pass. The old check was for
+# four pixel-art sprite sheets the Swift app carried loose in Resources; the
+# Godot build packs its assets into the .pck and the art direction left pixel
+# art behind, so that check could only ever fail on a correct bundle.
+if [ ! -f "$mounted_app/Contents/Resources/Worklings.pck" ]; then
+  printf 'Error: mounted app has no Worklings.pck — it would show a blank window\n' >&2
+  exit 1
+fi
+
+if ! find "$mounted_app/Contents/Resources" -name 'Worklings.dll' -print -quit | grep -q .; then
+  printf 'Error: mounted app has no managed assemblies — it would launch and exit\n' >&2
+  printf 'in silence. See scripts/godot-export.\n' >&2
+  exit 1
+fi
 
 # The in-app connector wires Claude Code / Codex to these bundled scripts, and
 # each must be present *and* executable or a DMG install cannot connect a tool
@@ -164,15 +174,33 @@ plutil -lint "$info_plist" >/dev/null
 bundle_identifier=$(plutil -extract CFBundleIdentifier raw -o - "$info_plist")
 bundle_version=$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist")
 build_number=$(plutil -extract CFBundleVersion raw -o - "$info_plist")
-minimum_system=$(plutil -extract LSMinimumSystemVersion raw -o - "$info_plist")
+# The Swift bundle wrote a flat LSMinimumSystemVersion; the Godot export writes
+# LSMinimumSystemVersionByArchitecture instead, so read whichever is present.
+if minimum_system=$(plutil -extract LSMinimumSystemVersion raw -o - "$info_plist" 2>/dev/null); then
+  :
+else
+  minimum_system=$(plutil -extract LSMinimumSystemVersionByArchitecture.arm64 raw -o - "$info_plist")
+fi
 
-if [ "$bundle_identifier" != "$expected_bundle_identifier" ]; then
+identifier_ok=false
+for candidate in "${expected_bundle_identifiers[@]}"; do
+  if [ "$bundle_identifier" = "$candidate" ]; then
+    identifier_ok=true
+    break
+  fi
+done
+if [ "$identifier_ok" != true ]; then
   printf 'Error: unexpected bundle identifier: %s\n' "$bundle_identifier" >&2
   exit 1
 fi
 
-if [ "$bundle_version" != "$version" ]; then
-  printf 'Error: mounted app version %s does not match %s\n' "$bundle_version" "$version" >&2
+# CFBundleShortVersionString holds the semantic core only — macOS allows at most
+# three dot-separated integers there — so the prerelease label is carried by the
+# tag and the release rather than by the bundle. Same rule as build_dmg.
+version_core=${version%%-*}
+if [ "$bundle_version" != "$version_core" ]; then
+  printf 'Error: mounted app version %s does not match %s (core %s)\n' \
+    "$bundle_version" "$version" "$version_core" >&2
   exit 1
 fi
 
@@ -181,7 +209,8 @@ if [[ ! "$build_number" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
-if [ "$minimum_system" != '14.0' ]; then
+# '14.00' is how the Godot export spells it; '14.0' is how the Swift builder did.
+if [ "$minimum_system" != '14.0' ] && [ "$minimum_system" != '14.00' ]; then
   printf 'Error: unexpected minimum macOS version: %s\n' "$minimum_system" >&2
   exit 1
 fi
