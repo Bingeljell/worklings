@@ -29,6 +29,9 @@ public sealed class StageCast
     /// own units. See `Placement` — this is what stands a body ON the floor
     /// rather than through it.
     private readonly Dictionary<string, float> _modelBottoms = new();
+    /// The idle auras of everything built, advanced together by `DrawAuras`.
+    private readonly Dictionary<string, CreatureAura> _auras = new();
+    private double _auraSeconds;
 
     public StageCast(Node owner) { _owner = owner; }
 
@@ -82,6 +85,9 @@ public sealed class StageCast
                                    bounds.Position.Y, creature.GroundOffset);
 
         var actor = new StageActor(root, creature.Id, creature.Animations!);
+        // A creature's idle identity comes with its body. Null for most of them,
+        // and a body that has one gets it whichever side of the fight it is on.
+        if (CreatureAura.For(creature.Id, actor.Mesh) is { } aura) _auras[key] = aura;
         _actors[key] = actor;
         return actor;
     }
@@ -121,6 +127,16 @@ public sealed class StageCast
     }
 
     public StageActor? Get(string key) => _actors.TryGetValue(key, out var a) ? a : null;
+
+    /// Advances every built aura. One call per frame from the scene, rather than
+    /// each aura owning a timer, so a paused or stepped scene freezes them all
+    /// together and a capture tool gets a deterministic picture.
+    public void DrawAuras(double delta)
+    {
+        if (_auras.Count == 0) return;
+        _auraSeconds += delta;
+        foreach (var aura in _auras.Values) aura.Draw((float)_auraSeconds);
+    }
 
     /// How far above the floor mark a model's origin must sit for the model's
     /// own lowest point to rest ON the mark.
@@ -168,7 +184,9 @@ public sealed class StageCast
     /// to the instance root rather than read in isolation — a mesh parented
     /// under a posed skeleton otherwise measures whatever that pose happened to
     /// be.
-    private static Aabb MeasureBounds(Node3D root)
+    /// A model's own authored bounds, before any placement transform. Shared with
+    /// the desktop pet, which scales its body by the same rule the stage does.
+    internal static Aabb MeasureBounds(Node3D root)
     {
         var box = new Aabb();
         bool any = false;

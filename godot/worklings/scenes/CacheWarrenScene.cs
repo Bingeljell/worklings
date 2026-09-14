@@ -631,6 +631,7 @@ public partial class CacheWarrenScene : Node3D
 
     public override void _Process(double delta)
     {
+        _cast.DrawAuras(delta);
         // Impact reactions animate on real time. The freeze applies to the
         // fight, not to the shake and dust working their way out of it.
         _impact.Tick(delta);
