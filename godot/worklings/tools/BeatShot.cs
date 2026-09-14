@@ -22,6 +22,14 @@ using System.Collections.Generic;
 /// The frame is grabbed one frame *after* the signal, because the signal fires
 /// while the scene is still building the state — the label is written, the badge
 /// is placed, and none of it has been drawn yet.
+///
+/// **Never profile memory with this attached.** `GetTexture().GetImage()` is a
+/// full framebuffer readback — 3.7 MB at 1280x720 — once per beat, and beats
+/// fire on attack moves. A 2026-09-14 investigation spent an evening chasing a
+/// "per-attack memory leak" that was this tool photographing per attack; the
+/// dungeon run plainly is asymptotic and does not leak. To measure memory, run
+/// `res://scenes/cache_warren.tscn` with `WORKLINGS_AUTOPLAY=1` and sample
+/// `ps -o rss=` from outside the process.
 public partial class BeatShot : Node
 {
     private string _out = "";
