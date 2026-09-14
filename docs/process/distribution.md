@@ -86,7 +86,7 @@ Every release candidate must:
 5. Pass strict `codesign` verification after ad-hoc signing.
 6. Produce a DMG that passes `hdiutil verify`.
 7. Mount successfully and contain both the app and Applications shortcut.
-8. Contain the Wildkin, Elemental, Relicborn, and shared smoke-effect sprite sheets in the app's Resources directory.
+8. Contain `Worklings.pck` and the managed assemblies in the app's Resources directory. (This replaced the four loose sprite sheets the Swift app carried; a correct Godot bundle never has those, so the old check could only fail on a good build.)
 9. Produce a SHA-256 checksum beside the DMG.
 
 Application launch remains a manual smoke test because launching a foreground macOS application is not reliable in every automated or remote environment.
@@ -131,9 +131,9 @@ Tagging and publishing are deliberate release actions. Packaging scripts must no
 
 ## The Godot build
 
-A second, parallel artifact while the port runs. It is **not** a release channel
-yet — nothing has been published from it — but it exports, runs, and is the shape
-the eventual product takes.
+**This is the release channel as of `v0.1.0-alpha.11`.** It was a second,
+parallel artifact while the port ran; alpha.11 is the first public build made
+from it, and the Swift app is no longer what ships.
 
 ```bash
 scripts/godot-export     # dist/godot/Worklings.app
@@ -151,8 +151,10 @@ the Godot build should take the real identifier**, so an existing install
 upgrades in place rather than appearing as a second app. They already share the
 save file, so the data side of that transition is done.
 
-Unsigned today. The distribution flow above — ad-hoc signing, the DMG, the
-checksums — has not been pointed at it.
+The distribution flow above is now pointed at it: ad-hoc signed at the end of
+`scripts/godot-export`, packaged by `scripts/build_dmg`, and checked by
+`scripts/verify_release`, all three of which were taught the Godot bundle's
+shape for alpha.11.
 
 ### What it weighs, and why
 
