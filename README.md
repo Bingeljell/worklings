@@ -39,6 +39,7 @@ The project is macOS-first and built in **Godot 4 with C#**. It began as a Swift
 
 ## Character direction
 
+The Art here is now stale and we'll be updating it to match the actual game and the cover image. But the concept remains. 
 Worklings come from five creature families across five thematic lanes — nature, elements, machinery, energy, and cosmos. Three have art today (below); **Glitchkin** (energy) and **Bloomglass** (cosmos) are the two newest and still design-stage. The full cosmetic critter catalogue lives in the [race & creature roster](docs/design/worklings_race_creature_roster.md).
 
 | Wildkin | Elemental | Relicborn |
@@ -114,7 +115,14 @@ Reading the intent is the whole game. A **Heavy slam** is guaranteed to hit and 
 
 ## Use from the repository
 
-### Requirements
+### Requirements to build from source
+
+**None of this is needed to run a downloaded release** — see [Beta application
+download](#beta-application-download) below. The Godot engine and the .NET
+runtime ship *inside* the app bundle, which is most of why it weighs 87 MB.
+A tester needs macOS 14 and nothing else.
+
+To work on the code, though:
 
 - macOS 14 or newer;
 - [Godot 4.7+ **.NET/mono** build](https://godotengine.org/download) — the plain build cannot run C#;
@@ -170,15 +178,15 @@ WORKLINGS_SAVE=/tmp/pet.json WORKLINGS_BEAT_OUT=/tmp/beats \
 Package a release:
 
 ```bash
-scripts/godot-export --version 0.1.0-alpha.11
-scripts/build_dmg --version 0.1.0-alpha.11
+scripts/godot-export --version 0.1.0-alpha.12
+scripts/build_dmg --version 0.1.0-alpha.12
 ```
 
 ## Beta application download
 
-Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The initial packaging target is Apple Silicon (`arm64`) running macOS 14 or newer.
+Experimental DMG builds are published through [GitHub Releases](https://github.com/Bingeljell/worklings/releases) when a tested version is available. The packaging target is Apple Silicon (`arm64`) running macOS 14 or newer. **That is the whole requirement** — the app carries its own engine and runtime, so there is no Godot install, no .NET install, and nothing to configure.
 
-`v0.1.0-alpha.11` is **the first release built on Godot** rather than the Swift app: a move every round, foes that declare their intent, and live 3D bodies. [`v0.1.0-alpha.10`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.10) was the last Swift build — the delve made properly playable, with gear you keep and a way out of a cleared Warren. Earlier alphas remain on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
+`v0.1.0-alpha.12` is the current release: the app's own icon, and a download roughly half the size of the one before it after the Intel engine and runtime were stripped out of the bundle. [`v0.1.0-alpha.11`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.11) was **the first release built on Godot** rather than the Swift app: a move every round, foes that declare their intent, and live 3D bodies. [`v0.1.0-alpha.10`](https://github.com/Bingeljell/worklings/releases/tag/v0.1.0-alpha.10) was the last Swift build — the delve made properly playable, with gear you keep and a way out of a cleared Warren. Earlier alphas remain on the releases page; `v0.1.0-alpha.1` predates the rename and still downloads Build Companion.
 
 To install a packaged alpha:
 
