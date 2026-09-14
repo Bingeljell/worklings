@@ -1,7 +1,8 @@
 # Dungeon polish backlog
 
-Things Nikhil raised while play-testing the Godot dungeon that were deliberately
-deferred rather than dropped. Each entry says what was asked for, why it is
+Things Nikhil raised while play-testing the Godot build — the dungeon mostly,
+the desktop pet where it comes up — that were deliberately deferred rather than
+dropped. Each entry says what was asked for, why it is
 worth doing, and where the seam is — so picking one up does not start with
 re-deriving the problem.
 
@@ -135,6 +136,70 @@ The baseline is genuinely heavy rather than growing, and that is the real target
 **Never measure memory with `BeatShot` attached.** Run the scene plainly with
 `WORKLINGS_AUTOPLAY` and sample `ps -o rss=` from outside, or use `footprint`
 for a per-region breakdown.
+
+## The Pangolin is too small on the desktop
+
+**Asked for 2026-09-14.** "The Pangolin on desktop is too small. Can't tell
+anything. Should be at least 25-50% bigger than current size. The Ram is nicely
+distinguishable, but the Pangolin is not."
+
+It is small on purpose and the purpose is wrong here. `DesktopPetScene` scales
+every body by `creature.StageHeight * DesktopUnitsPerStageUnit / modelHeight`,
+so the Pangolin lands at 3.24/5.56 of the Ram — the size relationship the roster
+encodes for two creatures standing on the same dungeon floor. On the desktop
+there is nothing to stand next to, so the comparison buys nothing and costs
+legibility: a 3.24-unit creature in a small always-on-top window is a smudge.
+
+**Seam:** the constant and the rule are both in `DesktopPetScene`, four lines
+apart. The options, in order of honesty:
+
+1. **Floor the desktop size** — scale by roster height but never below some
+   fraction of the Ram's. Keeps a size relationship, guarantees legibility.
+2. **Frame to fill instead** — normalise every body to the same rendered
+   height, as the aura studies do for their portraits. Simplest, and throws the
+   relationship away entirely.
+3. **A per-creature desktop multiplier** on `Creature`. Most control, one more
+   number per creature to get wrong.
+
+Option 1 is the one to try first: roughly `max(creature.StageHeight, 0.75 *
+TempestRam.StageHeight)` puts the Pangolin ~38% larger, inside the range asked
+for, without a new field.
+
+## Auras: the desktop washes them out
+
+**Observed 2026-09-14**, alongside the above. `CreatureAura` renders
+`blend_add`, and the desktop scene is lit bright — `ambient_light_energy 1.2`
+and a 1.8 key light — over white fleece already near full brightness. Additive
+blue on near-white barely moves. The Cache Warren is dark, which is exactly why
+the same effect reads there.
+
+**Seam:** the strength lives in the shader's `power` term. The fix is a
+per-scene multiplier passed in at construction, not a global push — raising it
+enough for the desktop would blow the effect out in the dungeon, where it
+already works.
+
+## The Snag's motes are not wired in
+
+The Snag's aura is the one that is **not** the shader: it is separate billboard
+geometry orbiting the body, positioned from a cached idle pose. It exists only
+in `tools/CreatureAuraStudyEffects.cs` and appears in no scene.
+
+Because the motes orbit the whole creature rather than clinging to surface
+points, parenting them to the actor root should be enough — they would follow
+the body wholesale without needing bone anchors. Nikhil picked variant 03,
+Golden Spores, and flagged it as still feeling subtle; judge that at dungeon
+distance before pushing it again.
+
+## The crevice mask is a guess
+
+`CreatureAura` derives seams from local darkness in the albedo rather than an
+authored emission map, so it can light dark facial details or metal as though
+they were fur gaps. Visible on the Pangolin's snout and feet at Breathing
+Energy, and on the Ram's neck behind the horns.
+
+Accepted deliberately — it reads well enough at gameplay distance. The fix is a
+painted emission mask per creature, which is art work rather than code, and
+worth doing when a creature needs its aura to be exact rather than atmospheric.
 
 ## Pacing between beats
 
