@@ -24,7 +24,17 @@ def main():
             ("tempest_ram", "Tempest Ram", ["Resting Current", "Living Lightning", "Surging Storm"]),
             ("clockwork_pangolin", "Clockwork Pangolin", ["Runic Embers", "Awakened Core", "Breathing Energy"]),
         ]
-    source, output = (Path(p).resolve() for p in sys.argv[1:3])
+    # Mirrors WORKLINGS_AURA_SELECT on the capture side: packaging one creature's
+    # frames should not require the other two to have been captured.
+    if "--only" in sys.argv:
+        wanted = sys.argv[sys.argv.index("--only") + 1]
+        MODELS = [m for m in MODELS if m[0] == wanted]
+        if not MODELS:
+            raise SystemExit(f"--only {wanted}: no such model")
+    positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if "--only" in sys.argv:
+        positional.remove(wanted)
+    source, output = (Path(p).resolve() for p in positional[:2])
     output.mkdir(parents=True, exist_ok=True)
     cards=[]
     for slug, title, variants in MODELS:

@@ -45,8 +45,8 @@ public sealed class CreatureAuraStudyEffects
     private readonly OmniLight3D _light;
     private readonly List<int[]> _arcs = new();
     private readonly List<int> _anchors = new();
-    private readonly MeshInstance3D[] _dust = new MeshInstance3D[48];
-    private readonly StandardMaterial3D[] _dustMaterials = new StandardMaterial3D[48];
+    private readonly MeshInstance3D[] _dust = new MeshInstance3D[72];
+    private readonly StandardMaterial3D[] _dustMaterials = new StandardMaterial3D[72];
     private int _lastBucket=-1;
     private bool _open;
     private readonly float _size;
@@ -83,7 +83,10 @@ public sealed class CreatureAuraStudyEffects
                     ShadingMode=BaseMaterial3D.ShadingModeEnum.Unshaded,
                     Transparency=BaseMaterial3D.TransparencyEnum.Alpha,
                     BillboardMode=BaseMaterial3D.BillboardModeEnum.Enabled,
-                    BillboardKeepScale=true,DepthDrawMode=BaseMaterial3D.DepthDrawModeEnum.Disabled};
+                    BillboardKeepScale=true,DepthDrawMode=BaseMaterial3D.DepthDrawModeEnum.Disabled,
+                    // Additive, so the motes read as carried light against a dark arena
+                    // rather than as beige flecks that vanish at dungeon distance.
+                    BlendMode=BaseMaterial3D.BlendModeEnum.Add};
                 _dust[i]=new MeshInstance3D {Mesh=new QuadMesh {Size=Vector2.One,Material=_dustMaterials[i]},
                     CastShadow=GeometryInstance3D.ShadowCastingSetting.Off};
                 _root.AddChild(_dust[i]);
@@ -269,7 +272,7 @@ public sealed class CreatureAuraStudyEffects
     }
     private void Snag(float t)
     {
-        int count=_variant==0?20:_variant==1?32:48;
+        int count=_variant==0?32:_variant==1?48:72;
         for(int i=0;i<_dust.Length;i++) {
             _dust[i].Visible=i<count;if(i>=count)continue;
             float a=i*2.39996f+t*(_variant==1?.11f:.23f);
@@ -277,10 +280,10 @@ public sealed class CreatureAuraStudyEffects
             float y=_poses.Bounds.Position.Y+_poses.Bounds.Size.Y*(.20f+.13f*(i%7))
                 +Mathf.Sin(t*.9f+i*1.5f)*_size*.03f;
             _dust[i].Position=new Vector3(_center.X+Mathf.Cos(a)*radius,y,_center.Z+Mathf.Sin(a)*radius*.83f);
-            float size=_size*(_variant==0?.008f:_variant==1?.013f:.0055f)*(1+.18f*(i%3));
+            float size=_size*(_variant==0?.017f:_variant==1?.026f:.012f)*(1+.18f*(i%3));
             _dust[i].Scale=Vector3.One*size;
-            var c=_variant==2?new Color(.72f,.58f,.32f):new Color(.54f,.43f,.29f);
-            c.A=(_variant==1?.65f:.8f)*(.65f+.35f*Mathf.Sin(t*.8f+i));
+            var c=_variant==2?new Color(1.35f,1.02f,.48f):new Color(1.05f,.80f,.42f);
+            c.A=(_variant==1?.72f:.85f)*(.65f+.35f*Mathf.Sin(t*.8f+i));
             _dustMaterials[i].AlbedoColor=c;
         }
     }
@@ -318,17 +321,20 @@ public sealed class InternalEnergyAura
                 float valley=smoothstep(0.005,0.065,surround-center);
                 float dark=1.0-smoothstep(0.002,kind<0.5?0.17:0.030,center);
                 float seam=dark*valley;
-                float wave=0.5+0.5*sin(rest.y*11.0+rest.z*5.0-phase*3.4);
-                float flash=pow(0.5+0.5*sin(rest.y*25.0+rest.x*17.0+sin(rest.z*21.0)*2.0-phase*16.0),5.0);
+                float wave=0.5+0.5*sin(rest.y*11.0+rest.z*5.0-phase*1.5);
+                // Two incommensurate drifts, so strikes never settle into a beat, and a
+                // high exponent so each reads as a discrete strike rather than shimmer.
+                float drift=sin(rest.x*9.0-phase*0.61)*1.7+sin(rest.z*6.0+phase*0.43)*1.3;
+                float flash=pow(0.5+0.5*sin(rest.y*25.0+rest.x*17.0+sin(rest.z*21.0)*2.0+drift-phase*4.6),9.0);
                 float power;
                 vec3 blue;
                 if(kind<0.5) {
-                    power=(0.45+variation*0.65)*(0.25+flash*1.8+wave*0.3);
+                    power=(0.45+variation*0.65)*(0.25+flash*4.2+wave*0.3);
                     if(variation>1.5)power*=0.45+1.1*pow(0.5+0.5*sin(phase*3.0),3.0);
                     blue=mix(vec3(0.045,0.34,1.0),vec3(0.48,0.82,1.0),flash);
                 } else {
                     power=variation<0.5?0.65:1.8;
-                    if(variation>1.5)power*=0.25+0.85*(0.5+0.5*sin(phase*2.3-rest.z*2.2));
+                    if(variation>1.5)power*=0.25+0.85*(0.5+0.5*sin(phase*0.85-rest.z*2.2+rest.y*1.4));
                     blue=vec3(0.035,0.40,1.0);
                 }
                 ALBEDO=blue*3.0*power*seam;
