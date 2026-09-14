@@ -13,6 +13,11 @@ config_version=5
 config/name="Worklings"
 run/main_scene="res://scenes/desktop_pet.tscn"
 config/features=PackedStringArray("4.7", "C#")
+; The same art the macOS export bakes into icon.icns. Set here as well so Godot
+; itself — the project list, the editor, the window — shows Worklings rather than
+; the default engine icon. It does not change the Dock icon of a run from source:
+; that process is Godot.app, and only an exported bundle carries our own.
+config/icon="res://assets/app-icon.png"
 
 [display]
 
