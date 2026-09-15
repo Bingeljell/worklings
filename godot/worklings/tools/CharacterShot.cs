@@ -15,6 +15,20 @@ public partial class CharacterShot : Node
 {
     private static readonly string[] Out = { "user://character_0.png", "user://character_1.png" };
 
+
+    private static Vector2I ShotSize()
+    {
+        string wanted = OS.GetEnvironment("WORKLINGS_SHOT_SIZE");
+        string[] parts = wanted.Split('x');
+        if (parts.Length == 2
+            && int.TryParse(parts[0], out int width)
+            && int.TryParse(parts[1], out int height))
+        {
+            return new Vector2I(width, height);
+        }
+        return new Vector2I(560, 940);
+    }
+
     private static AnimationPlayer? FindPlayer(Node node)
     {
         if (node is AnimationPlayer p) return p;
@@ -32,7 +46,10 @@ public partial class CharacterShot : Node
         // 1:1, not the project's 1920x1080 canvas_items stretch — the shot is of
         // a window the size the character window actually opens at.
         window.ContentScaleMode = Window.ContentScaleModeEnum.Disabled;
-        window.Size = new Vector2I(560, 940);
+        // The default is the size the window opens at; WORKLINGS_SHOT_SIZE
+        // overrides it, because the screen is resizable and "it holds up wide"
+        // is a claim a fixed-size shot cannot check.
+        window.Size = ShotSize();
 
         var state = new PetState(
             name: "Anvil",
@@ -44,7 +61,17 @@ public partial class CharacterShot : Node
             totalXP: 2600,
             petClass: PetClass.Juggernaut,
             stats: new PetStats(vitality: 24, power: 26, defense: 16, agility: 12, wit: 9));
-        state = state.Acquiring(Item.MastersHone).Equipping(Item.MastersHone);
+        // A Prime Tool, a Solid Ward, no Charm at all and a spare of each, so the
+        // rail shows all three slot states and the slot menu has something to
+        // offer rather than coming up with one line in it.
+        state = state
+            .Acquiring(Item.MastersHone).Equipping(Item.MastersHone)
+            .Acquiring(Item.CrackedWhetstone)
+            .Acquiring(Item.DentedBuckler).Equipping(Item.DentedBuckler)
+            .Acquiring(Item.WarmBackupCoal)
+            // The starter loadout fills the Charm; cleared here so the shot
+            // carries an empty slot, which is the state with its own drawing.
+            .ClearingSlot(ItemSlot.Charm);
 
         var panel = new CharacterPanel(1.0f);
         // Parented to this node, not to the window: a node is still setting up

@@ -33,6 +33,23 @@ public sealed partial class ModelBay : SubViewportContainer
 
     private readonly float _scale;
     private Node3D? _turntable;
+    private Camera3D? _camera;
+    private Vector3 _target;
+    private float _halfHeight = 1f;
+    private float _radius = 1f;
+
+    /// Where the camera sits relative to what it is looking at — the desktop
+    /// pet's angle, kept exactly. Only the distance is recomputed.
+    private static readonly Vector3 Eye = new(0.4677072f, 0.35355338f, 0.81009257f);
+
+    /// How much of the frame's height the Workling fills.
+    private const float Fill = 0.9f;
+
+    /// How far the camera may be pulled back beyond a height-filling fit to get
+    /// the body's width in. Uncapped, a narrow bay fits the Ram's whole *length*
+    /// across a few degrees of horizontal field and parks the camera fourteen
+    /// metres away, which is arithmetically correct and reads as a lost sheep.
+    private const float WidthAllowance = 1.25f;
 
     /// `height` is in physical pixels — the caller has already scaled it. Godot
     /// sizes everything here in physical pixels; see the port status doc.
@@ -119,20 +136,76 @@ public sealed partial class ModelBay : SubViewportContainer
         new StageActor(body, ModelName, ActorAnimations.TempestRam)
             .Play(ActorAction.Idle, loop: true);
 
-        var camera = new Camera3D
-        {
-            Transform = Rig(
-                0.86602545f, -0.17677669f, 0.4677072f,
-                0, 0.9354143f, 0.35355338f,
-                // The desktop's (2.2, 1.5, 3.8) at 80% of its distance from
-                // what it looks at, so the angle and the lens are untouched.
-                -0.5f, -0.30618623f, 0.81009257f, new Vector3(1.76f, 1.168f, 3.04f)),
-            Fov = 34.0f,
-        };
-        viewport.AddChild(camera);
+        // What the camera has to fit, measured from the body's own bounds rather
+        // than assumed. The Ram is not the only thing that will ever stand here.
+        var bounds = Worklings.Core.Stage.StageCast.MeasureBounds(body);
+        _target = body.Transform * bounds.GetCenter();
+        var measured = bounds.Size * body.Scale;
+        _halfHeight = Mathf.Max(measured.Y * 0.5f, 0.01f);
+        // A cylinder, not a box: the turntable spins the body, so the fit has to
+        // be the same at every angle or the Ram would grow and shrink as it is
+        // dragged. The radius is the corner's, so a long body is held by its
+        // diagonal rather than by whichever side happens to face the camera.
+        _radius = Mathf.Max(
+            new Vector2(measured.X, measured.Z).Length() * 0.5f, 0.01f);
+
+        _camera = new Camera3D { Fov = 34.0f };
+        viewport.AddChild(_camera);
         // MakeCurrent after it is in the tree. Setting Current on a camera with
         // no viewport yet does nothing at all.
-        camera.MakeCurrent();
+        _camera.MakeCurrent();
+        Frame();
+        // The bay is now the element that absorbs the window's spare width, so
+        // its aspect is whatever the player drags it to.
+        Resized += Frame;
+    }
+
+    /// Puts the camera far enough back to hold the whole Workling at the bay's
+    /// current shape.
+    ///
+    /// **Godot keeps the vertical field of view**, so a bay that grows taller
+    /// than it is wide does not show the creature bigger — it shows more empty
+    /// room above and below it. The fixed distance the bay shipped with was
+    /// measured against a letterbox, and in a tall column it stranded the Ram in
+    /// the upper half of a mostly empty box. Fitting the smaller of the two
+    /// fields of view is what makes the frame right at any aspect.
+    private void Frame()
+    {
+        if (_camera is null) return;
+        var size = Size;
+        if (size.X < 1 || size.Y < 1) return;
+
+        // Height first, width second. Godot fixes the vertical field of view, so
+        // filling the height is what makes the creature big; the width is only
+        // allowed to push the camera back so far before it is left to crop.
+        //
+        // The camera looks down at the body, which is why this is not simply the
+        // body's height: a metre of *length* under a 21° tilt is a third of a
+        // metre of screen height, and ignoring that put the Ram's head off the
+        // side of the frame while the arithmetic insisted it fitted.
+        float lean = Eye.Y;                        // sine of the camera's tilt
+        float level = Mathf.Sqrt(1f - lean * lean); // and its cosine
+        float screenHalfHeight = _halfHeight * level + _radius * lean;
+        float halfDepth = _radius * level + _halfHeight * lean;
+
+        float vertical = Mathf.Tan(Mathf.DegToRad(_camera.Fov) * 0.5f);
+        float horizontal = vertical * (size.X / size.Y);
+        float forHeight = screenHalfHeight / vertical / Fill;
+        float forWidth = _radius / Mathf.Max(horizontal, 0.0001f) / Fill;
+        float distance =
+            Mathf.Max(forHeight, Mathf.Min(forWidth, forHeight * WidthAllowance))
+            // The near side is closer than the centre by this much, and a body
+            // fitted as though it were flat bulges out of the top of the frame.
+            + halfDepth * 0.45f;
+
+        // Spare height goes above the Workling, not around it. A tall bay fitted
+        // dead-centre leaves the creature hanging in the middle of a column of
+        // nothing; pushed down, the same spare room reads as headroom over
+        // something standing on a floor.
+        float spare = Mathf.Max(distance * vertical - screenHalfHeight, 0f);
+        var aim = _target + Vector3.Up * spare * 0.45f;
+        _camera.Position = aim + Eye * distance;
+        _camera.LookAt(aim);
     }
 
     /// Drag to turn it. The first thing anyone does to a model in a box, and
