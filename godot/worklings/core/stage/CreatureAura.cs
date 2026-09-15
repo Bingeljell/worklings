@@ -42,7 +42,11 @@ public sealed class CreatureAura
     /// Builds the aura for a creature, or null if it has none or the model is
     /// not shaped the way the shader needs (one surface, StandardMaterial3D,
     /// an albedo texture).
-    public static CreatureAura? For(string creatureId, MeshInstance3D? mesh)
+    /// `strength` scales the whole effect. It is a per-scene call, not a global
+    /// one: the aura is `blend_add`, so how far it reads depends on what it is
+    /// added to. The Cache Warren is dark and 1.0 is right there; the desktop is
+    /// lit bright over near-white fleece and needs more to say anything at all.
+    public static CreatureAura? For(string creatureId, MeshInstance3D? mesh, float strength = 1f)
     {
         if (mesh == null) return null;
         if (Recipe(creatureId) is not var (kind, variant)) return null;
@@ -51,10 +55,10 @@ public sealed class CreatureAura
             GD.PushWarning($"[aura] {creatureId} has no albedo texture; skipped");
             return null;
         }
-        return new CreatureAura(mesh, original.AlbedoTexture, kind, variant);
+        return new CreatureAura(mesh, original.AlbedoTexture, kind, variant, strength);
     }
 
-    private CreatureAura(MeshInstance3D mesh, Texture2D albedo, int kind, int variant)
+    private CreatureAura(MeshInstance3D mesh, Texture2D albedo, int kind, int variant, float strength)
     {
         _mesh = mesh;
         _previous = mesh.MaterialOverlay;
@@ -62,6 +66,7 @@ public sealed class CreatureAura
         _overlay.SetShaderParameter("base_tex", albedo);
         _overlay.SetShaderParameter("kind", (float)kind);
         _overlay.SetShaderParameter("variation", (float)variant);
+        _overlay.SetShaderParameter("strength", strength);
         mesh.MaterialOverlay = _overlay;
     }
 
@@ -81,6 +86,7 @@ public sealed class CreatureAura
         uniform float phase = 0.0;
         uniform float kind = 0.0;
         uniform float variation = 0.0;
+        uniform float strength = 1.0;
         varying vec3 rest;
         float lum(vec2 uv) {return dot(texture(base_tex,uv).rgb,vec3(0.2126,0.7152,0.0722));}
         void vertex() {rest=VERTEX;}
@@ -108,8 +114,8 @@ public sealed class CreatureAura
                 if(variation>1.5)power*=0.25+0.85*(0.5+0.5*sin(phase*0.85-rest.z*2.2+rest.y*1.4));
                 blue=vec3(0.035,0.40,1.0);
             }
-            ALBEDO=blue*3.0*power*seam;
-            ALPHA=seam;
+            ALBEDO=blue*3.0*power*strength*seam;
+            ALPHA=clamp(seam*strength,0.0,1.0);
         }
         """;
 }

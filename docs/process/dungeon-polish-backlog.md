@@ -137,46 +137,18 @@ The baseline is genuinely heavy rather than growing, and that is the real target
 `WORKLINGS_AUTOPLAY` and sample `ps -o rss=` from outside, or use `footprint`
 for a per-region breakdown.
 
-## The Pangolin is too small on the desktop
+## The Pangolin is too small on the desktop — FIXED 2026-09-15
 
-**Asked for 2026-09-14.** "The Pangolin on desktop is too small. Can't tell
-anything. Should be at least 25-50% bigger than current size. The Ram is nicely
-distinguishable, but the Pangolin is not."
+`DesktopPetScene` now floors the desktop size at `MinDesktopStageHeight` (0.8)
+of the Ram's stage height, so the Pangolin renders ~37% larger and the Ram is
+untouched. The roster relationship still holds for anything above the floor.
 
-It is small on purpose and the purpose is wrong here. `DesktopPetScene` scales
-every body by `creature.StageHeight * DesktopUnitsPerStageUnit / modelHeight`,
-so the Pangolin lands at 3.24/5.56 of the Ram — the size relationship the roster
-encodes for two creatures standing on the same dungeon floor. On the desktop
-there is nothing to stand next to, so the comparison buys nothing and costs
-legibility: a 3.24-unit creature in a small always-on-top window is a smudge.
+## Auras: the desktop washes them out — FIXED 2026-09-15
 
-**Seam:** the constant and the rule are both in `DesktopPetScene`, four lines
-apart. The options, in order of honesty:
-
-1. **Floor the desktop size** — scale by roster height but never below some
-   fraction of the Ram's. Keeps a size relationship, guarantees legibility.
-2. **Frame to fill instead** — normalise every body to the same rendered
-   height, as the aura studies do for their portraits. Simplest, and throws the
-   relationship away entirely.
-3. **A per-creature desktop multiplier** on `Creature`. Most control, one more
-   number per creature to get wrong.
-
-Option 1 is the one to try first: roughly `max(creature.StageHeight, 0.75 *
-TempestRam.StageHeight)` puts the Pangolin ~38% larger, inside the range asked
-for, without a new field.
-
-## Auras: the desktop washes them out
-
-**Observed 2026-09-14**, alongside the above. `CreatureAura` renders
-`blend_add`, and the desktop scene is lit bright — `ambient_light_energy 1.2`
-and a 1.8 key light — over white fleece already near full brightness. Additive
-blue on near-white barely moves. The Cache Warren is dark, which is exactly why
-the same effect reads there.
-
-**Seam:** the strength lives in the shader's `power` term. The fix is a
-per-scene multiplier passed in at construction, not a global push — raising it
-enough for the desktop would blow the effect out in the dungeon, where it
-already works.
+`CreatureAura.For` takes a `strength` multiplier, folded into the shader's
+`power` and alpha. The dungeon passes the default 1.0; `DesktopPetScene` passes
+2.6. Both numbers are eyeballed against the lighting, not measured — judge them
+in the app.
 
 ## The Snag's motes are not wired in
 
