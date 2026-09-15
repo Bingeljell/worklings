@@ -34,6 +34,8 @@ public sealed partial class ModelBay : SubViewportContainer
     private readonly float _scale;
     private Node3D? _turntable;
     private Camera3D? _camera;
+    private CreatureAura? _aura;
+    private double _auraSeconds;
     private Vector3 _target;
     private float _halfHeight = 1f;
     private float _radius = 1f;
@@ -41,6 +43,14 @@ public sealed partial class ModelBay : SubViewportContainer
     /// Where the camera sits relative to what it is looking at — the desktop
     /// pet's angle, kept exactly. Only the distance is recomputed.
     private static readonly Vector3 Eye = new(0.4677072f, 0.35355338f, 0.81009257f);
+
+    /// How hard the aura is driven here.
+    ///
+    /// The bay is lit like the desktop and for the same reason — a Workling lit
+    /// differently in its own screen looks like a different creature — so it
+    /// needs the same push for the same reason: `blend_add` over bright fleece
+    /// barely moves at the dungeon's 1.0.
+    private const float AuraStrength = 1.3f;
 
     /// How much of the frame's height the Workling fills.
     private const float Fill = 0.9f;
@@ -133,8 +143,12 @@ public sealed partial class ModelBay : SubViewportContainer
         body.Transform = new Transform3D(
             Basis.Identity.Scaled(Vector3.One * 0.9f), new Vector3(0, -0.55f, 0));
         _turntable.AddChild(body);
-        new StageActor(body, ModelName, ActorAnimations.TempestRam)
-            .Play(ActorAction.Idle, loop: true);
+        var actor = new StageActor(body, ModelName, ActorAnimations.TempestRam);
+        actor.Play(ActorAction.Idle, loop: true);
+        // The idle identity belongs to the body, so it belongs here too: this is
+        // the one screen whose whole job is looking at the creature, and it was
+        // the only surface showing it without its aura.
+        _aura = CreatureAura.For(ModelName, actor.Mesh, AuraStrength);
 
         // What the camera has to fit, measured from the body's own bounds rather
         // than assumed. The Ram is not the only thing that will ever stand here.
@@ -206,6 +220,14 @@ public sealed partial class ModelBay : SubViewportContainer
         var aim = _target + Vector3.Up * spare * 0.45f;
         _camera.Position = aim + Eye * distance;
         _camera.LookAt(aim);
+    }
+
+    /// The aura takes its time explicitly, so the bay advances it.
+    public override void _Process(double delta)
+    {
+        if (_aura is null) return;
+        _auraSeconds += delta;
+        _aura.Draw((float)_auraSeconds);
     }
 
     /// Drag to turn it. The first thing anyone does to a model in a box, and

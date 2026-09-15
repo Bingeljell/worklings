@@ -74,6 +74,12 @@ public partial class CharacterPanel : PanelContainer
         _bay?.GetParent()?.RemoveChild(_bay);
         foreach (var child in _tabs.GetChildren())
         {
+            // Out of the tree *before* it is freed. QueueFree leaves the node in
+            // place until the end of the frame, so the rebuilt "Character" tab
+            // was added beside the old one still holding that name, and Godot
+            // renamed the newcomer — which is where "@VBoxContainer@406" came
+            // from on the tab bar the second time the screen was shown.
+            _tabs.RemoveChild(child);
             child.QueueFree();
         }
 

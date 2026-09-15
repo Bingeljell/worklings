@@ -53,21 +53,32 @@ public sealed class CharacterWindow
         // PHYSICAL pixels, so a number that reads as roomy on paper comes out
         // half that in points on a 2x display — the trap that has now produced
         // a letterboxed pet, a half-size menu and a thumbnail dungeon.
+        float scale = (float)DisplayServer.ScreenGetScale(screen);
+        int Scaled(int units) => (int)System.Math.Round(units * scale);
+
+        // The floor is the layout's own: below it the ledger's fixed measure and
+        // the bay's minimum stop fitting side by side, and the text clips rather
+        // than scrolls. The ceiling is taste — past it the bay is a hangar with a
+        // sheep in it and the ledger is a ribbon down one edge.
+        var smallest = new Vector2I(Scaled(520), Scaled(560));
+        var largest = new Vector2I(Scaled(1180), (int)frame.Height);
+
         var size = new Vector2I(
-            (int)System.Math.Round(frame.Width * 0.34),
-            (int)System.Math.Round(frame.Height * 0.80));
+            System.Math.Clamp((int)System.Math.Round(frame.Width * 0.34), smallest.X, largest.X),
+            System.Math.Clamp((int)System.Math.Round(frame.Height * 0.80), smallest.Y, largest.Y));
 
         _window = new Window
         {
             Title = "Workling",
             Size = size,
+            MinSize = smallest,
+            MaxSize = largest,
             Position = new Vector2I(
                 (int)(frame.X + (frame.Width - size.X) / 2),
                 (int)(frame.Y + (frame.Height - size.Y) / 2)),
         };
         _host.AddChild(_window);
 
-        float scale = (float)DisplayServer.ScreenGetScale(screen);
         _panel = new CharacterPanel(scale);
         _panel.StateChanged += OnStateChanged;
         _window.AddChild(_panel);

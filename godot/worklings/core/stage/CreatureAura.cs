@@ -40,7 +40,7 @@ public sealed class CreatureAura
     private readonly ShaderMaterial? _shellMaterial;
 
     /// How far arcs bow off the body, as a fraction of its height.
-    private const float ArcLift = 0.085f;
+    private const float ArcLift = 0.055f;
 
     /// Which creatures carry an aura, which of the three authored strengths each
     /// one wears, and how hard it is driven. Nikhil's calls, 2026-09-14: Living
@@ -273,7 +273,14 @@ public sealed class CreatureAura
             // index, so arcs strike raggedly instead of the whole animal blinking.
             float seed=hash(floor(lane));
             float strike=pow(0.5+0.5*sin(phase*(3.4+seed*5.2)+seed*37.0),3.0+seed*5.0);
-            float arc=thin*strike*packet(body,along,phase);
+            // A lane is a closed loop around the body, and a whole lit loop is a
+            // hoop, not a spark — most visible on the horns, where the shell is
+            // wide compared to what it wraps and the ring floats clear of the
+            // model. Gated by the angle around the body so only a short segment
+            // of any loop carries current, and it travels.
+            float around=atan(body.z-0.5,body.x-0.5);
+            float segment=pow(0.5+0.5*sin(around*2.0+phase*2.1+seed*23.0),5.0);
+            float arc=thin*strike*segment*packet(body,along,phase);
             if(arc<0.004) discard;
             ALBEDO=mix(vec3(0.10,0.45,1.0),vec3(0.78,0.93,1.0),arc)*4.5*arc*strength;
             ALPHA=clamp(arc*strength,0.0,1.0);
