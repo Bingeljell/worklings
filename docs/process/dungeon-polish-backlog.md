@@ -8,6 +8,27 @@ re-deriving the problem.
 
 Ordered roughly by how much the fight gains per hour spent.
 
+## Where this stands, 2026-09-15
+
+Branch **`polish/desktop-size-and-aura`**, six commits, not merged and not
+pushed. Build clean, all nine probes pass. Nikhil has played the desktop pet and
+the character screen; the aura arc-segment change and the character screen's
+window bounds are the parts he has **not** re-run yet.
+
+Done today, and written up in the changelog: the desktop pet size floor, the
+travelling auras and the Ram's off-body arcs, and the character screen rebuilt
+as two columns with a gear rail.
+
+Tools worth knowing before picking anything up:
+
+- `tools/character_shot.tscn` grabs the character window without the editor, and
+  takes `WORKLINGS_SHOT_SIZE=1040x700` — the screen is resizable, and a
+  fixed-size shot cannot check that it holds up.
+- `WORKLINGS_AURA_INTERNAL=1 WORKLINGS_AURA_SELECT=<slug>` on
+  `tools/aura_study.tscn` renders the three variants side by side, and
+  `scripts/render-aura-studies.py --internal --only <slug>` packages the video.
+  The study wears the shipped shader, so what it shows is what ships.
+
 ## Whose turn is it
 
 **Asked for 2026-09-14.** Some indicator that it is the player's turn — "an
@@ -160,8 +181,22 @@ a loop you can time. **The Ram's arcs now leave the body**: a second copy of
 the skinned mesh, sharing its skin and skeleton, pushed out along its normals
 where a discharge is passing. Still no pose cache. Its fur effect is untouched.
 
+Lanes are gated to a short travelling segment: a whole lit loop around the body
+is a hoop rather than a spark, which showed up on the horns, where the shell is
+wide compared to what it wraps and the ring floats clear of the model. Found
+only once the character bay was wired — the study's dark background hid it.
+
 `AuraStudy` wears the shipped `CreatureAura` rather than a copy of it, so the
 comparison videos are the game's shader; `InternalEnergyAura` is deleted.
+
+**Every brightness number in one place.** Two knobs, and they multiply:
+
+| Knob | Where | Values |
+| --- | --- | --- |
+| Per-scene `strength` | the `CreatureAura.For` call site | dungeon 1.0 · desktop 2.6 · character bay 1.3 |
+| Per-creature `Gain` | `CreatureAura.Recipe` | Ram 1.0 · Pangolin 1.8 |
+
+All of them are eyeballed against their own lighting, not measured.
 
 ## The Pangolin has no detail at desktop pet scale
 
@@ -178,6 +213,38 @@ ceiling, not a defect.
 
 **Observed 2026-09-15** on the desktop pet. The walk clip itself, not the aura
 or the new scaling — noted while looking at something else and deferred.
+
+## The character screen: what is left
+
+**Shipped 2026-09-15** as the hybrid of three drawn layouts — two columns, gear
+rail, bay that grows. What it does not have yet:
+
+1. **Item art.** `ItemIcon` draws one mark per *slot* — a hone, a shield, a
+   star — tinted by tier. Fifteen items want fifteen pieces of art, and until
+   they exist a per-item mark would be a lie about how much art there is. This
+   is the placeholder and it is holding.
+2. **The Inventory tab is still the old list.** It is now a browser rather than
+   the only way to equip, and it has not been redesigned to look like one.
+3. **The Skills tab is still a placeholder.** The ability tree is designed and
+   unbuilt; nothing about the new layout changes that.
+4. **Tab order.** Nikhil wants the four reordered, Care staying its own tab.
+   Deferred by him, not forgotten.
+5. **The bay is hard-coded to the Ram.** `ModelBay` loads `tempest_ram.glb`
+   whatever family the Workling is, which is the same gap `DesktopPetScene`
+   closed when the Pangolin became wearable.
+6. **The bay's aura strength is 1.3 and eyeballed**, like every other strength
+   in the game. Its own knob, at the top of `ModelBay`.
+
+**One trap, recorded because it cost an afternoon.** `MaxWidth` caps a control's
+width, which Godot has no native way to express. Handing a `Container` child a
+rect smaller than its own minimum makes it request a re-sort, which re-hands it
+the same rect: the layout never settles, no error is printed, and the process
+stops drawing. It is fixed — the rect is clamped to the child's minimum and the
+overflow is clipped — but any new use of that pattern can reintroduce it.
+
+Also seen once and not reproduced: a `character_shot` run hung for five minutes
+where the identical command then took thirty seconds. Not the deadlock above,
+which was reliable. Unexplained.
 
 ## The Snag's motes are not wired in
 
