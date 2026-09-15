@@ -145,10 +145,39 @@ untouched. The roster relationship still holds for anything above the floor.
 
 ## Auras: the desktop washes them out — FIXED 2026-09-15
 
-`CreatureAura.For` takes a `strength` multiplier, folded into the shader's
-`power` and alpha. The dungeon passes the default 1.0; `DesktopPetScene` passes
-2.6. Both numbers are eyeballed against the lighting, not measured — judge them
-in the app.
+Two knobs, because there were two problems. `CreatureAura.For` takes a
+per-scene `strength` (dungeon 1.0, desktop 2.6) for the lighting, and
+`Recipe` carries a per-creature `Gain` (Ram 1.0, Pangolin 1.8) for how much of
+the silhouette that creature's aura actually covers. They multiply.
+
+Washing out was only half of it: everything spatial was written in model units,
+at wavelengths longer than the animal, so the whole body pulsed at once instead
+of energy travelling over it. All of it is in body units now — normalised to
+the mesh's own bounds, with a flow axis down its longest side — and the
+Pangolin's crest is three interfering bands at incommensurate speeds, so a
+patch lights, dies and re-lights elsewhere rather than sliding tail to snout on
+a loop you can time. **The Ram's arcs now leave the body**: a second copy of
+the skinned mesh, sharing its skin and skeleton, pushed out along its normals
+where a discharge is passing. Still no pose cache. Its fur effect is untouched.
+
+`AuraStudy` wears the shipped `CreatureAura` rather than a copy of it, so the
+comparison videos are the game's shader; `InternalEnergyAura` is deleted.
+
+## The Pangolin has no detail at desktop pet scale
+
+**Observed 2026-09-15**, once the size floor and the brighter aura made it
+legible enough to judge. It reads as a shape with energy on it; the shell
+plates that make it a *clockwork* pangolin do not survive the window size.
+
+Not an aura problem and probably not a shader one — the likely levers are the
+albedo's contrast at small sizes and whether the plate edges want an authored
+line rather than a baked shadow. Parked deliberately: it is a legibility
+ceiling, not a defect.
+
+## The Pangolin's walk is janky
+
+**Observed 2026-09-15** on the desktop pet. The walk clip itself, not the aura
+or the new scaling — noted while looking at something else and deferred.
 
 ## The Snag's motes are not wired in
 
