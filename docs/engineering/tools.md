@@ -104,6 +104,7 @@ All of these need a window.
 | `stage_shot` | the dungeon stage to a PNG, without opening the editor |
 | `fight_shot` | frames as a fight plays in the Cache Warren scene |
 | `character_shot` | a frame of the character window's contents |
+| `loadout_shot` | a frame of the prep screen, without playing a delve to reach it — `WORKLINGS_SHOT_CURSOR=<0..4>` |
 | `grey_shot` | any `.glb` from the locked dungeon angle — `--textured`, `--az=<deg>` |
 | `ghost_trail_preview` | the motion trail as stills, to judge the effect before building it |
 | `contact_sheet` | stitches stills into one side-by-side strip |
