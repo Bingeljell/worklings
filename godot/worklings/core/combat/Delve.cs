@@ -128,17 +128,31 @@ public sealed class Delve
         Status = DelveStatus.Briefing;
     }
 
-    /// The Cache Warren — the first dungeon's fixed chain — built from a pet
-    /// combatant and its condition effectiveness. The one entry point the app
-    /// and the checks both use.
+    /// A delve into a named place. **The entry point the app and the checks
+    /// both use**, and the one that made the engine's generality reachable: the
+    /// constructor already took any chain, and the only factory named the Cache
+    /// Warren's directly, so the engine could run any dungeon and the app could
+    /// only ask for one.
+    public static Delve Into(
+        Dungeon dungeon,
+        Combatant pet,
+        double effectiveness,
+        PetCombatRates rates,
+        ulong baseSeed,
+        IReadOnlyList<Item>? ownedItems = null) =>
+        new Delve(pet, dungeon.Encounters, dungeon.Boss,
+                  effectiveness, rates, baseSeed, ownedItems);
+
+    /// The Cache Warren specifically. Kept because the probes and checks name it
+    /// and it reads better than `Into(DungeonRoster.CacheWarrenDungeon, …)` at
+    /// every one of those call sites.
     public static Delve CacheWarrenDelve(
         Combatant pet,
         double effectiveness,
         PetCombatRates rates,
         ulong baseSeed,
         IReadOnlyList<Item>? ownedItems = null) =>
-        new Delve(pet, CacheWarren.Encounters, CacheWarren.Boss,
-                  effectiveness, rates, baseSeed, ownedItems);
+        Into(DungeonRoster.CacheWarrenDungeon, pet, effectiveness, rates, baseSeed, ownedItems);
 
     // Reading the current position
 

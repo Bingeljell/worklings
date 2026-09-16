@@ -486,8 +486,8 @@ public partial class DesktopPetScene : Node3D
             case PetMenuChoice.CharacterSheet:
                 _character.Open(_session.State, _screen);
                 break;
-            case PetMenuChoice.EnterTheWarren:
-                EnterTheWarren();
+            case PetMenuChoice.EnterTheDungeon:
+                EnterTheDungeon();
                 break;
             case PetMenuChoice.Quit:
                 GetTree().Quit();
@@ -618,7 +618,10 @@ public partial class DesktopPetScene : Node3D
     /// The pet goes down. Its body leaves the desktop and the delve opens in its
     /// own window; the Workling itself is handed across rather than re-read, so
     /// there is exactly one live copy of it while the run is on.
-    private void EnterTheWarren()
+    ///
+    /// **Which place it descends into is not decided here.** This opens the prep
+    /// screen; the dungeon is chosen on it, beside the body and the gear.
+    private void EnterTheDungeon()
     {
         if (_away)
         {
@@ -834,7 +837,7 @@ public partial class DesktopPetScene : Node3D
                     GD.Print($"roaming: {Roam}");
                     return;
                 case Key.W:
-                    EnterTheWarren();
+                    EnterTheDungeon();
                     return;
                 case Key.S:
                     _character.Open(_session.State, _screen);
