@@ -243,6 +243,9 @@ public partial class CacheWarrenScene : Node3D
         _audio = new CombatAudio();
         AddChild(_audio);
         _prep = new LoadoutPanel(this);
+        // The prep screen has a Descend button now, so confirming is no longer
+        // only a key the scene happens to be listening for.
+        _prep.Confirmed += Descend;
 
         if (FastMode || OS.GetEnvironment("WORKLINGS_FAST").Length > 0)
         {
