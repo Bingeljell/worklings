@@ -169,6 +169,9 @@ public partial class CacheWarrenScene : Node3D
     private CombatAction? _lastAction;
     private IntentBadge? _intent;
 
+    /// The mark under the Workling that says the round is waiting on the player.
+    private TurnRing? _turn;
+
     private readonly PetCombatRates _rates = new();
     /// The living pet. Every delve is built from it and every resolution is
     /// written back into it, so a run starts from the condition and gear the
@@ -287,6 +290,7 @@ public partial class CacheWarrenScene : Node3D
             _hud = new CombatHud(this, _petName, _petMaxHP, _petEnergy,
                                  _foeName, _foeMaxHP, _foeEnergy);
             _intent = new IntentBadge(_hud.Root, camera);
+            _turn = new TurnRing(this);
 
             // The bar is a control, not a legend, so the mouse reaches the same
             // four decisions the keyboard does. Both go through the guards below
@@ -693,6 +697,14 @@ public partial class CacheWarrenScene : Node3D
             TickCard(delta);
             return;
         }
+
+        // Whose turn it is, said under the Workling's feet. Set every frame from
+        // the phase rather than shown and hidden at the transitions: it means
+        // exactly "the fight is waiting on the player", which is one boolean the
+        // scene already has, and scattered show/hide calls are how a cue gets
+        // left on over a corpse.
+        _turn!.Set(_phase == Phase.Choosing, _party, _petEnergy, _partyCreature.StageHeight);
+        _turn.Tick(delta);
 
         _cast.DrawAuras(delta);
         // Impact reactions animate on real time. The freeze applies to the
