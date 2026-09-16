@@ -120,6 +120,32 @@ rewrite is presentation only. It needs item icons, which do not exist yet — th
 placeholder rule applies: build the real layout with placeholder art rather than
 letting missing icons justify another text wall.
 
+**Built 2026-09-17 as the rig** — the Workling in live 3D with its three slots
+hung beside it, on `GearPlate`, shared with the character screen's rail. What is
+left is below.
+
+### The picker is a list, not a shelf — DEFERRED 2026-09-17
+
+**Raised the day the rig landed.** Clicking a plate opens `SlotPicker`, which is
+a `PopupMenu`: one line of text per item, priced and tiered, with a radio mark on
+what is worn. It is legible and it is a list. The ask is the same one the rig
+answered for slots — *items should have their own identity* — which means a grid
+of item icons with the name and the price under each, not rows of type.
+
+**Why it is deferred rather than done now:** it is the half of the screen that
+is actually blocked on art. `ItemIcon` draws one mark per *slot*, not per item,
+and is honest about being a placeholder — three items in a slot differ only by
+tier colour and by name. A shelf of icons where every Tool wears the same hone
+is not identity, it is the same list with bigger rows and less text. So this
+wants fifteen item marks first, and until they exist the list is the more honest
+surface.
+
+**Seam:** `SlotPicker` is one call — `Open(host, anchor, slot, state, scale,
+changed)` — and both screens go through it, so swapping the `PopupMenu` for a
+drawn shelf changes one file and changes both screens at once. Per-item art
+would land as a per-item case in `ItemIcon` (or an atlas behind it), which is
+also what the Inventory tab needs.
+
 ## Memory: a heavy baseline, and a measurement that lied
 
 **Reported 2026-09-14** — Worklings at ~650 MB idle and peaking at 1.4 GB during
