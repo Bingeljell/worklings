@@ -26,3 +26,6 @@ assets/Posters/
 # Brand source art (multi-MB PNGs). The icon that actually ships is committed at
 # its point of use, godot/worklings/assets/app-icon.png.
 assets/logos/
+
+# Promotional cuts — renders and staged captures, deliberately not tracked
+promotional/
