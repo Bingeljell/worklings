@@ -50,9 +50,41 @@ public partial class CharacterPanel : PanelContainer
         // up empty with a tab bar squeezed into nothing.
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 
-        _tabs = new TabContainer();
-        _tabs.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        AddChild(_tabs);
+        // A column, not the tabs alone: the version line sits under every tab
+        // rather than inside one, because "which build am I on" is a question
+        // about the app and a tester should not have to find the right tab to
+        // answer it.
+        var column = new VBoxContainer();
+        column.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        column.AddThemeConstantOverride("separation", 0);
+        AddChild(column);
+
+        _tabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+        column.AddChild(_tabs);
+        column.AddChild(VersionFooter());
+    }
+
+    /// The build, small and quiet along the bottom edge.
+    ///
+    /// Deliberately the dimmest thing on the screen. It is reference, not
+    /// content — a tester needs to be able to read it off a screenshot, and
+    /// nobody needs to notice it otherwise.
+    private Control VersionFooter()
+    {
+        var line = new Label
+        {
+            Text = AppVersion.Label,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        line.AddThemeFontSizeOverride("font_size", S(11));
+        line.AddThemeColorOverride("font_color", WorklingsTheme.Muted);
+
+        var margin = new MarginContainer();
+        margin.AddThemeConstantOverride("margin_right", S(10));
+        margin.AddThemeConstantOverride("margin_bottom", S(4));
+        margin.AddThemeConstantOverride("margin_top", S(2));
+        margin.AddChild(line);
+        return margin;
     }
 
     public void Show(PetState state)
