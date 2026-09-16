@@ -17,8 +17,12 @@ public enum CreatureRole
     /// A body only the dungeon wears.
     Foe,
 
-    /// Both sides. The Flicker is the live example — a foe in the Cache Warren
-    /// and a Wildkin creature a player could be.
+    /// Both sides. **Nothing is `Either` today.** The Flicker was, on the
+    /// reasoning that a Wildkin player would wear the Wildkin creature; it is
+    /// `Foe` now, because the foe races are their own thing and sharing a race
+    /// with a player does not make a creature wearable. The value stays because
+    /// the claim is real and a creature may yet make it — and because
+    /// `StageCast` keying already assumes someone will.
     Either,
 }
 

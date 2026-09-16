@@ -247,16 +247,33 @@ hand-tuned `0.9` scale and `-0.55` drop.
 single-family shot cannot check. Verified across four races: Elemental → Ram,
 Relicborn → Pangolin, Wildkin → Flicker, Glitchkin → Ram by roster fallback.
 
-**Two things that surfaced while doing it, neither touched:**
+**The Flicker is a foe, corrected the same day.** The bay work surfaced that
+`CreatureRoster.ForRace(Wildkin)` handed back the Forest Flicker, because the
+Flicker was `Role.Either` — a foe, and supposedly also the creature a Wildkin
+player would wear. Nikhil's call: **it is not a pet.** The foe races have not
+been designed, the intent is that foes are their own family, and sharing a race
+with a player is not what makes a creature wearable. It was appearing in the
+dungeon loadout as something you could descend as.
 
-- `PetBody.Status` calls Wildkin `NeedsModel`, but `CreatureRoster.ForRace`
-  hands Wildkin the Forest Flicker, which is `Role.Either` and `Ready`. The
-  two disagree about whether a Wildkin has a body. If the Flicker counts,
-  Wildkin could become pickable; that is Nikhil's call, not a bug fix.
-- Forcing a non-pickable race through the new env var leaves the Family picker
-  showing the first *enabled* entry rather than the forced one, because Godot
-  will not select a disabled item. Unreachable in normal play — the picker is
-  the only way to change race and it cannot choose a disabled row.
+It is `Role.Foe` now. Three consequences, all wanted:
+
+- `CreatureRoster.Playable()` is the Ram and the Pangolin, so the loadout
+  offers two bodies rather than three.
+- `ForRace(Wildkin)` finds no playable Wildkin and falls back to the Ram —
+  which is what `PetBody.Status` has said about Wildkin all along, so the two
+  no longer disagree.
+- The Flicker still fights: `Casting` does not check `IsPlayable`, and the
+  delve probe still meets it at encounter three.
+
+Nothing is `CreatureRole.Either` today. The value and the `StageCast` key
+scoping that protects against a creature on both sides both stay — the claim is
+real, it is just not the Flicker's.
+
+**One tool artefact, not touched:** forcing a non-pickable race through
+`WORKLINGS_SHOT_FAMILY` leaves the Family picker showing the first *enabled*
+entry rather than the forced one, because Godot will not select a disabled
+item. Unreachable in normal play — the picker is the only way to change race
+and it cannot choose a disabled row.
 
 **One trap, recorded because it cost an afternoon.** `MaxWidth` caps a control's
 width, which Godot has no native way to express. Handing a `Container` child a
