@@ -245,7 +245,13 @@ hand-tuned `0.9` scale and `-0.55` drop.
 `tools/character_shot.tscn` gained `WORKLINGS_SHOT_FAMILY=<race>` alongside
 `WORKLINGS_SHOT_SIZE`, because "it holds whoever you are" is a claim a
 single-family shot cannot check. Verified across four races: Elemental → Ram,
-Relicborn → Pangolin, Wildkin → Flicker, Glitchkin → Ram by roster fallback.
+Relicborn → Pangolin, and Wildkin and Glitchkin → Ram by roster fallback, since
+neither has a playable body. (Wildkin resolved to the Flicker on the first pass;
+that is what surfaced the correction below.)
+
+**The Tempest Ram is an Elemental**, and a Wildkin falling back to it is a
+fallback, not a claim about its race. The roster is the only place a creature's
+family is stated and it says `PetFamily.Elemental`.
 
 **The Flicker is a foe, corrected the same day.** The bay work surfaced that
 `CreatureRoster.ForRace(Wildkin)` handed back the Forest Flicker, because the
