@@ -229,11 +229,57 @@ rail, bay that grows. What it does not have yet:
    unbuilt; nothing about the new layout changes that.
 4. **Tab order.** Nikhil wants the four reordered, Care staying its own tab.
    Deferred by him, not forgotten.
-5. **The bay is hard-coded to the Ram.** `ModelBay` loads `tempest_ram.glb`
-   whatever family the Workling is, which is the same gap `DesktopPetScene`
-   closed when the Pangolin became wearable.
-6. **The bay's aura strength is 1.3 and eyeballed**, like every other strength
+5. **The bay's aura strength is 1.3 and eyeballed**, like every other strength
    in the game. Its own knob, at the top of `ModelBay`.
+
+**Done 2026-09-16: the bay follows the Workling.** `ModelBay` was loading
+`tempest_ram.glb` whatever family you were — the same gap `DesktopPetScene`
+closed when the Pangolin became wearable, and closed the same way: `Wear(race)`
+resolves through `CreatureRoster.ForRace`, and `CharacterPanel` calls it on
+every rebuild so the Family picker swaps the body beside it. Idempotent by
+creature, because a rebuild happens on every keystroke in the name field and
+instancing a `.glb` is a frame hitch. Bodies are normalised to a fixed bay
+height and centred on the turntable's axis rather than carrying the Ram's
+hand-tuned `0.9` scale and `-0.55` drop.
+
+`tools/character_shot.tscn` gained `WORKLINGS_SHOT_FAMILY=<race>` alongside
+`WORKLINGS_SHOT_SIZE`, because "it holds whoever you are" is a claim a
+single-family shot cannot check. Verified across four races: Elemental → Ram,
+Relicborn → Pangolin, and Wildkin and Glitchkin → Ram by roster fallback, since
+neither has a playable body. (Wildkin resolved to the Flicker on the first pass;
+that is what surfaced the correction below.)
+
+**The Tempest Ram is an Elemental**, and a Wildkin falling back to it is a
+fallback, not a claim about its race. The roster is the only place a creature's
+family is stated and it says `PetFamily.Elemental`.
+
+**The Flicker is a foe, corrected the same day.** The bay work surfaced that
+`CreatureRoster.ForRace(Wildkin)` handed back the Forest Flicker, because the
+Flicker was `Role.Either` — a foe, and supposedly also the creature a Wildkin
+player would wear. Nikhil's call: **it is not a pet.** The foe races have not
+been designed, the intent is that foes are their own family, and sharing a race
+with a player is not what makes a creature wearable. It was appearing in the
+dungeon loadout as something you could descend as.
+
+It is `Role.Foe` now. Three consequences, all wanted:
+
+- `CreatureRoster.Playable()` is the Ram and the Pangolin, so the loadout
+  offers two bodies rather than three.
+- `ForRace(Wildkin)` finds no playable Wildkin and falls back to the Ram —
+  which is what `PetBody.Status` has said about Wildkin all along, so the two
+  no longer disagree.
+- The Flicker still fights: `Casting` does not check `IsPlayable`, and the
+  delve probe still meets it at encounter three.
+
+Nothing is `CreatureRole.Either` today. The value and the `StageCast` key
+scoping that protects against a creature on both sides both stay — the claim is
+real, it is just not the Flicker's.
+
+**One tool artefact, not touched:** forcing a non-pickable race through
+`WORKLINGS_SHOT_FAMILY` leaves the Family picker showing the first *enabled*
+entry rather than the forced one, because Godot will not select a disabled
+item. Unreachable in normal play — the picker is the only way to change race
+and it cannot choose a disabled row.
 
 **One trap, recorded because it cost an afternoon.** `MaxWidth` caps a control's
 width, which Godot has no native way to express. Handing a `Container` child a

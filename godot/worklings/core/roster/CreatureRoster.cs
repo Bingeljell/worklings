@@ -72,16 +72,25 @@ public static class CreatureRoster
         // look like a warm-up before the rules say it is one.
         StageHeight: 2.40f);
 
-    /// The Wildkin's Forest Flicker. `Either`, and the clearest case for it:
-    /// a Cache Warren foe, and also the Wildkin creature a player could wear
-    /// once the race carries a body.
+    /// The Wildkin's Forest Flicker. **A foe, not a pet.**
+    ///
+    /// It was `Either` on the reasoning that a Wildkin player would wear the
+    /// Wildkin creature. That reasoning ran ahead of the design: the foe races
+    /// have not been done — the intent is that foes are their own family — and
+    /// sharing a race with a player is not what makes a creature wearable. It
+    /// was showing up in the dungeon loadout as something you could pick as
+    /// your Workling, which is not what it is.
+    ///
+    /// Consequence, and it is the right one: `ForRace(Wildkin)` no longer finds
+    /// a playable Wildkin and falls back to the Ram, which is what
+    /// `PetBody.Status` has said about Wildkin all along.
     public static readonly Creature ForestFlicker = new(
         Id: "forest_flicker",
         DisplayName: "Forest Flicker",
         Family: PetFamily.Wildkin,
         Animations: ActorAnimations.ForestFlicker,
         Signature: AbilitySignature.GhostVolley,
-        Role: CreatureRole.Either,
+        Role: CreatureRole.Foe,
         Readiness: CreatureReadiness.Ready,
         StageHeight: 4.34f);
 

@@ -44,9 +44,10 @@ public sealed class StageCast
     ///
     /// `key` scopes the body to a slot, and defaults to the creature's id.
     /// **The party and the foes must pass different keys**, because a creature
-    /// can be on both sides: the Flicker is `CreatureRole.Either`, so a player
-    /// wearing one and fighting one would otherwise share a single body and the
-    /// fight would be one cat attacking itself.
+    /// can be on both sides. Nothing is `CreatureRole.Either` today — the
+    /// Flicker was until it was corrected to `Foe` — but a player wearing a
+    /// creature they also fight would otherwise share a single body, and the
+    /// fight would be one cat attacking itself. Cheap to keep right.
     ///
     /// A creature the roster says is not renderable is refused rather than
     /// half-built: a `Planned` entry has no animation table, and a StageActor

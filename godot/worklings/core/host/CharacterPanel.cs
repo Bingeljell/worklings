@@ -163,6 +163,10 @@ public partial class CharacterPanel : PanelContainer
         // is the element with something to do with extra space.
         _bay ??= new ModelBay(S(200), _scale);
         _bay.SizeFlagsVertical = SizeFlags.ExpandFill;
+        // Every rebuild, because the Family picker is in this panel: changing
+        // race here has to change the body in the bay beside it. Idempotent by
+        // creature, so the rebuilds that are not race changes cost nothing.
+        _bay.Wear(state.Family);
         left.AddChild(_bay);
         left.AddChild(GearRail(state));
         columns.AddChild(left);
@@ -646,9 +650,11 @@ public partial class CharacterPanel : PanelContainer
     /// un-greys on its own the day its model lands. `PetBody` is the gate and
     /// carries the roster's current state.
     ///
-    /// A caveat this screen cannot show: choosing a family changes the pet's
-    /// mechanics and **not** its body. Every Workling renders as the Tempest Ram
-    /// until the model swap is wired up.
+    /// Choosing a family now changes the body in the bay as well as the
+    /// mechanics — `ModelBay.Wear` resolves the race through `CreatureRoster`,
+    /// the same way the desktop pet does. Only races with a renderable body are
+    /// selectable (`PetBody.IsPickable`), so the picker cannot put the bay in
+    /// front of a creature that does not exist.
     private Control FamilyPicker(PetState state)
     {
         var picker = Picker("Family");

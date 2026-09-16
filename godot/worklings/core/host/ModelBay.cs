@@ -1,4 +1,6 @@
 using Godot;
+using Worklings.Core.Pet;
+using Worklings.Core.Roster;
 using Worklings.Core.Stage;
 
 namespace Worklings.Core.Host;
@@ -25,13 +27,13 @@ namespace Worklings.Core.Host;
 /// distance leaves the Ram stranded in the middle of a wide empty box.
 public sealed partial class ModelBay : SubViewportContainer
 {
-    /// One body, hard-coded, because that is all there is. The pet, the party
-    /// member in the Warren and this bay are all the Ram; family does not pick a
-    /// model yet anywhere in the codebase.
-    private const string ModelPath = "res://assets/characters/tempest_ram.glb";
-    private const string ModelName = "tempest_ram";
-
     private readonly float _scale;
+    private string _wornCreatureId = "";
+    private Node3D? _body;
+    /// Set by `Wear` before the rig exists, applied once `_Ready` has built it.
+    /// The panel builds the bay and tells it who it is holding in the same pass,
+    /// and Godot runs `_Ready` only after the node is in the tree.
+    private PetFamily? _pending;
     private Node3D? _turntable;
     private Camera3D? _camera;
     private CreatureAura? _aura;
@@ -54,6 +56,15 @@ public sealed partial class ModelBay : SubViewportContainer
 
     /// How much of the frame's height the Workling fills.
     private const float Fill = 0.9f;
+
+    /// The height every body is normalised to before it is framed, in world
+    /// units. The camera fits whatever it is given, so this number is not
+    /// visible on its own — what it buys is that the turntable, the aura and
+    /// the framing arithmetic all see bodies of one size, whatever a `.glb`
+    /// happened to be exported at. Deliberately NOT `Creature.StageHeight`: in
+    /// the Warren a Pangolin should read as shorter than a Ram, but this is a
+    /// portrait of your Workling and it should fill its own frame.
+    private const float BayHeight = 1.2f;
 
     /// How far the camera may be pulled back beyond a height-filling fit to get
     /// the body's width in. Uncapped, a narrow bay fits the Ram's whole *length*
@@ -139,22 +150,98 @@ public sealed partial class ModelBay : SubViewportContainer
         _turntable = new Node3D();
         viewport.AddChild(_turntable);
 
-        var body = GD.Load<PackedScene>(ModelPath).Instantiate<Node3D>();
-        body.Transform = new Transform3D(
-            Basis.Identity.Scaled(Vector3.One * 0.9f), new Vector3(0, -0.55f, 0));
+        _camera = new Camera3D { Fov = 34.0f };
+        viewport.AddChild(_camera);
+        // MakeCurrent after it is in the tree. Setting Current on a camera with
+        // no viewport yet does nothing at all.
+        _camera.MakeCurrent();
+        if (_pending is { } waiting)
+        {
+            _pending = null;
+            Wear(waiting);
+        }
+        Frame();
+        // The bay is now the element that absorbs the window's spare width, so
+        // its aspect is whatever the player drags it to.
+        Resized += Frame;
+    }
+
+    /// Puts this race's Workling in the bay.
+    ///
+    /// **The bay used to be the Ram, always.** It loaded `tempest_ram.glb` and
+    /// named its own animation table, so a Relicborn opened the one screen that
+    /// is supposed to be about their Workling and found someone else's body in
+    /// it. `DesktopPetScene.WearBody` had already closed exactly this gap on the
+    /// desktop; this is the same fix, against the same roster, and the roster
+    /// stays the only place that knows which body a race wears.
+    ///
+    /// Idempotent by creature, not by race: two races resolving to the same
+    /// creature must not pay for a reload, and the panel calls this on every
+    /// rebuild. Instancing a `.glb` is a frame hitch, and a rebuild happens on
+    /// every keystroke in the name field.
+    public void Wear(PetFamily race)
+    {
+        if (_turntable is null)
+        {
+            _pending = race;
+            return;
+        }
+
+        var creature = CreatureRoster.ForRace(race);
+        if (creature.Id == _wornCreatureId) return;
+        if (creature.Animations is null)
+        {
+            GD.PushWarning($"[bay] {creature.Id} has no animation table; body unchanged");
+            return;
+        }
+
+        var packed = GD.Load<PackedScene>(creature.ScenePath);
+        if (packed is null)
+        {
+            GD.PushWarning($"[bay] {creature.ScenePath} did not load; body unchanged");
+            return;
+        }
+
+        _aura?.Release();
+        _aura = null;
+        if (_body is not null)
+        {
+            // Renamed before freeing: the replacement goes in this frame and
+            // `QueueFree` takes until the end of it, so without this the tree
+            // briefly holds two nodes of the same name.
+            _body.Name = "BodyRetired";
+            _body.QueueFree();
+        }
+
+        var body = packed.Instantiate<Node3D>();
+        body.Name = "Body";
         _turntable.AddChild(body);
-        var actor = new StageActor(body, ModelName, ActorAnimations.TempestRam);
+        _body = body;
+        // In the tree first, and only then measured: `MeasureBounds` walks the
+        // model reading `GlobalTransform`, which a node outside the tree does
+        // not have — it returns identity and logs, and the bounds come back as
+        // the first mesh's alone. Still before the transform is set, so these
+        // are the model's authored bounds.
+        var bounds = StageCast.MeasureBounds(body);
+        float scale = bounds.Size.Y > 0.0001f ? BayHeight / bounds.Size.Y : 1f;
+        // Centred on the turntable's axis rather than offset by a number tuned
+        // against one body. The Ram's old -0.55 was doing exactly this for the
+        // Ram alone; a Pangolin at the same offset hangs below the frame.
+        body.Transform = new Transform3D(
+            Basis.Identity.Scaled(Vector3.One * scale), -bounds.GetCenter() * scale);
+
+        var actor = new StageActor(body, creature.Id, creature.Animations);
         actor.Play(ActorAction.Idle, loop: true);
         // The idle identity belongs to the body, so it belongs here too: this is
         // the one screen whose whole job is looking at the creature, and it was
         // the only surface showing it without its aura.
-        _aura = CreatureAura.For(ModelName, actor.Mesh, AuraStrength);
+        _aura = CreatureAura.For(creature.Id, actor.Mesh, AuraStrength);
+        _auraSeconds = 0;
 
-        // What the camera has to fit, measured from the body's own bounds rather
-        // than assumed. The Ram is not the only thing that will ever stand here.
-        var bounds = Worklings.Core.Stage.StageCast.MeasureBounds(body);
-        _target = body.Transform * bounds.GetCenter();
-        var measured = bounds.Size * body.Scale;
+        // What the camera has to fit. The body is centred on the origin, so the
+        // target is the origin whatever stands here.
+        _target = Vector3.Zero;
+        var measured = bounds.Size * scale;
         _halfHeight = Mathf.Max(measured.Y * 0.5f, 0.01f);
         // A cylinder, not a box: the turntable spins the body, so the fit has to
         // be the same at every angle or the Ram would grow and shrink as it is
@@ -163,15 +250,8 @@ public sealed partial class ModelBay : SubViewportContainer
         _radius = Mathf.Max(
             new Vector2(measured.X, measured.Z).Length() * 0.5f, 0.01f);
 
-        _camera = new Camera3D { Fov = 34.0f };
-        viewport.AddChild(_camera);
-        // MakeCurrent after it is in the tree. Setting Current on a camera with
-        // no viewport yet does nothing at all.
-        _camera.MakeCurrent();
+        _wornCreatureId = creature.Id;
         Frame();
-        // The bay is now the element that absorbs the window's spare width, so
-        // its aspect is whatever the player drags it to.
-        Resized += Frame;
     }
 
     /// Puts the camera far enough back to hold the whole Workling at the bay's
