@@ -35,8 +35,31 @@ public static class WorklingsTheme
     /// What the cursor is on.
     public static readonly Color Highlight = new(0.20f, 0.18f, 0.15f, 1);
 
+    /// Gear-given numbers and attunement, in the blue this game already uses for
+    /// energy that came from somewhere else.
+    ///
+    /// **Load-bearing, not decorative.** Base and gear are always drawn apart,
+    /// and this blue is the only thing that says which is which. Both the
+    /// character screen and the loadout read it, which is why it lives here
+    /// rather than on either one.
+    public static readonly Color GearBlue = new(0.42f, 0.68f, 1f);
+
+    /// Condition, when it is costing the Workling something.
+    public static readonly Color Warning = new(0.85f, 0.65f, 0.35f);
+
+    /// What the keyboard cursor is sitting on, and what a commitment is painted
+    /// in. Amber rather than brass — brass is structure, this is attention.
+    public static readonly Color Relic = new(0.88f, 0.64f, 0.25f);
+
     private const string BoldFont = "res://assets/fonts/ChakraPetch-Bold.ttf";
     private const string BodyFont = "res://assets/fonts/ChakraPetch-SemiBold.ttf";
+
+    /// The two faces, for surfaces built outside a `Theme` — the dungeon's
+    /// overlay has no theme to inherit from, and a shared widget drawn in the
+    /// window's font on one screen and Godot's default on the other would not be
+    /// the same widget.
+    public static Font Bold => GD.Load<Font>(BoldFont);
+    public static Font Body => GD.Load<Font>(BodyFont);
 
     /// A theme for popups and panels at `scale`, which should be the display's.
     ///

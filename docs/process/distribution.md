@@ -119,6 +119,12 @@ The verifier confirms the external checksum and DMG integrity, mounts the image 
 
 1. Merge the packaging or product PR into `main`.
 2. Update local `main` with a fast-forward-only pull.
+   **Two version fields are bumped by hand, and both must agree with the tag:**
+   `application/version` in `godot/worklings/export_presets.cfg` (the build
+   number) and `application/config/version` in `godot/worklings/project.godot`
+   (the full `0.1.0-alpha.N` string, prerelease label included). The second is
+   what the app shows the player at the foot of the character window — the
+   macOS bundle cannot carry a prerelease label, so nothing else knows it.
 3. Run the complete verification suite.
 4. Create the versioned app bundle and DMG.
 5. Perform the manual launch and installation smoke test.

@@ -83,6 +83,17 @@ public partial class BeatShot : Node
         };
         AddChild(_dungeon);
 
+        // **Captured after the frame is drawn, not during it.** `_Process` runs
+        // before the draw, so `GetViewport().GetTexture()` there holds the
+        // PREVIOUS frame. For most beats the previous frame is close enough to
+        // be indistinguishable — the arena is already up — which is why this
+        // went unnoticed. For the first beat it is the frame before anything
+        // rendered at all, so every `000_prep.png` this tool has ever written
+        // has been solid black, and the prep screen was the one beat nobody
+        // could review. `FramePostDraw` is the same signal `AuraStudy` waits on
+        // for the same reason.
+        RenderingServer.Singleton.FramePostDraw += Capture;
+
         GD.Print($"BeatShot -> {_out}");
     }
 
@@ -93,8 +104,12 @@ public partial class BeatShot : Node
             GD.PrintErr($"BeatShot gave up after {_frames} frames with {_saved} shots — "
                       + "the delve never reported finishing.");
             GetTree().Quit(1);
-            return;
         }
+    }
+
+    /// Saves the frame that has just been drawn, if a beat asked for one.
+    private void Capture()
+    {
         if (_due.Count == 0) return;
         var label = _due.Dequeue();
         if (_saved >= MaxShots) return;

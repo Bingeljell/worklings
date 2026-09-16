@@ -28,6 +28,9 @@ namespace Worklings.Core.Host;
 public sealed partial class ModelBay : SubViewportContainer
 {
     private readonly float _scale;
+
+    /// The character window's panel, one shade off.
+    private Color _ground = new(0.09f, 0.09f, 0.11f);
     private string _wornCreatureId = "";
     private Node3D? _body;
     /// Set by `Wear` before the rig exists, applied once `_Ready` has built it.
@@ -74,9 +77,16 @@ public sealed partial class ModelBay : SubViewportContainer
 
     /// `height` is in physical pixels — the caller has already scaled it. Godot
     /// sizes everything here in physical pixels; see the port status doc.
-    public ModelBay(int height, float scale)
+    ///
+    /// `ground` is the colour behind the body. It defaults to the character
+    /// window's, and the loadout passes its own: the rule is "a shade off the
+    /// panel it sits in", and the dungeon's card is warmer and darker than the
+    /// character window's, so one fixed colour reads as a recess on one screen
+    /// and as a pale hole punched in the other.
+    public ModelBay(int height, float scale, Color? ground = null)
     {
         _scale = scale;
+        if (ground is Color wanted) _ground = wanted;
         Stretch = true;
         CustomMinimumSize = new Vector2(0, height);
         SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -117,7 +127,7 @@ public sealed partial class ModelBay : SubViewportContainer
             BackgroundMode = Godot.Environment.BGMode.Color,
             // A shade off the panel rather than black, so the bay reads as a
             // recess in the window and not as a hole in it.
-            BackgroundColor = new Color(0.09f, 0.09f, 0.11f),
+            BackgroundColor = _ground,
             AmbientLightSource = Godot.Environment.AmbientSource.Color,
             AmbientLightColor = new Color(0.55f, 0.57f, 0.62f),
             AmbientLightEnergy = 1.2f,

@@ -16,7 +16,7 @@ public enum PetMenuChoice
     Sleep,
     StayPut,
     CharacterSheet,
-    EnterTheWarren,
+    EnterTheDungeon,
     Rename,
     Quit,
     FocusSession,
@@ -274,7 +274,11 @@ public sealed class PetMenu
         _root.AddSeparator();
 
         _root.AddItem("Character sheet…", (int)PetMenuChoice.CharacterSheet);
-        _root.AddItem("Enter the Warren…", (int)PetMenuChoice.EnterTheWarren);
+        // "Enter the Dungeon", not "Enter the Warren": the Warren is one
+        // place and the prep screen behind this item is where you pick which.
+        // Naming the door after the first room behind it is how a menu item
+        // stops being true the moment a second room exists.
+        _root.AddItem("Enter the Dungeon…", (int)PetMenuChoice.EnterTheDungeon);
         _root.AddSeparator();
 
         _root.AddItem("Rename…", (int)PetMenuChoice.Rename);

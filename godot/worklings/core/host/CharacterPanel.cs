@@ -32,13 +32,6 @@ public partial class CharacterPanel : PanelContainer
         _scale = scale;
     }
 
-    /// Gear-given numbers and attunement, in the blue this game already uses
-    /// for energy that came from somewhere else.
-    private static readonly Color GearBlue = new(0.42f, 0.68f, 1f);
-
-    /// Condition, when it is costing the Workling something.
-    private static readonly Color Warning = new(0.85f, 0.65f, 0.35f);
-
     private int S(float units) => System.Math.Max(1, (int)System.Math.Round(units * _scale));
 
     public override void _Ready()
@@ -50,9 +43,41 @@ public partial class CharacterPanel : PanelContainer
         // up empty with a tab bar squeezed into nothing.
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 
-        _tabs = new TabContainer();
-        _tabs.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        AddChild(_tabs);
+        // A column, not the tabs alone: the version line sits under every tab
+        // rather than inside one, because "which build am I on" is a question
+        // about the app and a tester should not have to find the right tab to
+        // answer it.
+        var column = new VBoxContainer();
+        column.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        column.AddThemeConstantOverride("separation", 0);
+        AddChild(column);
+
+        _tabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+        column.AddChild(_tabs);
+        column.AddChild(VersionFooter());
+    }
+
+    /// The build, small and quiet along the bottom edge.
+    ///
+    /// Deliberately the dimmest thing on the screen. It is reference, not
+    /// content — a tester needs to be able to read it off a screenshot, and
+    /// nobody needs to notice it otherwise.
+    private Control VersionFooter()
+    {
+        var line = new Label
+        {
+            Text = AppVersion.Label,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        line.AddThemeFontSizeOverride("font_size", S(11));
+        line.AddThemeColorOverride("font_color", WorklingsTheme.Muted);
+
+        var margin = new MarginContainer();
+        margin.AddThemeConstantOverride("margin_right", S(10));
+        margin.AddThemeConstantOverride("margin_bottom", S(4));
+        margin.AddThemeConstantOverride("margin_top", S(2));
+        margin.AddChild(line);
+        return margin;
     }
 
     public void Show(PetState state)
@@ -237,150 +262,23 @@ public partial class CharacterPanel : PanelContainer
         return margin;
     }
 
-    /// One slot: what is in it, how good it is, and a way to change it.
+    /// One slot, drawn by the shared plate and opened by the shared picker.
     ///
-    /// A `Button` with its own children rather than a panel with a click
-    /// handler, so it is focusable and keyboard-operable for free. The children
-    /// are anchored to it and ignore the mouse; a child that ate clicks would
-    /// leave the tile dead in the middle, which is exactly where it is aimed at.
+    /// Neither the drawing nor the equip menu belongs to this screen any more:
+    /// the loadout asks the same question about the same three slots, and a
+    /// second copy of either would drift the first time one changed. See
+    /// `GearPlate` and `SlotPicker`.
     private Control GearTile(PetState state, ItemSlot slot)
     {
+        var plate = new GearPlate(slot, GearPlate.Look.Rail(_scale));
         var equipped = state.Loadout[slot];
-        bool filled = equipped is not null;
-        var colour = filled
-            ? ItemIcon.TierColour(equipped!.Value.Tier())
-            : WorklingsTheme.Brass with { A = 0.75f };
-
-        var tile = new Button
-        {
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            CustomMinimumSize = new Vector2(S(56), S(74)),
-            // The slot's fantasy line, which has never been shown anywhere.
-            TooltipText = slot.Fantasy(),
-        };
-        tile.AddThemeStyleboxOverride("normal", TileStyle(colour, filled, false));
-        tile.AddThemeStyleboxOverride("hover", TileStyle(colour, filled, true));
-        tile.AddThemeStyleboxOverride("pressed", TileStyle(colour, filled, true));
-        tile.AddThemeStyleboxOverride("focus", TileStyle(colour, filled, true));
-        tile.Pressed += () => ShowSlotMenu(tile, slot, state);
-
-        var stack = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-        stack.AddThemeConstantOverride("separation", S(1));
-        stack.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.KeepSize, S(5));
-
-        // The tier, in the corner, in the tier's own colour — the one thing you
-        // want to read across the screen without focusing on it.
-        var tier = Line(filled ? equipped!.Value.Tier().DisplayName().ToUpperInvariant() : " ", colour);
-        tier.AddThemeFontSizeOverride("font_size", S(9));
-        tier.HorizontalAlignment = HorizontalAlignment.Right;
-        tier.MouseFilter = MouseFilterEnum.Ignore;
-        stack.AddChild(tier);
-
-        var centre = new CenterContainer
-        {
-            SizeFlagsVertical = SizeFlags.ExpandFill,
-            MouseFilter = MouseFilterEnum.Ignore,
-        };
-        centre.AddChild(new ItemIcon(slot, colour, S(22), filled));
-        stack.AddChild(centre);
-
-        var label = Line(slot.DisplayName().ToUpperInvariant(), WorklingsTheme.Muted);
-        label.AddThemeFontSizeOverride("font_size", S(9));
-        label.HorizontalAlignment = HorizontalAlignment.Center;
-        label.MouseFilter = MouseFilterEnum.Ignore;
-        stack.AddChild(label);
-
-        var what = Line(
-            filled ? equipped!.Value.DisplayName() : "empty",
-            filled ? WorklingsTheme.Ink : WorklingsTheme.Muted with { A = 0.7f });
-        what.AddThemeFontSizeOverride("font_size", S(10));
-        what.HorizontalAlignment = HorizontalAlignment.Center;
-        // Three tiles across 300 pixels cannot show "Everburning Backup" whole,
-        // and a name that wraps would push the tile taller than its neighbours.
-        what.ClipText = true;
-        what.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-        what.MouseFilter = MouseFilterEnum.Ignore;
-        stack.AddChild(what);
-
-        tile.AddChild(stack);
-        return tile;
-    }
-
-    private StyleBoxFlat TileStyle(Color colour, bool filled, bool lit)
-    {
-        var box = new StyleBoxFlat
-        {
-            BgColor = lit ? WorklingsTheme.Highlight : new Color(0.065f, 0.055f, 0.045f, 1),
-            BorderColor = filled ? colour with { A = lit ? 1f : 0.75f } : colour with { A = 0.5f },
-        };
-        box.SetBorderWidthAll(S(1));
-        box.SetCornerRadiusAll(S(3));
-        box.ContentMarginLeft = box.ContentMarginRight = S(4);
-        box.ContentMarginTop = box.ContentMarginBottom = S(4);
-        return box;
-    }
-
-    /// Click a slot, get the things that fit in it.
-    ///
-    /// The menu is the whole equip surface: what is worn is checked, everything
-    /// else is a swap, and taking it off is the last entry. Which means the
-    /// Inventory tab is now a browser rather than the only door to gear.
-    private void ShowSlotMenu(Control anchor, ItemSlot slot, PetState state)
-    {
-        var menu = new PopupMenu { Theme = WorklingsTheme.For(_scale) };
-        var options = state.AvailableItems(slot);
-        var equipped = state.Loadout[slot];
-        var byId = new Dictionary<int, Item>();
-
-        for (int i = 0; i < options.Count; i++)
-        {
-            var item = options[i];
-            // Priced for THIS Workling, attunement included — the same number
-            // the Inventory tab quotes, from the same place.
-            int bonus = ItemRates.Default.Modifier(item, state.Family);
-            bool attuned = ItemRates.Default.IsAttuned(item, state.Family);
-            menu.AddRadioCheckItem(
-                $"{item.DisplayName()}   {item.Tier().DisplayName()} · +{bonus} "
-              + $"{item.Stat().DisplayName()}{(attuned ? "  ✦" : "")}", i);
-            menu.SetItemChecked(i, item == equipped);
-            byId[i] = item;
-        }
-
-        if (options.Count == 0)
-        {
-            menu.AddItem("Nothing for this slot yet", -1);
-            menu.SetItemDisabled(menu.ItemCount - 1, true);
-        }
-
-        const int TakeOff = -2;
-        if (equipped is not null)
-        {
-            menu.AddSeparator();
-            menu.AddItem("Take it off", TakeOff);
-        }
-
-        menu.IdPressed += id =>
-        {
-            if (id == TakeOff)
-            {
-                StateChanged?.Invoke(state.ClearingSlot(slot));
-                return;
-            }
-            // Equipping routes through PetState, which validates ownership and
-            // slot — no surface builds a loadout itself.
-            if (byId.TryGetValue((int)id, out var item) && item != equipped)
-            {
-                StateChanged?.Invoke(state.Equipping(item));
-            }
-        };
-        // Parented to the panel rather than the tile: equipping rebuilds the
-        // tabs, and a menu owned by a tile would be freed mid-signal.
-        AddChild(menu);
-        menu.PopupHide += menu.QueueFree;
-        menu.ResetSize();
-        menu.Popup(new Rect2I(
-            (Vector2I)(anchor.GetScreenPosition() + new Vector2(0, anchor.Size.Y + S(2))),
-            new Vector2I((int)Mathf.Max(menu.Size.X, anchor.Size.X), 0)));
+        plate.Set(
+            equipped,
+            equipped is Item item ? ItemRates.Default.Modifier(item, state.Family) : 0,
+            equipped is Item worn && ItemRates.Default.IsAttuned(worn, state.Family));
+        plate.Pressed += () => SlotPicker.Open(
+            this, plate, slot, state, _scale, next => StateChanged?.Invoke(next));
+        return plate;
     }
 
     // MARK: - The ledger
@@ -400,20 +298,19 @@ public partial class CharacterPanel : PanelContainer
         {
             var line = new HBoxContainer();
             var name = Line(
-                row.Stat.DisplayName() + (row.IsSignature ? "  ★" : ""),
+                StatVocabulary.Name(row),
                 row.IsSignature ? WorklingsTheme.Ink : WorklingsTheme.Muted);
             name.SizeFlagsHorizontal = SizeFlags.ExpandFill;
             line.AddChild(name);
 
             // Base and gear kept apart on purpose. "Power 27" tells you nothing
             // about whether taking the Hone off would hurt.
-            var basis = Line($"{row.Base}", WorklingsTheme.Ink);
+            var basis = Line(StatVocabulary.Basis(row), WorklingsTheme.Ink);
             basis.HorizontalAlignment = HorizontalAlignment.Right;
             basis.CustomMinimumSize = new Vector2(S(30), 0);
             line.AddChild(basis);
 
-            var gear = Line(
-                row.GearBonus > 0 ? $"+{row.GearBonus}" : "", GearBlue);
+            var gear = Line(StatVocabulary.Gear(row), WorklingsTheme.GearBlue);
             gear.HorizontalAlignment = HorizontalAlignment.Right;
             gear.CustomMinimumSize = new Vector2(S(30), 0);
             line.AddChild(gear);
@@ -437,8 +334,8 @@ public partial class CharacterPanel : PanelContainer
             column.AddChild(Section("Condition"));
             var condition = new HBoxContainer();
             condition.AddThemeConstantOverride("separation", S(8));
-            condition.AddChild(Line($"{combat.Effectiveness:P0}", Warning));
-            var bar = Bar(combat.Effectiveness, Warning);
+            condition.AddChild(Line($"{combat.Effectiveness:P0}", WorklingsTheme.Warning));
+            var bar = Bar(combat.Effectiveness, WorklingsTheme.Warning);
             bar.SizeFlagsHorizontal = SizeFlags.ExpandFill;
             bar.SizeFlagsVertical = SizeFlags.ShrinkCenter;
             condition.AddChild(bar);
@@ -451,7 +348,7 @@ public partial class CharacterPanel : PanelContainer
             column.AddChild(Section("Attunement"));
             foreach (var item in sheet.AttunedItems)
             {
-                column.AddChild(Line($"✦ {item.DisplayName()}", GearBlue, wrap: true));
+                column.AddChild(Line($"✦ {item.DisplayName()}", WorklingsTheme.GearBlue, wrap: true));
             }
             column.AddChild(Line(
                 $"{PetBody.Label(state.Family)} suits it — worth more here than the catalogue says.",
