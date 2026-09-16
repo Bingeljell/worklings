@@ -8,6 +8,33 @@ re-deriving the problem.
 
 Ordered roughly by how much the fight gains per hour spent.
 
+## The plan for alpha.14, agreed 2026-09-16
+
+**Two tracks, running in parallel, because they need different hands.**
+
+*Nikhil, in Blender:* the Pangolin's walk clip, rigging the Moss Fox, rigging
+the Monolith its own body, and death animations for the creatures that lack
+them. All of it is model-space work that no amount of code moves forward.
+
+*In the game:* **finish the basics before tuning anything.** In order —
+
+1. **The loadout screen.** The largest gap between what the game is and what it
+   looks like. A text grid cycled with arrow keys, where it should be slot
+   icons arranged around the character.
+2. **The Inventory tab.** It became a browser when the gear rail landed and
+   still wears the old list's clothes.
+3. **The turn indicator** — "whose turn is it", below.
+
+**The reasoning, in Nikhil's words: clean up the basics so that at least what we
+have looks decent.** A tuning pass on top of surfaces that still read as
+placeholder tunes the wrong thing — you cannot judge how a round feels while the
+screen you spend it on looks unfinished. So the feel pass (pacing, camera
+framing, per-attack sound) comes *after* alpha.14, not in it, even though it is
+the more interesting work.
+
+Deliberately not in alpha.14: pet abilities and the Skills tab (a system, not a
+polish item), item art, tab order, and the memory baseline.
+
 ## Where this stands, 2026-09-15
 
 Branch **`polish/desktop-size-and-aura`**, six commits, not merged and not
@@ -206,13 +233,43 @@ plates that make it a *clockwork* pangolin do not survive the window size.
 
 Not an aura problem and probably not a shader one — the likely levers are the
 albedo's contrast at small sizes and whether the plate edges want an authored
-line rather than a baked shadow. Parked deliberately: it is a legibility
-ceiling, not a defect.
+line rather than a baked shadow.
+
+**Nikhil's proposal, 2026-09-16.** Tune the energy so the runic glow only ever
+covers about a quarter of the body, leave the rest unlit, and slow its movement
+down — on the theory that less glow and a calmer flow leave more of the shell
+readable. To be evaluated when we come back to it, with one thing noted up front
+so the test is honest:
+
+- **The "quarter of the body" half is already what the shader does.** The
+  Pangolin branch of `CreatureAura` raises three interfering bands to a high
+  exponent (`crest = pow(…, 3.0 + variation * 1.5)`) precisely so most of the
+  shell stays dark at any instant; the comment there records that a glow
+  everywhere at once made it read as a blue creature rather than energy going
+  somewhere. The same comment records that this is **what vanishes when the
+  model is small** — at desktop size, a lit quarter becomes a few pixels.
+  Reducing coverage further would likely cost legibility rather than buy it.
+- **The slow-movement half is untested and worth trying on its own.** `phase`
+  drives all three bands; slowing it is one number. A calmer flow may let the
+  eye settle on the plates between crests in a way a fast one does not.
+- The third lever is the one that does not touch the aura at all: the albedo's
+  own contrast at small sizes.
+
+Nikhil's own read, recorded because it is probably the right frame: this may
+simply be the cost of a detail-first critter. A creature designed around fine
+shell plates has a size below which it stops being that creature, and the
+desktop pet may be below it. Parked deliberately — a legibility ceiling, not a
+defect.
 
 ## The Pangolin's walk is janky
 
 **Observed 2026-09-15** on the desktop pet. The walk clip itself, not the aura
-or the new scaling — noted while looking at something else and deferred.
+or the new scaling.
+
+**Confirmed and assigned, 2026-09-16.** Nikhil has it: the fix is in the clip,
+in Blender, not in the game. Nothing to do on this side until a re-export lands,
+and then it is [[export-is-not-the-source]] — replace the `.glb` and re-import,
+because the `.blend` and the export drift apart.
 
 ## The character screen: what is left
 
@@ -298,6 +355,13 @@ The Snag's aura is the one that is **not** the shader: it is separate billboard
 geometry orbiting the body, positioned from a cached idle pose. It exists only
 in `tools/CreatureAuraStudyEffects.cs` and appears in no scene.
 
+**Wanted, 2026-09-16.** Nikhil: update the Snag body and wire the motes in —
+"will look good". So this stops being an orphan study and becomes work. Note
+that it is the one aura that is **not** the shader, so it does not inherit the
+body-units travelling fix the others got; it needs its own parenting and its own
+check at each scale the Snag appears at (Warren foe, and the Monolith stand-in
+at 7.50 units, where mote spacing baked for a 4.81-unit body will be wrong).
+
 Because the motes orbit the whole creature rather than clinging to surface
 points, parenting them to the actor root should be enough — they would follow
 the body wholesale without needing bone anchors. Nikhil picked variant 03,
@@ -321,3 +385,15 @@ Not reported, observed. A kill still costs a few seconds of dead air before the
 bank-or-push choice appears. `BeatSeconds`, `ActionSeconds`, `ReadSeconds` and
 `CardSeconds` are all exported on `CacheWarrenScene` and `WORKLINGS_FAST=1`
 collapses them, so this is a tuning pass rather than a build.
+
+**Confirmed by Nikhil, 2026-09-16**, and reframed: not a bug to fix in isolation
+but **part of one overall feel pass**. The dead air after a kill is the symptom
+that got noticed; the job is sitting with the whole beat flow — announcement,
+swing, reaction, result, card — and tuning the four numbers together until the
+fight has a rhythm. Doing it piecemeal produces a fight that is fast in one
+place and slow in the next.
+
+Worth pairing with the two other feel items that are really the same pass:
+**whose turn is it** (the missing turn indicator) and **camera framing and
+combatant spacing**. All three are "how does a round *feel*", and all three were
+noticed in the same playtests.
