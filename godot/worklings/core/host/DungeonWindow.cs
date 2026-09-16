@@ -72,7 +72,9 @@ public sealed class DungeonWindow
 
         _window = new Window
         {
-            Title = "The Cache Warren",
+            // Not the name of a place: the window opens on the gate, where the
+            // player has not yet said which dungeon this is.
+            Title = "The Delve",
             Size = size,
             // Centred on the pet's screen, in that screen's own coordinates —
             // which for a monitor left of the primary one are negative.

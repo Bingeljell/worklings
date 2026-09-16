@@ -137,7 +137,11 @@ public partial class CacheWarrenScene : Node3D
     private StageActor _foe = null!;
     /// Which creature the player walked in wearing.
     private Creature _partyCreature = CreatureRoster.TempestRam;
-    private CombatHud _hud = null!;
+    private CombatHud? _hud;
+
+    /// Which dungeon is on the stage, or null while the gate is open and there
+    /// is no stage at all. The scene's whole "has the world been built" answer.
+    private Dungeon? _staged;
     private LoadoutPanel _prep = null!;
     private DamageNumbers _numbers = null!;
     private Color _petEnergy, _foeEnergy;
@@ -163,7 +167,7 @@ public partial class CacheWarrenScene : Node3D
     /// The move the player took last round, so the bar can mark it between
     /// decisions rather than going blank.
     private CombatAction? _lastAction;
-    private IntentBadge _intent = null!;
+    private IntentBadge? _intent;
 
     private readonly PetCombatRates _rates = new();
     /// The living pet. Every delve is built from it and every resolution is
@@ -225,21 +229,21 @@ public partial class CacheWarrenScene : Node3D
     private string _line = "";
     private string _status = "";
 
+    /// **Nothing of the dungeon is built here.** The scene opens on the gate —
+    /// the prep screen and nothing else — and the arena, the cast, the HUD and
+    /// the music are built by `BuildWorld` when the player descends.
+    ///
+    /// That ordering is the point rather than an optimisation. The loadout is
+    /// the gate to a dungeon, and which dungeon is a choice made *on* it: a
+    /// second place will have its own arena, its own foes and its own bed of
+    /// music, and a scene that has already staged the Cache Warren behind the
+    /// gate has answered the question before it was asked. It also showed:
+    /// the Warren's health plates hung over the prep card, naming a Workling
+    /// and a Dungeon Scamp for a fight nobody had agreed to yet.
     public override void _Ready()
     {
         LoadState();
-        var stage = BuildStage();
-        var camera = stage.GetNode<Camera3D>("StageCamera");
-        BuildCast(stage);
-        _petEnergy = _partyCreature.Energy;
-        _foeEnergy = _foe != null ? CreatureRoster.FindOrDefault(_foe.ModelName).Energy : _petEnergy;
-        _numbers = new DamageNumbers(this);
         _lunge.Travel = AttackersTravel;
-        _impact = new ImpactFrames(camera, this, this);
-        _vfx = new AbilityVfx(this, camera)
-        {
-            Enabled = AbilityEffects,
-        };
         _audio = new CombatAudio();
         AddChild(_audio);
         _prep = new LoadoutPanel(this);
@@ -255,26 +259,75 @@ public partial class CacheWarrenScene : Node3D
             CardSeconds = 0.7f;
         }
 
-        BeginRun();
-        _intent = new IntentBadge(_hud.Root, camera);
+        OpenGate();
+    }
 
-        // The bar is a control, not a legend, so the mouse reaches the same four
-        // decisions the keyboard does. Both go through the guards below rather
-        // than straight at the encounter — a slot is drawn dim between decisions
-        // and clicking it then must do nothing.
-        _hud.Bar.Chose += action => { if (CanAct()) TakeAction(action); };
-        _hud.Bar.Unleashed += () =>
+    /// Builds everything the fight needs, for the dungeon that was chosen.
+    ///
+    /// Called from `Descend`, never from `_Ready`. The arena is built once — a
+    /// second delve into the same place reuses it — and the cast is topped up
+    /// per dungeon, so a place whose foes are not on stage yet gets them added
+    /// rather than replacing what is there.
+    ///
+    /// **What is still Warren-shaped:** the arena art. `Arena` is an export on
+    /// this scene rather than something a `Dungeon` carries, so a second place
+    /// would be fought in the first one's room. That is the next seam — a
+    /// `StageKind` on `Dungeon` — and it is worth doing when the second place
+    /// has art rather than before.
+    private void BuildWorld(Dungeon dungeon)
+    {
+        if (_staged is null)
         {
-            if (CanAct() && _encounter.SignatureReady) TakeAction(CombatAction.Signature);
-        };
-        _hud.Bar.Pushed += () => { if (CanChoose()) { _delve.PushDeeper(); StartEncounter(); } };
-        _hud.Bar.Banked += () =>
-        {
-            if (!CanChoose()) return;
-            _delve.Bank();
-            ShowSummary();
-            UpdateReadout();
-        };
+            var stage = BuildStage();
+            var camera = stage.GetNode<Camera3D>("StageCamera");
+            _cast = new StageCast(this);
+            _numbers = new DamageNumbers(this);
+            _impact = new ImpactFrames(camera, this, this);
+            _vfx = new AbilityVfx(this, camera) { Enabled = AbilityEffects };
+            _hud = new CombatHud(this, _petName, _petMaxHP, _petEnergy,
+                                 _foeName, _foeMaxHP, _foeEnergy);
+            _intent = new IntentBadge(_hud.Root, camera);
+
+            // The bar is a control, not a legend, so the mouse reaches the same
+            // four decisions the keyboard does. Both go through the guards below
+            // rather than straight at the encounter — a slot is drawn dim between
+            // decisions and clicking it then must do nothing.
+            _hud.Bar.Chose += action => { if (CanAct()) TakeAction(action); };
+            _hud.Bar.Unleashed += () =>
+            {
+                if (CanAct() && _encounter.SignatureReady) TakeAction(CombatAction.Signature);
+            };
+            _hud.Bar.Pushed += () => { if (CanChoose()) { _delve.PushDeeper(); StartEncounter(); } };
+            _hud.Bar.Banked += () =>
+            {
+                if (!CanChoose()) return;
+                _delve.Bank();
+                ShowSummary();
+                UpdateReadout();
+            };
+        }
+
+        Cast(dungeon);
+        GetNode<Node3D>("Stage").Visible = true;
+        _staged = dungeon;
+        _hud!.Root.Visible = true;
+
+        _petEnergy = _partyCreature.Energy;
+        _foeEnergy = _foe != null ? CreatureRoster.FindOrDefault(_foe.ModelName).Energy : _petEnergy;
+        _hud.SetPet(_petName, _petEnergy);
+        _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
+        _hud.Reset(_petMaxHP, _foeMaxHP);
+
+        _pending.Clear();
+        _lunge.Cancel();
+        _vfx.Clear();
+
+        // Baked at the mouth of the dungeon, before anything moves, because
+        // baking a pose reads mesh data back from the GPU and ten of those
+        // inside one swing is a frame hitch.
+        TrailFor(_party);
+        _party.ResetPose();
+        _party.Play(ActorAction.Idle, loop: true);
     }
 
     private bool CanAct() => !AutoPlay && _phase == Phase.Choosing;
@@ -359,38 +412,32 @@ public partial class CacheWarrenScene : Node3D
     /// "the foe" is a different actor in each encounter of the chain.
     private readonly System.Collections.Generic.Dictionary<StageActor, GhostTrail> _trails = new();
 
-    private void BeginRun()
+    /// Opens the gate: the prep screen, over nothing.
+    ///
+    /// The scene starts here and comes back here between runs. Whatever the
+    /// last delve built stays built but goes dark — the arena is behind the
+    /// player now, not ahead of them, and the HUD's plates name creatures who
+    /// are not in this decision.
+    private void OpenGate()
     {
         _petName = _state.Name;
         _petEnergy = FamilyEnergy.Of(_state.Family);
         _petMaxHP = Combatant.Pet(_state, _rates).MaxHP;
         _petHP = _petMaxHP;
 
-        // The plate behind the prep screen already shows what is waiting at the
-        // top of the chain, which is what the briefing is talking about.
-        ShowFoe(Worklings.Core.Combat.CacheWarren.Encounters[0]);
-        _hud ??= new CombatHud(this, _petName, _petMaxHP, _petEnergy,
-                               _foeName, _foeMaxHP, _foeEnergy);
-        // Re-set rather than left as constructed: the HUD outlives a run and the
-        // Workling's name is the player's to change between them.
-        _hud.SetPet(_petName, _petEnergy);
-        _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
-        _hud.Reset(_petMaxHP, _foeMaxHP);
-
-        _pending.Clear();
-        _lunge.Cancel();
-        _vfx.Clear();
-
-        // Baked here, on the briefing screen, because baking a pose reads mesh
-        // data back from the GPU and ten of those inside one swing is a frame
-        // hitch. Nothing is moving yet, so the stall has nowhere to show. Baking
-        // also poses the skeleton, hence the idle again afterwards.
-        TrailFor(_party);
-        _party.ResetPose();
-        _party.Play(ActorAction.Idle, loop: true);
-
         _phase = Phase.Prep;
         _intent?.Hide();
+        if (_hud is not null) _hud.Root.Visible = false;
+        // **The authored arena is in the tree before anything asks for it.**
+        // `cache_warren.tscn` instances the Cache Warren as a child named Stage,
+        // so "build nothing until Descend" is not enough on its own — the room
+        // is already there, and the gate opened onto its floor. Hidden here and
+        // shown by `BuildWorld`. Between runs the same line puts the room the
+        // last delve was fought in behind the player: the next one may not even
+        // be the same place.
+        var room = GetNodeOrNull<Node3D>("Stage");
+        if (room is not null) room.Visible = false;
+        _audio.StopBgm();
         // No title or briefing passed in: the prep screen picks the place
         // and reads both off it. Passing them from here is what made the
         // Warren the only thing behind this door.
@@ -399,7 +446,6 @@ public partial class CacheWarrenScene : Node3D
         _cardTimer = AutoPlay ? CardSeconds : 0;
         _line = "";
         _status = "";
-        UpdateReadout();
     }
 
     /// Prep is confirmed: take the gear and the Approach the player chose, build
@@ -410,9 +456,15 @@ public partial class CacheWarrenScene : Node3D
     private void Descend()
     {
         _state = _prep.Result;
-        TakeTheBody(_prep.Creature);
-        _hud.SetPet(_petName, _petEnergy);
+        var dungeon = _prep.Dungeon;
         _prep.Close();
+
+        // The room, the cast, the plates and the music, built now — for this
+        // place, because the player has only just said which one it is.
+        BuildWorld(dungeon);
+        TakeTheBody(_prep.Creature);
+        ShowFoe(dungeon.Encounters[0]);
+        _hud!.SetPet(_petName, _petEnergy);
 
         var pet = Combatant.Pet(_state, _rates);
         _petName = pet.Name;
@@ -420,7 +472,7 @@ public partial class CacheWarrenScene : Node3D
         _petHP = pet.CurrentHP;
 
         ulong seed = (ulong)Time.GetTicksUsec();
-        _delve = Delve.Into(_prep.Dungeon,
+        _delve = Delve.Into(dungeon,
             pet, _rates.CombatEffectiveness(_state.Needs), _rates, seed, _state.OwnedItems);
         _delve.Descend();
         StartEncounter();
@@ -437,7 +489,7 @@ public partial class CacheWarrenScene : Node3D
 
         ShowFoe(foe);
         _petHP = _delve.CarriedHP;
-        _hud.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
+        _hud!.SetFoe(_foeName, _foeMaxHP, _foeEnergy);
         _hud.Reset(_petMaxHP, _foeMaxHP);
         _hud.SetHP(_petHP, _foeHP);
 
@@ -500,7 +552,7 @@ public partial class CacheWarrenScene : Node3D
         if (!_encounter.Status.IsAwaitingAction) return;
         _phase = Phase.Choosing;
         _round = _encounter.Round;
-        _hud.ClearBeat();
+        _hud!.ClearBeat();
         ShowIntent();
         _line = "";
         Beat?.Invoke($"e{_delve.EncounterNumber}-r{_round}-intends-{_encounter.Intent.Kind}");
@@ -514,7 +566,7 @@ public partial class CacheWarrenScene : Node3D
     private void ShowIntent()
     {
         var casting = CreatureRoster.For(_foeName);
-        _intent.Show(_foe, casting.StageHeight, _encounter.Intent, _encounter.IntentThreatens);
+        _intent!.Show(_foe, casting.StageHeight, _encounter.Intent, _encounter.IntentThreatens);
     }
 
     /// The player has chosen. The countdown now runs on a decision already made,
@@ -525,7 +577,7 @@ public partial class CacheWarrenScene : Node3D
         _lastAction = action;
         _encounter.Act(action);
         DrainLog();
-        _intent.Hide();
+        _intent!.Hide();
         _phase = Phase.Resolving;
         BeginCountdown();
         UpdateReadout();
@@ -535,13 +587,13 @@ public partial class CacheWarrenScene : Node3D
     /// finished chain, or the bank/push choice.
     private void FinishEncounter()
     {
-        _intent.Hide();
+        _intent!.Hide();
         _delve.RecordOutcome(_encounter);
         switch (_delve.Status.Kind)
         {
             case DelveStatusKind.AwaitingPushChoice:
                 _phase = Phase.Choice;
-                _hud.ClearBeat();
+                _hud!.ClearBeat();
                 _line = _delve.LastDrop is Item drop
                     ? $"{_foeName} down — {drop.DisplayName()} recovered"
                     : $"{_foeName} down";
@@ -632,6 +684,16 @@ public partial class CacheWarrenScene : Node3D
 
     public override void _Process(double delta)
     {
+        // **The gate has nothing to tick.** No arena, no cast, no plates — none
+        // of it exists until the player descends. The card timer still runs,
+        // because an unattended run's way through this screen is a countdown on
+        // it.
+        if (_staged is null)
+        {
+            TickCard(delta);
+            return;
+        }
+
         _cast.DrawAuras(delta);
         // Impact reactions animate on real time. The freeze applies to the
         // fight, not to the shake and dust working their way out of it.
@@ -657,7 +719,7 @@ public partial class CacheWarrenScene : Node3D
 
         if (_impact.IsHitStopped) return;
 
-        _intent.Track();
+        _intent!.Track();
 
         // Choosing is a card beat: nothing advances until the player answers.
         if (_phase is not (Phase.Counting or Phase.Resolving))
@@ -748,7 +810,7 @@ public partial class CacheWarrenScene : Node3D
                 StartEncounter();
                 break;
             case Phase.Summary:
-                if (Loop) BeginRun();
+                if (Loop) OpenGate();
                 else
                 {
                     // The way back up. Played here rather than on the desktop so
@@ -1194,13 +1256,17 @@ public partial class CacheWarrenScene : Node3D
     /// moment of the fight, not only in the two seconds they are being asked.
     private void UpdateReadout()
     {
+        // Nothing to read out at the gate: the plates belong to a fight that has
+        // not been agreed to yet.
+        if (_hud is null) return;
+
         _hud.SetHP(_petHP, _foeHP);
         _hud.SetNarration(_line);
 
         switch (_phase)
         {
             case Phase.Prep:
-                _hud.SetRunLine("the cache warren");
+                _hud.SetRunLine(_staged?.DisplayName.ToLowerInvariant() ?? "");
                 _hud.Bar.Hide();
                 break;
             case Phase.Summary:
@@ -1267,9 +1333,17 @@ public partial class CacheWarrenScene : Node3D
     /// All of them are built up front and swapped by visibility: instancing a
     /// `.glb` mid-delve is a frame hitch, and the moment it would land is the
     /// cut between one encounter and the next.
-    private void BuildCast(Node3D stage)
+    /// Puts this dungeon's chain on the stage — the Workling and every foe it
+    /// will meet, boss included.
+    ///
+    /// **Driven by the dungeon, not by the Warren.** It used to name
+    /// `CacheWarren.Encounters` directly, which is the same "one place behind
+    /// this door" assumption `Dungeon` was built to remove. Casting is additive
+    /// and keyed by creature, so descending twice costs nothing and a second
+    /// place adds only the bodies it brings.
+    private void Cast(Dungeon dungeon)
     {
-        _cast = new StageCast(this);
+        var stage = GetNode<Node3D>("Stage");
         var party = GetNode<Node3D>("Party");
         var foes = GetNode<Node3D>("Foe");
         var partyMark = MarkOf(stage, "PartySlot", StageSet.PartyMark);
@@ -1280,8 +1354,8 @@ public partial class CacheWarrenScene : Node3D
                            key: PartySlot + _partyCreature.Id)!;
 
         var names = new List<string>();
-        foreach (var foe in Worklings.Core.Combat.CacheWarren.Encounters) names.Add(foe.Name);
-        names.Add(Worklings.Core.Combat.CacheWarren.Boss.Name);
+        foreach (var foe in dungeon.Encounters) names.Add(foe.Name);
+        names.Add(dungeon.Boss.Name);
         foreach (var name in names)
         {
             var casting = CreatureRoster.For(name);

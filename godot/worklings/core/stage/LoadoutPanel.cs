@@ -156,12 +156,14 @@ public sealed partial class LoadoutPanel
         var root = new Control { AnchorRight = 1, AnchorBottom = 1 };
         _layer.AddChild(root);
 
-        // A wash over the stage. The room stays visible behind it — prep is a
-        // pause in the dungeon, not a trip to a menu. It also stops a click
-        // meant for a plate reaching the 3D view underneath.
+        // **Solid, because there is nothing behind it.** This used to be a wash
+        // over the stage, on the reasoning that prep is a pause in the dungeon
+        // rather than a trip to a menu. That reasoning is gone: the scene does
+        // not build a dungeon until the player descends, so prep happens *before*
+        // a room exists and a wash would be a wash over the clear colour.
         var scrim = new ColorRect
         {
-            Color = new Color(0, 0, 0, 0.62f),
+            Color = new Color(0.035f, 0.032f, 0.028f, 1),
             AnchorRight = 1, AnchorBottom = 1,
         };
         root.AddChild(scrim);
