@@ -347,11 +347,6 @@ public partial class CacheWarrenScene : Node3D
 
     /// The briefing, near-verbatim from the design: narration whose one gameplay
     /// job is to tell the player what kind of prep this delve rewards.
-    private const string Briefing =
-        "A dungeon looms. If this is the Cache Warren, expect a nimble scamp, a "
-      + "grabbing Snag, an evasive Flicker — and something heavy at the bottom. "
-      + "You may want to pack for accuracy. Or bring a Ward.";
-
     /// Opens a run on the prep screen — beat two, and the first thing the player
     /// actually does. The delve itself is not built until prep is confirmed,
     /// because the gear chosen here is folded into the fighter that enters it.
@@ -393,7 +388,10 @@ public partial class CacheWarrenScene : Node3D
 
         _phase = Phase.Prep;
         _intent?.Hide();
-        _prep.Open(_state, "The Cache Warren", Briefing);
+        // No title or briefing passed in: the prep screen picks the place
+        // and reads both off it. Passing them from here is what made the
+        // Warren the only thing behind this door.
+        _prep.Open(_state);
         Beat?.Invoke("prep");
         _cardTimer = AutoPlay ? CardSeconds : 0;
         _line = "";
@@ -419,7 +417,7 @@ public partial class CacheWarrenScene : Node3D
         _petHP = pet.CurrentHP;
 
         ulong seed = (ulong)Time.GetTicksUsec();
-        _delve = Delve.CacheWarrenDelve(
+        _delve = Delve.Into(_prep.Dungeon,
             pet, _rates.CombatEffectiveness(_state.Needs), _rates, seed, _state.OwnedItems);
         _delve.Descend();
         StartEncounter();

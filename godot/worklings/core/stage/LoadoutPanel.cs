@@ -48,17 +48,27 @@ public sealed class LoadoutPanel
     private readonly List<Label[]> _rows = new();
     private readonly List<Label> _statChips = new();
 
-    /// One line per choosable thing: the Workling, the three gear slots, then
-    /// The Workling is first because it is the largest of them —
+    /// One line per choosable thing: the dungeon, the Workling, the three gear
+    /// slots.
+    ///
+    /// **The dungeon is first because it is the question the other rows answer.**
+    /// The briefing's one job is telling you what kind of prep this delve
+    /// rewards, so which place you are going has to be settled before "what do I
+    /// bring" means anything. It is also the reason this screen exists at all
+    /// now: the paw menu says *Enter the Dungeon*, and this is where you say
+    /// which.
+    ///
+    /// The Workling is next because it is the largest of the remaining ones —
     /// it decides the body, the energy colour, the signature and which gear is
-    /// attuned, and the other four rows are read against it.
+    /// attuned, and the three slot rows are read against it.
     /// **The Approach row is gone.** It set a standing stance the fight then
     /// derived actions from; the player now picks a move every round, so a
     /// stance chosen at the briefing decides nothing. Leaving it would have been
     /// a control that did not control anything.
-    private const int WorklingRow = 0;
+    private const int DungeonRow = 0;
+    private const int WorklingRow = 1;
     private const int SlotCount = 3;
-    private const int FirstSlotRow = 1;
+    private const int FirstSlotRow = 2;
     private const int RowCount = FirstSlotRow + SlotCount;
 
     /// Per slot, "nothing" followed by everything owned that fits it. Nothing is
@@ -79,6 +89,13 @@ public sealed class LoadoutPanel
     /// on `PetState` and this row stops being a choice.
     private readonly List<Creature> _creatures = new(CreatureRoster.Playable());
     private int _creatureIndex;
+
+    /// Every place, not only the enterable ones. A Planned dungeon is shown and
+    /// refused rather than hidden, for the same reason the family picker lists
+    /// races it will not let you be: the world should read as bigger than the
+    /// one door that is finished.
+    private readonly List<Dungeon> _dungeons = new(DungeonRoster.All);
+    private int _dungeonIndex;
     private int _cursor;
 
     private PetState _state = null!;
@@ -90,6 +107,10 @@ public sealed class LoadoutPanel
     /// The body the player is descending in.
     public Creature Creature =>
         _creatures.Count > 0 ? _creatures[_creatureIndex] : CreatureRoster.TempestRam;
+
+    /// The place the player is descending into.
+    public Dungeon Dungeon =>
+        _dungeons.Count > 0 ? _dungeons[_dungeonIndex] : DungeonRoster.Default;
     public bool IsOpen => _layer.Visible;
 
     public LoadoutPanel(Node parent)
@@ -193,11 +214,15 @@ public sealed class LoadoutPanel
     /// Opens on a pet, preselecting whatever is already equipped so confirming
     /// without touching anything is the same loadout the player left the last
     /// delve in.
-    public void Open(PetState state, string title, string briefing)
+    public void Open(PetState state)
     {
         _state = state;
-        _title.Text = title;
-        _briefing.Text = briefing;
+
+        // Preselect the first place that can actually be entered, so a build
+        // whose first roster entry is Planned still opens on a real door.
+        _dungeonIndex = 0;
+        for (int i = 0; i < _dungeons.Count; i++)
+            if (_dungeons[i].IsEnterable) { _dungeonIndex = i; break; }
 
         // Preselect the creature matching the Workling on disk, so confirming
         // without touching anything descends as whoever you already were.
@@ -255,7 +280,10 @@ public sealed class LoadoutPanel
                 Cycle(1);
                 break;
             case Key.Enter or Key.KpEnter or Key.Space:
-                return true;
+                // A Planned dungeon is listed, not enterable. Refusing here
+                // rather than hiding it is what lets the selector show a world
+                // without promising every door in it.
+                return Dungeon.IsEnterable;
             default:
                 return false;
         }
@@ -265,6 +293,12 @@ public sealed class LoadoutPanel
 
     private void Cycle(int step)
     {
+        if (_cursor == DungeonRow)
+        {
+            if (_dungeons.Count == 0) return;
+            _dungeonIndex = (_dungeonIndex + _dungeons.Count + step) % _dungeons.Count;
+            return;
+        }
         if (_cursor == WorklingRow)
         {
             if (_creatures.Count == 0) return;
@@ -294,6 +328,25 @@ public sealed class LoadoutPanel
     private void Refresh()
     {
         var rates = ItemRates.Default;
+
+        // The place drives the two lines at the top of the screen, so changing
+        // the dungeon re-pitches the delve rather than leaving last place's
+        // narration over this place's foes.
+        var dungeon = Dungeon;
+        _title.Text = dungeon.DisplayName;
+        _briefing.Text = dungeon.Briefing;
+
+        _rows[DungeonRow][0].Text = (_cursor == DungeonRow ? "▸ " : "  ") + "Dungeon";
+        _rows[DungeonRow][1].Text = _dungeons.Count > 1
+            ? $"◂ {dungeon.DisplayName} ▸"
+            : dungeon.DisplayName;
+        _rows[DungeonRow][2].Text = dungeon.IsEnterable
+            ? $"{dungeon.EncounterCount} encounters  ·  {dungeon.Flavour}"
+            : "not open yet";
+        _rows[DungeonRow][0].AddThemeColorOverride(
+            "font_color", _cursor == DungeonRow ? StageType.Ink : StageType.Muted);
+        _rows[DungeonRow][1].AddThemeColorOverride(
+            "font_color", dungeon.IsEnterable ? StageType.Ink : StageType.Faint);
 
         var creature = Creature;
         _rows[WorklingRow][0].Text = (_cursor == WorklingRow ? "▸ " : "  ") + "Workling";
