@@ -892,6 +892,22 @@ public partial class DesktopPetScene : Node3D
     /// invisible floor instead of each hovering by its own origin.
     private const float PetFeetY = -0.5603f;
 
+    /// No body renders smaller than this fraction of the Ram's stage height.
+    ///
+    /// The roster's size relationship is about two creatures on the same dungeon
+    /// floor. On the desktop there is nothing to stand next to, so at 3.24 units
+    /// the Pangolin was a smudge in a small always-on-top window. The floor keeps
+    /// the relationship where it means something and buys legibility where it
+    /// does not — the Pangolin renders ~37% larger, the Ram is untouched.
+    private const float MinDesktopStageHeight = 0.8f;
+
+    /// How much harder the aura pushes here than in the dungeon.
+    ///
+    /// `CreatureAura` is `blend_add`. The Warren is dark, so 1.0 reads; this
+    /// scene runs `ambient_light_energy 1.2` and a 1.8 key light over near-white
+    /// fleece, where additive blue barely moves the pixel.
+    private const float DesktopAuraStrength = 2.6f;
+
     private string _wornCreatureId = "";
     private CreatureAura? _aura;
     private double _auraSeconds;
@@ -932,8 +948,11 @@ public partial class DesktopPetScene : Node3D
 
         // Measured before placement, so these are the model's authored bounds.
         var bounds = StageCast.MeasureBounds(root);
+        float stageHeight = Mathf.Max(
+            creature.StageHeight,
+            MinDesktopStageHeight * CreatureRoster.TempestRam.StageHeight);
         float scale = bounds.Size.Y > 0.0001f
-            ? creature.StageHeight * DesktopUnitsPerStageUnit / bounds.Size.Y
+            ? stageHeight * DesktopUnitsPerStageUnit / bounds.Size.Y
             : 1f;
         root.Transform = new Transform3D(
             Basis.Identity.Scaled(Vector3.One * scale),
@@ -943,7 +962,7 @@ public partial class DesktopPetScene : Node3D
         _pet = new StageActor(root, creature.Id, creature.Animations!);
         _pet.Play(ActorAction.Idle, loop: true);
         _pet.Root.RotationDegrees = new Vector3(0, _facing, 0);
-        _aura = CreatureAura.For(creature.Id, _pet.Mesh);
+        _aura = CreatureAura.For(creature.Id, _pet.Mesh, DesktopAuraStrength);
         _auraSeconds = 0;
         _wornCreatureId = creature.Id;
     }

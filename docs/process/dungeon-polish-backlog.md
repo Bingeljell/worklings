@@ -8,6 +8,27 @@ re-deriving the problem.
 
 Ordered roughly by how much the fight gains per hour spent.
 
+## Where this stands, 2026-09-15
+
+Branch **`polish/desktop-size-and-aura`**, six commits, not merged and not
+pushed. Build clean, all nine probes pass. Nikhil has played the desktop pet and
+the character screen; the aura arc-segment change and the character screen's
+window bounds are the parts he has **not** re-run yet.
+
+Done today, and written up in the changelog: the desktop pet size floor, the
+travelling auras and the Ram's off-body arcs, and the character screen rebuilt
+as two columns with a gear rail.
+
+Tools worth knowing before picking anything up:
+
+- `tools/character_shot.tscn` grabs the character window without the editor, and
+  takes `WORKLINGS_SHOT_SIZE=1040x700` — the screen is resizable, and a
+  fixed-size shot cannot check that it holds up.
+- `WORKLINGS_AURA_INTERNAL=1 WORKLINGS_AURA_SELECT=<slug>` on
+  `tools/aura_study.tscn` renders the three variants side by side, and
+  `scripts/render-aura-studies.py --internal --only <slug>` packages the video.
+  The study wears the shipped shader, so what it shows is what ships.
+
 ## Whose turn is it
 
 **Asked for 2026-09-14.** Some indicator that it is the player's turn — "an
@@ -137,46 +158,93 @@ The baseline is genuinely heavy rather than growing, and that is the real target
 `WORKLINGS_AUTOPLAY` and sample `ps -o rss=` from outside, or use `footprint`
 for a per-region breakdown.
 
-## The Pangolin is too small on the desktop
+## The Pangolin is too small on the desktop — FIXED 2026-09-15
 
-**Asked for 2026-09-14.** "The Pangolin on desktop is too small. Can't tell
-anything. Should be at least 25-50% bigger than current size. The Ram is nicely
-distinguishable, but the Pangolin is not."
+`DesktopPetScene` now floors the desktop size at `MinDesktopStageHeight` (0.8)
+of the Ram's stage height, so the Pangolin renders ~37% larger and the Ram is
+untouched. The roster relationship still holds for anything above the floor.
 
-It is small on purpose and the purpose is wrong here. `DesktopPetScene` scales
-every body by `creature.StageHeight * DesktopUnitsPerStageUnit / modelHeight`,
-so the Pangolin lands at 3.24/5.56 of the Ram — the size relationship the roster
-encodes for two creatures standing on the same dungeon floor. On the desktop
-there is nothing to stand next to, so the comparison buys nothing and costs
-legibility: a 3.24-unit creature in a small always-on-top window is a smudge.
+## Auras: the desktop washes them out — FIXED 2026-09-15
 
-**Seam:** the constant and the rule are both in `DesktopPetScene`, four lines
-apart. The options, in order of honesty:
+Two knobs, because there were two problems. `CreatureAura.For` takes a
+per-scene `strength` (dungeon 1.0, desktop 2.6) for the lighting, and
+`Recipe` carries a per-creature `Gain` (Ram 1.0, Pangolin 1.8) for how much of
+the silhouette that creature's aura actually covers. They multiply.
 
-1. **Floor the desktop size** — scale by roster height but never below some
-   fraction of the Ram's. Keeps a size relationship, guarantees legibility.
-2. **Frame to fill instead** — normalise every body to the same rendered
-   height, as the aura studies do for their portraits. Simplest, and throws the
-   relationship away entirely.
-3. **A per-creature desktop multiplier** on `Creature`. Most control, one more
-   number per creature to get wrong.
+Washing out was only half of it: everything spatial was written in model units,
+at wavelengths longer than the animal, so the whole body pulsed at once instead
+of energy travelling over it. All of it is in body units now — normalised to
+the mesh's own bounds, with a flow axis down its longest side — and the
+Pangolin's crest is three interfering bands at incommensurate speeds, so a
+patch lights, dies and re-lights elsewhere rather than sliding tail to snout on
+a loop you can time. **The Ram's arcs now leave the body**: a second copy of
+the skinned mesh, sharing its skin and skeleton, pushed out along its normals
+where a discharge is passing. Still no pose cache. Its fur effect is untouched.
 
-Option 1 is the one to try first: roughly `max(creature.StageHeight, 0.75 *
-TempestRam.StageHeight)` puts the Pangolin ~38% larger, inside the range asked
-for, without a new field.
+Lanes are gated to a short travelling segment: a whole lit loop around the body
+is a hoop rather than a spark, which showed up on the horns, where the shell is
+wide compared to what it wraps and the ring floats clear of the model. Found
+only once the character bay was wired — the study's dark background hid it.
 
-## Auras: the desktop washes them out
+`AuraStudy` wears the shipped `CreatureAura` rather than a copy of it, so the
+comparison videos are the game's shader; `InternalEnergyAura` is deleted.
 
-**Observed 2026-09-14**, alongside the above. `CreatureAura` renders
-`blend_add`, and the desktop scene is lit bright — `ambient_light_energy 1.2`
-and a 1.8 key light — over white fleece already near full brightness. Additive
-blue on near-white barely moves. The Cache Warren is dark, which is exactly why
-the same effect reads there.
+**Every brightness number in one place.** Two knobs, and they multiply:
 
-**Seam:** the strength lives in the shader's `power` term. The fix is a
-per-scene multiplier passed in at construction, not a global push — raising it
-enough for the desktop would blow the effect out in the dungeon, where it
-already works.
+| Knob | Where | Values |
+| --- | --- | --- |
+| Per-scene `strength` | the `CreatureAura.For` call site | dungeon 1.0 · desktop 2.6 · character bay 1.3 |
+| Per-creature `Gain` | `CreatureAura.Recipe` | Ram 1.0 · Pangolin 1.8 |
+
+All of them are eyeballed against their own lighting, not measured.
+
+## The Pangolin has no detail at desktop pet scale
+
+**Observed 2026-09-15**, once the size floor and the brighter aura made it
+legible enough to judge. It reads as a shape with energy on it; the shell
+plates that make it a *clockwork* pangolin do not survive the window size.
+
+Not an aura problem and probably not a shader one — the likely levers are the
+albedo's contrast at small sizes and whether the plate edges want an authored
+line rather than a baked shadow. Parked deliberately: it is a legibility
+ceiling, not a defect.
+
+## The Pangolin's walk is janky
+
+**Observed 2026-09-15** on the desktop pet. The walk clip itself, not the aura
+or the new scaling — noted while looking at something else and deferred.
+
+## The character screen: what is left
+
+**Shipped 2026-09-15** as the hybrid of three drawn layouts — two columns, gear
+rail, bay that grows. What it does not have yet:
+
+1. **Item art.** `ItemIcon` draws one mark per *slot* — a hone, a shield, a
+   star — tinted by tier. Fifteen items want fifteen pieces of art, and until
+   they exist a per-item mark would be a lie about how much art there is. This
+   is the placeholder and it is holding.
+2. **The Inventory tab is still the old list.** It is now a browser rather than
+   the only way to equip, and it has not been redesigned to look like one.
+3. **The Skills tab is still a placeholder.** The ability tree is designed and
+   unbuilt; nothing about the new layout changes that.
+4. **Tab order.** Nikhil wants the four reordered, Care staying its own tab.
+   Deferred by him, not forgotten.
+5. **The bay is hard-coded to the Ram.** `ModelBay` loads `tempest_ram.glb`
+   whatever family the Workling is, which is the same gap `DesktopPetScene`
+   closed when the Pangolin became wearable.
+6. **The bay's aura strength is 1.3 and eyeballed**, like every other strength
+   in the game. Its own knob, at the top of `ModelBay`.
+
+**One trap, recorded because it cost an afternoon.** `MaxWidth` caps a control's
+width, which Godot has no native way to express. Handing a `Container` child a
+rect smaller than its own minimum makes it request a re-sort, which re-hands it
+the same rect: the layout never settles, no error is printed, and the process
+stops drawing. It is fixed — the rect is clamped to the child's minimum and the
+overflow is clipped — but any new use of that pattern can reintroduce it.
+
+Also seen once and not reproduced: a `character_shot` run hung for five minutes
+where the identical command then took thirty seconds. Not the deadlock above,
+which was reliable. Unexplained.
 
 ## The Snag's motes are not wired in
 

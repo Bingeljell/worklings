@@ -50,7 +50,7 @@ public partial class AuraStudy : Node
         Text(_titles[creature],new Vector2(24,21),30,Colors.White);
         Text("AMBIENT MODEL EFFECTS  /  THREE LIVE VARIANTS  /  SAME MODEL, LIGHTING AND CAMERA",new Vector2(25,61),14,new Color(.58f,.68f,.81f));
         var actors=new List<StageActor>();var effects=new List<CreatureAuraStudyEffects>();
-        var internalEffects=new List<InternalEnergyAura>();
+        var internalEffects=new List<CreatureAura>();
         string[] internalNames=creature==0?new[]{"01 · RESTING CURRENT","02 · LIVING LIGHTNING","03 · SURGING STORM"}:new[]{"01 · RUNIC EMBERS","02 · AWAKENED CORE","03 · BREATHING ENERGY"};
         string[] internalDescriptions=creature==0?new[]{"Blue current caught in the fur's creases","Bright branching current through fur and horns","Waves of white-blue energy across the body"}:new[]{"A quiet blue glow from the shell's crevices","Luminous blue seams beneath golden plates","A slow pulse of energy beneath the armor"};
         AuraPoseBank? bank=null;
@@ -97,10 +97,13 @@ public partial class AuraStudy : Node
             world.AddChild(new MeshInstance3D {Mesh=new PlaneMesh {Size=Vector2.One*span*20},
                 Position=new Vector3(0,bounds.Position.Y-.015f,0),MaterialOverride=floorMat});
             actors.Add(actor);
-            if(_internal) {
-                internalEffects.Add(new InternalEnergyAura(actor.Mesh!,creature,variation));
-                if(creature==0)effects.Add(new CreatureAuraStudyEffects(root,camera,bank,creature,variation,true));
-            }
+            // The study wears the shipped `CreatureAura`, not a copy of it: the
+            // Ram's off-body arcs now ride the skinned mesh, so what renders here
+            // is what the game renders.
+            if(_internal)
+                internalEffects.Add(CreatureAura.Wear(actor.Mesh,creature,variation,
+                    CreatureAura.Recipe(_models[creature])?.Gain ?? 1f)
+                    ?? throw new Exception("No aura for "+_models[creature]));
             else effects.Add(new CreatureAuraStudyEffects(root,camera,bank,creature,variation));
         }
         Text("WORKLINGS  /  AURA STUDIES",new Vector2(25,870),13,new Color(.42f,.52f,.66f));
