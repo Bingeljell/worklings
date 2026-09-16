@@ -229,11 +229,34 @@ rail, bay that grows. What it does not have yet:
    unbuilt; nothing about the new layout changes that.
 4. **Tab order.** Nikhil wants the four reordered, Care staying its own tab.
    Deferred by him, not forgotten.
-5. **The bay is hard-coded to the Ram.** `ModelBay` loads `tempest_ram.glb`
-   whatever family the Workling is, which is the same gap `DesktopPetScene`
-   closed when the Pangolin became wearable.
-6. **The bay's aura strength is 1.3 and eyeballed**, like every other strength
+5. **The bay's aura strength is 1.3 and eyeballed**, like every other strength
    in the game. Its own knob, at the top of `ModelBay`.
+
+**Done 2026-09-16: the bay follows the Workling.** `ModelBay` was loading
+`tempest_ram.glb` whatever family you were — the same gap `DesktopPetScene`
+closed when the Pangolin became wearable, and closed the same way: `Wear(race)`
+resolves through `CreatureRoster.ForRace`, and `CharacterPanel` calls it on
+every rebuild so the Family picker swaps the body beside it. Idempotent by
+creature, because a rebuild happens on every keystroke in the name field and
+instancing a `.glb` is a frame hitch. Bodies are normalised to a fixed bay
+height and centred on the turntable's axis rather than carrying the Ram's
+hand-tuned `0.9` scale and `-0.55` drop.
+
+`tools/character_shot.tscn` gained `WORKLINGS_SHOT_FAMILY=<race>` alongside
+`WORKLINGS_SHOT_SIZE`, because "it holds whoever you are" is a claim a
+single-family shot cannot check. Verified across four races: Elemental → Ram,
+Relicborn → Pangolin, Wildkin → Flicker, Glitchkin → Ram by roster fallback.
+
+**Two things that surfaced while doing it, neither touched:**
+
+- `PetBody.Status` calls Wildkin `NeedsModel`, but `CreatureRoster.ForRace`
+  hands Wildkin the Forest Flicker, which is `Role.Either` and `Ready`. The
+  two disagree about whether a Wildkin has a body. If the Flicker counts,
+  Wildkin could become pickable; that is Nikhil's call, not a bug fix.
+- Forcing a non-pickable race through the new env var leaves the Family picker
+  showing the first *enabled* entry rather than the forced one, because Godot
+  will not select a disabled item. Unreachable in normal play — the picker is
+  the only way to change race and it cannot choose a disabled row.
 
 **One trap, recorded because it cost an afternoon.** `MaxWidth` caps a control's
 width, which Godot has no native way to express. Handing a `Container` child a

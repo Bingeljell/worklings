@@ -29,6 +29,23 @@ public partial class CharacterShot : Node
         return new Vector2I(560, 940);
     }
 
+    /// Which race the shot's Workling is, so the bay can be checked against
+    /// more than one body. `ModelBay` resolves the race to a creature through
+    /// the roster, and "it holds whoever you are" is a claim a single-family
+    /// shot cannot check — the same reason `WORKLINGS_SHOT_SIZE` exists.
+    private static PetFamily ShotFamily()
+    {
+        string wanted = OS.GetEnvironment("WORKLINGS_SHOT_FAMILY");
+        foreach (var family in PetFamilyExtensions.AllCases)
+        {
+            if (family.ToString().ToLowerInvariant() == wanted.ToLowerInvariant())
+            {
+                return family;
+            }
+        }
+        return PetFamily.Relicborn;
+    }
+
     private static AnimationPlayer? FindPlayer(Node node)
     {
         if (node is AnimationPlayer p) return p;
@@ -57,7 +74,7 @@ public partial class CharacterShot : Node
             needs: new PetNeeds(28, 64, 81, 55),
             preferences: new PetPreferences(PetFood.Berries, PetPlayActivity.Puzzle),
             lastUpdatedAt: System.DateTimeOffset.Parse("2026-09-04T10:00:00Z"),
-            family: PetFamily.Relicborn,
+            family: ShotFamily(),
             totalXP: 2600,
             petClass: PetClass.Juggernaut,
             stats: new PetStats(vitality: 24, power: 26, defense: 16, agility: 12, wit: 9));
