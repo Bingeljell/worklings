@@ -56,9 +56,29 @@ Tools worth knowing before picking anything up:
   `scripts/render-aura-studies.py --internal --only <slug>` packages the video.
   The study wears the shipped shader, so what it shows is what ships.
 
-## Whose turn is it
+## Whose turn is it — BUILT 2026-09-17
 
-**Asked for 2026-09-14.** Some indicator that it is the player's turn — "an
+`TurnRing`: a ring on the floor under the Workling in the family energy colour,
+with a dim glow inside it, up for exactly `Phase.Choosing` and breathing on a
+2.4s cycle so it reads as a state rather than an animation.
+
+The ring rather than the arrow, of the two Nikhil offered. Overhead is the foe's
+register — `IntentBadge` lives there — and two badges in the same band of the
+frame compete, where a mark at the feet is a different register entirely.
+
+Set from the phase every frame rather than shown and hidden at the transitions:
+it means exactly "the fight is waiting on the player", which is one boolean the
+scene already has, and scattered show/hide calls are how a cue gets left on over
+a corpse.
+
+Two bugs worth remembering, both found by looking rather than by reasoning:
+`SurfaceGetArrays` on an `ImmediateMesh` does not hand back what was drawn into
+it, so the first ring baked an empty surface and drew nothing while sitting
+correctly positioned and lit; and the actors hang under the scene's `Party` node
+while the ring hangs under the scene, so the local position had to be the global
+one.
+
+**The original ask, for reference. Asked for 2026-09-14.** Some indicator that it is the player's turn — "an
 arrow bobbing above their head pointing at them, or a slow circular glow below
 them; solid border, subtle glow under them".
 
