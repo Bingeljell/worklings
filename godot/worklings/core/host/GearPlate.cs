@@ -172,7 +172,7 @@ public sealed partial class GearPlate : Button
             _iconHolder.RemoveChild(old);
             old.QueueFree();
         }
-        _iconHolder.AddChild(new ItemIcon(_slot, colour, S(_look.IconSize), filled));
+        _iconHolder.AddChild(new ItemIcon(_item, _slot, colour, S(_look.IconSize), filled));
 
         Restyle();
     }

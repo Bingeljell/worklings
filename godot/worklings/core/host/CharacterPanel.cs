@@ -24,6 +24,11 @@ public partial class CharacterPanel : PanelContainer
     private PetState _state = null!;
     /// Built once and carried across rebuilds — see `Show`.
     private ModelBay? _bay;
+    /// The Inventory tab's own cursor. The panel rebuilds wholesale on every
+    /// equip, so which category and which item were being looked at have to live
+    /// out here or every click would bounce the player back to the top of Gear.
+    private string _category = InventoryTab.Gear;
+    private Item? _inspecting;
 
     public event System.Action<PetState>? StateChanged;
 
@@ -113,7 +118,7 @@ public partial class CharacterPanel : PanelContainer
         // than being a column that scrolls: the bay takes whatever the ledger
         // does not, which cannot happen inside a ScrollContainer.
         AddTab("Character", BuildCharacter(sheet, state), scroll: false);
-        AddTab("Inventory", BuildInventory(state));
+        AddTab("Inventory", BuildInventory(state), scroll: false);
         AddTab("Skills", Placeholder(
             "The ability tree is designed and not built.\n\n"
           + "Families carry passives and classes lean on a signature stat; "
@@ -123,6 +128,20 @@ public partial class CharacterPanel : PanelContainer
         if (current >= 0 && current < _tabs.GetTabCount())
         {
             _tabs.CurrentTab = current;
+        }
+    }
+
+    /// Opens the panel on a named tab. For the capture tools: a screenshot of
+    /// the Inventory tab is otherwise a screenshot of whatever tab index 0 is.
+    public void SelectTab(string title)
+    {
+        for (int i = 0; i < _tabs.GetTabCount(); i++)
+        {
+            if (_tabs.GetTabTitle(i) == title)
+            {
+                _tabs.CurrentTab = i;
+                return;
+            }
         }
     }
 
@@ -409,68 +428,27 @@ public partial class CharacterPanel : PanelContainer
 
     // MARK: - Inventory
 
+    /// The bag. Everything about how it is arranged lives in `InventoryTab`;
+    /// this is the wiring — which category and item are being looked at, and
+    /// what to do when one changes.
     private Control BuildInventory(PetState state)
     {
-        var column = Column();
-        column.AddChild(Heading("Carried"));
-
-        foreach (var slot in ItemSlotExtensions.AllCases)
+        var tab = new InventoryTab(state, _scale, _category, _inspecting);
+        tab.CategoryChanged += category =>
         {
-            column.AddChild(Rule());
-            var equipped = state.Loadout[slot];
-            column.AddChild(Line(
-                $"{slot.DisplayName()} — {(equipped?.DisplayName() ?? "empty")}",
-                WorklingsTheme.Muted));
-
-            var available = state.AvailableItems(slot);
-            if (available.Count == 0)
-            {
-                column.AddChild(Line("  nothing for this slot yet", WorklingsTheme.Muted));
-                continue;
-            }
-
-            // Best tier first, which AvailableItems already does — with three
-            // tiers of everything, acquisition order buries a hard-won Prime
-            // item under the junk that dropped before it.
-            foreach (var item in available)
-            {
-                column.AddChild(ItemRow(state, item, isEquipped: equipped == item));
-            }
-        }
-
-        return column;
-    }
-
-    private Control ItemRow(PetState state, Item item, bool isEquipped)
-    {
-        var line = new HBoxContainer();
-
-        // Priced for THIS Workling, attunement included, rather than showing the
-        // item's base number — a Ward that suits your family is worth more on
-        // you than the catalogue says, and that is the whole point of the soft
-        // synergy.
-        int bonus = ItemRates.Default.Modifier(item, state.Family);
-        bool attuned = ItemRates.Default.IsAttuned(item, state.Family);
-        var label = Line(
-            $"  {item.DisplayName()}   {item.Tier().DisplayName()}  ·  +{bonus} "
-          + $"{item.Stat().DisplayName()}{(attuned ? "  ✦" : "")}",
-            isEquipped ? WorklingsTheme.Ink : WorklingsTheme.Muted);
-        label.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        line.AddChild(label);
-
-        var button = new Button
-        {
-            Text = isEquipped ? "Take off" : "Equip",
-            CustomMinimumSize = new Vector2(S(90), 0),
+            _category = category;
+            // Changing shelves clears the cursor: an item selected under Gear
+            // has nothing to say while Quest is showing.
+            _inspecting = null;
+            Show(_state);
         };
-        // Equipping routes through PetState, which validates ownership and slot
-        // — the panel never builds a loadout itself, so no surface can smuggle
-        // an item into the wrong place.
-        button.Pressed += () => StateChanged?.Invoke(
-            isEquipped ? state.ClearingSlot(item.Slot()) : state.Equipping(item));
-        line.AddChild(button);
-
-        return line;
+        tab.SelectionChanged += item =>
+        {
+            _inspecting = item;
+            Show(_state);
+        };
+        tab.StateChanged += next => StateChanged?.Invoke(next);
+        return tab;
     }
 
     // MARK: - Care
