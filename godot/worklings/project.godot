@@ -15,7 +15,7 @@ config/name="Worklings"
 ; hold: CFBundleShortVersionString allows only three integers, so the .app knows
 ; it is 0.1.0 build 13 and only this knows it is alpha.13. Shown at the foot of
 ; the character window. Bump it with the build number in export_presets.cfg.
-config/version="0.1.0-alpha.13"
+config/version="0.1.0-alpha.14"
 run/main_scene="res://scenes/desktop_pet.tscn"
 config/features=PackedStringArray("4.7", "C#")
 ; The same art the macOS export bakes into icon.icns. Set here as well so Godot
