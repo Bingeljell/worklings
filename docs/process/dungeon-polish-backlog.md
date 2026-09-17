@@ -124,7 +124,7 @@ letting missing icons justify another text wall.
 hung beside it, on `GearPlate`, shared with the character screen's rail. What is
 left is below.
 
-### The picker is a list, not a shelf — DEFERRED 2026-09-17
+### The picker is a list, not a shelf — UNBLOCKED 2026-09-17
 
 **Raised the day the rig landed.** Clicking a plate opens `SlotPicker`, which is
 a `PopupMenu`: one line of text per item, priced and tiered, with a radio mark on
@@ -132,19 +132,86 @@ what is worn. It is legible and it is a list. The ask is the same one the rig
 answered for slots — *items should have their own identity* — which means a grid
 of item icons with the name and the price under each, not rows of type.
 
-**Why it is deferred rather than done now:** it is the half of the screen that
-is actually blocked on art. `ItemIcon` draws one mark per *slot*, not per item,
-and is honest about being a placeholder — three items in a slot differ only by
-tier colour and by name. A shelf of icons where every Tool wears the same hone
-is not identity, it is the same list with bigger rows and less text. So this
-wants fifteen item marks first, and until they exist the list is the more honest
-surface.
+**It was deferred as blocked on art, and that turned out to be wrong.** The
+reasoning was: `ItemIcon` draws one mark per *slot*, so three items in a slot
+differ only by tier colour and by name, and a shelf where every Tool wears the
+same hone is the same list with bigger rows. True as far as it went — and worse
+than written, because a Scavenged Bent Pot Lid and Scavenged Cold Coffee Dregs
+came out pixel-identical.
+
+But the fifteen items are not fifteen arbitrary things. `Item.Stat()` returns
+one of five primaries and `Item.Tier()` one of three, and the set is exactly the
+5 x 3 product: one item per cell, no gaps, no collisions. Tier was already drawn
+as colour. So a **stat-keyed** mark names all fifteen uniquely for the price of
+five polygons, not fifteen pieces of art. Done 2026-09-17; the picker is no
+longer waiting on anything.
+
+**What is left here is only the shelf itself.** `SlotPicker` is still a
+`PopupMenu` of text rows — it never used `ItemIcon`, so the mark change did not
+touch it. Swapping those rows for a grid of cells is now a presentation change
+with nothing behind it, and `ItemCell` in `InventoryTab.cs` is the widget to
+reuse.
 
 **Seam:** `SlotPicker` is one call — `Open(host, anchor, slot, state, scale,
 changed)` — and both screens go through it, so swapping the `PopupMenu` for a
 drawn shelf changes one file and changes both screens at once. Per-item art
 would land as a per-item case in `ItemIcon` (or an atlas behind it), which is
 also what the Inventory tab needs.
+
+## The Inventory tab — DONE 2026-09-17
+
+**Asked for as part of alpha.14**, and the two notes that shaped it are Nikhil's,
+on the mock: *inventory will hold more than gear eventually — quest items, other
+sorts — account for that*, and *the cards are luxuriously spaced; compress them
+and lean on tooltips*.
+
+Built as a **bag, not a list**, on the arrangement the genre has settled on
+because a player already knows how to read it: 54px cells carrying only the
+mark, rarity on the cell's own border, worn as a corner pip, and every number
+and word in a hover tooltip. Click selects, double-click equips. The fifteen
+items fit in a glance where fifteen rows needed a scroll.
+
+**The second note was two problems, and the second one was a bug.** The spacing,
+yes — but `Equip` was disappearing because the inspector stretched to the grid's
+height and carried the button off the bottom with it. Cells alone would not have
+fixed that. The bag now owns its scroll and the inspector does not scroll at all.
+
+**Categories are the top-level axis** — Gear, Consumables, Quest. Only Gear has
+contents; the others carry an honest empty line saying what they are for.
+Consumables are named in `docs/design/items.md` only as a possible future
+*slot*, and nothing in the game hands out a quest item, so neither was mocked up
+with invented contents. The structural win is that gear stopped being the shape
+of the whole screen.
+
+**Tier colour is grey to gold now**, replacing grey/brass/blue. Two collisions
+were settled to get there and both are worth remembering:
+
+- `WorklingsTheme.GearBlue` is the only thing separating base stats from
+  gear-given stats. Spending blue on a rarity would put an item name in
+  rarity-blue two lines above a stat in gear-blue, meaning different things. So
+  the middle rung is **green**, which also leaves blue *and* pink free for a
+  fourth tier.
+- `Relic` amber is "what the cursor is sitting on", and gold is now the top
+  rarity. **Selection moved to an ink ring**; amber means rarity and attunement
+  only.
+
+`ItemIcon`'s old comment justified Prime's blue as borrowing the creature aura's
+colour. That reading was real and it lost to legibility: nobody decodes an aura
+reference, everybody reads gold as best.
+
+**A fourth rarity is content work, not a palette change** — five stats by four
+tiers is five more items plus changes to the drop table and the boss-only Prime
+rule. Held at three.
+
+**Verified with `character_shot`, not by playing.** It grew
+`WORKLINGS_SHOT_TAB`, fills the bag when the tab is Inventory, and takes the
+tooltip in one frame and the inspector in the other. Four bugs came out of that
+loop that reading the code did not: the worn pip and attunement mark landed
+outside their cells (an anchor preset offsets a position rather than placing
+it), the active category chip drew dark-on-dark (`Flat` suppresses the
+stylebox), and the tooltip came out the height of the window (a wrapping `Label`
+with no minimum width reports the height it would need wrapped one character per
+line).
 
 ## Memory: a heavy baseline, and a measurement that lied
 
@@ -302,12 +369,14 @@ because the `.blend` and the export drift apart.
 **Shipped 2026-09-15** as the hybrid of three drawn layouts — two columns, gear
 rail, bay that grows. What it does not have yet:
 
-1. **Item art.** `ItemIcon` draws one mark per *slot* — a hone, a shield, a
-   star — tinted by tier. Fifteen items want fifteen pieces of art, and until
-   they exist a per-item mark would be a lie about how much art there is. This
-   is the placeholder and it is holding.
-2. **The Inventory tab is still the old list.** It is now a browser rather than
-   the only way to equip, and it has not been redesigned to look like one.
+1. **Item art.** `ItemIcon` now draws one mark per *stat* — bolt, shield, cross,
+   lens, chevron — tinted by tier, which distinguishes all fifteen items without
+   claiming fifteen pieces of art exist. Real per-item art is still wanted; the
+   Wit lens is the weakest of the five and reads oddly at cell size. An owl was
+   drawn for it and rejected (Nikhil, 2026-09-17: "this owl looks weird").
+2. ~~**The Inventory tab is still the old list.**~~ **Done 2026-09-17** — cells
+   with a hover tooltip, categories as the top-level axis, and an inspector that
+   does not scroll. See "The Inventory tab" below.
 3. **The Skills tab is still a placeholder.** The ability tree is designed and
    unbuilt; nothing about the new layout changes that.
 4. **Tab order.** Nikhil wants the four reordered, Care staying its own tab.
