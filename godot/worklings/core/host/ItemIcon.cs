@@ -1,40 +1,70 @@
 using Godot;
 using Worklings.Core.Pet;
+using Worklings.Core.Progression;
 
 namespace Worklings.Core.Host;
 
-/// A drawn mark for a gear slot, tinted by the tier of what is in it.
+/// A drawn mark for a piece of gear — the item's **stat** shape, in its tier's
+/// colour — or the slot's own shape when the slot is empty.
 ///
-/// **Placeholder, and honest about being one.** Fifteen items want fifteen
-/// pieces of art; until that exists, a slot showing its own shape in its own
-/// tier colour is enough for the eye to tell a filled Tool from an empty Charm
-/// across the screen, which a line of text is not. It is drawn rather than
-/// drawn-from-a-file so it is crisp at any display scale and costs no asset.
+/// **One mark per stat, not per item, and that is enough for identity.** The
+/// fifteen items are exactly five primary stats by three tiers: one item per
+/// cell, no gaps and no collisions. Tier is already carried as colour, so five
+/// shapes and three colours name all fifteen uniquely. The earlier version drew
+/// one mark per *slot*, which meant three shapes for fifteen items — and worse,
+/// two items could come out pixel-identical (a Scavenged Bent Pot Lid and a
+/// Scavenged Cold Coffee Dregs are both Wards at the same tier).
 ///
-/// One mark per *slot*, not per item — three items in a slot differ by tier
-/// colour and by name. Per-item marks would be a lie about how much art exists.
+/// Still a placeholder, and still honest about being one: real per-item art is
+/// wanted eventually. But it is a placeholder that *distinguishes*, which is
+/// what a shelf of icons needs and a slot-keyed mark could not give.
+///
+/// Drawn rather than loaded so it is crisp at any display scale and costs no
+/// asset. Polygons only — `DrawColoredPolygon` triangulates concave shapes but
+/// cannot cut a hole, so a mark that needs an interior detail paints it as a
+/// second polygon in the panel colour, on top of the mark's own face.
 public sealed partial class ItemIcon : Control
 {
+    private readonly Item? _item;
     private readonly ItemSlot _slot;
     private readonly Color _tint;
     private readonly bool _filled;
 
     /// Tier colour, and the one place it is decided.
     ///
-    /// Scavenged is deliberately colourless — grey reads as "this is what
-    /// dropped", so Solid's brass and Prime's aura blue read as earned. Prime
-    /// borrows the creature aura's blue on purpose: it is the colour this game
-    /// already uses for energy that came from somewhere else.
+    /// **Grey at the bottom, gold at the top**, which is the ladder every game in
+    /// the genre uses and the one a player already knows how to read. Scavenged
+    /// stays colourless so the two earned tiers read as earned; Solid is the
+    /// uncommon-green rung; Prime is gold.
+    ///
+    /// Prime was blue until 2026-09-17, borrowing the creature aura's colour on
+    /// the theory that blue is this game's "energy from somewhere else". That
+    /// reading is real but it loses to legibility — nobody decodes an aura
+    /// reference, everybody reads gold as best. Blue is also spoken for:
+    /// `WorklingsTheme.GearBlue` is the only thing separating base stats from
+    /// gear-given stats, so spending it on a rarity would make one colour mean
+    /// two things on the same tooltip. Green keeps blue *and* pink free for a
+    /// fourth tier, should one ever be authored.
     public static Color TierColour(ItemTier tier) => tier switch
     {
-        ItemTier.Scavenged => new Color(0.56f, 0.53f, 0.48f),
-        ItemTier.Solid => new Color(0.71f, 0.58f, 0.37f),
-        ItemTier.Prime => new Color(0.30f, 0.61f, 1.00f),
+        ItemTier.Scavenged => new Color(0.561f, 0.529f, 0.478f),
+        ItemTier.Solid => new Color(0.435f, 0.686f, 0.349f),
+        ItemTier.Prime => new Color(0.941f, 0.706f, 0.161f),
         _ => WorklingsTheme.Muted,
     };
 
-    public ItemIcon(ItemSlot slot, Color tint, int size, bool filled = true)
+    /// A mark for `item`, drawn in its tier's colour.
+    public ItemIcon(Item item, int size)
+        : this(item, item.Slot(), TierColour(item.Tier()), size, filled: true)
     {
+    }
+
+    /// The general form. `item` is null for an empty slot, which draws the
+    /// slot's own shape instead — an empty Tool plate should say *Tool*, not
+    /// name a stat nothing is providing.
+    public ItemIcon(Item? item, ItemSlot slot, Color tint, int size, bool filled = true)
+    {
+        _item = item;
         _slot = slot;
         _tint = tint;
         _filled = filled;
@@ -50,35 +80,98 @@ public sealed partial class ItemIcon : Control
         var at = new Vector2((Size.X - s) * 0.5f, (Size.Y - s) * 0.5f);
         Vector2 P(float x, float y) => at + new Vector2(x * s, y * s);
 
-        switch (_slot)
+        // Authored over a 0..100 square and scaled here, so the coordinates
+        // below can be read and edited as if they were a 100x100 drawing.
+        Vector2[] Shape(params float[] xy)
         {
-            // A hone: a blade edge and the handle under it. The Tool is what the
-            // Workling brings to the problem, so it is the only mark with a grip.
-            case ItemSlot.Tool:
-                Fill(new[] { P(0.16f, 0.30f), P(0.84f, 0.16f), P(0.84f, 0.40f), P(0.16f, 0.46f) });
-                Fill(new[] { P(0.30f, 0.52f), P(0.70f, 0.52f), P(0.66f, 0.86f), P(0.34f, 0.86f) });
+            var points = new Vector2[xy.Length / 2];
+            for (int i = 0; i < points.Length; i++)
+            {
+                points[i] = P(xy[i * 2] / 100f, xy[i * 2 + 1] / 100f);
+            }
+            return points;
+        }
+
+        if (_item is Item item)
+        {
+            DrawStatMark(item.Stat(), Shape);
+            return;
+        }
+
+        DrawSlotMark(Shape);
+    }
+
+    /// The five stat marks. One per primary, so an item's shape names what it
+    /// does for you rather than which pocket it lives in.
+    private void DrawStatMark(PetStatKind stat, System.Func<float[], Vector2[]> shape)
+    {
+        switch (stat)
+        {
+            // A bolt. Legible at cell size, where the more literal choice — a
+            // flexed arm — needs silhouette detail a 30-pixel square cannot hold.
+            case PetStatKind.Power:
+                Fill(shape(new[] { 60f, 6f, 24f, 54f, 44f, 54f, 38f, 94f, 76f, 40f, 54f, 40f }));
                 break;
 
             // A shield, the one shape nobody needs explained.
-            case ItemSlot.Ward:
-                Fill(new[]
+            case PetStatKind.Defense:
+                Fill(shape(new[]
                 {
-                    P(0.50f, 0.12f), P(0.86f, 0.26f), P(0.86f, 0.52f),
-                    P(0.50f, 0.88f), P(0.14f, 0.52f), P(0.14f, 0.26f),
-                });
+                    50f, 12f, 86f, 26f, 86f, 52f, 50f, 88f, 14f, 52f, 14f, 26f,
+                }));
                 break;
 
-            // A four-point star with the waist pulled in, so it reads as a
-            // sparkle rather than as a diamond.
+            // A cross: the one symbol that reads as "keeps going" at any size.
+            case PetStatKind.Vitality:
+                Fill(shape(new[]
+                {
+                    42f, 12f, 58f, 12f, 58f, 42f, 88f, 42f, 88f, 58f, 58f, 58f,
+                    58f, 88f, 42f, 88f, 42f, 58f, 12f, 58f, 12f, 42f, 42f, 42f,
+                }));
+                break;
+
+            // A lens on a stem — it shows you the actual problem, not the loud
+            // one. An owl was drawn and rejected: the tufts and beak carried it,
+            // but at cell size it read as a blob. Wit gets real art eventually.
+            case PetStatKind.Wit:
+                Fill(shape(new[] { 50f, 10f, 76f, 30f, 76f, 58f, 50f, 78f, 24f, 58f, 24f, 30f }));
+                Fill(shape(new[] { 44f, 80f, 56f, 80f, 56f, 94f, 44f, 94f }));
+                break;
+
+            // A double chevron: already half a step ahead.
             default:
-                var star = new Vector2[8];
+                Fill(shape(new[] { 20f, 20f, 52f, 50f, 20f, 80f, 34f, 80f, 66f, 50f, 34f, 20f }));
+                Fill(shape(new[] { 50f, 20f, 82f, 50f, 50f, 80f, 64f, 80f, 96f, 50f, 64f, 20f }));
+                break;
+        }
+    }
+
+    /// The slot's own shape, for an empty slot. Tool and Ward borrow the mark of
+    /// the stat they exist for — Power is the only Tool stat, and a Ward is a
+    /// shield whichever of its two stats fills it. Charm gets a star, because it
+    /// holds two unlike stats and neither should speak for the empty slot.
+    private void DrawSlotMark(System.Func<float[], Vector2[]> shape)
+    {
+        switch (_slot)
+        {
+            case ItemSlot.Tool:
+                DrawStatMark(PetStatKind.Power, shape);
+                break;
+
+            case ItemSlot.Ward:
+                DrawStatMark(PetStatKind.Defense, shape);
+                break;
+
+            default:
+                var star = new float[16];
                 for (int i = 0; i < 8; i++)
                 {
                     float angle = Mathf.Pi * i / 4f - Mathf.Pi / 2f;
-                    float radius = i % 2 == 0 ? 0.42f : 0.13f;
-                    star[i] = P(0.5f + Mathf.Cos(angle) * radius, 0.5f + Mathf.Sin(angle) * radius);
+                    float radius = i % 2 == 0 ? 42f : 13f;
+                    star[i * 2] = 50f + Mathf.Cos(angle) * radius;
+                    star[i * 2 + 1] = 50f + Mathf.Sin(angle) * radius;
                 }
-                Fill(star);
+                Fill(shape(star));
                 break;
         }
     }

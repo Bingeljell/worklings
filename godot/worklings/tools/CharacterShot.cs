@@ -46,6 +46,41 @@ public partial class CharacterShot : Node
         return PetFamily.Relicborn;
     }
 
+    /// Which tab to open on. The bay is on Character, the bag is on Inventory,
+    /// and a shot of the wrong one verifies nothing about the other.
+    private static string ShotTab()
+    {
+        string wanted = OS.GetEnvironment("WORKLINGS_SHOT_TAB");
+        foreach (string title in new[] { "Character", "Inventory", "Skills", "Care" })
+        {
+            if (title.ToLowerInvariant() == wanted.ToLowerInvariant())
+            {
+                return title;
+            }
+        }
+        return "Character";
+    }
+
+    private static void Cells(Node node, System.Collections.Generic.List<ItemCell> into)
+    {
+        if (node is ItemCell cell) into.Add(cell);
+        foreach (var child in node.GetChildren())
+        {
+            Cells(child, into);
+        }
+    }
+
+    private static ItemCell? FindCell(Node node, System.Func<ItemCell, bool>? want = null)
+    {
+        var all = new System.Collections.Generic.List<ItemCell>();
+        Cells(node, all);
+        foreach (var cell in all)
+        {
+            if (want is null || want(cell)) return cell;
+        }
+        return null;
+    }
+
     private static AnimationPlayer? FindPlayer(Node node)
     {
         if (node is AnimationPlayer p) return p;
@@ -90,12 +125,42 @@ public partial class CharacterShot : Node
             // carries an empty slot, which is the state with its own drawing.
             .ClearingSlot(ItemSlot.Charm);
 
+        // A full bag when the shot is of the Inventory tab: three items and two
+        // empty shelves says nothing about whether fifteen cells read as a bag.
+        if (ShotTab() == "Inventory")
+        {
+            foreach (var owned in ItemExtensions.AllCases)
+            {
+                state = state.Acquiring(owned);
+            }
+        }
+
         var panel = new CharacterPanel(1.0f);
         // Parented to this node, not to the window: a node is still setting up
         // its children during _Ready, so AddChild on the window fails there.
         // A Control under a plain Node still anchors against the viewport.
         AddChild(panel);
         panel.Show(state);
+        panel.SelectTab(ShotTab());
+
+        // Park the pointer on a cell so the shot carries the tooltip too. The
+        // tooltip IS the reading surface on that tab — a shot of the bag with
+        // nothing hovered leaves the half that holds every number unverified.
+        if (ShotTab() == "Inventory" && FindCell(panel) is Control cell)
+        {
+            ProjectSettings.SetSetting("gui/timers/tooltip_delay_sec", 0.1);
+            await ToSignal(GetTree(), "process_frame");
+            var over = cell.GetGlobalRect().GetCenter();
+            Input.WarpMouse(over);
+            // WarpMouse moves the cursor but synthesises no motion, and the
+            // tooltip timer starts on motion — without this the pointer sits on
+            // the cell and nothing ever pops.
+            Input.ParseInputEvent(new InputEventMouseMotion
+            {
+                Position = over,
+                GlobalPosition = over,
+            });
+        }
 
         for (int i = 0; i < Out.Length; i++)
         {
@@ -103,6 +168,13 @@ public partial class CharacterShot : Node
             // and are identical if the bay is a still picture of frame one.
             await ToSignal(GetTree().CreateTimer(i == 0 ? 1.2 : 1.0), "timeout");
             await ToSignal(RenderingServer.Singleton, "frame_post_draw");
+            // Shot 0 catches the tooltip, shot 1 the inspector. Both halves of
+            // the tab carry numbers, and one frame can only hold one of them.
+            if (i == 0 && ShotTab() == "Inventory")
+            {
+                var pick = FindCell(panel, c => state.Loadout[c.Item.Slot()] != c.Item);
+                pick?.EmitSignal(BaseButton.SignalName.Pressed);
+            }
             var path = ProjectSettings.GlobalizePath(Out[i]);
             GetViewport().GetTexture().GetImage().SavePng(path);
             // Whether the bay is LIVE, not merely lit. A still model in a box
