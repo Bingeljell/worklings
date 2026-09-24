@@ -147,7 +147,7 @@ can be re-baked one at a time; nothing has to land as a big-bang swap.
 ### Grid layout
 
 Fixed 4-column × 5-row grid, matching `WorklingSpriteFrame` in
-`Sources/Worklings/WildkinPetView.swift`:
+`Sources/Worklings/WildkinPetView.swift` (Swift app, removed — see tag `swift-final`):
 
 | Row | Col 0 | Col 1 | Col 2 | Col 3 |
 | --- | --- | --- | --- | --- |
@@ -421,6 +421,9 @@ lashing outward. It has a Snare (an Agility debuff), so the silhouette wants to 
 *seizing*, not punching.
 
 ### Dropping a new foe in
+
+> Swift app only — the steps below were how the removed Swift app loaded foe
+> sprites. Foes are now 3D bodies; see [the character asset pipeline](../engineering/character-asset-pipeline.md).
 
 1. Bake the three PNGs to `assets/foes/`.
 2. Add them to `Package.swift` `resources:` — `.copy("../../assets/foes/snag-idle.png")`

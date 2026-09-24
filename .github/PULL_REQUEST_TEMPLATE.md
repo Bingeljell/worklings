@@ -17,10 +17,10 @@ Explain every unchecked item, including compatibility or migration behavior.
 
 ## Verification
 
-- [ ] `swift build`
-- [ ] `swift run CompanionCoreChecks`
-- [ ] New or updated checks cover changed core behavior
-- [ ] Manual verification notes are included for AppKit or SwiftUI behavior
+- [ ] `dotnet build godot/worklings`
+- [ ] `scripts/godot-probe`
+- [ ] New or updated probes cover changed core behavior
+- [ ] Manual verification notes are included for window, input, or UI behavior
 - [ ] `docs/changelog.md` is updated
 - [ ] Relevant documentation is updated
 

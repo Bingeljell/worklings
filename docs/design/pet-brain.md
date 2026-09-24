@@ -129,7 +129,7 @@ An unreadable save is never overwritten — it's preserved, persistence pauses f
 
 ## Checks
 
-`swift run CompanionCoreChecks` covers clamping, defaults, mood priority, deterministic simulation, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, Log Work's cooldown/daily cap/day rollover, and the [XP/level/class/stat system](progression.md#tuning-reference)'s curve, condition multiplier, per-source and overall daily caps, day rollover, and class-weighted stat growth.
+`scripts/godot-probe` covers clamping, defaults, mood priority, deterministic simulation, offline caps, care tradeoffs and refusals, persistence round trips, corrupt-save preservation, family switching, renaming validity, urgency, presentation, placement, Log Work's cooldown/daily cap/day rollover, and the [XP/level/class/stat system](progression.md#tuning-reference)'s curve, condition multiplier, per-source and overall daily caps, day rollover, and class-weighted stat growth.
 
 ## Tuning reference
 
@@ -137,7 +137,7 @@ Every number on this page is alpha tuning, but they live in different places dep
 
 | Knob | Default | Where |
 | --- | --- | --- |
-| Fullness / Energy / Happiness decay per hour | 4 / 3 / 1 | `PetSimulationRates` in `Sources/CompanionCore/PetBrain.swift` |
+| Fullness / Energy / Happiness decay per hour | 4 / 3 / 1 | `PetSimulationRates` in `godot/worklings/core/pet/PetBrain.cs` |
 | Maximum offline catch-up | 7 days | `PetSimulationRates.maximumOfflineHours` |
 | Working Fullness / Energy multiplier | 1.25× / 1.3× | `PetSimulationRates.workingHungerMultiplier` / `.workingEnergyMultiplier` |
 | Away Trust rate (first hour / beyond) | 2/hour / 0.2/hour | `PetSimulationRates.awayTrustPerHour` / `.longAwayTrustPerHour` |
@@ -148,12 +148,12 @@ Every number on this page is alpha tuning, but they live in different places dep
 | Pet / Sleep | Happiness +8/Trust +4 · Fullness -6/Energy +35/Happiness +2 | `PetBrain.perform`, `.pet`/`.sleep` cases (inline) |
 | Play requires Energy ≥ | 15 | `PetBrain.perform`, `.play` case (inline) |
 | `dailyWake` / `taskCompleted` / `taskFailed` / `milestone` deltas | see the [event table](#activity-events) above | `PetBrain.observe` (inline) |
-| Mood thresholds (Hungry/Sleepy/Wary/Sad/Happy) | Fullness ≤25, Energy ≤20, Trust ≤20, Happiness ≤30, Happy needs all three healthy | `PetState.mood` in `Sources/CompanionCore/PetState.swift` (inline) |
-| Notice / Urgent / Critical thresholds | Fullness 45/25/10, Energy 45/20/10, Happiness 45/30/15, Trust 35/20/10 | `PetCareStatus` condition functions in `Sources/CompanionCore/PetCareStatus.swift` (inline) |
-| Activity context expiry | 30 minutes | `ActivityContext.defaultExpiryInterval` in `Sources/CompanionCore/ActivityEvent.swift` |
-| Presence idle threshold / poll interval | 5 min / 15 sec | `PresenceEvaluator.defaultIdleThreshold` (CompanionCore) / `PresenceMonitor`'s `pollInterval` default (`Sources/Worklings/PresenceMonitor.swift`) |
-| Maximum pet name length | 24 characters | `PetState.maximumNameLength` in `Sources/CompanionCore/PetState.swift` |
-| Debug-only overrides | env vars, compiled out of release | `WORKLINGS_IDLE_THRESHOLD_SECONDS`, `WORKLINGS_PRESENCE_POLL_SECONDS`, `WORKLINGS_DEBUG_RATE_SCALE` in `Sources/Worklings/AppDelegate.swift` |
+| Mood thresholds (Hungry/Sleepy/Wary/Sad/Happy) | Fullness ≤25, Energy ≤20, Trust ≤20, Happiness ≤30, Happy needs all three healthy | `PetState.Mood` in `godot/worklings/core/pet/PetState.cs` (inline) |
+| Notice / Urgent / Critical thresholds | Fullness 45/25/10, Energy 45/20/10, Happiness 45/30/15, Trust 35/20/10 | `PetCareStatus` condition functions in `godot/worklings/core/pet/PetCareStatus.cs` (inline) |
+| Activity context expiry | 30 minutes | `ActivityContext.DefaultExpiryInterval` in `godot/worklings/core/pet/ActivityEvent.cs` |
+| Presence idle threshold / poll interval | 5 min / 15 sec | `DefaultIdleThreshold` in `godot/worklings/core/pet/ActivitySources.cs` / `PresenceWatcher.PollSeconds` in `godot/worklings/core/host/PresenceWatcher.cs` |
+| Maximum pet name length | 24 characters | `PetState.MaximumNameLength` in `godot/worklings/core/pet/PetState.cs` |
+| Debug-only overrides | not carried into the Godot build | The Swift app's `WORKLINGS_IDLE_THRESHOLD_SECONDS`, `WORKLINGS_PRESENCE_POLL_SECONDS` and `WORKLINGS_DEBUG_RATE_SCALE` were not ported. `WORKLINGS_SAVE` and `WORKLINGS_INBOX_DIR` redirect the save and the inbox instead |
 
 Everything in `PetSimulationRates` is a named, constructor-injected constant — the easy case, already the right shape for tuning. Everything marked "inline" is a magic number sitting directly in a `switch` case, which works but means tuning it means editing source and rebuilding rather than adjusting one obvious place. Consolidating the inline constants into `PetSimulationRates` (or a sibling struct) so every knob lives in one discoverable, named location is worth doing — deliberately not done now, to avoid restructuring numbers that are still actively being tuned turn by turn.
 

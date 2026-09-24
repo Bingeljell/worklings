@@ -35,7 +35,7 @@ Worklings combines three ideas:
 - **A respectful desktop presence:** a floating companion that can be moved, tucked away, and eventually roam without obstructing work.
 - **Provider-neutral activity awareness:** Codex is the first planned activity source, but the Pet Brain consumes generic activity events rather than Codex-specific state.
 
-The project is macOS-first and built in **Godot 4 with C#**. It began as a Swift/SwiftUI app; the rules engine was ported to C# and the presentation rebuilt in Godot when the pet and the dungeon both needed real 3D. The Swift sources under `Sources/` are the original and are now legacy — the shipping app is `godot/worklings`. Pet state is processed and stored locally. Keystrokes, screen contents, prompts, and source code are outside the default data model.
+The project is macOS-first and built in **Godot 4 with C#**. It began as a Swift/SwiftUI app; the rules engine was ported to C# and the presentation rebuilt in Godot when the pet and the dungeon both needed real 3D. The Swift app has been removed; the last commit that has it is tagged `swift-final`. The app is `godot/worklings`. Pet state is processed and stored locally. Keystrokes, screen contents, prompts, and source code are outside the default data model.
 
 ## Character direction
 

@@ -131,7 +131,7 @@ Build order is incremental and additive. A sensible **v1 subset** (coherent, min
 
 ## Knobs (held)
 
-All magnitudes are alpha tuning, to live in the `PetCombatRates` neighborhood (`Sources/CompanionCore/PetCombat.swift`): every primary→derived coefficient, multi-strike chance/fraction, mitigation %, evasion %, crit chance/damage curves, armor-pen %, resource pool sizes and regen (baseline + amplifier), and the Luck coefficients.
+All magnitudes are alpha tuning, to live in the `PetCombatRates` neighborhood (`godot/worklings/core/combat/PetCombatRates.cs`): every primary→derived coefficient, multi-strike chance/fraction, mitigation %, evasion %, crit chance/damage curves, armor-pen %, resource pool sizes and regen (baseline + amplifier), and the Luck coefficients.
 
 ## Open questions
 

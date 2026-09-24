@@ -301,7 +301,7 @@ mechanism for a future dungeon builder: same room kit, same camera rig, just a d
 corner pairing.
 
 **Found with the Dungeon Stage Camera Tool** (🐾 menu → *Dungeon Stage Camera Tool…*,
-debug builds only, `Sources/Worklings/DungeonStageCameraTool.swift`) — an orbitable grey
+debug builds only, `Sources/Worklings/DungeonStageCameraTool.swift` (Swift app, removed — see tag `swift-final`)) — an orbitable grey
 blockout of the four bands with placeholder party/foe billboards, so a standoff
 composition can actually be judged rather than guessed from a still image. Its window is
 a **fixed 1280×720 (16:9, scaled 1080p)** and deliberately not resizable: the same camera
@@ -340,7 +340,7 @@ camera.
 **Wired into the real arena (2026-08-20):** the flat painted cave backdrop is gone — the
 live `DungeonStageScene` room, at the locked camera above, is what the Cache Warren's
 actual in-game panel renders now (room-only; see `Sources/Worklings/DungeonStage3D.swift`
-and `CombatPanel.swift`'s `ArenaBackground`). The panel itself resized from 600×480 to
+and `CombatPanel.swift`'s `ArenaBackground` (Swift app, removed — see tag `swift-final`)). The panel itself resized from 600×480 to
 1280×720 to match. Party and foe **still render as the old flat side-by-side SwiftUI
 columns** — untouched by this pass, not yet repositioned into the diagonal corners or
 turned into real scene actors.
@@ -716,7 +716,7 @@ sheet and needs, everything else is additive.
 - **Decision-point detection** — the cadence + event triggers that pause for input.
 - **Orchestration** — encounter → (later) delve: HP carry, inter-encounter regen, entry gate (level + [refusal](#condition--combat-the-closed-loop)), and exit-tier computation.
 - **Reward + feedback application** — grant XP (reuse the existing progression path), apply the [exit-tier condition deltas](#condition--combat-the-closed-loop) to needs, and (later) award ability points / items.
-- **Behavioral checks** — determinism/replay, each formula, decision triggers, exit-tier mapping, refusal, reward caps, and the per-class differences. This is the layer `CompanionCoreChecks` covers.
+- **Behavioral checks** — determinism/replay, each formula, decision triggers, exit-tier mapping, refusal, reward caps, and the per-class differences. This is the layer the probes (`scripts/godot-probe`) cover.
 
 ### App — `Worklings` (timing, animation, presentation)
 

@@ -159,7 +159,7 @@ Progression fields (XP, class, stats, daily accrual bookkeeping) extend the exis
 
 ## Tuning reference
 
-Same posture as [Pet Brain's tuning reference](pet-brain.md#tuning-reference): every number below is alpha tuning, living in named `PetProgressionRates` fields (`Sources/CompanionCore/PetProgression.swift`), easy to retune without touching the mechanism.
+Same posture as [Pet Brain's tuning reference](pet-brain.md#tuning-reference): every number below is alpha tuning, living in named `PetProgressionRates` fields (`godot/worklings/core/progression/PetProgression.cs`), easy to retune without touching the mechanism.
 
 | Knob | Default | Field |
 | --- | --- | --- |

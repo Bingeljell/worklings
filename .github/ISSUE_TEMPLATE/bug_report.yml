@@ -28,7 +28,7 @@ body:
     attributes:
       label: Installation method
       options:
-        - swift run Worklings
+        - scripts/godot-pet (from source)
         - GitHub Release DMG
         - Locally built app bundle
         - Other

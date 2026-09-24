@@ -109,7 +109,7 @@ Name, mood, and the hover summary live in the pet's accessibility label. Every c
 
 ## Verification
 
-`swift run CompanionCoreChecks` covers the domain rules above. Manual macOS review covers hover, click-versus-drag, card focus and dismissal, menu/card consistency, VoiceOver, Reduce Motion, family swaps under smoke, and roaming interruptions.
+`scripts/godot-probe` covers the domain rules above. Manual macOS review covers hover, click-versus-drag, card focus and dismissal, menu/card consistency, VoiceOver, Reduce Motion, family swaps under smoke, and roaming interruptions.
 
 ## Deferred
 
