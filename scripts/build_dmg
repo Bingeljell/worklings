@@ -83,7 +83,7 @@ dmg_path="$output_dir/$dmg_name"
 checksum_path="$dmg_path.sha256"
 
 if [ ! -d "$app_path" ]; then
-  printf 'Error: app bundle is missing; run scripts/build_app_bundle first: %s\n' "$app_path" >&2
+  printf 'Error: app bundle is missing; run scripts/godot-export --version <version> first: %s\n' "$app_path" >&2
   exit 1
 fi
 
