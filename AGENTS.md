@@ -1,5 +1,9 @@
 # Repo Guidelines 
 
+How to communicate in this repo: Keep your answers short. No jargon - if we have to use abbriviations or jargon
+we must explain it. We simplify everything. We don't over think or over explain. Brevity is important. Humour and wit is acceptable. 
+
+
 1. Detailed project documentation belongs in the `docs/` folder. Standard repository entry-point and governance files such as `README.md`, `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md` may live at the repository root.
 2. Do not delete any database files
 3. Ensure all git commands are reversible. Commit in small logical chunks using the workflow described below.
@@ -13,6 +17,7 @@
 9. Git branching/release process is documented in `docs/process/git-workflow.md` and must be followed.
 10. Before using browser automation, confirm whether the user wants the agent to perform the browser steps. Prefer a concise handoff when the user can complete them more quickly or with less token usage. An explicit request to use the browser in the current task counts as confirmation.
 11. Commits and PRs should not include any co-authorshitp - claude, codex, whatever...
+
 ## Commit Workflow
   - Always commit and push using `scripts/committer`.
   - Do not use direct `git add` / `git commit` unless explicitly asked.
