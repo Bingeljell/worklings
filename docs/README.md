@@ -39,12 +39,13 @@ abilities, dungeons, and the class/family splits all land here as they take shap
 
 ## engineering/ — how it's built
 
-- [Architecture](engineering/architecture.md) — targets, boundaries, the activity inbox, privacy posture.
+- [Architecture](engineering/architecture.md) — targets, boundaries, the activity inbox, privacy posture. *Describes the removed Swift app; due a rewrite.*
 - [Cross-platform architecture](engineering/cross-platform-architecture.md) — the macOS-first stance and the decision gates before any expansion. Guidance, not committed scope.
 - [Adapters](engineering/adapters.md) — the "sending half": how external tools feed content-free activity events in.
 - [Tools](engineering/tools.md) — every probe, check, screenshot tool and script, what each answers, and how to run it.
 - [Character rigging pipeline](engineering/character-rigging-pipeline.md) — Trellis mesh to a weighted Rigify rig: mesh repair, metarig fitting, adding bones the template lacks, weight auditing.
 - [Character asset pipeline](engineering/character-asset-pipeline.md) — the rigged `.blend` to a Godot `.glb`: triangle and texture budgets, the exporter, what actually drives file size.
+- [Retiring the Swift app](engineering/swift-retirement.md) — why the Swift code was deleted on 2026-09-24, what was checked first, and how to get it back from the `swift-final` tag.
 
 ## process/ — how we work
 
