@@ -1,6 +1,6 @@
 # Repo Guidelines 
 
-How to communicate in this repo: Keep your answers short. No jargon - if we have to use abbriviations or jargon
+How to communicate in this repo: Keep your answers short. No jargon - if we have to use abbreviations or jargon
 we must explain it. We simplify everything. We don't over think or over explain. Brevity is important. Humour and wit is acceptable. 
 
 
@@ -16,7 +16,7 @@ we must explain it. We simplify everything. We don't over think or over explain.
 8. Before installing dependencies or creating additional files, get user permission and explain why they are needed.
 9. Git branching/release process is documented in `docs/process/git-workflow.md` and must be followed.
 10. Before using browser automation, confirm whether the user wants the agent to perform the browser steps. Prefer a concise handoff when the user can complete them more quickly or with less token usage. An explicit request to use the browser in the current task counts as confirmation.
-11. Commits and PRs should not include any co-authorshitp - claude, codex, whatever...
+11. Commits and PRs should not include any co-authorship - claude, codex, whatever...
 
 ## Commit Workflow
   - Always commit and push using `scripts/committer`.
