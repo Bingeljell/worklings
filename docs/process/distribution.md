@@ -88,8 +88,8 @@ A public beta intended for broad non-technical use should eventually be signed w
 Every release candidate must:
 
 1. Come from a clean commit on `main` with a matching version tag.
-2. Pass the full Swift build and `CompanionCoreChecks` suite.
-3. Build the executable in release configuration for the declared architecture.
+2. Pass `dotnet build godot/worklings` and `scripts/godot-probe`.
+3. Export the app in release configuration for the declared architecture.
 4. Contain valid `Info.plist` version, identifier, executable, and minimum-system metadata.
 5. Pass strict `codesign` verification after ad-hoc signing.
 6. Produce a DMG that passes `hdiutil verify`.
@@ -102,10 +102,10 @@ Application launch remains a manual smoke test because launching a foreground ma
 Build the next Worklings application bundle with:
 
 ```bash
-scripts/build_app_bundle --version 0.1.0-alpha.3 --build-number 3
+scripts/godot-export --version 0.1.0-alpha.3
 ```
 
-The builder refuses to replace an existing application bundle. Choose a new output directory for an isolated test, or deliberately remove an obsolete generated artifact before rebuilding it.
+The exporter replaces any bundle already at `dist/<version>/Worklings.app`, then ad-hoc signs the result.
 
 Package the application bundle as a DMG with:
 

@@ -9,6 +9,12 @@
 
 If this session is gone, start here.
 
+**Swift is gone (2026-09-24).** `Sources/`, `Tests/` and `Package.swift` were
+deleted once the Godot build had shipped several alphas on its own; the last
+commit that has them is tagged **`swift-final`**. CI now runs `scripts/godot-probe`.
+The C# is the source of truth from here — where this doc says "check against
+Swift", the tag is how.
+
 ### Where the work is
 
 `main` has the full loop: a pet on the desktop, care, and a delve it walks into
@@ -252,6 +258,9 @@ from the running Swift implementation, not against expectations — see
 all diffing clean.
 
 ## What still stands between here and deleting Swift
+
+**Done — Swift was deleted on 2026-09-24** (tag `swift-final`). Kept for the
+record of what was checked first.
 
 Asked directly on 2026-09-04, and worth keeping current: **what would have to be
 true before the Swift app could be removed and nothing would be missed?**
@@ -761,7 +770,9 @@ The probes, in dependency order: `rng_probe`, `bounded_draw_probe`,
 `activity_probe`, `observe_probe`, `sources_probe`, `inbox_probe`,
 `status_probe`, `connector_probe`.
 
-**Capture the Swift side.** `CompanionCore` is a library with no runnable entry
+**Capture the Swift side.** The Swift is only in the `swift-final` tag now, so
+check it out beside the repo first — `git worktree add ../worklings-swift swift-final`
+— and run the commands below from inside it. `CompanionCore` is a library with no runnable entry
 point, and SPM leaves no linkable archive to build against, so the reference
 generator is compiled *alongside the sources*. The file must be named
 `main.swift` — Swift only allows top-level statements there — and must not
@@ -795,9 +806,10 @@ scripts/godot-probe --record persistence
 
 **`activity`, `observe`, `sources`, `inbox`, `status`, `connector`,
 `persistence`, `placement` and `care` have stored references**; the other nine
-want the same treatment, which is a re-capture from Swift each, not a rename. `--record` is
-only correct once the new output has been checked against the Swift original —
-recording a regression is exactly as easy as recording a fix.
+want the same treatment, which is a re-capture from Swift each (from the
+`swift-final` tag), not a rename. `--record` is only correct once the new output
+has been checked — against that Swift capture for a ported probe, by hand for new
+behaviour. Recording a regression is exactly as easy as recording a fix.
 
 ## Open, in priority order
 

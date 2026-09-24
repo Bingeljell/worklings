@@ -141,7 +141,6 @@ candidate exports can be compared without being committed to the project first.
 | script | what it does |
 |---|---|
 | `godot-export` | builds a real, runnable `Worklings.app` |
-| `build_app_bundle` | `--version <v> --build-number <n>` |
 | `build_dmg` | `--version <v>` |
 | `verify_release` | `--version <v>` |
 

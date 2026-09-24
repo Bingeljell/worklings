@@ -14,7 +14,8 @@
 #   scripts/godot-probe --record persistence
 #
 # --record writes the current output as the new reference. Only ever run it when
-# the output has been checked against the Swift original — see
+# the output has been checked: against the Swift original (tag swift-final) for a
+# ported probe, by hand for new behaviour — see
 # docs/engineering/godot-port-status.md for how a reference is captured.
 
 set -euo pipefail

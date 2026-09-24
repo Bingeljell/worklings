@@ -16,28 +16,28 @@ Small fixes, tests, documentation improvements, and narrowly scoped accessibilit
 
 ## Development setup
 
-Worklings requires macOS 14 or newer, a Swift 6-compatible toolchain, and Git. See the [repository README](README.md#use-from-the-repository) for clone and run instructions.
+Worklings requires macOS 14 or newer, the Godot 4.7 **.NET** build, the .NET 8 SDK, and Git. See the [repository README](README.md#use-from-the-repository) for clone and run instructions.
 
-Build all targets:
-
-```bash
-swift build
-```
-
-Run the behavioral checks:
+Build:
 
 ```bash
-swift run CompanionCoreChecks
+dotnet build godot/worklings
 ```
 
-The check runner is intentionally dependency-free so it works on a minimal Apple Command Line Tools installation.
+Run the behavioral checks — headless probes, each diffed against its stored reference:
+
+```bash
+scripts/godot-probe
+```
+
+Set `GODOT` if the Godot binary is not at `/Applications/Godot.app`.
 
 ## Design boundaries
 
 Contributions should preserve these boundaries:
 
 - Worklings is a pet first, not a productivity score or surveillance tool.
-- Pet simulation belongs in `CompanionCore`; application code should not duplicate Pet Brain rules.
+- Pet simulation belongs in the rules code under `godot/worklings/core/` (pet, combat, progression); scenes and UI should not duplicate Pet Brain rules.
 - Activity integrations emit provider-neutral events and must not feed prompts, source code, keystrokes, or screen contents into the Pet Brain.
 - State remains local by default, with explicit schema versions and tested migrations.
 - The desktop companion must remain controllable, non-obstructive, keyboard accessible where applicable, and respectful of Reduce Motion.
@@ -50,7 +50,7 @@ Read [the architecture](docs/engineering/architecture.md), [product brief](docs/
 1. Fork the repository and branch from an up-to-date `main`.
 2. Keep the branch focused on one user-visible or architectural outcome.
 3. Add or update behavioral checks for domain, persistence, placement, or presentation changes.
-4. Manually verify AppKit and SwiftUI interactions that automated checks cannot cover.
+4. Manually verify window, input, and UI behavior that the probes cannot cover.
 5. Update relevant documentation and `docs/changelog.md`.
 6. Rebase or merge the latest `main` if the branch has become difficult to review.
 
@@ -62,8 +62,8 @@ A pull request is ready for review when it:
 
 - explains the user problem and the intended outcome;
 - describes the chosen approach and material tradeoffs;
-- builds with `swift build`;
-- passes `swift run CompanionCoreChecks`;
+- builds with `dotnet build godot/worklings`;
+- passes `scripts/godot-probe`;
 - includes relevant automated checks and manual verification notes;
 - preserves existing saves or includes an explicit, tested migration;
 - addresses privacy, permissions, accessibility, and Reduce Motion when relevant;

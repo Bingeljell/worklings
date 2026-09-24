@@ -165,7 +165,7 @@ alongside the dungeon knobs.
 
 ## As built
 
-`Sources/CompanionCore/Items.swift` (plus `ownedItems` / `loadout` on `PetState`)
+`godot/worklings/core/pet/Items.cs` (plus `OwnedItems` / `Loadout` on `PetState`)
 implements the model above. Existing raw values were preserved when the catalogue grew to
 three tiers, so the ten new items are purely additive — an old save reads back unchanged.
 Three deviations, each forced by something that doesn't exist yet rather than by a change

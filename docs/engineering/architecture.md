@@ -28,6 +28,10 @@ Raw prompts, source code, tool arguments, window contents, and keystrokes are ou
 
 ## Technology and targets
 
+> **Out of date.** This describes the Swift app, which was removed on 2026-09-24
+> (tag `swift-final`). The app is now Godot 4 with C# under `godot/worklings/` —
+> see [the Godot port status](godot-port-status.md) until this page is rewritten.
+
 Worklings uses Swift Package Manager and Apple frameworks only, targeting macOS 14 or newer.
 
 The current implementation remains intentionally macOS-first. The boundaries, framework evaluation criteria, and decision gates for a possible Windows, Linux, iOS, or Android expansion are recorded in the [cross-platform architecture roadmap](cross-platform-architecture.md). That roadmap is guidance rather than committed scope or a planned rewrite.
