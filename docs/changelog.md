@@ -1,5 +1,7 @@
 # Changelog
 
+- **2026-09-24 > AGENTS.md > typos > Fix "abbriviations" and "co-authorshitp".**
+
 - **2026-09-24 > AGENTS.md > communication note > Agents keep answers short, explain any jargon, and keep it simple.**
 
 - **2026-09-24 > docs/engineering/swift-retirement.md, docs/README.md > new write-up > Why the Swift app was deleted, what was checked first, the rule change for recording probe outputs, and what is still open. Indexed in docs/README, where Architecture is now marked as due a rewrite.**
